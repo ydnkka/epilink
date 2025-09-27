@@ -2,9 +2,6 @@
 requires = ["hatchling>=1.22", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
-[project.scripts]
-epilink = "epilink.cli:main"
-
 [project]
 name = "epilink"
 dynamic = ["version"]
@@ -18,7 +15,9 @@ authors = [
 keywords = ["epidemiology", "SARS-CoV-2", "infectious disease", "genomics", "transmission"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: MIT License",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -48,6 +47,9 @@ dev = [
 Homepage = "https://github.com/ydnkka/epilink"
 Issues = "https://github.com/ydnkka/epilink/issues"
 
+[project.scripts]
+epilink = "epilink.cli:main"
+
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = "^v(?P<version>.+)$"
@@ -72,4 +74,7 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=epilink --cov-report=term-missing"
+addopts = "-q --cov=epilink --cov-report=term-missing --cov-fail-under=80"
+
+[tool.epilink]
+numba_disable_jit = false
