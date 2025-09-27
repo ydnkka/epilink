@@ -2,6 +2,9 @@
 requires = ["hatchling>=1.22", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
+[project.scripts]
+epilink = "epilink.cli:main"
+
 [project]
 name = "epilink"
 dynamic = ["version"]
