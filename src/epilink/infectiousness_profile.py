@@ -29,6 +29,14 @@ import numpy.typing as npt
 from numpy.random import Generator, default_rng
 from scipy import stats
 
+# NumPy 2.0 deprecates np.trapz in favour of np.trapezoid.
+# Provide a small compatibility shim.
+
+try:
+    _trapz = np.trapezoid  # NumPy >= 1.20
+except AttributeError:     # pragma: no cover
+    _trapz = np.trapz      # Older NumPy
+
 ArrayLike = npt.ArrayLike
 
 
@@ -245,7 +253,7 @@ class TOIT(InfectiousnessProfile):
         integrand = np.where(Y <= X, integrand, 0.0)
 
         # Integrate over yP (axis=1)
-        integral = np.trapezoid(integrand, yP, axis=1)  # (Nx,)
+        integral = _trapz(integrand, yP, axis=1)  # (Nx,)
 
         p = self.params
         out[mask] = p.C * (p.alpha * (1.0 - self.dist_P.cdf(x_valid)) + integral)
