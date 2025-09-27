@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling>=1.22", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "epilink"
+dynamic = ["version"]
+description = "Epidemiological linkage probability from temporal and genetic data (SARS-CoV-2 E/P/I model + Numba)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "Your Name", email = "you@example.com" }
+]
+keywords = ["epidemiology", "SARS-CoV-2", "infectious disease", "genomics", "transmission"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+dependencies = [
+  "numpy>=1.22",
+  "scipy>=1.9",
+  "numba>=0.58,<0.61",
+  "llvmlite>=0.41",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.3",
+  "pytest-cov>=4.0",
+  "mypy>=1.4",
+  "ruff>=0.5",
+  "black>=24.1",
+  "pre-commit>=3.3",
+  "mkdocs>=1.5",
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/epilink"
+Issues = "https://github.com/your-org/epilink/issues"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = "^v(?P<version>.+)$"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/epilink"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E203"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = false
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=epilink --cov-report=term-missing"
