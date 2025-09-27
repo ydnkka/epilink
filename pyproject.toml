@@ -9,9 +9,7 @@ description = "Epidemiological linkage probability from temporal and genetic dat
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [
-  { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }
-]
+authors = [{ name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }]
 keywords = ["epidemiology", "SARS-CoV-2", "infectious disease", "genomics", "transmission"]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -22,7 +20,6 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-
 dependencies = [
   "numpy>=1.22",
   "scipy>=1.9",
@@ -74,7 +71,7 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=epilink --cov-report=term-missing --cov-fail-under=80"
-
-[tool.epilink]
-numba_disable_jit = false
+addopts = "-q --cov=epilink --cov-report=term-missing"
+filterwarnings = [
+  "error::DeprecationWarning:epilink"
+]

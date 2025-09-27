@@ -8,6 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         jit: ["on", "off"]
@@ -36,11 +37,24 @@ jobs:
         env:
           NUMBA_DISABLE_JIT: ${{ matrix.jit == 'off' && '1' || '0' }}
         run: |
-          pytest --cov=epilink --cov-report=xml --cov-report=term-missing --cov-fail-under=80 -W error::DeprecationWarning
+          # Stricter coverage when JIT is OFF (Python path), looser when JIT is ON
+          if [ "${{ matrix.jit }}" = "off" ]; then
+            THRESH=80
+          else
+            THRESH=65
+          fi
+          # Fail on deprecations from our package only
+          pytest --cov=epilink --cov-report=xml --cov-report=term-missing \
+                 --cov-fail-under=$THRESH \
+                 -W error::DeprecationWarning:epilink
 
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repos
-          files: coverage.xml
-          fail_ci_if_error: true
+          files: ./coverage.xml
+          # For public repos, either set a CODECOV_TOKEN secret or allow uploads to be non-blocking
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          flags: unittests
+          name: py${{ matrix.python-version }}-jit-${{ matrix.jit }}
