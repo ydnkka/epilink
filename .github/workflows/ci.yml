@@ -10,20 +10,31 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
+        jit: ["on", "off"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -e .[dev]
+
       - name: Lint and type-check
         run: |
           ruff check .
           black --check .
           mypy src/epilink
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}  # not needed for public repos
+
       - name: Test
+        env:
+          NUMBA_DISABLE_JIT: ${{ matrix.jit == 'off' && '1' || '0' }}
         run: |
-          pytest
+          pytest --cov=epilink --cov-report=xml --cov-report=term-missing --cov-fail-under=70 -W error::DeprecationWarning
