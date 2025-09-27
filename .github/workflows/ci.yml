@@ -11,13 +11,17 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         jit: ["on", "off"]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .[dev]
@@ -28,13 +32,15 @@ jobs:
           black --check .
           mypy src/epilink
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}  # not needed for public repos
-
-      - name: Test
+      - name: Run tests
         env:
           NUMBA_DISABLE_JIT: ${{ matrix.jit == 'off' && '1' || '0' }}
         run: |
-          pytest --cov=epilink --cov-report=xml --cov-report=term-missing --cov-fail-under=70 -W error::DeprecationWarning
+          pytest --cov=epilink --cov-report=xml --cov-report=term-missing --cov-fail-under=80 -W error::DeprecationWarning
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repos
+          files: coverage.xml
+          fail_ci_if_error: true
