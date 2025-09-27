@@ -23,7 +23,7 @@ try:
     import numba  # type: ignore
 
     JIT = numba.njit(cache=True, fastmath=True)
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     def JIT(*args, **kwargs):  # type: ignore
         def wrapper(func):
             return func
