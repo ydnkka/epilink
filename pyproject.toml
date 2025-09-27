@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-  { name = "Your Name", email = "you@example.com" }
+  { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }
 ]
 keywords = ["epidemiology", "SARS-CoV-2", "infectious disease", "genomics", "transmission"]
 classifiers = [
