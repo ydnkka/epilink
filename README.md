@@ -46,6 +46,26 @@ print(mat)
 - Type-check: `mypy src/epilink`
 - Pre-commit hooks: `pre-commit install` then `pre-commit run -a`
 
+## CLI
+
+Install/activate your conda env, then:
+
+- Single pair:
+  epilink point -g 2 -t 4 --nsims 10000
+
+- Multiple pairs (CSV to stdout):
+  epilink point -g 0 1 2 -t 0 2 5 --nsims 500 > out.csv
+
+- Grid (CSV file):
+  epilink grid --g-start 0 --g-stop 5 --g-step 1 --t-start 0 --t-stop 12 --t-step 3 --nsims 10000 --out grid.csv
+
+Common options:
+- -m/--intermediate-generations "0,1,2"
+- -M/--no-intermediates 10
+- --relax-rate (use relaxed molecular clock)
+- --subs-rate 1e-3, --subs-rate-sigma 0.33
+- --seed 12345
+
 ## Reference
 
 Hart WS, Maini PK, Thompson RN (2021). High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
