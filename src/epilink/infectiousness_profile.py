@@ -245,7 +245,7 @@ class TOIT(InfectiousnessProfile):
         integrand = np.where(Y <= X, integrand, 0.0)
 
         # Integrate over yP (axis=1)
-        integral = np.trapz(integrand, yP, axis=1)  # (Nx,)
+        integral = np.trapezoid(integrand, yP, axis=1)  # (Nx,)
 
         p = self.params
         out[mask] = p.C * (p.alpha * (1.0 - self.dist_P.cdf(x_valid)) + integral)
