@@ -22,7 +22,6 @@ References
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -121,9 +120,9 @@ class InfectiousnessProfile:
         self,
         a: float,
         b: float,
-        params: Optional[InfectiousnessParams] = None,
-        rng: Optional[Generator] = None,
-        rng_seed: Optional[int] = 12345,
+        params: InfectiousnessParams | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = 12345,
     ):
         self.a = float(a)
         self.b = float(b)
@@ -140,21 +139,21 @@ class InfectiousnessProfile:
     def pdf(self, x: ArrayLike) -> np.ndarray:
         raise NotImplementedError
 
-    def rvs(self, size: Union[int, Tuple[int, ...]] = (1,)) -> np.ndarray:
+    def rvs(self, size: int | tuple[int, ...] = (1,)) -> np.ndarray:
         raise NotImplementedError
 
     # Convenience samplers for components, using numpy RNG for speed
-    def sample_incubation(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def sample_incubation(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         # numpy’s gamma uses shape k and scale theta
         return self.rng.gamma(shape=self.params.k_inc, scale=self.params.scale_inc, size=size)
 
-    def sample_E(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def sample_E(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         return self.rng.gamma(shape=self.params.k_E, scale=self.params.scale_inc, size=size)
 
-    def sample_P(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def sample_P(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         return self.rng.gamma(shape=self.params.k_P, scale=self.params.scale_inc, size=size)
 
-    def sample_I(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def sample_I(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         return self.rng.gamma(shape=self.params.k_I, scale=self.params.scale_I, size=size)
 
 
@@ -173,9 +172,9 @@ class TOIT(InfectiousnessProfile):
         self,
         a: float = 0.0,
         b: float = 30.0,
-        params: Optional[InfectiousnessParams] = None,
-        rng: Optional[Generator] = None,
-        rng_seed: Optional[int] = 12345,
+        params: InfectiousnessParams | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = 12345,
         # Optional clock utilities (not used by pdf/rvs)
         subs_rate: float = 1e-3,          # per site per year (median)
         relax_rate: bool = False,         # use relaxed clock
@@ -198,11 +197,11 @@ class TOIT(InfectiousnessProfile):
         self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
 
         # Cached grids for rvs()
-        self._x_grid: Optional[np.ndarray] = None
-        self._pdf_grid: Optional[np.ndarray] = None
+        self._x_grid: np.ndarray | None = None
+        self._pdf_grid: np.ndarray | None = None
 
     # Molecular clock utilities
-    def sample_clock_rate_per_day(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         """
         Returns substitution rate per day (sites/day).
         If relax_rate, draws from lognormal around subs_rate; else returns constant.
@@ -213,7 +212,7 @@ class TOIT(InfectiousnessProfile):
             per_site_per_year = np.full(size, self.subs_rate, dtype=float)
         return (per_site_per_year * self.gen_len) / 365.0
 
-    def generation_time(self, size: Union[int, Tuple[int, ...]] = 1) -> np.ndarray:
+    def generation_time(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         """
         Generation time proxy: E stage duration + a draw from TOIT distribution.
         Note: TOIT.rvs is discrete; suitable for stochastic simulations.
@@ -259,7 +258,7 @@ class TOIT(InfectiousnessProfile):
         out[mask] = p.C * (p.alpha * (1.0 - self.dist_P.cdf(x_valid)) + integral)
         return out
 
-    def _ensure_grid(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _ensure_grid(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Precompute and cache discretized pdf on a fixed x-grid over [a, b].
         """
@@ -278,7 +277,7 @@ class TOIT(InfectiousnessProfile):
             self._pdf_grid = pdf_vals
         return self._x_grid, self._pdf_grid
 
-    def rvs(self, size: Union[int, Tuple[int, ...]] = (1,)) -> np.ndarray:
+    def rvs(self, size: int | tuple[int, ...] = (1,)) -> np.ndarray:
         if isinstance(size, int):
             size = (size,)
         x, probs = self._ensure_grid()
@@ -300,15 +299,15 @@ class TOST(InfectiousnessProfile):
         self,
         a: float = -10.0,
         b: float = 10.0,
-        params: Optional[InfectiousnessParams] = None,
-        rng: Optional[Generator] = None,
-        rng_seed: Optional[int] = 12345,
+        params: InfectiousnessParams | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = 12345,
         x_grid_points: int = 2048,
     ):
         super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed)
         self.x_grid_points = int(x_grid_points)
-        self._x_grid: Optional[np.ndarray] = None
-        self._pdf_grid: Optional[np.ndarray] = None
+        self._x_grid: np.ndarray | None = None
+        self._pdf_grid: np.ndarray | None = None
 
     def pdf(self, x: ArrayLike) -> np.ndarray:
         x_arr = np.atleast_1d(np.asarray(x, dtype=float))
@@ -321,7 +320,7 @@ class TOST(InfectiousnessProfile):
         )
         return np.clip(pdf_vals, a_min=0.0, a_max=np.inf)
 
-    def _ensure_grid(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _ensure_grid(self) -> tuple[np.ndarray, np.ndarray]:
         if self._x_grid is None or self._pdf_grid is None:
             x = np.linspace(self.a, self.b, num=max(2, self.x_grid_points))
             pdf_vals = self.pdf(x)
@@ -335,7 +334,7 @@ class TOST(InfectiousnessProfile):
             self._pdf_grid = pdf_vals
         return self._x_grid, self._pdf_grid
 
-    def rvs(self, size: Union[int, Tuple[int, ...]] = (1,)) -> np.ndarray:
+    def rvs(self, size: int | tuple[int, ...] = (1,)) -> np.ndarray:
         if isinstance(size, int):
             size = (size,)
         x, probs = self._ensure_grid()

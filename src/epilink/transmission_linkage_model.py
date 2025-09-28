@@ -14,9 +14,8 @@ Public API:
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Optional, Tuple, Union
-
 import numpy as np
+import numpy.typing as npt
 
 # Optional numba JIT with safe fallback
 try:
@@ -29,9 +28,9 @@ except ImportError:  # pragma: no cover
             return func
         return wrapper
 
-from .infectiousness_profile import InfectiousnessParams, TOIT
+from .infectiousness_profile import TOIT, InfectiousnessParams
 
-ArrayLike = Union[float, Iterable[float], np.ndarray]
+ArrayLike = npt.ArrayLike
 
 
 # =============================================================================
@@ -150,7 +149,7 @@ def _genetic_kernel_many(
 # 2) Simulation
 # =============================================================================
 
-def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) -> Dict[str, np.ndarray]:
+def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) -> dict[str, np.ndarray]:
     """
     Draw all random epidemiological quantities once.
     """
@@ -183,15 +182,15 @@ def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) ->
 def estimate_linkage_probability(
     genetic_distance: ArrayLike,  # SNPs; scalar or array
     sampling_interval: ArrayLike,  # days; scalar or array (same length as genetic_distance)
-    intermediate_generations: Tuple[int, ...] = (0,),  # which m to include in final mixture
+    intermediate_generations: tuple[int, ...] = (0,),  # which m to include in final mixture
     no_intermediates: int = 10,  # max intermediates M used in simulation/kernel
-    infectiousness_profile: Optional[InfectiousnessParams] = None,  # Use default InfectiousnessParams
+    infectiousness_profile: InfectiousnessParams | None = None,  # Use default InfectiousnessParams
     subs_rate: float = 1e-3,  # subs/site/year (median)
     subs_rate_sigma: float = 0.33,  # lognormal sigma for relaxed clock
     relax_rate: bool = False,  # relaxed clock on/off
     num_simulations: int = 10000,  # Monte Carlo draws
     rng_seed: int = 12345,  # passed into TOIT
-) -> Union[float, np.ndarray]:
+) -> float | np.ndarray:
     """
     Estimate P(link | g, t) combining:
       - Temporal evidence P_t(given t)
@@ -215,7 +214,6 @@ def estimate_linkage_probability(
             f"genetic_distance and sampling_interval must have the same length, got {g.shape[0]} vs {t.shape[0]}."
         )
 
-    K = g.shape[0]
     M = int(no_intermediates)
 
     # 2) Initialize model and run simulations once
@@ -276,7 +274,7 @@ def estimate_linkage_probability(
 def pairwise_linkage_probability_matrix(
     genetic_distances: np.ndarray,  # 1D
     temporal_distances: np.ndarray,  # 1D
-    intermediate_generations: Tuple[int, ...] = (0,),
+    intermediate_generations: tuple[int, ...] = (0,),
     no_intermediates: int = 10,
     **kwargs,
 ) -> np.ndarray:

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -14,7 +14,7 @@ from .transmission_linkage_model import (
 )
 
 
-def _parse_intermediates(val: str) -> Tuple[int, ...]:
+def _parse_intermediates(val: str) -> tuple[int, ...]:
     """Parse comma-separated list of non-negative ints, e.g. '0,1,2' -> (0, 1, 2)"""
     try:
         parts = [p.strip() for p in val.split(",") if p.strip() != ""]
@@ -34,7 +34,8 @@ def _add_common_options(p: argparse.ArgumentParser) -> None:
         "-m",
         type=_parse_intermediates,
         default=(0,),
-        help="Comma-separated list of intermediate generation counts to include in mixture, e.g. '0,1,2' (default: 0)",
+        help="Comma-separated list of intermediate generation counts to "
+             "include in mixture, e.g. '0,1,2' (default: 0)",
     )
     p.add_argument(
         "--no-intermediates",

@@ -1,5 +1,7 @@
 import numpy as np
-from epilink import InfectiousnessParams, TOST, TOIT, presymptomatic_fraction
+
+from epilink import TOIT, TOST, InfectiousnessParams, presymptomatic_fraction
+
 
 def test_tost_pdf_basic():
     p = InfectiousnessParams()

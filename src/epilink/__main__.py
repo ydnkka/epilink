@@ -1,5 +1,5 @@
-# src/epilink/__main__.py
 from .cli import main
+
 
 def _run() -> int:
     return main()
