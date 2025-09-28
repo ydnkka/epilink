@@ -24,7 +24,7 @@ try:
     JIT = numba.njit(cache=True, fastmath=True)
 except ImportError:  # pragma: no cover
 
-    def JIT(*args, **kwargs):  # type: ignore
+    def JIT(*args, **kwargs):
         def wrapper(func):
             return func
 
