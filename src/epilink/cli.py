@@ -107,8 +107,10 @@ def cmd_point(args: argparse.Namespace) -> int:
     )
 
     # Output
+    p = np.atleast_1d(p)
     if len(g_vals) == 1:
-        print(float(p.item()))
+        print(p.item())
+
     else:
         writer = csv.writer(sys.stdout)
         if not getattr(args, "no_header", False):
