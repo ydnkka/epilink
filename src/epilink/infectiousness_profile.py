@@ -31,7 +31,10 @@ from scipy import stats
 # NumPy 2.0 deprecates np.trapz in favour of np.trapezoid.
 # Provide a small compatibility shim.
 
-_trapz = getattr(np, "trapezoid", np.trapz)  # type: ignore[attr-defined]
+# type: ignore silences mypy error for missing attribute
+_trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))  # type: ignore[attr-defined]
+if _trapz is None:
+    raise ImportError("Unable to find numpy.trapezoid or numpy.trapz")
 
 ArrayLike = npt.ArrayLike
 
