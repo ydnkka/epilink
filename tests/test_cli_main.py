@@ -176,7 +176,9 @@ def test_grid_stdout_and_no_header(monkeypatch, capsys):
     assert len(out) == 4
     for line in out:
         g, t, p = line.split(",")
-        float(g); float(t); float(p)
+        float(g)
+        float(t)
+        float(p)
 
 def test_parse_intermediates_valid():
     rc = cli_main(["point", "-g", "1", "-t", "1", "-m", "0,1,2", "--nsims", "50"])
