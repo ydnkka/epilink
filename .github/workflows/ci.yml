@@ -14,33 +14,33 @@ jobs:
         jit: ["on", "off"]
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - name: Lint and type-check
+      - name: Lint + type-check
         run: |
           ruff check .
           black --check .
           mypy src/epilink
 
-      - name: Run tests
+      - name: Test
         env:
           NUMBA_DISABLE_JIT: ${{ matrix.jit == 'off' && '1' || '0' }}
         run: |
           if [ "${{ matrix.jit }}" = "off" ]; then
             THRESH=80
           else
-            THRESH=65
+            THRESH=70
           fi
           pytest --cov=epilink --cov-report=xml --cov-report=term-missing \
                  --cov-fail-under=$THRESH \
@@ -51,7 +51,8 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}   # optional for public repos
+          # Set a secret CODECOV_TOKEN for private repos; for public repos this can be omitted
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           flags: unittests
           name: py${{ matrix.python-version }}-jit-${{ matrix.jit }}

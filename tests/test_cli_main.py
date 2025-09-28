@@ -145,3 +145,45 @@ def test_grid_output_file(tmp_path: Path):
     assert rc == 0
     assert out.exists()
     assert out.read_text().strip()
+
+# ------------------------------
+# More tests
+# ------------------------------
+
+def test_point_no_header_csv(capsys):
+    # Multiple pairs, --no-header triggers header skip branch
+    rc = cli_main(["point", "-g", "1", "2", "-t", "0", "3", "--nsims", "50", "--no-header"])
+    assert rc == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert len(out) == 2  # exactly two data rows, no header
+    # Validate CSV numbers
+    for line in out:
+        g, t, p = line.split(",")
+        float(g); float(t); float(p)
+
+def test_grid_stdout_and_no_header(monkeypatch, capsys):
+    # Write to stdout with --out - and --no-header
+    rc = cli_main([
+        "grid",
+        "--g-start", "0", "--g-stop", "1", "--g-step", "1",
+        "--t-start", "0", "--t-stop", "1", "--t-step", "1",
+        "--nsims", "50",
+        "--out", "-", "--no-header",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    # 2x2 grid -> 4 lines (no header)
+    assert len(out) == 4
+    for line in out:
+        g, t, p = line.split(",")
+        float(g); float(t); float(p)
+
+def test_parse_intermediates_valid():
+    rc = cli_main(["point", "-g", "1", "-t", "1", "-m", "0,1,2", "--nsims", "50"])
+    assert rc == 0
+
+def test_parse_intermediates_invalid():
+    with pytest.raises(SystemExit) as exc:
+        # arg parsing error should exit with code 2
+        cli_main(["point", "-g", "1", "-t", "1", "-m", "a,b", "--nsims", "50"])
+    assert exc.value.code == 2
