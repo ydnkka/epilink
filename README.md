@@ -148,13 +148,15 @@ mamba install -c conda-forge matplotlib seaborn
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT License (see [LICENSE](LICENSE))
+
+---
+
+## Contact
+
+- Questions? Open an [issue](https://github.com/ydnkka/epilink/issues).
+- Maintainer: [ydnkka](https://github.com/ydnkka)
 
 ## Reference
 
 Hart WS, Maini PK, Thompson RN (2021). High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
-```
-
-Optional:
-- Replace YOUR_CODECOV_TOKEN with your actual token or remove the Codecov badge until you configure uploads.
-- If you use an environment.yml, you can add a short “Install via environment.yml” subsection.
