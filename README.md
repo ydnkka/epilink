@@ -1,17 +1,14 @@
 # epilink
 
-[![CI](https://github.com/ydnkka/epilink/actions/workflows/CI.yml/badge.svg)](https://github.com/ydnkka/epilink/actions/workflows/CI.yml)
 [![codecov](https://codecov.io/gh/ydnkka/epilink/branch/master/graph/badge.svg)](https://codecov.io/gh/ydnkka/epilink)
----
 
-## Overview
+Estimate the probability that two cases are epidemiologically linked from their temporal and genetic distances. Implements a mechanistic SARS‑CoV‑2 infectiousness model (E/P/I) with optional Numba acceleration. Usable from Python or the command line.
 
-`epilink` estimates probabilities that two cases are epidemiologically linked from their temporal and genetic distances. It implements a mechanistic SARS‑CoV‑2 E/P/I infectiousness model, with optional Numba acceleration.
+## Features
 
-Key features:
 - Estimate P(link | genetic distance g, temporal gap t)
-- Parameterised infectiousness profiles (TOIT, TOST)
-- High‑performance kernels with optional JIT
+- Parameterised infectiousness profiles (e.g. TOST; configurable)
+- Fast simulation kernels with optional JIT (Numba)
 - Python API and CLI for pipelines and scripts
 
 ---
@@ -19,20 +16,22 @@ Key features:
 ## Installation
 
 Recommended (conda/mamba):
+
 ```bash
-# Create a fresh env with compiled deps from conda-forge
+# Create a fresh env (uses compiled deps from conda-forge)
 conda create -n epilink -c conda-forge python=3.11 numpy scipy numba pip
 conda activate epilink
 
-# Install your package in editable mode without touching conda-managed deps
+# Install the package from source without touching conda-managed deps
 pip install -e . --no-deps
 
-# Dev tools (tests, lint, docs)
+# (Optional) Dev tools: tests, linting, docs
 pip install "pytest>=7.3" "pytest-cov>=4.0" "mypy>=1.4" "ruff>=0.5" "black>=24.1" \
             "pre-commit>=3.3" "mkdocs>=1.5" "mkdocs-material>=9.5" "mkdocstrings[python]>=0.24"
 ```
 
-Alternative (pip/venv):
+Alternative (pip + venv):
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -41,12 +40,12 @@ pip install -e .[dev]
 ```
 
 Notes:
-- Prefer conda-forge for NumPy/SciPy/Numba, especially on Apple Silicon.
-- In a conda env, avoid pip-installing compiled deps; use pip install -e . --no-deps for your package.
+- Prefer conda-forge for NumPy/SciPy/Numba (especially on Apple Silicon).
+- In a conda env, avoid pip-installing compiled deps; use `pip install -e . --no-deps`.
 
 ---
 
-## Usage
+## Quickstart
 
 ### Python API
 
@@ -58,7 +57,7 @@ from epilink import (
     InfectiousnessParams,
 )
 
-# Probability that a pair with 2 SNPs and 4 days apart is linked (directly, m=0)
+# Probability that a pair with 2 SNPs and 4 days apart is directly linked (m=0)
 p = estimate_linkage_probability(
     genetic_distance=2,
     sampling_interval=4,
@@ -67,9 +66,9 @@ p = estimate_linkage_probability(
 )
 print("P(link):", p)
 
-# Grid over distances and temporal gaps
+# Grid over genetic distances (SNPs) and temporal gaps (days)
 gd = np.arange(0, 6)       # 0..5 SNPs
-td = np.arange(0, 15, 3)   # 0..12 days
+td = np.arange(0, 15, 3)   # 0..12 days, step 3
 mat = pairwise_linkage_probability_matrix(gd, td, num_simulations=10_000)
 print(mat)
 ```
@@ -94,19 +93,19 @@ epilink grid --g-start 0 --g-stop 5 --g-step 1 \
              --nsims 10000 --out grid.csv
 ```
 
-Common options:
-- -m / --intermediate-generations "0,1,2"
-- -M / --no-intermediates 10
-- --relax-rate
-- --subs-rate 1e-3
-- --subs-rate-sigma 0.33
-- --seed 12345
+Commonly used options (see `--help` for full list):
+- `-m, --intermediate-generations` e.g. `"0,1,2"`
+- `--relax-rate`
+- `--subs-rate 1e-3`
+- `--subs-rate-sigma 0.33`
+- `--seed 12345`
 
 ---
 
 ## Development
 
 Run tests:
+
 ```bash
 pytest --cov=epilink --cov-report=term-missing
 # To count Python-side coverage of JIT kernels:
@@ -114,6 +113,7 @@ pytest --cov=epilink --cov-report=term-missing
 ```
 
 Code quality:
+
 ```bash
 ruff check .
 black .
@@ -121,12 +121,14 @@ mypy src/epilink
 ```
 
 Pre-commit:
+
 ```bash
 pre-commit install
 pre-commit run -a
 ```
 
 Docs:
+
 ```bash
 mkdocs serve
 ```
@@ -135,11 +137,12 @@ mkdocs serve
 
 ## Examples
 
-Simple scripts are provided in examples/:
-- Generate grid CSV: python examples/generate_grid.py ...
-- Plot heatmap: python examples/plot_grid.py grid.csv --out grid.png
+Examples in `examples/`:
+- Generate grid CSV: `python examples/generate_grid.py ...`
+- Plot heatmap: `python examples/plot_grid.py grid.csv --out grid.png`
 
 Install plotting deps if needed:
+
 ```bash
 mamba install -c conda-forge matplotlib seaborn
 ```
@@ -154,9 +157,12 @@ MIT License (see [LICENSE](LICENSE))
 
 ## Contact
 
-- Questions? Open an [issue](https://github.com/ydnkka/epilink/issues).
-- Maintainer: [ydnkka](https://github.com/ydnkka)
+- Questions or issues: open an [issue](https://github.com/ydnkka/epilink/issues)
+- Maintainer: [@ydnkka](https://github.com/ydnkka)
+
+---
 
 ## Reference
 
-Hart WS, Maini PK, Thompson RN (2021). High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
+Hart WS, Maini PK, Thompson RN (2021). High infectiousness immediately before COVID‑19 symptom onset highlights the importance of continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
+
