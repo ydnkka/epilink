@@ -19,16 +19,13 @@ import numpy.typing as npt
 
 # Optional numba JIT with safe fallback
 try:
-    import numba  # type: ignore
-
+    import numba
     JIT = numba.njit(cache=True, fastmath=True)
-except ImportError:  # pragma: no cover
-
+except ImportError:
     def JIT(*args, **kwargs):
-        def wrapper(func):
+        def decorator(func):
             return func
-
-        return wrapper
+        return decorator
 
 
 from .infectiousness_profile import TOIT, InfectiousnessParams
