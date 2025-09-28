@@ -22,10 +22,10 @@ def _parse_intermediates(val: str) -> Tuple[int, ...]:
         if any(x < 0 for x in out):
             raise ValueError
         return out
-    except Exception:
+    except Exception as err:
         raise argparse.ArgumentTypeError(
             "Expected comma-separated non-negative integers, e.g. '0,1,2'."
-        )
+        ) from err
 
 
 def _add_common_options(p: argparse.ArgumentParser) -> None:
@@ -79,8 +79,8 @@ def cmd_point(args: argparse.Namespace) -> int:
     """Estimate probability for one or more (g, t) pairs."""
     # Convert inputs to floats
     try:
-        g_vals: List[float] = [float(x) for x in args.genetic_distance]
-        t_vals: List[float] = [float(x) for x in args.sampling_interval]
+        g_vals: list[float] = [float(x) for x in args.genetic_distance]
+        t_vals: list[float] = [float(x) for x in args.sampling_interval]
     except ValueError:
         sys.exit("Error: genetic_distance and sampling_interval must be numeric")
 
@@ -107,7 +107,7 @@ def cmd_point(args: argparse.Namespace) -> int:
 
     # Output
     if len(g_vals) == 1:
-        print(float(p))
+        print(float(p.item()))
     else:
         writer = csv.writer(sys.stdout)
         if not getattr(args, "no_header", False):
@@ -118,9 +118,15 @@ def cmd_point(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
-    """Estimate P(link) over a grid and write CSV."""
+    """Estimate P(link) over a grid of g and t and output CSV."""
+
+    # Validate steps
     if args.g_step <= 0 or args.t_step <= 0:
         sys.exit("Error: step sizes must be positive")
+
+    # Validate range
+    if args.g_stop < args.g_start or args.t_stop < args.t_start:
+        sys.exit("Error: stop values must be >= start values")
 
     g = np.arange(args.g_start, args.g_stop + 1e-12, args.g_step, dtype=float)
     t = np.arange(args.t_start, args.t_stop + 1e-12, args.t_step, dtype=float)
@@ -137,6 +143,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         rng_seed=args.seed,
     )
 
+    # Write CSV as rows (g, t, p)
     fh = sys.stdout if args.out == "-" else open(args.out, "w", newline="", encoding="utf-8")
     close = fh is not sys.stdout
     try:
