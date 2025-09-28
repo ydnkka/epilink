@@ -1,4 +1,4 @@
-# epilink
+# epilink: Epidemiological Linkage from Temporal and Genetic Data
 
 [![codecov](https://codecov.io/gh/ydnkka/epilink/branch/master/graph/badge.svg)](https://codecov.io/gh/ydnkka/epilink)
 

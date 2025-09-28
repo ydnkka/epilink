@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "epilink"
 dynamic = ["version"]
-description = "Epidemiological linkage probability from temporal and genetic data (SARS-CoV-2 E/P/I model + Numba)."
+description = "Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
