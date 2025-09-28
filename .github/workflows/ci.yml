@@ -44,6 +44,7 @@ jobs:
           fi
           pytest --cov=epilink --cov-report=xml --cov-report=term-missing \
                  --cov-fail-under=$THRESH \
+                 tests/ \
                  -W error::DeprecationWarning:epilink
 
       - name: Upload coverage to Codecov
