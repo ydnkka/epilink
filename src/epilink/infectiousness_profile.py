@@ -34,8 +34,6 @@ from scipy import stats
 _trapz = getattr(np, "trapezoid", None)
 if _trapz is None:
     _trapz = getattr(np, "trapz", None)
-if _trapz is None:
-    raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy!")
 
 ArrayLike = npt.ArrayLike
 
@@ -256,7 +254,10 @@ class TOIT(InfectiousnessProfile):
         integrand = np.where(Y <= X, integrand, 0.0)
 
         # Integrate over yP (axis=1)
-        integral = _trapz(integrand, yP, axis=1)  # (Nx,)
+        if _trapz is None:
+            raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy!")
+        else:
+            integral = _trapz(integrand, yP, axis=1)  # (Nx,)
 
         p = self.params
         out[mask] = p.C * (p.alpha * (1.0 - self.dist_P.cdf(x_valid)) + integral)
