@@ -1,5 +1,7 @@
 import numpy as np
+
 from epilink import estimate_linkage_probability, pairwise_linkage_probability_matrix
+
 
 def test_estimate_linkage_scalar():
     p = estimate_linkage_probability(genetic_distance=2, sampling_interval=3, num_simulations=500)

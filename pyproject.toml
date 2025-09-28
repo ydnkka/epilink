@@ -64,8 +64,19 @@ omit = ["src/epilink/__main__.py"]
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["E203"]
+[tool.ruff.lint]
+ignore = [
+    "E501",  # line too long
+    "F401",  # imported but unused
+    # add any other rules you want to ignore
+]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort
+    "UP"     # pyupgrade
+    # add any other rules you want to select
+]
 
 [tool.black]
 line-length = 100

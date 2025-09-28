@@ -1,12 +1,10 @@
-# tests/test_cli_main.py
-
-import sys
 import subprocess
+import sys
 from pathlib import Path
+
 import pytest
 
 from epilink.cli import main as cli_main
-
 
 # ------------------------------
 # Helpers to run CLI via subprocess
@@ -159,7 +157,9 @@ def test_point_no_header_csv(capsys):
     # Validate CSV numbers
     for line in out:
         g, t, p = line.split(",")
-        float(g); float(t); float(p)
+        float(g)
+        float(t)
+        float(p)
 
 def test_grid_stdout_and_no_header(monkeypatch, capsys):
     # Write to stdout with --out - and --no-header

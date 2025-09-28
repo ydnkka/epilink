@@ -1,6 +1,7 @@
-# tests/test_profiles_edges.py
 import numpy as np
+
 from epilink import TOIT, TOST
+
 
 def test_toit_pdf_negative_x():
     toit = TOIT()
