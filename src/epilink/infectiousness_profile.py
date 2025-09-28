@@ -32,9 +32,9 @@ from scipy import stats
 # Provide a small compatibility shim.
 
 try:
-    _trapz = np.trapezoid()  # NumPy >= 1.20
+    _trapz = np.trapezoid  # NumPy >= 1.20
 except AttributeError:  # pragma: no cover
-    _trapz = np.trapz()  # Older NumPy
+    _trapz = np.trapz  # Older NumPy
 
 ArrayLike = npt.ArrayLike
 
