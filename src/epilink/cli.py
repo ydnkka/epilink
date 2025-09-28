@@ -15,9 +15,7 @@ from .transmission_linkage_model import (
 
 
 def _parse_intermediates(val: str) -> Tuple[int, ...]:
-    """
-    Parse a comma-separated list of non-negative ints: "0,1,2" -> (0, 1, 2)
-    """
+    """Parse comma-separated list of non-negative ints, e.g. '0,1,2' -> (0, 1, 2)"""
     try:
         parts = [p.strip() for p in val.split(",") if p.strip() != ""]
         out = tuple(int(p) for p in parts)
@@ -25,7 +23,9 @@ def _parse_intermediates(val: str) -> Tuple[int, ...]:
             raise ValueError
         return out
     except Exception:
-        raise argparse.ArgumentTypeError("Expected comma-separated non-negative integers, e.g. '0,1,2'.")
+        raise argparse.ArgumentTypeError(
+            "Expected comma-separated non-negative integers, e.g. '0,1,2'."
+        )
 
 
 def _add_common_options(p: argparse.ArgumentParser) -> None:
@@ -33,7 +33,7 @@ def _add_common_options(p: argparse.ArgumentParser) -> None:
         "--intermediate-generations",
         "-m",
         type=_parse_intermediates,
-        default="0",
+        default=(0,),
         help="Comma-separated list of intermediate generation counts to include in mixture, e.g. '0,1,2' (default: 0)",
     )
     p.add_argument(
@@ -54,7 +54,7 @@ def _add_common_options(p: argparse.ArgumentParser) -> None:
         "--subs-rate",
         type=float,
         default=1e-3,
-        help="Substitution rate per site per year (median) (default: 1e-3)",
+        help="Substitution rate per site per year (default: 1e-3)",
     )
     p.add_argument(
         "--subs-rate-sigma",
@@ -76,12 +76,22 @@ def _add_common_options(p: argparse.ArgumentParser) -> None:
 
 
 def cmd_point(args: argparse.Namespace) -> int:
-    # Estimate probability for one or more pairs
-    g_vals: List[float] = [float(x) for x in args.genetic_distance]
-    t_vals: List[float] = [float(x) for x in args.sampling_interval]
+    """Estimate probability for one or more (g, t) pairs."""
+    # Convert inputs to floats
+    try:
+        g_vals: List[float] = [float(x) for x in args.genetic_distance]
+        t_vals: List[float] = [float(x) for x in args.sampling_interval]
+    except ValueError:
+        sys.exit("Error: genetic_distance and sampling_interval must be numeric")
+
+    if any(x < 0 for x in g_vals + t_vals):
+        sys.exit("Error: genetic_distance and sampling_interval must be non-negative")
+
+    if args.num_simulations <= 0:
+        sys.exit("Error: num_simulations must be greater than 0")
+
     if len(g_vals) != len(t_vals):
-        print("Error: genetic_distance and sampling_interval must have same count.", file=sys.stderr)
-        return 2
+        sys.exit("Error: genetic_distance and sampling_interval must have same count")
 
     p = estimate_linkage_probability(
         genetic_distance=np.array(g_vals, dtype=float),
@@ -100,7 +110,7 @@ def cmd_point(args: argparse.Namespace) -> int:
         print(float(p))
     else:
         writer = csv.writer(sys.stdout)
-        if not args.no_header:
+        if not getattr(args, "no_header", False):
             writer.writerow(["g", "t", "p"])
         for gi, ti, pi in zip(g_vals, t_vals, p):
             writer.writerow([gi, ti, float(pi)])
@@ -108,8 +118,13 @@ def cmd_point(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
+    """Estimate P(link) over a grid and write CSV."""
+    if args.g_step <= 0 or args.t_step <= 0:
+        sys.exit("Error: step sizes must be positive")
+
     g = np.arange(args.g_start, args.g_stop + 1e-12, args.g_step, dtype=float)
     t = np.arange(args.t_start, args.t_stop + 1e-12, args.t_step, dtype=float)
+
     mat = pairwise_linkage_probability_matrix(
         genetic_distances=g,
         temporal_distances=t,
@@ -122,12 +137,11 @@ def cmd_grid(args: argparse.Namespace) -> int:
         rng_seed=args.seed,
     )
 
-    # Write CSV as rows (g, t, p)
     fh = sys.stdout if args.out == "-" else open(args.out, "w", newline="", encoding="utf-8")
     close = fh is not sys.stdout
     try:
         writer = csv.writer(fh)
-        if not args.no_header:
+        if not getattr(args, "no_header", False):
             writer.writerow(["g", "t", "p"])
         for i, gi in enumerate(g):
             for j, tj in enumerate(t):
@@ -145,6 +159,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    # point subcommand
     p_point = sub.add_parser("point", help="Estimate P(link) for one or more (g, t) pairs")
     p_point.add_argument(
         "--genetic-distance",
@@ -164,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_options(p_point)
     p_point.set_defaults(func=cmd_point)
 
+    # grid subcommand
     p_grid = sub.add_parser("grid", help="Estimate P(link) over a grid of g and t and output CSV")
     p_grid.add_argument("--g-start", type=float, required=True, help="Start genetic distance (inclusive)")
     p_grid.add_argument("--g-stop", type=float, required=True, help="Stop genetic distance (inclusive)")

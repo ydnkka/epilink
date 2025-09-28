@@ -1,7 +1,7 @@
 # src/epilink/__main__.py
 from .cli import main
 
-def _run() -> int:  # simple wrapper for potential unit testing
+def _run() -> int:
     return main()
 
 if __name__ == "__main__":  # pragma: no cover

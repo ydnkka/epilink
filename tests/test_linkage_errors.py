@@ -15,3 +15,13 @@ def test_numba_disabled_coverage(monkeypatch):
     monkeypatch.setenv("NUMBA_DISABLE_JIT", "1")
     out = estimate_linkage_probability(genetic_distance=[0,1,2], sampling_interval=[0,1,2], num_simulations=200)
     assert out.shape == (3,)
+
+def test_numba_disabled_kernel_paths(monkeypatch):
+    monkeypatch.setenv("NUMBA_DISABLE_JIT", "1")
+    out = estimate_linkage_probability(
+        genetic_distance=np.array([0, 1, 2], dtype=float),
+        sampling_interval=np.array([0, 1, 2], dtype=float),
+        num_simulations=200,
+    )
+    assert out.shape == (3,)
+    assert np.all((out >= 0.0) & (out <= 1.0))

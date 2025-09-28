@@ -54,6 +54,13 @@ tag-pattern = "^v(?P<version>.+)$"
 [tool.hatch.build.targets.wheel]
 packages = ["src/epilink"]
 
+[tool.coverage.run]
+branch = true
+omit = ["src/epilink/__main__.py"]
+
+[tool.coverage.report]
+omit = ["src/epilink/__main__.py"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
