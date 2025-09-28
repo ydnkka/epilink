@@ -1,6 +1,8 @@
 # src/epilink/__main__.py
-
 from .cli import main
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def _run() -> int:  # simple wrapper for potential unit testing
+    return main()
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(_run())
