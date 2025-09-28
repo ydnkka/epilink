@@ -20,11 +20,14 @@ import numpy.typing as npt
 # Optional numba JIT with safe fallback
 try:
     import numba
+
     JIT = numba.njit(cache=True, fastmath=True)
 except ImportError:
+
     def JIT(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator
 
 
