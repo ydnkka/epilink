@@ -1,5 +1,10 @@
 # epilink
 
+[![CI](https://github.com/ydnkka/epilink/actions/workflows/CI.yml/badge.svg)](https://github.com/ydnkka/epilink/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/ydnkka/epilink/branch/master/graph/badge.svg?token=YOUR_CODECOV_TOKEN)](https://codecov.io/gh/ydnkka/epilink)
+
+---
+
 ## Overview
 
 `epilink` estimates probabilities that two cases are epidemiologically linked from their temporal and genetic distances. It implements a mechanistic SARS‑CoV‑2 E/P/I infectiousness model, with optional Numba acceleration.
