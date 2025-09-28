@@ -33,8 +33,8 @@ from scipy import stats
 
 try:
     _trapz = np.trapezoid  # NumPy >= 1.20
-except AttributeError:     # pragma: no cover
-    _trapz = np.trapz      # Older NumPy
+except AttributeError:  # pragma: no cover
+    _trapz = np.trapz  # Older NumPy
 
 ArrayLike = npt.ArrayLike
 
@@ -79,6 +79,7 @@ class InfectiousnessParams:
         Normalization/combination constant used in pdf definitions:
         C = (k_inc * g * mu) / (alpha * k_P * mu + k_inc * g).
     """
+
     k_inc: float = 5.807
     scale_inc: float = 0.948
     k_E: float = 3.38
@@ -176,13 +177,13 @@ class TOIT(InfectiousnessProfile):
         rng: Generator | None = None,
         rng_seed: int | None = 12345,
         # Optional clock utilities (not used by pdf/rvs)
-        subs_rate: float = 1e-3,          # per site per year (median)
-        relax_rate: bool = False,         # use relaxed clock
-        subs_rate_sigma: float = 0.33,    # lognormal sigma
-        gen_len: int = 29901,             # genome length
+        subs_rate: float = 1e-3,  # per site per year (median)
+        relax_rate: bool = False,  # use relaxed clock
+        subs_rate_sigma: float = 0.33,  # lognormal sigma
+        gen_len: int = 29901,  # genome length
         # Integration/sampling grid
-        y_grid_points: int = 2048,        # grid for inner integral over yP
-        x_grid_points: int = 1024,        # grid for discretized sampling over [a, b]
+        y_grid_points: int = 2048,  # grid for inner integral over yP
+        x_grid_points: int = 1024,  # grid for discretized sampling over [a, b]
     ):
         super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed)
         self.subs_rate = float(subs_rate)
@@ -194,7 +195,7 @@ class TOIT(InfectiousnessProfile):
         self.x_grid_points = int(x_grid_points)
 
         # Lognormal params for relaxed rate: mean=log(median) - 0.5*sigma^2
-        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
+        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma**2)
 
         # Cached grids for rvs()
         self._x_grid: np.ndarray | None = None
@@ -207,7 +208,9 @@ class TOIT(InfectiousnessProfile):
         If relax_rate, draws from lognormal around subs_rate; else returns constant.
         """
         if self.relax_rate:
-            per_site_per_year = self.rng.lognormal(mean=self.subs_rate_mu, sigma=self.subs_rate_sigma, size=size)
+            per_site_per_year = self.rng.lognormal(
+                mean=self.subs_rate_mu, sigma=self.subs_rate_sigma, size=size
+            )
         else:
             per_site_per_year = np.full(size, self.subs_rate, dtype=float)
         return (per_site_per_year * self.gen_len) / 365.0
@@ -244,7 +247,7 @@ class TOIT(InfectiousnessProfile):
 
         # Build matrix F_I(x - yP) for all x in x_valid
         X = x_valid[:, None]  # (Nx, 1)
-        Y = yP[None, :]       # (1, Ny)
+        Y = yP[None, :]  # (1, Ny)
         FI = self.dist_I.cdf(X - Y)  # (Nx, Ny)
         integrand = (1.0 - FI) * f_P[None, :]  # (Nx, Ny)
 

@@ -35,7 +35,7 @@ def _add_common_options(p: argparse.ArgumentParser) -> None:
         type=_parse_intermediates,
         default=(0,),
         help="Comma-separated list of intermediate generation counts to "
-             "include in mixture, e.g. '0,1,2' (default: 0)",
+        "include in mixture, e.g. '0,1,2' (default: 0)",
     )
     p.add_argument(
         "--no-intermediates",
@@ -183,19 +183,35 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Temporal distance(s) in days (space-separated, must match number of genetic distances).",
     )
-    p_point.add_argument("--no-header", action="store_true", help="Do not print CSV header for multiple pairs")
+    p_point.add_argument(
+        "--no-header", action="store_true", help="Do not print CSV header for multiple pairs"
+    )
     _add_common_options(p_point)
     p_point.set_defaults(func=cmd_point)
 
     # grid subcommand
     p_grid = sub.add_parser("grid", help="Estimate P(link) over a grid of g and t and output CSV")
-    p_grid.add_argument("--g-start", type=float, required=True, help="Start genetic distance (inclusive)")
-    p_grid.add_argument("--g-stop", type=float, required=True, help="Stop genetic distance (inclusive)")
-    p_grid.add_argument("--g-step", type=float, default=1.0, help="Genetic distance step (default: 1.0)")
-    p_grid.add_argument("--t-start", type=float, required=True, help="Start temporal distance (inclusive)")
-    p_grid.add_argument("--t-stop", type=float, required=True, help="Stop temporal distance (inclusive)")
-    p_grid.add_argument("--t-step", type=float, default=1.0, help="Temporal distance step (default: 1.0)")
-    p_grid.add_argument("--out", default="-", help="Output file path (CSV). Use '-' for stdout (default).")
+    p_grid.add_argument(
+        "--g-start", type=float, required=True, help="Start genetic distance (inclusive)"
+    )
+    p_grid.add_argument(
+        "--g-stop", type=float, required=True, help="Stop genetic distance (inclusive)"
+    )
+    p_grid.add_argument(
+        "--g-step", type=float, default=1.0, help="Genetic distance step (default: 1.0)"
+    )
+    p_grid.add_argument(
+        "--t-start", type=float, required=True, help="Start temporal distance (inclusive)"
+    )
+    p_grid.add_argument(
+        "--t-stop", type=float, required=True, help="Stop temporal distance (inclusive)"
+    )
+    p_grid.add_argument(
+        "--t-step", type=float, default=1.0, help="Temporal distance step (default: 1.0)"
+    )
+    p_grid.add_argument(
+        "--out", default="-", help="Output file path (CSV). Use '-' for stdout (default)."
+    )
     p_grid.add_argument("--no-header", action="store_true", help="Do not print CSV header")
     _add_common_options(p_grid)
     p_grid.set_defaults(func=cmd_grid)

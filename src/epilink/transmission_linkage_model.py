@@ -23,10 +23,13 @@ try:
 
     JIT = numba.njit(cache=True, fastmath=True)
 except ImportError:  # pragma: no cover
+
     def JIT(*args, **kwargs):  # type: ignore
         def wrapper(func):
             return func
+
         return wrapper
+
 
 from .infectiousness_profile import TOIT, InfectiousnessParams
 
@@ -36,6 +39,7 @@ ArrayLike = npt.ArrayLike
 # =============================================================================
 # 1) Numba kernels (nopython) — fast and allocation-conscious
 # =============================================================================
+
 
 @JIT
 def _temporal_kernel(
@@ -149,7 +153,10 @@ def _genetic_kernel_many(
 # 2) Simulation
 # =============================================================================
 
-def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) -> dict[str, np.ndarray]:
+
+def _run_simulations(
+    toit: TOIT, num_simulations: int, no_intermediates: int
+) -> dict[str, np.ndarray]:
     """
     Draw all random epidemiological quantities once.
     """
@@ -178,6 +185,7 @@ def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) ->
 # =============================================================================
 # 3) Public API
 # =============================================================================
+
 
 def estimate_linkage_probability(
     genetic_distance: ArrayLike,  # SNPs; scalar or array
@@ -259,7 +267,9 @@ def estimate_linkage_probability(
     # Select columns m specified by intermediate_generations
     cols = np.array(intermediate_generations, dtype=np.int64)
     if cols.min() < 0 or cols.max() > M:
-        raise ValueError(f"intermediate_generations must be within [0, {M}], got {intermediate_generations}.")
+        raise ValueError(
+            f"intermediate_generations must be within [0, {M}], got {intermediate_generations}."
+        )
     selected = p_norm[:, cols].sum(axis=1)  # shape (K,)
 
     # 6) Combine temporal and genetic evidence

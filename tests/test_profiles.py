@@ -13,6 +13,7 @@ def test_tost_pdf_basic():
     assert pdf[x < 0].max() > 0
     assert pdf[x >= 0].max() > 0
 
+
 def test_toit_pdf_nonnegative_and_sampling():
     toit = TOIT()
     x = np.linspace(0, 30, 256)
@@ -20,6 +21,7 @@ def test_toit_pdf_nonnegative_and_sampling():
     assert np.all(pdf >= 0)
     s = toit.rvs(size=100).astype(float)
     assert s.shape == (100,)
+
 
 def test_presymptomatic_fraction_in_0_1():
     p = InfectiousnessParams()
