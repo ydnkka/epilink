@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "epilink: Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2"
+version: "0.1.0"
+authors:
+  - family-names: Arthur
+    given-names: Dominic
+repository-code: "https://github.com/ydnkka/epilink"
+references:
+  - type: article
+    authors:
+      - family-names: Hart
+        given-names: William S
+      - family-names: Maini
+        given-names: Philip K
+      - family-names: Thompson
+        given-names: Robin N
+    title: "High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing"
+    journal: "eLife"
+    year: 2021
+    volume: "10"
+    doi: "10.7554/eLife.65534"
