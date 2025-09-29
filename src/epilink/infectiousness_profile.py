@@ -171,7 +171,7 @@ class TOIT(InfectiousnessProfile):
     def __init__(
         self,
         a: float = 0.0,
-        b: float = 30.0,
+        b: float = 60.0,
         params: InfectiousnessParams | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = 12345,
@@ -302,8 +302,8 @@ class TOST(InfectiousnessProfile):
 
     def __init__(
         self,
-        a: float = -10.0,
-        b: float = 10.0,
+        a: float = -30.0,
+        b: float = 30.0,
         params: InfectiousnessParams | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = 12345,
