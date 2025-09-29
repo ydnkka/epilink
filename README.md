@@ -21,6 +21,8 @@ Recommended (conda/mamba):
 # Create a fresh env (uses compiled deps from conda-forge)
 conda create -n epilink -c conda-forge python=3.11 numpy scipy numba pip
 conda activate epilink
+ git clone https://github.com/ydnkka/epilink.git
+ cd epilink
 
 # Install the package from source without touching conda-managed deps
 pip install -e . --no-deps
@@ -63,6 +65,7 @@ p = estimate_linkage_probability(
     sampling_interval=4,
     intermediate_generations=(0,),
     num_simulations=10_000,
+    infectiousness_profile=InfectiousnessParams(),
 )
 print("P(link):", p)
 

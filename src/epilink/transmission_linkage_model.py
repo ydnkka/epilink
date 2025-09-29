@@ -14,8 +14,12 @@ Public API:
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+
 
 # Optional numba JIT with safe fallback
 try:
@@ -43,29 +47,29 @@ ArrayLike = npt.ArrayLike
 
 @JIT
 def _temporal_kernel(
-    sampling_interval: np.ndarray,  # shape (K,)
+    temporal_distance: np.ndarray,  # shape (K,)
     diff_inc: np.ndarray,  # shape (N,)
-    generation_interval0: np.ndarray,  # shape (N,), direct generation interval
+    generation_interval: np.ndarray,  # shape (N,), direct generation interval
 ) -> np.ndarray:
     """
     Compute temporal evidence P_t for each sampling interval by Monte Carlo.
     P_t(i) = mean_j [ |t_i + diff_inc_j| <= generation_interval0_j ]
     """
-    K = sampling_interval.shape[0]
+    K = temporal_distance.shape[0]
     N = diff_inc.shape[0]
     out = np.empty(K, dtype=np.float64)
     for i in range(K):
-        t = sampling_interval[i]
+        t = temporal_distance[i]
         count = 0
         for j in range(N):
-            if abs(t + diff_inc[j]) <= generation_interval0[j]:
+            if abs(t + diff_inc[j]) <= generation_interval[j]:
                 count += 1
         out[i] = count / N
     return out
 
 
 @JIT
-def _mean_prob_kernel(
+def _mean_genetic_prob_kernel(
     tmrca: np.ndarray,  # shape (N,)
     tmrca_expected: np.ndarray,  # shape (N,)
     tolerance: np.ndarray,  # shape (N,)
@@ -83,7 +87,7 @@ def _mean_prob_kernel(
 
 
 @JIT
-def _genetic_kernel_many(
+def _genetic_kernel(
     dists: np.ndarray,  # shape (K,)
     clock_rates: np.ndarray,  # shape (N,)
     psi_sA: np.ndarray,  # shape (N,)
@@ -115,7 +119,7 @@ def _genetic_kernel_many(
         tmrca = d / (2.0 * clock_rates)  # shape (N,)
 
         # m = 0: direct
-        p_direct = _mean_prob_kernel(tmrca, dir_tmrca_exp, generation_interval[:, 0])
+        p_direct = _mean_genetic_prob_kernel(tmrca, dir_tmrca_exp, generation_interval[:, 0])
         out[k, 0] = p_direct
 
         # m > 0
@@ -131,7 +135,7 @@ def _genetic_kernel_many(
                     s += generation_interval[j, col]
                 suc_sum[j] = s
             suc_tmrca = dir_tmrca_exp + suc_sum
-            p_suc = _mean_prob_kernel(tmrca, suc_tmrca, generation_interval[:, 0])
+            p_suc = _mean_genetic_prob_kernel(tmrca, suc_tmrca, generation_interval[:, 0])
 
             # Common ancestor path: sum from idx to M-1 (exclusive of last col)
             com_sum = np.zeros(N, dtype=np.float64)
@@ -141,7 +145,7 @@ def _genetic_kernel_many(
                     s += generation_interval[j, col]
                 com_sum[j] = s
             common_tmrca = toit_difference + inc_period_sum + com_sum
-            p_common = _mean_prob_kernel(tmrca, common_tmrca, caseX_to_caseA)
+            p_common = _mean_genetic_prob_kernel(tmrca, common_tmrca, caseX_to_caseA)
 
             # Inclusion-exclusion
             out[k, m] = p_common + p_suc - (p_common * p_suc)
@@ -189,7 +193,7 @@ def _run_simulations(
 
 def estimate_linkage_probability(
     genetic_distance: ArrayLike,  # SNPs; scalar or array
-    sampling_interval: ArrayLike,  # days; scalar or array (same length as genetic_distance)
+    temporal_distance: ArrayLike,  # days; scalar or array (same length as genetic_distance)
     intermediate_generations: tuple[int, ...] = (0,),  # which m to include in final mixture
     no_intermediates: int = 10,  # max intermediates M used in simulation/kernel
     infectiousness_profile: InfectiousnessParams | None = None,  # Use default InfectiousnessParams
@@ -216,11 +220,15 @@ def estimate_linkage_probability(
     """
     # 1) Prepare inputs as 1D arrays of same length
     g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
-    t = np.atleast_1d(np.asarray(sampling_interval, dtype=float))
-    if g.shape[0] != t.shape[0]:
+    t = np.atleast_1d(np.asarray(temporal_distance, dtype=float))
+    if g.size != t.size:
         raise ValueError(
-            f"genetic_distance and sampling_interval must have the same length, got {g.shape[0]} vs {t.shape[0]}."
+            f"genetic_distance and temporal_distance must have the same length, got {g.size} vs {t.size}."
         )
+
+    # Early return for empty input
+    if g.size == 0:
+        return np.nan
 
     M = int(no_intermediates)
 
@@ -236,13 +244,13 @@ def estimate_linkage_probability(
 
     # 3) Temporal evidence
     p_t = _temporal_kernel(
-        sampling_interval=t,
+        temporal_distance=t,
         diff_inc=sim["diff_inc"],
-        generation_interval0=sim["generation_interval"][:, 0],
+        generation_interval=sim["generation_interval"][:, 0],
     )  # shape (K,)
 
     # 4) Genetic evidence: p_m for each m=0..M
-    p_m = _genetic_kernel_many(
+    p_m = _genetic_kernel(
         dists=g,
         clock_rates=sim["clock_rates"],
         psi_sA=sim["psi_sA"],
@@ -276,10 +284,97 @@ def estimate_linkage_probability(
     out = p_t * selected  # shape (K,)
 
     # 7) Return scalar if scalar input
-    if np.isscalar(genetic_distance) and np.isscalar(sampling_interval):
+    if np.isscalar(genetic_distance) and np.isscalar(temporal_distance):
         return float(out[0])
     return out
 
+def estimate_linkage_probabilities(
+    genetic_distance: ArrayLike,
+    temporal_distance: ArrayLike,
+    intermediate_generations: tuple[int, ...] = (0,),
+    no_intermediates: int = 10,
+    **kwargs: Any,
+) -> np.ndarray:
+    """
+    Estimate per-observation linkage probabilities P(link | g_i, t_i) for paired
+    genetic and temporal distances.
+
+    This is a vectorized helper that:
+      1) extracts sorted unique values from the input genetic and temporal distances,
+      2) computes a full P(link | g, t) matrix once over the unique grid using
+         pairwise_linkage_probability_matrix, and
+      3) maps each observation back to its probability via inverse indices.
+
+    Returns a 1D numpy array aligned to the input order.
+
+    Parameters
+    ----------
+    genetic_distance : ArrayLike
+        Genetic (SNP) distances; numeric/coercible to float. Length N.
+    temporal_distance : ArrayLike
+        Temporal distances (days); numeric/coercible to float. Length N.
+    intermediate_generations : tuple[int, ...], default=(0,)
+        Which intermediate-generation counts m to include in the final mixture.
+        Passed through to pairwise_linkage_probability_matrix (and ultimately
+        estimate_linkage_probability).
+    no_intermediates : int, default=10
+        Maximum number of intermediates M used in simulation/kernel. Passed through.
+    **kwargs : Any
+        Additional keyword arguments forwarded to
+        pairwise_linkage_probability_matrix, e.g.:
+          - infectiousness_profile: InfectiousnessParams | None
+          - subs_rate: float
+          - subs_rate_sigma: float
+          - relax_rate: bool
+          - num_simulations: int
+          - rng_seed: int
+
+    Returns
+    -------
+    np.ndarray
+        A 1D array of probabilities (dtype float), shape (N,).
+
+    Raises
+    ------
+    ValueError
+        - If the input lengths differ
+        - If the probability matrix has an unexpected shape
+    """
+
+    g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
+    t = np.atleast_1d(np.asarray(temporal_distance, dtype=float))
+    if g.size != t.size:
+        raise ValueError(
+            f"genetic_distance and temporal_distance must have the same length, got {g.size} vs {t.size}."
+        )
+
+    # Early return for empty input
+    if g.size == 0:
+        return np.array([], dtype=float)
+
+    # Get sorted unique values and inverse indices for vectorized lookup
+    gd_unique, gi = np.unique(g, return_inverse=True)
+    td_unique, tj = np.unique(t, return_inverse=True)
+
+    # Compute full probability matrix over the unique grid
+    prob_matrix = pairwise_linkage_probability_matrix(
+        genetic_distances=gd_unique,
+        temporal_distances=td_unique,
+        intermediate_generations=intermediate_generations,
+        no_intermediates=no_intermediates,
+        **kwargs,
+    )
+
+    expected_shape = (gd_unique.size, td_unique.size)
+    if getattr(prob_matrix, "shape", None) != expected_shape:
+        raise ValueError(
+            "pairwise_linkage_probability_matrix returned shape "
+            f"{getattr(prob_matrix, 'shape', None)}, expected {expected_shape}"
+        )
+
+    # Vectorized mapping to per-observation probabilities
+    probs = np.asarray(prob_matrix, dtype=float)[gi, tj]
+    return probs
 
 def pairwise_linkage_probability_matrix(
     genetic_distances: np.ndarray,  # 1D
@@ -300,7 +395,7 @@ def pairwise_linkage_probability_matrix(
 
     flat_p = estimate_linkage_probability(
         genetic_distance=flat_g,
-        sampling_interval=flat_t,
+        temporal_distance=flat_t,
         intermediate_generations=intermediate_generations,
         no_intermediates=no_intermediates,
         **kwargs,
