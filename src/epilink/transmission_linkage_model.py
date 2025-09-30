@@ -15,7 +15,6 @@ Public API:
 - genetic_linkage_probability(...)
 """
 
-
 from __future__ import annotations
 
 from typing import Any
@@ -23,7 +22,6 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-
 
 # Optional numba JIT with safe fallback
 try:
@@ -162,7 +160,9 @@ def _genetic_kernel(
 # =============================================================================
 
 
-def _run_simulations(toit: TOIT, num_simulations: int, no_intermediates: int) -> dict[str, np.ndarray]:
+def _run_simulations(
+    toit: TOIT, num_simulations: int, no_intermediates: int
+) -> dict[str, np.ndarray]:
     """
     Draw all random epidemiological quantities once.
     """
@@ -357,6 +357,7 @@ def estimate_linkage_probability(
         return float(out[0])
     return out
 
+
 def estimate_linkage_probabilities(
     genetic_distance: ArrayLike,
     temporal_distance: ArrayLike,
@@ -458,6 +459,7 @@ def estimate_linkage_probabilities(
     probs = np.asarray(prob_matrix, dtype=float)[gi, tj]
     return probs
 
+
 def pairwise_linkage_probability_matrix(
     genetic_distances: np.ndarray,  # 1D
     temporal_distances: np.ndarray,  # 1D
@@ -538,6 +540,7 @@ def pairwise_linkage_probability_matrix(
     flat_p = np.asarray(flat_p, dtype=float)
     return flat_p.reshape(g_grid.shape)
 
+
 def temporal_linkage_probability(
     temporal_distance: ArrayLike,
     toit: TOIT,
@@ -594,6 +597,7 @@ def temporal_linkage_probability(
         diff_inc=diff_inc,
         generation_interval=gen_interval,
     )
+
 
 def genetic_linkage_probability(
     genetic_distance: ArrayLike,

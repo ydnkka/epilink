@@ -81,22 +81,22 @@ def cmd_point(args: argparse.Namespace) -> int:
     # Convert inputs to floats
     try:
         g_vals: list[float] = [float(x) for x in args.genetic_distance]
-        t_vals: list[float] = [float(x) for x in args.sampling_interval]
+        t_vals: list[float] = [float(x) for x in args.temporal_distance]
     except ValueError:
-        sys.exit("Error: genetic_distance and sampling_interval must be numeric")
+        sys.exit("Error: genetic_distance and temporal_distance must be numeric")
 
     if any(x < 0 for x in g_vals + t_vals):
-        sys.exit("Error: genetic_distance and sampling_interval must be non-negative")
+        sys.exit("Error: genetic_distance and temporal_distance must be non-negative")
 
     if args.num_simulations <= 0:
         sys.exit("Error: num_simulations must be greater than 0")
 
     if len(g_vals) != len(t_vals):
-        sys.exit("Error: genetic_distance and sampling_interval must have same count")
+        sys.exit("Error: genetic_distance and temporal_distance must have same count")
 
     p = estimate_linkage_probabilities(
         genetic_distance=np.array(g_vals, dtype=float),
-        sampling_interval=np.array(t_vals, dtype=float),
+        temporal_distance=np.array(t_vals, dtype=float),
         intermediate_generations=args.intermediate_generations,
         no_intermediates=args.no_intermediates,
         subs_rate=args.subs_rate,
@@ -179,7 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Genetic distance(s) in SNPs (space-separated for multiple).",
     )
     p_point.add_argument(
-        "--sampling-interval",
+        "--temporal-distance",
         "-t",
         nargs="+",
         required=True,

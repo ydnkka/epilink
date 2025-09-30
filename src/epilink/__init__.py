@@ -1,4 +1,4 @@
-from .infectiousness_profile import InfectiousnessParams, TOIT, TOST, presymptomatic_fraction
+from .infectiousness_profile import TOIT, TOST, InfectiousnessParams, presymptomatic_fraction
 from .transmission_linkage_model import (
     estimate_linkage_probabilities,
     estimate_linkage_probability,
@@ -18,4 +18,3 @@ __all__ = [
     "presymptomatic_fraction",
     "temporal_linkage_probability",
 ]
-
