@@ -21,7 +21,6 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 
 # Optional numba JIT with safe fallback
 try:
