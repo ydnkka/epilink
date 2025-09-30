@@ -9,7 +9,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from .transmission_linkage_model import (
-    estimate_linkage_probability,
+    estimate_linkage_probabilities,
     pairwise_linkage_probability_matrix,
 )
 
@@ -94,7 +94,7 @@ def cmd_point(args: argparse.Namespace) -> int:
     if len(g_vals) != len(t_vals):
         sys.exit("Error: genetic_distance and sampling_interval must have same count")
 
-    p = estimate_linkage_probability(
+    p = estimate_linkage_probabilities(
         genetic_distance=np.array(g_vals, dtype=float),
         sampling_interval=np.array(t_vals, dtype=float),
         intermediate_generations=args.intermediate_generations,
