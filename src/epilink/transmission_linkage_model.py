@@ -200,7 +200,7 @@ def estimate_linkage_probability(
     infectiousness_profile: InfectiousnessParams | None = None,  # Use default InfectiousnessParams
     subs_rate: float = 1e-3,  # subs/site/year (median)
     subs_rate_sigma: float = 0.33,  # lognormal sigma for relaxed clock
-    relax_rate: bool = False,  # relaxed clock on/off
+    relax_rate: bool = True,  # relaxed clock on/off
     num_simulations: int = 10000,  # Monte Carlo draws
     rng_seed: int = 12345,  # passed into TOIT
 ) -> float | np.ndarray:
