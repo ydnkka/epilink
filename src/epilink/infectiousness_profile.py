@@ -177,7 +177,7 @@ class TOIT(InfectiousnessProfile):
         rng_seed: int | None = 12345,
         # Optional clock utilities (not used by pdf/rvs)
         subs_rate: float = 1e-3,  # per site per year (median)
-        relax_rate: bool = False,  # use relaxed clock
+        relax_rate: bool = True,  # use relaxed clock
         subs_rate_sigma: float = 0.33,  # lognormal sigma
         gen_len: int = 29901,  # genome length
         # Integration/sampling grid
