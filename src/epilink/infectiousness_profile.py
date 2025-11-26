@@ -40,8 +40,7 @@ ArrayLike = npt.ArrayLike
 
 @dataclass(frozen=True)
 class InfectiousnessParams:
-    """
-    Parameter set for the COVID-19 variable infectiousness model (E/P/I).
+    """Parameter set for the COVID-19 variable infectiousness model (E/P/I).
 
     Follows the parameterization in [1], with Gamma-distributed stage durations:
     - y_E ~ Gamma(k_E, scale_inc)
@@ -73,7 +72,8 @@ class InfectiousnessParams:
     scale_I : float
         Scale parameter for the infectious period distribution (1 / (k_I * mu)).
     gamma_rate : float
-        g in [1], defined as 1 / (k_inc * scale_inc). Note: avoids clashing with scipy.stats.gamma.
+        g in [1], defined as 1 / (k_inc * scale_inc). Note: avoids clashing with
+        :mod:`scipy.stats.gamma`.
     C : float
         Normalization/combination constant used in pdf definitions:
         C = (k_inc * g * mu) / (alpha * k_P * mu + k_inc * g).
@@ -97,7 +97,7 @@ class InfectiousnessParams:
 
     @property
     def gamma_rate(self) -> float:
-        # Paper’s “g” (rate), avoid name clash with scipy.stats.gamma
+        # Paper's "g" (rate), avoid name clash with scipy.stats.gamma
         return 1.0 / (self.k_inc * self.scale_inc)
 
     @property
@@ -161,7 +161,7 @@ class TOIT(InfectiousnessProfile):
     """
     Time from start of P (presymptomatic infectiousness) to Transmission (y*).
 
-    Implements the integral expression in [1], Appendix (“Our mechanistic model”):
+    Implements the integral expression in [1], Appendix ("Our mechanistic model"):
         f_*(y*) = C [ a (1 - F_P(y*)) + ∫_0^{y*} (1 - F_I(y* - y_P)) f_P(y_P) dy_P ], for y* >= 0,
                 = 0 otherwise.
 
@@ -180,6 +180,8 @@ class TOIT(InfectiousnessProfile):
         relax_rate: bool = True,  # use relaxed clock
         subs_rate_sigma: float = 0.33,  # lognormal sigma
         gen_len: int = 29901,  # genome length
+        # Mutation accumulation model for genetic kernel
+        mutation_model: str = "deterministic",  # "deterministic" | "poisson"
         # Integration/sampling grid
         y_grid_points: int = 2048,  # grid for inner integral over yP
         x_grid_points: int = 1024,  # grid for discretized sampling over [a, b]
@@ -189,6 +191,13 @@ class TOIT(InfectiousnessProfile):
         self.relax_rate = bool(relax_rate)
         self.subs_rate_sigma = float(subs_rate_sigma)
         self.gen_len = int(gen_len)
+        # Validate and store mutation model
+        if mutation_model not in ("deterministic", "poisson"):
+            raise ValueError(
+                "mutation_model must be 'deterministic' or 'poisson', "
+                f"got {mutation_model!r}."
+            )
+        self.mutation_model = mutation_model
 
         self.y_grid_points = int(y_grid_points)
         self.x_grid_points = int(x_grid_points)
@@ -202,31 +211,65 @@ class TOIT(InfectiousnessProfile):
 
     # Molecular clock utilities
     def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """
-        Returns substitution rate per day (sites/day).
-        If relax_rate, draws from lognormal around subs_rate; else returns constant.
+        """Return substitution rate per day (sites/day).
+
+        If ``relax_rate`` is True, the rate is drawn from a lognormal distribution
+        with median ``subs_rate`` and dispersion ``subs_rate_sigma``. Otherwise a
+        strict clock with constant rate ``subs_rate`` is used.
         """
         if self.relax_rate:
             per_site_per_year = self.rng.lognormal(
-                mean=self.subs_rate_mu, sigma=self.subs_rate_sigma, size=size
+                mean=self.subs_rate_mu,
+                sigma=self.subs_rate_sigma,
+                size=size,
             )
         else:
             per_site_per_year = np.full(size, self.subs_rate, dtype=float)
         return (per_site_per_year * self.gen_len) / 365.0
 
+    def expected_mutations(
+        self,
+        times_in_days: np.ndarray,
+        rates_per_day: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Return expected mutation counts for given branch times.
+
+        Parameters
+        ----------
+        times_in_days : np.ndarray
+            Array of times in days (e.g. TMRCAs or branch lengths).
+        rates_per_day : np.ndarray | None, optional
+            Per-day clock rates to use. If None, a vector of deterministic
+            rates derived from ``subs_rate`` and ``gen_len`` is used.
+
+        Returns
+        -------
+        np.ndarray
+            Expected mutation counts (same shape as ``times_in_days``).
+        """
+        times = np.asarray(times_in_days, dtype=float)
+        if rates_per_day is None:
+            # Deterministic rate derived from subs_rate (per site per year)
+            rate = (self.subs_rate * self.gen_len) / 365.0
+            lam = rate * times
+        else:
+            lam = np.asarray(rates_per_day, dtype=float) * times
+        return np.clip(lam, a_min=0.0, a_max=np.inf)
+
     def generation_time(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """
-        Generation time proxy: E stage duration + a draw from TOIT distribution.
-        Note: TOIT.rvs is discrete; suitable for stochastic simulations.
-        """
+        """Generation time proxy: E stage duration plus a TOIT draw."""
         return self.sample_E(size=size) + self.rvs(size=size)
 
     def pdf(self, x: ArrayLike) -> np.ndarray:
-        """
-        PDF of TOIT as in [1] (Appendix). Computed via vectorized trapezoidal rule.
+        """PDF of TOIT as in [1] (Appendix).
 
-        pdf(x) = C * [ alpha * (1 - F_P(x)) + ∫_0^x (1 - F_I(x - yP)) f_P(yP) dyP ], for x >= 0
-               = 0 for x < 0
+        Computed via vectorized trapezoidal rule:
+
+        .. math::
+
+           f_*(x) = C\left[ \alpha (1 - F_P(x)) + \int_0^x (1 - F_I(x - y_P)) f_P(y_P)\,dy_P \right]
+
+        for ``x >= 0`` and zero otherwise.
         """
         x_arr = np.atleast_1d(np.asarray(x, dtype=float))
         out = np.zeros_like(x_arr)
@@ -264,9 +307,7 @@ class TOIT(InfectiousnessProfile):
         return out
 
     def _ensure_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Precompute and cache discretized pdf on a fixed x-grid over [a, b].
-        """
+        """Precompute and cache discretized pdf on a fixed x-grid over [a, b]."""
         if self._x_grid is None or self._pdf_grid is None:
             x = np.linspace(self.a, self.b, num=max(2, self.x_grid_points))
             pdf_vals = self.pdf(x)

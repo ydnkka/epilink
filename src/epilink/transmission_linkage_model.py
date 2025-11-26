@@ -1,18 +1,23 @@
 """
-Estimate the probability of a transmission link between two cases from
-genetic distance (SNPs) and temporal distance (days).
+Estimate the probability of a transmission link between two cases.
 
-This module uses:
-- A mechanistic infectiousness model (TOIT/TOST from infectiousness_profile.py)
-- Monte Carlo simulation for epidemiological components
-- Numba-accelerated kernels for the probability calculations
+The core model combines genetic distance (SNPs) and temporal distance (days)
+using a mechanistic infectiousness model and Monte Carlo simulation.
 
-Public API:
-- estimate_linkage_probability(...)
-- estimate_linkage_probabilities(...)
-- pairwise_linkage_probability_matrix(...)
-- temporal_linkage_probability(...)
-- genetic_linkage_probability(...)
+There are two genetic kernels:
+
+* :func:`_genetic_kernel` – legacy, TMRCA/time-based kernel.
+* :func:`_genetic_kernel_mutation` – newer mutation-count kernel supporting
+  deterministic and Poisson mutation accumulation models.
+
+Public API
+----------
+
+* :func:`estimate_linkage_probability`
+* :func:`estimate_linkage_probabilities`
+* :func:`pairwise_linkage_probability_matrix`
+* :func:`temporal_linkage_probability`
+* :func:`genetic_linkage_probability`
 """
 
 from __future__ import annotations
@@ -27,9 +32,11 @@ try:
     import numba
 
     JIT = numba.njit(cache=True, fastmath=True)
-except ImportError:
+except ImportError:  # pragma: no cover - exercised only when numba is missing
 
     def JIT(*args, **kwargs):
+        """Fallback decorator used when :mod:`numba` is not available."""
+
         def decorator(func):
             return func
 
@@ -154,6 +161,141 @@ def _genetic_kernel(
     return out
 
 
+@JIT
+def _poisson_pmf(k: int, lam: float) -> float:
+    """Compute Poisson pmf P(K=k | λ=lam) in a Numba-friendly way.
+
+    Uses direct factorial for small k and a Stirling approximation for larger
+    k to balance stability and speed. Assumes k >= 0.
+    """
+    if k < 0 or lam < 0.0:
+        return 0.0
+    if lam == 0.0:
+        return 1.0 if k == 0 else 0.0
+
+    # Small k: compute factorial exactly
+    if k < 20:
+        fact = 1.0
+        for i in range(2, k + 1):
+            fact *= float(i)
+        return np.exp(-lam) * (lam**k) / fact
+
+    # Large k: Stirling approximation for log(k!)
+    kf = float(k)
+    log_fact = kf * np.log(kf) - kf + 0.5 * np.log(2.0 * np.pi * kf)
+    return np.exp(-lam + kf * np.log(lam) - log_fact)
+
+
+@JIT
+def _genetic_kernel_mutation(
+    dists: np.ndarray,  # shape (K,)
+    clock_rates: np.ndarray,  # shape (N,)
+    psi_sA: np.ndarray,  # shape (N,)
+    psi_sB: np.ndarray,  # shape (N,)
+    generation_interval: np.ndarray,  # shape (N, M+1)
+    toit_difference: np.ndarray,  # shape (N,)
+    incubation_period: np.ndarray,  # shape (N, 2)
+    caseX_to_caseA: np.ndarray,  # shape (N,)
+    intermediates: int,  # M (max number of intermediates)
+    deterministic: bool,
+    mutation_tolerance: int,
+) -> np.ndarray:
+    """Genetic kernel operating in mutation-count space.
+
+    For each genetic distance d in ``dists`` (interpreted as observed SNP
+    counts), compute scenario-wise evidence for m = 0..M using either a
+    deterministic or Poisson mutation accumulation model.
+
+    Parameters
+    ----------
+    dists : np.ndarray
+        Observed SNP distances, shape (K,).
+    clock_rates : np.ndarray
+        Per-day clock rates, shape (N,).
+    psi_sA, psi_sB, generation_interval, toit_difference, incubation_period,
+    caseX_to_caseA, intermediates :
+        Epidemiological quantities as produced by ``_run_simulations``; shapes
+        match those expected by ``_genetic_kernel``.
+    deterministic : bool
+        If True, use deterministic matching in mutation space with a tolerance
+        of ``mutation_tolerance`` around the expected count. If False, use a
+        Poisson pmf averaged over simulations.
+    mutation_tolerance : int
+        Integer tolerance used in deterministic mode: a simulation contributes
+        if ``|d - round(lambda_jm)| <= mutation_tolerance``.
+    """
+    K = dists.shape[0]
+    N = clock_rates.shape[0]
+    M = intermediates
+
+    out = np.zeros((K, M + 1), dtype=np.float64)
+
+    # Invariants across m
+    dir_tmrca_exp = psi_sA + psi_sB  # (N,)
+    inc_period_sum = incubation_period[:, 0] + incubation_period[:, 1]  # (N,)
+
+    for k in range(K):
+        d = int(dists[k])
+        if d < 0:
+            # Negative genetic distances are not meaningful; leave zeros.
+            continue
+
+        # m = 0: direct
+        count_or_sum = 0.0
+        for j in range(N):
+            tmrca_expected = dir_tmrca_exp[j]
+            lam = 2.0 * clock_rates[j] * tmrca_expected
+            if deterministic:
+                expected_count = int(np.rint(lam))
+                if abs(d - expected_count) <= mutation_tolerance:
+                    count_or_sum += 1.0
+            else:
+                count_or_sum += _poisson_pmf(d, lam)
+        out[k, 0] = count_or_sum / float(N)
+
+        # m > 0
+        for m in range(1, M + 1):
+            idx = M - (m - 1)
+            count_or_sum_m = 0.0
+
+            for j in range(N):
+                # Successive path: direct TMRCA + sum GI from idx..M
+                s_suc = 0.0
+                for col in range(idx, M + 1):
+                    s_suc += generation_interval[j, col]
+                suc_tmrca = dir_tmrca_exp[j] + s_suc
+
+                # Common ancestor path: TOIT difference + incubation periods + sum GI idx..M-1
+                s_com = 0.0
+                for col in range(idx, M):
+                    s_com += generation_interval[j, col]
+                common_tmrca = toit_difference[j] + inc_period_sum[j] + s_com
+
+                # Convert both paths to expected mutation counts and combine
+                lam_suc = 2.0 * clock_rates[j] * suc_tmrca
+                lam_com = 2.0 * clock_rates[j] * common_tmrca
+
+                if deterministic:
+                    expected_suc = int(np.rint(lam_suc))
+                    expected_com = int(np.rint(lam_com))
+                    match_suc = abs(d - expected_suc) <= mutation_tolerance
+                    match_com = abs(d - expected_com) <= mutation_tolerance
+                    # Inclusion-exclusion on events
+                    if match_suc or match_com:
+                        count_or_sum_m += 1.0
+                else:
+                    # Probabilities for each path
+                    p_suc = _poisson_pmf(d, lam_suc)
+                    p_com = _poisson_pmf(d, lam_com)
+                    # Inclusion-exclusion in probability space
+                    p_any = p_suc + p_com - (p_suc * p_com)
+                    count_or_sum_m += p_any
+
+            out[k, m] = count_or_sum_m / float(N)
+
+    return out
+
+
 # =============================================================================
 # 2) Simulation
 # =============================================================================
@@ -203,100 +345,45 @@ def estimate_linkage_probability(
     relax_rate: bool = True,  # relaxed clock on/off
     num_simulations: int = 10000,  # Monte Carlo draws
     rng_seed: int = 12345,  # passed into TOIT
+    mutation_model: str = "deterministic",  # "deterministic" | "poisson"
+    mutation_tolerance: int = 0,
 ) -> float | np.ndarray:
+    """End-to-end estimate of :math:`P(\text{link} \mid g, t)`.
+
+    This combines temporal and genetic evidence and supports two mutation
+    accumulation models:
+
+    * ``mutation_model='deterministic'`` (default): matches observed SNP counts
+      to expected counts within an integer tolerance.
+    * ``mutation_model='poisson'``: uses a Poisson likelihood for SNP counts
+      conditional on expected mutations along the transmission tree.
+
+    The rest of the behaviour mirrors the previous implementation: genetic
+    evidence is computed for each number of intermediates ``m = 0..M``, then
+    normalized and mixed over the requested ``intermediate_generations`` before
+    being multiplied by the temporal evidence.
     """
-    End-to-end estimate of P(link | g, t) combining temporal and genetic evidence.
-
-    This function mixes over intermediate-generation counts m using a two-step
-    normalization of the genetic evidence and multiplies by the temporal evidence.
-
-    Algorithm (per observation)
-    ---------------------------
-    1) Temporal evidence P_t(t):
-         P_t = mean_j [ |t + (inc_A_j - inc_B_j)| <= GI_j ]
-       via Monte Carlo draws from the TOIT model.
-    2) Genetic evidence p_m(g) for m = 0..M:
-         - Compute p_m via _genetic_kernel over simulated epidemiological quantities.
-         - total = 1 - prod_m (1 - p_m)   [probability that at least one link occurs]
-         - p_rel_m = p_m / total          [“relative” evidence; guards against no-link]
-         - p_norm_m = p_rel_m / sum_m p_rel_m
-       The final genetic mixture over selected m is:
-         - sum_m p_norm_m for m in intermediate_generations
-    3) Combine:
-         P(link | g, t) = P_t * (sum over selected m of p_norm_m)
-
-    Parameters
-    ----------
-    genetic_distance : ArrayLike
-        SNP distance(s). Scalar or 1D array-like.
-    temporal_distance : ArrayLike
-        Temporal distance(s) in days. Must be the same length and shape-broadcast
-        as genetic_distance (scalar or 1D array-like).
-    intermediate_generations : tuple[int, ...], default=(0,)
-        Which m values (0 = direct, 1 = one intermediate, ...) to include in the
-        final normalized genetic mixture.
-    no_intermediates : int, default=10
-        Maximum m (inclusive) to simulate, i.e., M in m=0..M.
-    infectiousness_profile : InfectiousnessParams | None, default=None
-        Parameters passed to TOIT; None uses the module defaults.
-    subs_rate : float, default=1e-3
-        Substitutions per site per year (median of the clock-rate prior).
-    subs_rate_sigma : float, default=0.33
-        Lognormal sigma of the relaxed clock.
-    relax_rate : bool, default=False
-        If True, use a relaxed molecular clock; otherwise strict.
-    num_simulations : int, default=10000
-        Number of Monte Carlo draws.
-    rng_seed : int, default=12345
-        Seed passed to TOIT for reproducibility.
-
-    Returns
-    -------
-    float or np.ndarray
-        - float, if both inputs are scalars
-        - 1D numpy array of shape (K,), where K = len(np.atleast_1d(genetic_distance)),
-          if either input is array-like.
-        - np.nan if K == 0 (empty input).
-
-    Raises
-    ------
-    ValueError
-        - If genetic_distance and temporal_distance lengths differ
-        - If any requested intermediate generation lies outside [0, M]
-
-    Notes
-    -----
-    - Temporal and genetic components are computed via numba-accelerated kernels.
-    - For direct access to components, see:
-        temporal_linkage_probability(...) and genetic_linkage_probability(...).
-    - The “normalized” genetic mixture sums to 1 across m and is then restricted
-      to the requested m values before combining with P_t.
-
-    Examples
-    --------
-    >>> # Scalar inputs -> scalar probability
-    >>> p = estimate_linkage_probability(2, 7, intermediate_generations=(0,1), rng_seed=1)
-    >>> isinstance(p, float)
-    True
-
-    >>> # Vectorized inputs -> 1D array of probabilities
-    >>> gd = [0, 1, 2]
-    >>> td = [2, 5, 10]
-    >>> estimate_linkage_probability(gd, td, intermediate_generations=(0,)).shape
-    (3,)
-    """
-
     # 1) Prepare inputs as 1D arrays of same length
     g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
     t = np.atleast_1d(np.asarray(temporal_distance, dtype=float))
     if g.size != t.size:
         raise ValueError(
-            f"genetic_distance and temporal_distance must have the same length, got {g.size} vs {t.size}."
+            "genetic_distance and temporal_distance must have the same length, "
+            f"got {g.size} vs {t.size}.",
         )
 
     # Early return for empty input
     if g.size == 0:
         return np.nan
+
+    if mutation_model not in ("deterministic", "poisson"):
+        raise ValueError(
+            "mutation_model must be 'deterministic' or 'poisson', "
+            f"got {mutation_model!r}.",
+        )
+
+    if mutation_tolerance < 0:
+        raise ValueError("mutation_tolerance must be non-negative.")
 
     M = int(no_intermediates)
 
@@ -307,6 +394,7 @@ def estimate_linkage_probability(
         subs_rate=float(subs_rate),
         subs_rate_sigma=float(subs_rate_sigma),
         relax_rate=bool(relax_rate),
+        mutation_model=mutation_model,
     )
     sim = _run_simulations(toit, int(num_simulations), M)
 
@@ -318,25 +406,41 @@ def estimate_linkage_probability(
     )  # shape (K,)
 
     # 4) Genetic evidence: p_m for each m=0..M
-    p_m = _genetic_kernel(
-        dists=g,
-        clock_rates=sim["clock_rates"],
-        psi_sA=sim["psi_sA"],
-        psi_sB=sim["psi_sB"],
-        generation_interval=sim["generation_interval"],
-        toit_difference=sim["toit_difference"],
-        incubation_period=sim["incubation_period"],
-        caseX_to_caseA=sim["caseX_to_caseA"],
-        intermediates=M,
-    )  # shape (K, M+1)
+    if mutation_model == "deterministic" and mutation_tolerance == 0:
+        # Backward-compatible kernel in time space
+        p_m = _genetic_kernel(
+            dists=g,
+            clock_rates=sim["clock_rates"],
+            psi_sA=sim["psi_sA"],
+            psi_sB=sim["psi_sB"],
+            generation_interval=sim["generation_interval"],
+            toit_difference=sim["toit_difference"],
+            incubation_period=sim["incubation_period"],
+            caseX_to_caseA=sim["caseX_to_caseA"],
+            intermediates=M,
+        )  # shape (K, M+1)
+    else:
+        # New mutation-count kernel supporting deterministic/Poisson
+        use_deterministic = mutation_model == "deterministic"
+        p_m = _genetic_kernel_mutation(
+            dists=g,
+            clock_rates=sim["clock_rates"],
+            psi_sA=sim["psi_sA"],
+            psi_sB=sim["psi_sB"],
+            generation_interval=sim["generation_interval"],
+            toit_difference=sim["toit_difference"],
+            incubation_period=sim["incubation_period"],
+            caseX_to_caseA=sim["caseX_to_caseA"],
+            intermediates=M,
+            deterministic=use_deterministic,
+            mutation_tolerance=int(mutation_tolerance),
+        )  # shape (K, M+1)
 
     # 5) Normalize genetic evidence across m
-    # total probability of at least one link per row
     total = 1.0 - np.prod(1.0 - p_m, axis=1)  # shape (K,)
-    # Avoid division by zero: where total==0, keep zeros
     with np.errstate(divide="ignore", invalid="ignore"):
-        p_rel = np.where(total[:, None] > 0.0, p_m / total[:, None], 0.0)  # shape (K, M+1)
-    row_sums = p_rel.sum(axis=1)  # shape (K,)
+        p_rel = np.where(total[:, None] > 0.0, p_m / total[:, None], 0.0)
+    row_sums = p_rel.sum(axis=1)
     with np.errstate(divide="ignore", invalid="ignore"):
         p_norm = np.where(row_sums[:, None] > 0.0, p_rel / row_sums[:, None], 0.0)
 
@@ -344,12 +448,12 @@ def estimate_linkage_probability(
     cols = np.array(intermediate_generations, dtype=np.int64)
     if cols.min() < 0 or cols.max() > M:
         raise ValueError(
-            f"intermediate_generations must be within [0, {M}], got {intermediate_generations}."
+            f"intermediate_generations must be within [0, {M}], got {intermediate_generations}.",
         )
     selected = p_norm[:, cols].sum(axis=1)  # shape (K,)
 
     # 6) Combine temporal and genetic evidence
-    out = p_t * selected  # shape (K,)
+    out = p_t * selected
 
     # 7) Return scalar if scalar input
     if np.isscalar(genetic_distance) and np.isscalar(temporal_distance):
@@ -362,88 +466,37 @@ def estimate_linkage_probabilities(
     temporal_distance: ArrayLike,
     intermediate_generations: tuple[int, ...] = (0,),
     no_intermediates: int = 10,
+    mutation_model: str = "deterministic",
+    mutation_tolerance: int = 0,
     **kwargs: Any,
 ) -> np.ndarray:
+    """Vectorized helper to compute P(link | g_i, t_i) for many observations.
+
+    Additional keyword arguments are forwarded to
+    :func:`estimate_linkage_probability`, including ``mutation_model`` and
+    ``mutation_tolerance``.
     """
-    Vectorized helper to compute P(link | g_i, t_i) for many observations efficiently.
-
-    This function:
-      1) extracts sorted unique values from the inputs,
-      2) computes a full P(link | g, t) matrix over the unique grid via
-         pairwise_linkage_probability_matrix, and
-      3) maps each observation back to its probability.
-
-    Parameters
-    ----------
-    genetic_distance : ArrayLike
-        SNP distances; numeric/coercible to float. Length N.
-    temporal_distance : ArrayLike
-        Temporal distances in days; numeric/coercible to float. Length N.
-    intermediate_generations : tuple[int, ...], default=(0,)
-        Which m values to include in the final normalized genetic mixture.
-        Passed through to pairwise_linkage_probability_matrix (and ultimately
-        estimate_linkage_probability).
-    no_intermediates : int, default=10
-        Maximum number of intermediates M used in simulation/kernel. Passed through.
-    **kwargs : Any
-        Additional keyword arguments forwarded to pairwise_linkage_probability_matrix,
-        e.g.:
-          - infectiousness_profile: InfectiousnessParams | None
-          - subs_rate: float
-          - subs_rate_sigma: float
-          - relax_rate: bool
-          - num_simulations: int
-          - rng_seed: int
-
-    Returns
-    -------
-    np.ndarray
-        A 1D array of probabilities (dtype float), shape (N,), aligned with the
-        input ordering. Returns an empty array if N == 0.
-
-    Raises
-    ------
-    ValueError
-        - If the input lengths differ
-        - If the probability matrix from pairwise_linkage_probability_matrix has
-          an unexpected shape
-
-    Notes
-    -----
-    - Using unique grids avoids recomputing probabilities for repeated (g, t) pairs.
-    - The stochastic components (Monte Carlo draws) are controlled by the rng_seed
-      and other kwargs passed into the underlying estimator.
-
-    Examples
-    --------
-    >>> gd = [0, 0, 1, 2]
-    >>> td = [5, 5, 5, 10]
-    >>> probs = estimate_linkage_probabilities(gd, td, intermediate_generations=(0,1), rng_seed=7)
-    >>> probs.shape
-    (4,)
-    """
-
     g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
     t = np.atleast_1d(np.asarray(temporal_distance, dtype=float))
     if g.size != t.size:
         raise ValueError(
-            f"genetic_distance and temporal_distance must have the same length, got {g.size} vs {t.size}."
+            "genetic_distance and temporal_distance must have the same length, "
+            f"got {g.size} vs {t.size}.",
         )
 
-    # Early return for empty input
     if g.size == 0:
         return np.array([], dtype=float)
 
-    # Get sorted unique values and inverse indices for vectorized lookup
     gd_unique, gi = np.unique(g, return_inverse=True)
     td_unique, tj = np.unique(t, return_inverse=True)
 
-    # Compute full probability matrix over the unique grid
     prob_matrix = pairwise_linkage_probability_matrix(
         genetic_distances=gd_unique,
         temporal_distances=td_unique,
         intermediate_generations=intermediate_generations,
         no_intermediates=no_intermediates,
+        mutation_model=mutation_model,
+        mutation_tolerance=mutation_tolerance,
         **kwargs,
     )
 
@@ -451,10 +504,9 @@ def estimate_linkage_probabilities(
     if getattr(prob_matrix, "shape", None) != expected_shape:
         raise ValueError(
             "pairwise_linkage_probability_matrix returned shape "
-            f"{getattr(prob_matrix, 'shape', None)}, expected {expected_shape}"
+            f"{getattr(prob_matrix, 'shape', None)}, expected {expected_shape}",
         )
 
-    # Vectorized mapping to per-observation probabilities
     probs = np.asarray(prob_matrix, dtype=float)[gi, tj]
     return probs
 
@@ -464,68 +516,19 @@ def pairwise_linkage_probability_matrix(
     temporal_distances: np.ndarray,  # 1D
     intermediate_generations: tuple[int, ...] = (0,),
     no_intermediates: int = 10,
+    mutation_model: str = "deterministic",
+    mutation_tolerance: int = 0,
     **kwargs,
 ) -> np.ndarray:
+    """Compute a (G x T) matrix of P(link | g, t) over distance grids.
+
+    Parameters are forwarded to :func:`estimate_linkage_probability`, including
+    ``mutation_model`` and ``mutation_tolerance``.
     """
-    Compute a (G x T) matrix of P(link | g, t) over a grid of genetic and temporal distances.
-
-    Parameters
-    ----------
-    genetic_distances : array-like of float, shape (G,)
-        Unique or non-unique SNP distances to place on the grid’s rows.
-        Duplicates are allowed (rows will be duplicated accordingly).
-    temporal_distances : array-like of float, shape (T,)
-        Unique or non-unique temporal distances in days to place on the grid’s columns.
-        Duplicates are allowed (columns will be duplicated accordingly).
-    intermediate_generations : tuple[int, ...], default=(0,)
-        Which m values to include in the final normalized genetic mixture.
-        Forwarded to estimate_linkage_probability.
-    no_intermediates : int, default=10
-        Maximum number of intermediates M used in simulation/kernel. Forwarded through.
-    **kwargs
-        Additional keyword arguments forwarded to estimate_linkage_probability, e.g.:
-          - infectiousness_profile: InfectiousnessParams | None
-          - subs_rate: float
-          - subs_rate_sigma: float
-          - relax_rate: bool
-          - num_simulations: int
-          - rng_seed: int
-
-    Returns
-    -------
-    np.ndarray
-        Matrix of shape (G, T), where entry [i, j] is P(link | g=genetic_distances[i],
-        t=temporal_distances[j]) computed using the mixture logic over m and the
-        specified kwargs.
-
-    Raises
-    ------
-    ValueError
-        Propagated from estimate_linkage_probability for invalid inputs, e.g., if
-        any requested intermediate generation lies outside [0, M].
-
-    Notes
-    -----
-    - Internally uses a meshgrid and flattens the grid to make a single call to
-      estimate_linkage_probability, which runs the simulation once and evaluates
-      all pairs in a vectorized manner.
-    - For per-observation convenience over non-gridded pairs, see
-      estimate_linkage_probabilities.
-
-    Examples
-    --------
-    >>> gd = np.array([0, 1, 2])
-    >>> td = np.array([0, 5, 10])
-    >>> M = pairwise_linkage_probability_matrix(gd, td, intermediate_generations=(0,1), rng_seed=11)
-    >>> M.shape
-    (3, 3)
-    """
-    # ... existing implementation ...
-
     gd = np.asarray(genetic_distances, dtype=float)
     td = np.asarray(temporal_distances, dtype=float)
 
-    g_grid, t_grid = np.meshgrid(gd, td, indexing="ij")  # each shape (G, T)
+    g_grid, t_grid = np.meshgrid(gd, td, indexing="ij")
     flat_g = g_grid.ravel()
     flat_t = t_grid.ravel()
 
@@ -534,6 +537,8 @@ def pairwise_linkage_probability_matrix(
         temporal_distance=flat_t,
         intermediate_generations=intermediate_generations,
         no_intermediates=no_intermediates,
+        mutation_model=mutation_model,
+        mutation_tolerance=mutation_tolerance,
         **kwargs,
     )
     flat_p = np.asarray(flat_p, dtype=float)
@@ -603,110 +608,68 @@ def genetic_linkage_probability(
     toit: TOIT,
     num_simulations: int = 10000,
     no_intermediates: int = 10,
-    intermediate_generations: tuple[int, ...] | None = None,  # e.g. (0, 1)
+    intermediate_generations: tuple[int, ...] | None = None,
     kind: str = "relative",  # "raw" | "relative" | "normalized"
+    mutation_model: str | None = None,
+    mutation_tolerance: int = 0,
 ) -> np.ndarray:
+    """Monte Carlo estimate of the genetic evidence across scenarios.
+
+    The ``mutation_model`` and ``mutation_tolerance`` parameters behave as in
+    :func:`estimate_linkage_probability`. If ``mutation_model`` is None, the
+    value from the provided ``toit`` instance is used; if that is unavailable,
+    ``'deterministic'`` is assumed.
     """
-    Monte Carlo estimate of the genetic evidence across intermediate-generation scenarios.
-
-    For each genetic distance g_k (SNPs), this computes the vector p_m for m=0..M where:
-      - p_m (kind="raw") is the scenario-wise probability of observing g_k under the model
-        with exactly m intermediates on the transmission path (m=0 is direct).
-      - p_m (kind="relative") rescales the raw p_m by the probability of at least one
-        link: total = 1 - prod_m(1 - p_m). That is, p_m / total. The sum across m can
-        exceed 1 (union bound).
-      - p_m (kind="normalized") further normalizes the relative values to sum to 1 across m.
-
-    If `intermediate_generations` is provided (e.g., (0, 1)), the function aggregates
-    across those columns:
-      - kind="raw" or "relative": returns the mean across selected m.
-      - kind="normalized": returns the sum across selected m (i.e., the share of the
-        normalized mass assigned to those m).
-
-    Parameters
-    ----------
-    genetic_distance : ArrayLike
-        One or more genetic distances (SNPs). Can be scalar or 1D array-like.
-    toit : TOIT
-        A configured infectiousness/clock model instance from which the epidemiological
-        and clock-rate quantities are drawn.
-    num_simulations : int, default=10000
-        Number of Monte Carlo draws.
-    no_intermediates : int, default=10
-        M, the maximum number of intermediate generations simulated (m=0..M).
-    intermediate_generations : tuple[int, ...] | None, default=None
-        If provided, restricts/aggregates output to the specified m-values.
-        Values must lie within [0, M].
-        - If None: return a matrix of shape (K, M+1) over all m.
-        - If provided: return a 1D vector of shape (K,) aggregated as described above.
-    kind : {"raw", "relative", "normalized"}, default="relative"
-        Selects which genetic evidence to return:
-        - "raw": scenario-wise probabilities p_m as returned by the kernel
-        - "relative": p_m divided by total = 1 - prod(1 - p_m)
-        - "normalized": "relative" values renormalized to sum to 1 across m
-
-    Returns
-    -------
-    np.ndarray
-        - If intermediate_generations is None: array of shape (K, M+1)
-        - Else: array of shape (K,)
-        Here K = len(np.atleast_1d(genetic_distance)).
-
-    Raises
-    ------
-    ValueError
-        If any requested intermediate generation is outside [0, M], or if kind is invalid.
-
-    Notes
-    -----
-    - This function provides only the genetic component; combine with the temporal
-      component (or use estimate_linkage_probability) to obtain P(link | g, t).
-    - Reproducibility is controlled by the rng_seed in the provided TOIT instance.
-    - Interpretation:
-        * "raw" reflects scenario-wise evidence magnitudes.
-        * "relative" conditions on at least one transmission link being present.
-          Sums across m may exceed 1.
-        * "normalized" provides a proper distribution across m that sums to 1.
-
-    Examples
-    --------
-    >>> toit = TOIT(rng_seed=123)
-    >>> # Full matrix over m=0..M for g in {0,1,2}
-    >>> genetic_linkage_probability([0, 1, 2], toit=toit, no_intermediates=5, kind="normalized").shape
-    (3, 6)
-
-    >>> # Aggregate over direct and one intermediate, returning a 1D vector per g
-    >>> genetic_linkage_probability([0, 1, 2], toit=toit, no_intermediates=5,
-    ...                             intermediate_generations=(0, 1), kind="normalized").shape
-    (3,)
-    """
-    g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))  # ensure 1D array
+    g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
     M = int(no_intermediates)
+
+    if mutation_model is None:
+        model = getattr(toit, "mutation_model", "deterministic")
+    else:
+        model = mutation_model
+
+    if model not in ("deterministic", "poisson"):
+        raise ValueError(
+            "mutation_model must be 'deterministic' or 'poisson', "
+            f"got {model!r}.",
+        )
+    if mutation_tolerance < 0:
+        raise ValueError("mutation_tolerance must be non-negative.")
 
     sim = _run_simulations(toit, int(num_simulations), M)
 
-    # Genetic evidence: p_m for each m=0..M; shape (K, M+1)
-    p_m = _genetic_kernel(
-        dists=g,
-        clock_rates=sim["clock_rates"],
-        psi_sA=sim["psi_sA"],
-        psi_sB=sim["psi_sB"],
-        generation_interval=sim["generation_interval"],
-        toit_difference=sim["toit_difference"],
-        incubation_period=sim["incubation_period"],
-        caseX_to_caseA=sim["caseX_to_caseA"],
-        intermediates=M,
-    )
+    if model == "deterministic" and mutation_tolerance == 0:
+        p_m = _genetic_kernel(
+            dists=g,
+            clock_rates=sim["clock_rates"],
+            psi_sA=sim["psi_sA"],
+            psi_sB=sim["psi_sB"],
+            generation_interval=sim["generation_interval"],
+            toit_difference=sim["toit_difference"],
+            incubation_period=sim["incubation_period"],
+            caseX_to_caseA=sim["caseX_to_caseA"],
+            intermediates=M,
+        )
+    else:
+        use_deterministic = model == "deterministic"
+        p_m = _genetic_kernel_mutation(
+            dists=g,
+            clock_rates=sim["clock_rates"],
+            psi_sA=sim["psi_sA"],
+            psi_sB=sim["psi_sB"],
+            generation_interval=sim["generation_interval"],
+            toit_difference=sim["toit_difference"],
+            incubation_period=sim["incubation_period"],
+            caseX_to_caseA=sim["caseX_to_caseA"],
+            intermediates=M,
+            deterministic=use_deterministic,
+            mutation_tolerance=int(mutation_tolerance),
+        )
 
-    # total probability of at least one link per row
-    total = 1.0 - np.prod(1.0 - p_m, axis=1)  # shape (K,)
-
-    # "relative" values: avoid division by zero
+    total = 1.0 - np.prod(1.0 - p_m, axis=1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        p_rel = np.where(total[:, None] > 0.0, p_m / total[:, None], 0.0)  # (K, M+1)
-
-    # "normalized" values: renormalize to sum to 1 across m
-    row_sums = p_rel.sum(axis=1)  # (K,)
+        p_rel = np.where(total[:, None] > 0.0, p_m / total[:, None], 0.0)
+    row_sums = p_rel.sum(axis=1)
     with np.errstate(divide="ignore", invalid="ignore"):
         p_norm = np.where(row_sums[:, None] > 0.0, p_rel / row_sums[:, None], 0.0)
 
@@ -714,24 +677,26 @@ def genetic_linkage_probability(
         cols = np.array(intermediate_generations, dtype=np.int64)
         if cols.min() < 0 or cols.max() > M:
             raise ValueError(
-                f"intermediate_generations must be within [0, {M}], got {intermediate_generations}."
+                f"intermediate_generations must be within [0, {M}], got {intermediate_generations}.",
             )
 
         if kind == "relative":
-            selected = p_rel[:, cols].mean(axis=1)  # (K,)
+            selected = p_rel[:, cols].mean(axis=1)
         elif kind == "raw":
-            selected = p_m[:, cols].mean(axis=1)  # (K,)
+            selected = p_m[:, cols].mean(axis=1)
         elif kind == "normalized":
-            selected = p_norm[:, cols].sum(axis=1)  # (K,)
+            selected = p_norm[:, cols].sum(axis=1)
         else:
-            raise ValueError(f"kind must be 'relative', 'raw', or 'normalized', got '{kind}'.")
+            raise ValueError(
+                "kind must be 'relative', 'raw', or 'normalized', "
+                f"got {kind!r}.",
+            )
         return selected
-    else:
-        if kind == "relative":
-            return p_rel  # (K, M+1)
-        elif kind == "raw":
-            return p_m  # (K, M+1)
-        elif kind == "normalized":
-            return p_norm  # (K, M+1)
-        else:
-            raise ValueError(f"kind must be 'relative', 'raw', or 'normalized', got '{kind}'.")
+
+    if kind == "relative":
+        return p_rel
+    if kind == "raw":
+        return p_m
+    if kind == "normalized":
+        return p_norm
+    raise ValueError(f"kind must be 'relative', 'raw', or 'normalized', got {kind!r}.")
