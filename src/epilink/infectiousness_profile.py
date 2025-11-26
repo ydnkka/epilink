@@ -144,16 +144,19 @@ class InfectiousnessProfile:
 
     # Convenience samplers for components, using numpy RNG for speed
     def sample_incubation(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        # numpy’s gamma uses shape k and scale theta
+        """Incubation draws y_E + y_P ~ Gamma(k_inc, scale_inc)."""
         return self.rng.gamma(shape=self.params.k_inc, scale=self.params.scale_inc, size=size)
 
     def sample_E(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        """Latent-period draws y_E ~ Gamma(k_E, scale_inc)."""
         return self.rng.gamma(shape=self.params.k_E, scale=self.params.scale_inc, size=size)
 
     def sample_P(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        """Presymptomatic draws y_P ~ Gamma(k_P, scale_inc)."""
         return self.rng.gamma(shape=self.params.k_P, scale=self.params.scale_inc, size=size)
 
     def sample_I(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        """Symptomatic draws y_I ~ Gamma(k_I, scale_I)."""
         return self.rng.gamma(shape=self.params.k_I, scale=self.params.scale_I, size=size)
 
 
@@ -324,6 +327,7 @@ class TOIT(InfectiousnessProfile):
         return self._x_grid, self._pdf_grid
 
     def rvs(self, size: int | tuple[int, ...] = (1,)) -> np.ndarray:
+        """Random variates sampled from discretized pdf on [a, b]."""
         if isinstance(size, int):
             size = (size,)
         x, probs = self._ensure_grid()

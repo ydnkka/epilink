@@ -22,7 +22,7 @@ Public API
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 import numpy.typing as npt
@@ -35,7 +35,7 @@ try:
 except ImportError:  # pragma: no cover - exercised only when numba is missing
 
     def JIT(*args, **kwargs):
-        """Fallback decorator used when :mod:`numba` is not available."""
+        """Return function unchanged when :mod:`numba` is unavailable."""
 
         def decorator(func):
             return func
@@ -46,6 +46,20 @@ except ImportError:  # pragma: no cover - exercised only when numba is missing
 from .infectiousness_profile import TOIT, InfectiousnessParams
 
 ArrayLike = npt.ArrayLike
+NDArrayFloat = npt.NDArray[np.float64]
+
+
+class SimulationOutputs(TypedDict):
+    """Container describing all arrays produced by :func:`_run_simulations`."""
+
+    incubation_period: NDArrayFloat
+    generation_interval: NDArrayFloat
+    psi_sA: NDArrayFloat
+    psi_sB: NDArrayFloat
+    diff_inc: NDArrayFloat
+    caseX_to_caseA: NDArrayFloat
+    toit_difference: NDArrayFloat
+    clock_rates: NDArrayFloat
 
 
 # =============================================================================
@@ -59,10 +73,7 @@ def _temporal_kernel(
     diff_inc: np.ndarray,  # shape (N,)
     generation_interval: np.ndarray,  # shape (N,), direct generation interval
 ) -> np.ndarray:
-    """
-    Compute temporal evidence P_t for each sampling interval by Monte Carlo.
-    P_t(i) = mean_j [ |t_i + diff_inc_j| <= generation_interval0_j ]
-    """
+    """Monte Carlo estimate of temporal evidence for each sampling interval."""
     K = temporal_distance.shape[0]
     N = diff_inc.shape[0]
     out = np.empty(K, dtype=np.float64)
@@ -302,10 +313,24 @@ def _genetic_kernel_mutation(
 
 
 def _run_simulations(
-    toit: TOIT, num_simulations: int, no_intermediates: int
-) -> dict[str, np.ndarray]:
-    """
-    Draw all random epidemiological quantities once.
+    toit: TOIT, num_simulations: int, no_intermediates: int) -> SimulationOutputs:
+    """Draw the epidemiological random variables needed by the kernels once.
+
+    Parameters
+    ----------
+    toit
+        Configured infectiousness profile providing the sampling primitives.
+    num_simulations
+        Number of Monte Carlo draws (rows in each returned array).
+    no_intermediates
+        Maximum number of intermediate hosts considered, controls the extra
+        columns in ``generation_interval``.
+
+    Returns
+    -------
+    SimulationOutputs
+        Typed dictionary containing all arrays consumed by the temporal and
+        genetic kernels.
     """
     N = int(num_simulations)
     M = int(no_intermediates)
@@ -348,7 +373,7 @@ def estimate_linkage_probability(
     mutation_model: str = "deterministic",  # "deterministic" | "poisson"
     mutation_tolerance: int = 0,
 ) -> float | np.ndarray:
-    """End-to-end estimate of :math:`P(\text{link} \mid g, t)`.
+    """End-to-end estimate of :math:`P(link | g, t)`.
 
     This combines temporal and genetic evidence and supports two mutation
     accumulation models:
@@ -437,7 +462,7 @@ def estimate_linkage_probability(
         )  # shape (K, M+1)
 
     # 5) Normalize genetic evidence across m
-    total = 1.0 - np.prod(1.0 - p_m, axis=1)  # shape (K,)
+    total = 1.0 - np.prod(1.0 - p_m, axis=1)  # aggregate evidence over scenarios
     with np.errstate(divide="ignore", invalid="ignore"):
         p_rel = np.where(total[:, None] > 0.0, p_m / total[:, None], 0.0)
     row_sums = p_rel.sum(axis=1)
@@ -470,7 +495,7 @@ def estimate_linkage_probabilities(
     mutation_tolerance: int = 0,
     **kwargs: Any,
 ) -> np.ndarray:
-    """Vectorized helper to compute P(link | g_i, t_i) for many observations.
+    """Vectorized helper to compute `P(link | g, t)` for many observations.
 
     Additional keyword arguments are forwarded to
     :func:`estimate_linkage_probability`, including ``mutation_model`` and
@@ -520,7 +545,7 @@ def pairwise_linkage_probability_matrix(
     mutation_tolerance: int = 0,
     **kwargs,
 ) -> np.ndarray:
-    """Compute a (G x T) matrix of P(link | g, t) over distance grids.
+    """Compute a (G x T) matrix of `P(link | g, t)` over distance grids.
 
     Parameters are forwarded to :func:`estimate_linkage_probability`, including
     ``mutation_model`` and ``mutation_tolerance``.
@@ -582,7 +607,7 @@ def temporal_linkage_probability(
     -----
     - Reproducibility is controlled by the rng_seed in the provided TOIT instance.
     - This function provides only the temporal component; combine with the genetic
-      component (or use estimate_linkage_probability) to obtain P(link | g, t).
+      component (or use estimate_linkage_probability) to obtain `P(link | g, t)`.
 
     Examples
     --------
