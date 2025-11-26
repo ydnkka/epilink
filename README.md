@@ -105,6 +105,77 @@ Commonly used options (see `--help` for full list):
 
 ---
 
+## Mutation accumulation models
+
+`epilink` supports two ways of modelling how mutations accumulate along the
+transmission tree, conditional on the molecular clock:
+
+- **Deterministic** (default):
+  - Uses the legacy, time-based genetic kernel.
+  - Effectively treats the expected number of mutations along each path as
+    a fixed quantity.
+  - Backwards‑compatible with previous versions of the package.
+- **Poisson**:
+  - Uses a mutation‑count kernel where the observed SNP distance is modelled
+    as a Poisson random variable with mean equal to the expected number of
+    mutations along the path.
+  - Provides a more explicit mutation‑likelihood formulation.
+
+You choose the model via the ``mutation_model`` argument in the Python API.
+
+### Python API examples
+
+Deterministic (legacy behaviour):
+
+```python
+from epilink import estimate_linkage_probability
+
+p_det = estimate_linkage_probability(
+    genetic_distance=2,
+    temporal_distance=4,
+    intermediate_generations=(0,),
+    num_simulations=10_000,
+    mutation_model="deterministic",   # default
+    mutation_tolerance=0,              # use legacy time-based kernel
+)
+``
+
+Deterministic in mutation space with an integer tolerance around the expected
+mutation count:
+
+```python
+p_det_tol = estimate_linkage_probability(
+    genetic_distance=2,
+    temporal_distance=4,
+    intermediate_generations=(0, 1),
+    num_simulations=10_000,
+    mutation_model="deterministic",
+    mutation_tolerance=1,  # accept ±1 mutation around expected count
+)
+```
+
+Poisson mutation accumulation:
+
+```python
+p_pois = estimate_linkage_probability(
+    genetic_distance=2,
+    temporal_distance=4,
+    intermediate_generations=(0, 1, 2),
+    num_simulations=10_000,
+    mutation_model="poisson",
+)
+```
+
+The same options are available in the lower‑level
+:func:`epilink.genetic_linkage_probability` function via the ``mutation_model``
+and ``mutation_tolerance`` keyword arguments.
+
+> Note: if you do not pass ``mutation_model``, the default behaviour remains
+> deterministic with the original time‑based genetic kernel, so existing code
+> continues to work unchanged.
+
+---
+
 ## Development
 
 Run tests:
@@ -168,4 +239,3 @@ MIT License (see [LICENSE](LICENSE))
 ## Reference
 
 Hart WS, Maini PK, Thompson RN (2021). High infectiousness immediately before COVID‑19 symptom onset highlights the importance of continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
-
