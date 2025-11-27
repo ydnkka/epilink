@@ -161,14 +161,15 @@ class InfectiousnessProfile:
 
 
 class TOIT(InfectiousnessProfile):
-    """
-    Time from start of P (presymptomatic infectiousness) to Transmission (y*).
+    r"""Time from start of P (presymptomatic infectiousness) to Transmission (y*).
 
     Implements the integral expression in [1], Appendix ("Our mechanistic model"):
-        f_*(y*) = C [ a (1 - F_P(y*)) + ∫_0^{y*} (1 - F_I(y* - y_P)) f_P(y_P) dy_P ], for y* >= 0,
-                = 0 otherwise.
 
-    Vectorized integral in pdf for speed. rvs samples from a discretized pdf on [a, b].
+    .. math::
+
+       f_*(y^*) = C \left[ \alpha (1 - F_P(y^*)) + \int_0^{y^*} (1 - F_I(y^* - y_P)) f_P(y_P)\,dy_P \right]
+
+    for ``y* >= 0``, and 0 otherwise.
     """
 
     def __init__(
@@ -264,7 +265,7 @@ class TOIT(InfectiousnessProfile):
         return self.sample_E(size=size) + self.rvs(size=size)
 
     def pdf(self, x: ArrayLike) -> np.ndarray:
-        """PDF of TOIT as in [1] (Appendix).
+        r"""PDF of TOIT as in [1] (Appendix).
 
         Computed via vectorized trapezoidal rule:
 
