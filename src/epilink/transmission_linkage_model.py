@@ -53,7 +53,7 @@ def _temporal_kernel(
     return out
 
 
-@njit(parallel=True, fastmath=True)
+@njit(fastmath=True)
 def _poisson_pmf(k: int, lam: float) -> float:
     """Compute Poisson pmf P(K=k | λ=lam) in a Numba-friendly way.
 
