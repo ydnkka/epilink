@@ -26,22 +26,7 @@ from typing import Any, TypedDict
 
 import numpy as np
 import numpy.typing as npt
-
-# Optional numba JIT with safe fallback
-try:
-    import numba
-
-    JIT = numba.njit(cache=True, fastmath=True)
-except ImportError:  # pragma: no cover - exercised only when numba is missing
-
-    def JIT(*args, **kwargs):
-        """Return function unchanged when :mod:`numba` is unavailable."""
-
-        def decorator(func):
-            return func
-
-        return decorator
-
+from numba import njit, prange
 
 from .infectiousness_profile import TOIT, InfectiousnessParams
 
@@ -49,25 +34,12 @@ ArrayLike = npt.ArrayLike
 NDArrayFloat = npt.NDArray[np.float64]
 
 
-class SimulationOutputs(TypedDict):
-    """Container describing all arrays produced by :func:`_run_simulations`."""
-
-    incubation_period: NDArrayFloat
-    generation_interval: NDArrayFloat
-    psi_sA: NDArrayFloat
-    psi_sB: NDArrayFloat
-    diff_inc: NDArrayFloat
-    caseX_to_caseA: NDArrayFloat
-    toit_difference: NDArrayFloat
-    clock_rates: NDArrayFloat
-
-
 # =============================================================================
 # 1) Numba kernels (nopython) — fast and allocation-conscious
 # =============================================================================
 
 
-@JIT
+@njit(parallel=True, fastmath=True)
 def _temporal_kernel(
     temporal_distance: np.ndarray,  # shape (K,)
     diff_inc: np.ndarray,  # shape (N,)
@@ -77,7 +49,7 @@ def _temporal_kernel(
     K = temporal_distance.shape[0]
     N = diff_inc.shape[0]
     out = np.empty(K, dtype=np.float64)
-    for i in range(K):
+    for i in prange(K):
         t = temporal_distance[i]
         count = 0
         for j in range(N):
@@ -87,7 +59,7 @@ def _temporal_kernel(
     return out
 
 
-@JIT
+@njit(parallel=True, fastmath=True)
 def _mean_genetic_prob_kernel(
     tmrca: np.ndarray,  # shape (N,)
     tmrca_expected: np.ndarray,  # shape (N,)
@@ -99,13 +71,13 @@ def _mean_genetic_prob_kernel(
     """
     N = tmrca.shape[0]
     count = 0
-    for j in range(N):
+    for j in prange(N):
         if abs(tmrca[j] - tmrca_expected[j]) <= tolerance[j]:
             count += 1
     return count / N
 
 
-@JIT
+@njit(parallel=True, fastmath=True)
 def _genetic_kernel(
     dists: np.ndarray,  # shape (K,)
     clock_rates: np.ndarray,  # shape (N,)
@@ -132,7 +104,7 @@ def _genetic_kernel(
     dir_tmrca_exp = psi_sA + psi_sB  # shape (N,)
     inc_period_sum = incubation_period[:, 0] + incubation_period[:, 1]  # shape (N,)
 
-    for k in range(K):
+    for k in prange(K):
         d = dists[k]
         # tmrca per simulation for this distance
         tmrca = d / (2.0 * clock_rates)  # shape (N,)
@@ -172,7 +144,7 @@ def _genetic_kernel(
     return out
 
 
-@JIT
+@njit(fastmath=True)
 def _poisson_pmf(k: int, lam: float) -> float:
     """Compute Poisson pmf P(K=k | λ=lam) in a Numba-friendly way.
 
@@ -197,7 +169,7 @@ def _poisson_pmf(k: int, lam: float) -> float:
     return np.exp(-lam + kf * np.log(lam) - log_fact)
 
 
-@JIT
+@njit(parallel=True, fastmath=True)
 def _genetic_kernel_mutation(
     dists: np.ndarray,  # shape (K,)
     clock_rates: np.ndarray,  # shape (N,)
@@ -245,7 +217,7 @@ def _genetic_kernel_mutation(
     dir_tmrca_exp = psi_sA + psi_sB  # (N,)
     inc_period_sum = incubation_period[:, 0] + incubation_period[:, 1]  # (N,)
 
-    for k in range(K):
+    for k in prange(K):
         d = int(dists[k])
         if d < 0:
             # Negative genetic distances are not meaningful; leave zeros.
@@ -311,9 +283,23 @@ def _genetic_kernel_mutation(
 # 2) Simulation
 # =============================================================================
 
+class SimulationOutputs(TypedDict):
+    """Container describing all arrays produced by :func:`_run_simulations`."""
+
+    incubation_period: NDArrayFloat
+    generation_interval: NDArrayFloat
+    psi_sA: NDArrayFloat
+    psi_sB: NDArrayFloat
+    diff_inc: NDArrayFloat
+    caseX_to_caseA: NDArrayFloat
+    toit_difference: NDArrayFloat
+    clock_rates: NDArrayFloat
 
 def _run_simulations(
-    toit: TOIT, num_simulations: int, no_intermediates: int) -> SimulationOutputs:
+    toit: TOIT,
+    num_simulations: int,
+    no_intermediates: int
+) -> SimulationOutputs:
     """Draw the epidemiological random variables needed by the kernels once.
 
     Parameters
