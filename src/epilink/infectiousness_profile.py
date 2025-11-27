@@ -183,9 +183,7 @@ class TOIT(InfectiousnessProfile):
         subs_rate: float = 1e-3,  # per site per year (median)
         relax_rate: bool = True,  # use relaxed clock
         subs_rate_sigma: float = 0.33,  # lognormal sigma
-        gen_len: int = 29901,  # genome length
-        # Mutation accumulation model for genetic kernel
-        mutation_model: str = "deterministic",  # "deterministic" | "poisson"
+        gen_len: int = 29903,  # genome length used to convert to per-genome rate
         # Integration/sampling grid
         y_grid_points: int = 2048,  # grid for inner integral over yP
         x_grid_points: int = 1024,  # grid for discretized sampling over [a, b]
@@ -195,13 +193,6 @@ class TOIT(InfectiousnessProfile):
         self.relax_rate = bool(relax_rate)
         self.subs_rate_sigma = float(subs_rate_sigma)
         self.gen_len = int(gen_len)
-        # Validate and store mutation model
-        if mutation_model not in ("deterministic", "poisson"):
-            raise ValueError(
-                "mutation_model must be 'deterministic' or 'poisson', "
-                f"got {mutation_model!r}."
-            )
-        self.mutation_model = mutation_model
 
         self.y_grid_points = int(y_grid_points)
         self.x_grid_points = int(x_grid_points)
