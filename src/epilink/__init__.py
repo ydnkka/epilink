@@ -15,7 +15,8 @@ from .transmission_linkage_model import (
 
 from .simulate_epidemic_and_genomic import (
     populate_epidemic_data,
-    simulate_genomic_data
+    simulate_genomic_data,
+    generate_pairwise_data
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "temporal_linkage_probability",
     "populate_epidemic_data",
     "simulate_genomic_data",
+    "generate_pairwise_data",
 ]

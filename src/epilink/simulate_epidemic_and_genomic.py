@@ -1,9 +1,10 @@
 """
 Simulate epidemic dates and genomic sequences along a transmission tree.
 
-This script exposes two main functions:
+This script exposes three main functions:
 - populate_epidemic_data(tree, toit, ...)
 - simulate_genomic_data(tree, gen_length, toit, ...)
+- generate_pairwise_data(packed_genomic_data, tree)
 
 """
 
@@ -358,3 +359,86 @@ def simulate_genomic_data(
     out = {"packed": packed, "raw": raw if return_raw else None}
 
     return out
+
+
+def generate_pairwise_data(
+        packed_genomic_data: dict[str, PackedGenomicData],
+        tree: nx.DiGraph
+) -> pd.DataFrame:
+    """
+    Generates a long-format DataFrame with Linear, Poisson, and Temporal distances.
+
+    Args:
+        packed_genomic_data: Output dict from simulate_genomic_data containing:
+                         - 'linear': PackedGenomicData object
+                         - 'poisson': PackedGenomicData object
+        tree: NetworkX DiGraph with 'sample_date' node attributes.
+
+    Returns:
+        pd.DataFrame: Columns ['NodeA', 'NodeB', 'LinearDist', 'PoissonDist', 'TemporalDist', 'Related']
+    """
+    # 1. Retrieve Data & Map
+    # We assume both linear/poisson share the same node map (they should)
+    packed_linear = packed_genomic_data['linear']
+    packed_poisson = packed_genomic_data['poisson']
+    node_map = packed_linear.node_to_idx
+    n_nodes = packed_linear.n_seqs
+
+    # Invert map for labeling
+    idx_to_node = {v: k for k, v in node_map.items()}
+
+    print("Computing genetic distances...")
+    mat_linear = packed_linear.compute_hamming_distances()
+    mat_poisson = packed_poisson.compute_hamming_distances()
+
+    # 2. Compute Temporal Distances (Vectorized)
+    print("Computing temporal distances...")
+    # Create an array of sample dates in the order of the matrix indices
+    # We use a default of NaN or 0 if missing, but they should exist.
+    sample_dates = np.zeros(n_nodes)
+    for node, idx in node_map.items():
+        sample_dates[idx] = tree.nodes[node].get("sample_date", np.nan)
+
+    # Calculate absolute difference |Date_A - Date_B|
+    # Broadcasting: (N, 1) - (1, N) creates (N, N) matrix
+    diff_matrix = sample_dates[:, np.newaxis] - sample_dates
+    mat_temporal = np.abs(diff_matrix).round()
+
+    # 3. Determine 'Related' Status (Topology)
+    print("Mapping topological relationships...")
+    mat_related = np.zeros((n_nodes, n_nodes), dtype=bool)
+
+    # A. Direct Links
+    for u, v in tree.edges():
+        if u in node_map and v in node_map:
+            i, j = node_map[u], node_map[v]
+            mat_related[i, j] = True
+            mat_related[j, i] = True
+
+    # B. Siblings
+    for node in tree.nodes():
+        children = list(tree.successors(node))
+        if len(children) > 1:
+            child_indices = [node_map[c] for c in children if c in node_map]
+            if child_indices:
+                grid_x, grid_y = np.meshgrid(child_indices, child_indices)
+                mat_related[grid_x, grid_y] = True
+
+    # 4. Extract Upper Triangle (Unique Pairs)
+    print("Constructing DataFrame...")
+    rows, cols = np.triu_indices(n_nodes, k=1)
+
+    # Create ID lookup array
+    # Ensure the order matches indices 0..N-1
+    id_array = np.array([idx_to_node[i] for i in range(n_nodes)])
+
+    df = pd.DataFrame({
+        'NodeA': id_array[rows],
+        'NodeB': id_array[cols],
+        'LinearDist': mat_linear[rows, cols],
+        'PoissonDist': mat_poisson[rows, cols],
+        'TemporalDist': mat_temporal[rows, cols],
+        'Related': mat_related[rows, cols]
+    })
+
+    return df
