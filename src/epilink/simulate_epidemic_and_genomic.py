@@ -11,25 +11,24 @@ This script exposes three main functions:
 from __future__ import annotations
 
 import textwrap
-from typing import Dict
 
 import networkx as nx
 import numpy as np
 from scipy.stats import gamma, poisson
 from tqdm.auto import tqdm
-
 from numba import njit, prange
+import pandas as pd
 
-from epilink.infectiousness_profile import TOIT
+from .infectiousness_profile import TOIT
 
 
 def populate_epidemic_data(
-    tree: nx.DiGraph,
-    toit: TOIT,
-    prop_sampled: float = 1.0,
-    sampling_delay: float = 2.0,
-    sampling_shape: float = 3.0,
-    root_start_range: int = 30,
+        toit: TOIT,
+        tree: nx.DiGraph,
+        prop_sampled: float = 1.0,
+        sampling_delay: float = 2.0,
+        sampling_shape: float = 3.0,
+        root_start_range: int = 30,
 ) -> nx.DiGraph:
     """
     Populates a transmission tree with simulated epidemic dates and sampling status.
@@ -59,7 +58,7 @@ def populate_epidemic_data(
     sampled_node_ids = set(rng.choice(list(G.nodes()), size=n_sampled, replace=False))
 
     # Batch update sampling attribute
-    nx.set_node_attributes(G, {n: (1 if n in sampled_node_ids else 0) for n in G}, "sampled")
+    nx.set_node_attributes(G, {n: (True if n in sampled_node_ids else False) for n in G}, "sampled")
 
     # --- 2. Helper for Interval Sampling ---
     def get_intervals():
@@ -221,8 +220,8 @@ class PackedGenomicData:
         self,
         int8_matrix: np.ndarray,
         original_length: int,
-        node_map: Dict,
-        base_map: Dict,
+        node_map: dict,
+        base_map: dict,
     ):
         """
         Args:
@@ -278,11 +277,11 @@ class PackedGenomicData:
 
 
 def simulate_genomic_data(
-    tree: nx.DiGraph,
-        gen_length: int,
         toit: TOIT,
+        tree: nx.DiGraph,
+        gen_length: int,
         return_raw: bool = False
-) -> Dict:
+) -> dict:
     """
     Simulates genomic evolution and returns efficient PackedGenomicData objects.
     """
@@ -375,7 +374,7 @@ def generate_pairwise_data(
         tree: NetworkX DiGraph with 'sample_date' node attributes.
 
     Returns:
-        pd.DataFrame: Columns ['NodeA', 'NodeB', 'LinearDist', 'PoissonDist', 'TemporalDist', 'Related']
+        pd.DataFrame: Columns ['NodeA', 'NodeB', 'Related', 'AnySampled', 'LinearDist', 'PoissonDist', 'TemporalDist']
     """
     # 1. Retrieve Data & Map
     # We assume both linear/poisson share the same node map (they should)
@@ -431,14 +430,16 @@ def generate_pairwise_data(
     # Create ID lookup array
     # Ensure the order matches indices 0..N-1
     id_array = np.array([idx_to_node[i] for i in range(n_nodes)])
+    sampled_status = np.array([tree.nodes[node].get("sampled", False) for node in id_array])
 
     df = pd.DataFrame({
         'NodeA': id_array[rows],
         'NodeB': id_array[cols],
+        'Related': mat_related[rows, cols],
+        'AnySampled': sampled_status[rows] | sampled_status[cols],
         'LinearDist': mat_linear[rows, cols],
         'PoissonDist': mat_poisson[rows, cols],
         'TemporalDist': mat_temporal[rows, cols],
-        'Related': mat_related[rows, cols]
     })
 
     return df
