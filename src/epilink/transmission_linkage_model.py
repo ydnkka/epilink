@@ -136,29 +136,30 @@ def _genetic_kernel(
             continue
 
         # m = 0: direct
-        count_or_sum = 0.0
+        count = 0.0
         for j in range(N):
             tmrca = d / (2.0 * clock_rates[j])
             tmrca_expected = dir_tmrca_exp[j]
-            lam = 2.0 * clock_rates[j] * tmrca_expected
+            exp_snp = 2.0 * clock_rates[j] * tmrca_expected
             if deterministic and not use_time_space:
-                expected_count = int(np.rint(lam))
-                if abs(d - expected_count) <= mutation_tolerance:
-                    count_or_sum += 1.0
+                exp_snp = int(np.rint(exp_snp))
+                if abs(d - exp_snp) <= mutation_tolerance:
+                    count += 1.0
             elif deterministic and use_time_space:
                 if abs(tmrca - tmrca_expected) <= generation_interval[j, 0]:
-                    count_or_sum += 1.0
+                    count += 1.0
             else:
-                count_or_sum += _poisson_pmf(d, lam)
-        out[k, 0] = count_or_sum / float(N)
+                count += _poisson_pmf(d, exp_snp)
+        out[k, 0] = count / float(N)
 
         # m > 0
         for m in range(1, M + 1):
             idx = M - (m - 1)
-            count_or_sum_m = 0.0
+            count_m = 0.0
 
             for j in range(N):
                 # Successive path: direct TMRCA + sum GI from idx..M
+                tmrca = d / (2.0 * clock_rates[j])
                 s_suc = 0.0
                 for col in range(idx, M + 1):
                     s_suc += generation_interval[j, col]
@@ -171,32 +172,32 @@ def _genetic_kernel(
                 common_tmrca = toit_difference[j] + inc_period_sum[j] + s_com
 
                 # Convert both paths to expected mutation counts and combine
-                lam_suc = 2.0 * clock_rates[j] * suc_tmrca
-                lam_com = 2.0 * clock_rates[j] * common_tmrca
+                suc_exp_snp = 2.0 * clock_rates[j] * suc_tmrca
+                com_exp_snp = 2.0 * clock_rates[j] * common_tmrca
 
                 if deterministic and not use_time_space:
-                    expected_suc = int(np.rint(lam_suc))
-                    expected_com = int(np.rint(lam_com))
-                    match_suc = abs(d - expected_suc) <= mutation_tolerance
-                    match_com = abs(d - expected_com) <= mutation_tolerance
+                    suc_exp_snp = int(np.rint(suc_exp_snp))
+                    com_exp_snp = int(np.rint(com_exp_snp))
+                    match_suc = abs(d - suc_exp_snp) <= mutation_tolerance
+                    match_com = abs(d - com_exp_snp) <= mutation_tolerance
                     # Inclusion-exclusion on events
                     if match_suc or match_com:
-                        count_or_sum_m += 1.0
+                        count_m += 1.0
 
                 elif deterministic and use_time_space:
-                    match_suc = abs(suc_tmrca - dir_tmrca_exp[j]) <= generation_interval[j, 0]
-                    match_com = abs(common_tmrca - caseX_to_caseA[j]) <= caseX_to_caseA[j]
+                    match_suc = abs(tmrca - suc_tmrca) <= generation_interval[j, 0]
+                    match_com = abs(tmrca- common_tmrca) <= caseX_to_caseA[j]
                     if match_suc or match_com:
-                        count_or_sum_m += 1.0
+                        count_m += 1.0
                 else:
                     # Probabilities for each path
-                    p_suc = _poisson_pmf(d, lam_suc)
-                    p_com = _poisson_pmf(d, lam_com)
+                    p_suc = _poisson_pmf(d, suc_exp_snp)
+                    p_com = _poisson_pmf(d, com_exp_snp)
                     # Inclusion-exclusion in probability space
                     p_any = p_suc + p_com - (p_suc * p_com)
-                    count_or_sum_m += p_any
+                    count_m += p_any
 
-            out[k, m] = count_or_sum_m / float(N)
+            out[k, m] = count_m / float(N)
 
     return out
 
