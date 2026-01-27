@@ -3,7 +3,7 @@ Simulate epidemic dates and genomic sequences along a transmission tree.
 
 This script exposes three main functions:
 - populate_epidemic_data(tree, toit, ...)
-- simulate_genomic_data(tree, gen_length, toit, ...)
+- simulate_genomic_data(tree, toit, ...)
 - generate_pairwise_data(packed_genomic_data, tree)
 
 """
@@ -15,7 +15,6 @@ import textwrap
 import networkx as nx
 import numpy as np
 from scipy.stats import gamma, poisson
-from tqdm.auto import tqdm
 from numba import njit, prange
 import pandas as pd
 
@@ -26,7 +25,7 @@ def populate_epidemic_data(
         toit: TOIT,
         tree: nx.DiGraph,
         prop_sampled: float = 1.0,
-        sampling_delay: float = 2.0,
+        sampling_scale: float = 1.0,
         sampling_shape: float = 3.0,
         root_start_range: int = 30,
 ) -> nx.DiGraph:
@@ -37,7 +36,7 @@ def populate_epidemic_data(
         tree: The directed transmission tree (roots -> infections).
         toit: Instance of the TOIT class for generation interval sampling.
         prop_sampled: proportion (0-1) nodes 'sampled' (observed).
-        sampling_delay: Scale parameter for the Gamma distribution of sampling delay.
+        sampling_scale: Scale parameter for the Gamma distribution of sampling delay.
                         If <= 0, uses deterministic mean values.
         sampling_shape: Shape parameter for the Gamma distribution of sampling delay.
         root_start_range: Upper bound for the random start date of the index case.
@@ -63,7 +62,7 @@ def populate_epidemic_data(
     # --- 2. Helper for Interval Sampling ---
     def get_intervals():
         """Returns (Latent Period, Pre-symptomatic Period, Sampling Delay)"""
-        if sampling_delay <= 0:
+        if sampling_scale <= 0:
             # Deterministic mode (useful for testing/control)
             # Expected value of a gamma distribution
             yE = toit.params.k_E * toit.params.scale_inc
@@ -74,13 +73,13 @@ def populate_epidemic_data(
             yE = toit.sample_E().item()
             yP = toit.sample_P().item()
             # Gamma distribution for delay between symptom onset and test
-            test_delay = gamma.rvs(a=sampling_shape, scale=sampling_delay, random_state=rng)
+            test_delay = gamma.rvs(a=sampling_shape, scale=sampling_scale, random_state=rng)
 
         return yE, yP, test_delay
 
     # --- 3. Traverse and Assign Dates ---
     # Identify root(s)
-    roots = [n for n, d in G.in_degree() if d == 0]
+    roots = [n for n, d in G.in_degree(G.nodes) if d == 0]
 
     for root in roots:
         # A. Initialize Root Node
@@ -98,10 +97,10 @@ def populate_epidemic_data(
 
         # B. Propagate to Successors (DFS Traversal)
         # Using dfs_edges ensures we always process a parent before their children
-        for parent, child in tqdm(nx.dfs_edges(G, source=root), total=G.number_of_edges(), desc="Simulating Epidemic Data"):
+        for parent, child in nx.dfs_edges(G, source=root):
             # Sample Generation Interval (TOIT)
             # This is the time from Parent becoming infectious to Child being exposed
-            toit_value = 0 if sampling_delay <= 0 else toit.rvs().item()
+            toit_value = 0 if sampling_scale <= 0 else toit.rvs().item()
 
             # Sample biological intervals for the child
             latent_period, pre_sym_inf, sym_test = get_intervals()
@@ -279,7 +278,6 @@ class PackedGenomicData:
 def simulate_genomic_data(
         toit: TOIT,
         tree: nx.DiGraph,
-        gen_length: int,
         return_raw: bool = False
 ) -> dict:
     """
@@ -292,17 +290,17 @@ def simulate_genomic_data(
     n_nodes = len(nodes)
 
     # Use int8 for active simulation (easier to mutate)
-    linear_mat = np.zeros((n_nodes, gen_length), dtype=np.int8)
-    poisson_mat = np.zeros((n_nodes, gen_length), dtype=np.int8)
+    linear_mat = np.zeros((n_nodes, toit.gen_len), dtype=np.int8)
+    poisson_mat = np.zeros((n_nodes, toit.gen_len), dtype=np.int8)
 
     # Generate Reference
-    ref_seq = toit.rng.choice(BASES, size=gen_length)
+    ref_seq = toit.rng.choice(BASES, size=toit.gen_len)
 
     def mutate(seq, n_mut):
         if n_mut <= 0:
             return seq.copy()
         new_seq = seq.copy()
-        pos_indices = np.array(toit.rng.choice(gen_length, size=n_mut, replace=False))
+        pos_indices = np.array(toit.rng.choice(toit.gen_len, size=n_mut, replace=False))
         for pos in pos_indices:
             current = new_seq[pos]
             # Choose any base except current
@@ -310,7 +308,7 @@ def simulate_genomic_data(
         return new_seq
 
     # Initialize Roots (Random drift from reference)
-    roots = [n for n, d in tree.in_degree() if d == 0]
+    roots = [n for n, d in tree.in_degree(tree.nodes) if d == 0]
     for root in roots:
         idx = node_to_idx[root]
         root_drift = int(toit.rng.choice(range(1, 35)))
@@ -321,7 +319,7 @@ def simulate_genomic_data(
     # Traverse Tree
     print("Simulating mutations along transmission tree...")
     for root in roots:
-        for parent, child in tqdm(nx.dfs_edges(tree, source=root), total=tree.number_of_edges(), desc="Evolving"):
+        for parent, child in nx.dfs_edges(tree, source=root):
             par_idx = node_to_idx[parent]
             chi_idx = node_to_idx[child]
 
@@ -350,8 +348,8 @@ def simulate_genomic_data(
 
     print("Packing data into 2-bit format...")
     packed = {
-        "linear": PackedGenomicData(linear_mat, gen_length, node_to_idx, BASES_MAP),
-        "poisson": PackedGenomicData(poisson_mat, gen_length, node_to_idx, BASES_MAP),
+        "linear": PackedGenomicData(linear_mat, toit.gen_len, node_to_idx, BASES_MAP),
+        "poisson": PackedGenomicData(poisson_mat, toit.gen_len, node_to_idx, BASES_MAP),
     }
     raw = {"linear": linear_mat, "poisson": poisson_mat}
 
@@ -436,7 +434,7 @@ def generate_pairwise_data(
         'NodeA': id_array[rows],
         'NodeB': id_array[cols],
         'Related': mat_related[rows, cols],
-        'AnySampled': sampled_status[rows] | sampled_status[cols],
+        'Sampled': sampled_status[rows] | sampled_status[cols],
         'LinearDist': mat_linear[rows, cols],
         'PoissonDist': mat_poisson[rows, cols],
         'TemporalDist': mat_temporal[rows, cols],
