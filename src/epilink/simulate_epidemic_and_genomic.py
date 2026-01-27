@@ -372,7 +372,7 @@ def generate_pairwise_data(
         tree: NetworkX DiGraph with 'sample_date' node attributes.
 
     Returns:
-        pd.DataFrame: Columns ['NodeA', 'NodeB', 'Related', 'AnySampled', 'LinearDist', 'PoissonDist', 'TemporalDist']
+        pd.DataFrame: Columns ['NodeA', 'NodeB', 'Related', 'Sampled', 'LinearDist', 'PoissonDist', 'TemporalDist']
     """
     # 1. Retrieve Data & Map
     # We assume both linear/poisson share the same node map (they should)
@@ -434,7 +434,7 @@ def generate_pairwise_data(
         'NodeA': id_array[rows],
         'NodeB': id_array[cols],
         'Related': mat_related[rows, cols],
-        'Sampled': sampled_status[rows] | sampled_status[cols],
+        'Sampled': sampled_status[rows] & sampled_status[cols],
         'LinearDist': mat_linear[rows, cols],
         'PoissonDist': mat_poisson[rows, cols],
         'TemporalDist': mat_temporal[rows, cols],
