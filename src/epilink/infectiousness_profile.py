@@ -10,6 +10,8 @@ Key parts
 --------------
 ``InfectiousnessParams``
     Parameter container with derived quantities used in closed-form expressions.
+``MolecularClock``
+    Molecular clock model for substitution rates and expected mutations.
 ``TOIT``
     Distribution for time from start of presymptomatic stage to transmission.
 ``TOST``
@@ -159,6 +161,151 @@ class InfectiousnessParams:
         )
         return numerator / denominator
 
+    def __repr__(self) -> str:
+        return (
+            f"InfectiousnessParams("
+            f"incubation_shape={self.incubation_shape}, "
+            f"incubation_scale={self.incubation_scale}, "
+            f"latent_shape={self.latent_shape}, "
+            f"symptomatic_rate={self.symptomatic_rate}, "
+            f"symptomatic_shape={self.symptomatic_shape}, "
+            f"rel_presymptomatic_infectiousness={self.rel_presymptomatic_infectiousness})"
+        )
+
+
+class MolecularClock:
+    r"""
+    Molecular clock model for substitution rates and expected mutations.
+
+    Supports both strict and relaxed (lognormal) molecular clocks for modelling
+    substitution rates along phylogenetic branches.
+
+    Parameters
+    ----------
+    subs_rate : float, default=1e-3
+        Median substitution rate per site per year.
+    relax_rate : bool, default=True
+        Whether to draw clock rates from a lognormal distribution (relaxed clock).
+        If False, uses a strict clock with constant rate.
+    subs_rate_sigma : float, default=0.33
+        Lognormal dispersion (:math:`\sigma`) for the relaxed clock.
+        Only used if ``relax_rate`` is True.
+    gen_len : int, default=29903
+        Genome length (number of sites) used for rate conversion.
+        Default is SARS-CoV-2 genome length.
+    rng : numpy.random.Generator, optional
+        Random number generator. If None, a new generator is created.
+    rng_seed : int, default=12345
+        Seed for the RNG (ignored if `rng` is provided).
+
+    Attributes
+    ----------
+    subs_rate_mu : float
+        Mean parameter for the lognormal distribution, adjusted so that
+        the median equals ``subs_rate``.
+
+    Examples
+    --------
+    >>> clock = MolecularClock(subs_rate=1e-3, relax_rate=True)
+    >>> rates = clock.sample_clock_rate_per_day(size=100)
+    >>> times = np.array([10.0, 20.0, 30.0])  # days
+    >>> mutations = clock.expected_mutations(times)
+    """
+
+    def __init__(
+        self,
+        subs_rate: float = 1e-3,
+        relax_rate: bool = True,
+        subs_rate_sigma: float = 0.33,
+        gen_len: int = 29903,
+        rng: Generator | None = None,
+        rng_seed: int = 12345,
+    ):
+        self.subs_rate = float(subs_rate)
+        self.relax_rate = bool(relax_rate)
+        self.subs_rate_sigma = float(subs_rate_sigma)
+        self.gen_len = int(gen_len)
+        self.rng: Generator = rng if rng is not None else default_rng(rng_seed)
+
+        # Adjust mu so that the median of lognormal equals subs_rate
+        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
+
+        if self.subs_rate <= 0:
+            raise ValueError("subs_rate must be positive.")
+        if self.subs_rate_sigma < 0:
+            raise ValueError("subs_rate_sigma must be non-negative.")
+        if self.gen_len <= 0:
+            raise ValueError("gen_len must be positive.")
+
+    def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        r"""
+        Sample substitution rates per day (mutations/day).
+
+        If ``relax_rate`` is True, rates are drawn from a lognormal distribution with
+        median ``subs_rate`` (per site per year) and dispersion ``subs_rate_sigma``.
+        Otherwise, a strict clock with constant rate is used.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Substitution rates in mutations per day.
+        """
+        if self.relax_rate:
+            per_site_per_year = self.rng.lognormal(self.subs_rate_mu, self.subs_rate_sigma, size=size)
+        else:
+            per_site_per_year = np.full(size, self.subs_rate, dtype=float)
+        return (per_site_per_year * self.gen_len) / 365.0
+
+    def expected_mutations(self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None) -> np.ndarray:
+        r"""
+        Compute expected mutation counts for given times (days).
+
+        Parameters
+        ----------
+        times_in_days : array_like
+            Times in days (e.g., TMRCAs or branch lengths).
+        rates_per_day : array_like, optional
+            Per-day substitution rates (mutations/day). If None, uses the
+            deterministic rate derived from ``subs_rate`` and ``gen_len``.
+
+        Returns
+        -------
+        numpy.ndarray
+            Expected mutation counts with the same shape as ``times_in_days``.
+
+        Notes
+        -----
+        Expected mutations are calculated as:
+
+        .. math::
+
+            E[\text{mutations}] = \text{rate} \times \text{time}
+
+        where rate is in mutations per day and time is in days.
+        """
+        times = np.asarray(times_in_days, dtype=float)
+        if rates_per_day is None:
+            rate = (self.subs_rate * self.gen_len) / 365.0
+            mut = rate * times
+        else:
+            mut = np.asarray(rates_per_day, dtype=float) * times
+        return np.clip(mut, a_min=0.0, a_max=np.inf)
+
+    def __repr__(self) -> str:
+        return (
+            f"MolecularClock("
+            f"subs_rate={self.subs_rate}, "
+            f"relax_rate={self.relax_rate}, "
+            f"subs_rate_sigma={self.subs_rate_sigma}, "
+            f"gen_len={self.gen_len})"
+        )
+
+
 class InfectiousnessProfile:
     r"""
     Base class for infectiousness profile distributions.
@@ -236,6 +383,66 @@ class InfectiousnessProfile:
             Probability density values.
         """
         raise NotImplementedError
+
+    def cdf(self, x: ArrayLike) -> np.ndarray:
+        """
+        Evaluate the cumulative distribution function.
+
+        Parameters
+        ----------
+        x : array_like
+            Points at which to evaluate the CDF (days).
+
+        Returns
+        -------
+        numpy.ndarray
+            Cumulative probability values.
+
+        Notes
+        -----
+        Default implementation uses numerical integration of the PDF.
+        Subclasses may override with analytical expressions if available.
+        """
+        x_arr = np.atleast_1d(np.asarray(x, dtype=float))
+        result = np.zeros_like(x_arr)
+
+        for i, x_val in enumerate(x_arr):
+            if x_val <= self.a:
+                result[i] = 0.0
+            elif x_val >= self.b:
+                result[i] = 1.0
+            else:
+                # Numerical integration from a to x_val
+                grid_points = max(100, self.grid_points // 10)
+                t = np.linspace(self.a, x_val, num=grid_points)
+                pdf_vals = self.pdf(t)
+                if _trapz is not None:
+                    result[i] = _trapz(pdf_vals, t)
+                else:
+                    raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy.")
+
+        return np.clip(result, 0.0, 1.0)
+
+    def mean(self) -> float:
+        """
+        Calculate the mean of the distribution.
+
+        Returns
+        -------
+        float
+            Expected value (mean) in days.
+
+        Notes
+        -----
+        Uses numerical integration over the support :math:`[a, b]`.
+        """
+        if _trapz is None:
+            raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy.")
+
+        x = np.linspace(self.a, self.b, num=max(100, self.grid_points))
+        pdf_vals = self.pdf(x)
+        pdf_vals = pdf_vals / (pdf_vals.sum() + 1e-10)  # Normalize
+        return float(_trapz(x * pdf_vals, x))
 
     def rvs(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         """
@@ -330,6 +537,9 @@ class InfectiousnessProfile:
             self._grid, self._pdf_grid = x, pdf_vals
         return self._grid, self._pdf_grid
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(a={self.a}, b={self.b}, params={self.params})"
+
 class TOIT(InfectiousnessProfile):
     r"""
     Time from the start of the presymptomatic stage to transmission (:math:`y^*`).
@@ -346,18 +556,15 @@ class TOIT(InfectiousnessProfile):
     rng : numpy.random.Generator, optional
         Random number generator. If None, a new generator is created.
     rng_seed : int, default=12345
-    subs_rate : float, default=1e-3
-        Median substitution rate per site per year.
-    relax_rate : bool, default=True
-        Whether to draw clock rates from a lognormal distribution.
-    subs_rate_sigma : float, default=0.33
-        Lognormal dispersion (:math:`\sigma`) for the relaxed clock.
-    gen_len : int, default=29903
-        Genome length used for rate conversion.
     y_grid_points : int, default=2048
         Number of grid points for the numerical integration over :math:`y_P`.
     x_grid_points : int, default=1024
         Number of grid points for discretised sampling over :math:`[a, b]`.
+
+    Attributes
+    ----------
+    molecular_clock : MolecularClock
+        Molecular clock instance for substitution rate and mutation modeling.
 
     Methods
     -------
@@ -375,7 +582,7 @@ class TOIT(InfectiousnessProfile):
 
     .. math::
 
-       f_*(y^*) = C \left[ a (1 - F_P(y^*)) + \int_0^{y^*} (1 - F_I(y^* - y_P)) f_P(y_P)\,dy_P \right]
+       f_*(y^*) = C \\left[ a (1 - F_P(y^*)) + \\int_0^{y^*} (1 - F_I(y^* - y_P)) f_P(y_P)\\,dy_P \\right]
 
     Where:
     - :math:`C` is the normalisation constant.
@@ -394,71 +601,89 @@ class TOIT(InfectiousnessProfile):
             params: InfectiousnessParams | None = None,
             rng: Generator | None = None,
             rng_seed: int | None = 12345,
-            subs_rate: float = 1e-3,
-            relax_rate: bool = True,
-            subs_rate_sigma: float = 0.33,
-            gen_len: int = 29903,
             y_grid_points: int = 2048,
             x_grid_points: int = 1024,
     ):
         super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=x_grid_points)
-        self.subs_rate = float(subs_rate)
-        self.relax_rate = bool(relax_rate)
-        self.subs_rate_sigma = float(subs_rate_sigma)
-        self.gen_len = int(gen_len)
-
         self.y_grid_points = int(y_grid_points)
 
-        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
+    def generation_time(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        r"""
+        Generate generation time samples.
+
+        Generation time is calculated as :math:`\tau_g = y_E + y^*`, where
+        :math:`y_E` is the latent period and :math:`y^*` is the time from
+        onset of presymptomatic infectiousness to transmission.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Generation time samples in days.
+        """
+        return self.sample_latent(size=size) + self.rvs(size=size)
 
     def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         """
-        Sample a substitution rate per day (mutations/day).
+        Sample substitution rates per day (mutations/day).
 
-        If ``relax_rate`` is True, rates are drawn from a lognormal distribution with
-        median ``subs_rate`` (per site per year) and dispersion ``subs_rate_sigma``.
-        Otherwise, a strict clock with constant rate is used.
+        This method delegates to the molecular_clock instance.
+        Maintained for backward compatibility.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Substitution rates in mutations per day.
         """
-        if self.relax_rate:
-            per_site_per_year = self.rng.lognormal(self.subs_rate_mu, self.subs_rate_sigma, size=size)
-        else:
-            per_site_per_year = np.full(size, self.subs_rate, dtype=float)
-        return (per_site_per_year * self.gen_len) / 365.0
+        return self.molecular_clock.sample_clock_rate_per_day(size=size)
 
     def expected_mutations(self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None) -> np.ndarray:
         """
         Compute expected mutation counts for given times (days).
 
+        This method delegates to the molecular_clock instance.
+        Maintained for backward compatibility.
+
         Parameters
         ----------
-        times_in_days : np.ndarray
-            Times in days (e.g. TMRCAs or branch lengths).
-        rates_per_day : np.ndarray | None, optional
-            Per-day rates. If None, uses the deterministic rate derived from ``subs_rate`` and ``gen_len``.
+        times_in_days : array_like
+            Times in days (e.g., TMRCAs or branch lengths).
+        rates_per_day : array_like, optional
+            Per-day substitution rates (mutations/day). If None, uses the
+            deterministic rate derived from subs_rate and gen_len.
 
         Returns
         -------
-        np.ndarray
-            Expected mutation counts with the same shape as ``times_in_days``.
+        numpy.ndarray
+            Expected mutation counts with the same shape as times_in_days.
         """
-        times = np.asarray(times_in_days, dtype=float)
-        if rates_per_day is None:
-            rate = (self.subs_rate * self.gen_len) / 365.0
-            mut = rate * times
-        else:
-            mut = np.asarray(rates_per_day, dtype=float) * times
-        return np.clip(mut, a_min=0.0, a_max=np.inf)
-
-    def generation_time(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """Generate a simple generation-time proxy"""
-        return self.sample_latent(size=size) + self.rvs(size=size)
+        return self.molecular_clock.expected_mutations(times_in_days, rates_per_day)
 
     def pdf(self, y: ArrayLike) -> np.ndarray:
         r"""
-        Evaluate the TOIT ``pdf`` at ``y`` (days).
+        Evaluate the TOIT PDF at ``y`` (days).
 
         Uses the vectorised trapezoidal rule to approximate the integral in the paper.
         Returns zero for ``y < 0``.
+
+        Parameters
+        ----------
+        y : array_like
+            Points at which to evaluate the PDF (days).
+
+        Returns
+        -------
+        numpy.ndarray
+            Probability density values.
         """
         y_arr = np.asarray(y, dtype=float)
         out = np.zeros_like(y_arr)
@@ -468,24 +693,30 @@ class TOIT(InfectiousnessProfile):
             return out
 
         y_valid = y_arr[mask]
-        ymax = float(np.max(y_valid))
-        if ymax <= 0:
+        y_max = float(np.max(y_valid))
+        if y_max <= 0:
             return out
 
         if _trapz is None:
             raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy.")
 
-        # Inner grid over yP in [0, xmax]
-        yP = np.linspace(0.0, ymax, num=max(2, self.y_grid_points))
-        fP = self.presymptomatic.pdf(yP)
-        X = y_valid[:, None]
-        Y = yP[None, :]
+        # Create grid over presymptomatic duration in [0, y_max]
+        presymp_duration_grid = np.linspace(0.0, y_max, num=max(2, self.y_grid_points))
+        presymp_pdf = self.presymptomatic.pdf(presymp_duration_grid)
 
-        # Build matrix F_I(x - yP) for all x in x_valid
-        FI = self.symptomatic.cdf(X - Y)
-        integrand = np.where(Y <= X, (1.0 - FI) * fP[None, :], 0.0)
+        # Broadcasting: y_valid as column vector, presymp_duration_grid as row vector
+        y_broadcast = y_valid[:, None]
+        presymp_broadcast = presymp_duration_grid[None, :]
 
-        integral = _trapz(integrand, yP, axis=1)
+        # Build matrix of F_I(y - presymp_duration) for all y in y_valid
+        symptomatic_cdf = self.symptomatic.cdf(y_broadcast - presymp_broadcast)
+        integrand = np.where(
+            presymp_broadcast <= y_broadcast,
+            (1.0 - symptomatic_cdf) * presymp_pdf[None, :],
+            0.0
+        )
+
+        integral = _trapz(integrand, presymp_duration_grid, axis=1)
 
         p = self.params
         out[mask] = p.infectiousness_normalisation * (

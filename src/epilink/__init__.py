@@ -2,6 +2,7 @@ from .infectiousness_profile import (
     TOIT,
     TOST,
     InfectiousnessParams,
+    MolecularClock,
     presymptomatic_fraction
 )
 
@@ -21,6 +22,7 @@ from .simulate_epidemic_and_genomic import (
 
 __all__ = [
     "InfectiousnessParams",
+    "MolecularClock",
     "TOIT",
     "TOST",
     "estimate_linkage_probabilities",

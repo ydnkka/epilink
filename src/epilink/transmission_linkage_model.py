@@ -22,7 +22,7 @@ import numpy as np
 import numpy.typing as npt
 from numba import njit, prange
 
-from .infectiousness_profile import TOIT
+from .infectiousness_profile import TOIT, MolecularClock
 
 ArrayLike = npt.ArrayLike
 NDArrayFloat = npt.NDArray[np.float64]
@@ -53,31 +53,6 @@ def _temporal_kernel(
     return out
 
 
-@njit(fastmath=True)
-def _poisson_pmf(k: int, lam: float) -> float:
-    """Compute Poisson pmf P(K=k | λ=lam) in a Numba-friendly way.
-
-    Uses direct factorial for small k and a Stirling approximation for larger
-    k to balance stability and speed. Assumes k >= 0.
-    """
-    if k < 0 or lam < 0.0:
-        return 0.0
-    if lam == 0.0:
-        return 1.0 if k == 0 else 0.0
-
-    # Small k: compute factorial exactly
-    if k < 20:
-        fact = 1.0
-        for i in range(2, k + 1):
-            fact *= float(i)
-        return np.exp(-lam) * (lam**k) / fact
-
-    # Large k: Stirling approximation for log(k!)
-    kf = float(k)
-    log_fact = kf * np.log(kf) - kf + 0.5 * np.log(2.0 * np.pi * kf)
-    return np.exp(-lam + kf * np.log(lam) - log_fact)
-
-
 @njit(parallel=True, fastmath=True)
 def _genetic_kernel(
         dists: np.ndarray,  # shape (K,)
@@ -89,9 +64,6 @@ def _genetic_kernel(
         incubation_period: np.ndarray,  # shape (N, 2)
         caseX_to_caseA: np.ndarray,  # shape (N,)
         intermediates: int,  # M (max number of intermediates)
-        deterministic: bool,
-        mutation_tolerance: int,
-        use_time_space: bool,
 ) -> np.ndarray:
     """Genetic kernel operating in mutation-count space.
 
@@ -109,15 +81,6 @@ def _genetic_kernel(
     caseX_to_caseA, intermediates :
         Epidemiological quantities as produced by ``_run_simulations``; shapes
         match those expected by ``_genetic_kernel``.
-    deterministic : bool
-        If True, use deterministic matching in mutation space with a tolerance
-        of ``mutation_tolerance`` around the expected count. If False, use a
-        Poisson pmf averaged over simulations.
-    mutation_tolerance : int
-        Integer tolerance used in deterministic mode: a simulation contributes
-        if ``|d - round(lambda_jm)| <= mutation_tolerance``.
-    use_time_space : bool, default=False
-        If True, fall back to time-space kernel and ignores ``mutation_tolerance``.
     """
     K = dists.shape[0]
     N = clock_rates.shape[0]
@@ -140,16 +103,8 @@ def _genetic_kernel(
         for j in range(N):
             tmrca = d / (2.0 * clock_rates[j])
             tmrca_expected = dir_tmrca_exp[j]
-            exp_snp = 2.0 * clock_rates[j] * tmrca_expected
-            if deterministic and not use_time_space:
-                exp_snp = int(np.rint(exp_snp))
-                if abs(d - exp_snp) <= mutation_tolerance:
+            if abs(tmrca - tmrca_expected) <= generation_interval[j, 0]:
                     count += 1.0
-            elif deterministic and use_time_space:
-                if abs(tmrca - tmrca_expected) <= generation_interval[j, 0]:
-                    count += 1.0
-            else:
-                count += _poisson_pmf(d, exp_snp)
         out[k, 0] = count / float(N)
 
         # m > 0
@@ -171,31 +126,10 @@ def _genetic_kernel(
                     s_com += generation_interval[j, col]
                 common_tmrca = toit_difference[j] + inc_period_sum[j] + s_com
 
-                # Convert both paths to expected mutation counts and combine
-                suc_exp_snp = 2.0 * clock_rates[j] * suc_tmrca
-                com_exp_snp = 2.0 * clock_rates[j] * common_tmrca
-
-                if deterministic and not use_time_space:
-                    suc_exp_snp = int(np.rint(suc_exp_snp))
-                    com_exp_snp = int(np.rint(com_exp_snp))
-                    match_suc = abs(d - suc_exp_snp) <= mutation_tolerance
-                    match_com = abs(d - com_exp_snp) <= mutation_tolerance
-                    # Inclusion-exclusion on events
-                    if match_suc or match_com:
-                        count_m += 1.0
-
-                elif deterministic and use_time_space:
-                    match_suc = abs(tmrca - suc_tmrca) <= generation_interval[j, 0]
-                    match_com = abs(tmrca- common_tmrca) <= caseX_to_caseA[j]
-                    if match_suc or match_com:
-                        count_m += 1.0
-                else:
-                    # Probabilities for each path
-                    p_suc = _poisson_pmf(d, suc_exp_snp)
-                    p_com = _poisson_pmf(d, com_exp_snp)
-                    # Inclusion-exclusion in probability space
-                    p_any = p_suc + p_com - (p_suc * p_com)
-                    count_m += p_any
+                match_suc = abs(tmrca - suc_tmrca) <= generation_interval[j, 0]
+                match_com = abs(tmrca- common_tmrca) <= caseX_to_caseA[j]
+                if match_suc or match_com:  # Inclusion-exclusion on events
+                    count_m += 1.0
 
             out[k, m] = count_m / float(N)
 
@@ -221,6 +155,7 @@ class SimulationOutputs:
 
 def _run_simulations(
         toit: TOIT,
+        clock: MolecularClock,
         num_simulations: int,
         no_intermediates: int
 ) -> SimulationOutputs:
@@ -230,6 +165,8 @@ def _run_simulations(
     ----------
     toit
         Configured infectiousness profile providing the sampling primitives.
+    clock
+
     num_simulations
         Number of Monte Carlo draws (rows in each returned array).
     no_intermediates
@@ -248,8 +185,8 @@ def _run_simulations(
     inc_period = toit.sample_incubation(size=(N, 2))  # (N, 2)
     gen_interval = toit.generation_time(size=(N, M + 1))  # (N, M+1)
     toit_values = toit.rvs(size=(N, 2))  # (N, 2)
-    latent_period = toit.sample_E(size=N)  # (N,)
-    clock_rates = toit.sample_clock_rate_per_day(size=N)  # (N,)
+    latent_period = toit.sample_latent(size=N)  # (N,)
+    clock_rates = clock.sample_clock_rate_per_day(size=N)  # (N,)
 
     sim = SimulationOutputs(
         incubation_period=inc_period,
@@ -271,15 +208,13 @@ def _run_simulations(
 
 def estimate_linkage_probability(
         toit: TOIT,
+        clock: MolecularClock,
         genetic_distance: ArrayLike,  # SNPs; scalar or array
         temporal_distance: ArrayLike,  # days; scalar or array (same length as genetic_distance)
         *,
         intermediate_generations: tuple[int, ...] = (0,),  # which m to include in final mixture
         no_intermediates: int = 10,  # max intermediates M used in simulation/kernel
         num_simulations: int = 10000,
-        mutation_model: str = "deterministic",  # "deterministic" | "poisson"
-        mutation_tolerance: int = 0,  # number of SNP tolerance for deterministic model
-        use_time_space: bool = True
 ) -> float | np.ndarray:
     """End-to-end estimate of :math:`P(link | g, t)`.
 
@@ -311,18 +246,10 @@ def estimate_linkage_probability(
     if g.size == 0:
         return np.nan
 
-    if mutation_model not in ("deterministic", "poisson"):
-        raise ValueError(
-            "mutation_model must be 'deterministic' or 'poisson', "
-            f"got {mutation_model!r}.",
-        )
-    if mutation_tolerance < 0:
-        raise ValueError("mutation_tolerance must be non-negative.")
-
     M = int(no_intermediates)
 
     # 2) run simulations
-    sim = _run_simulations(toit, int(num_simulations), M)
+    sim = _run_simulations(toit, clock, int(num_simulations), M)
 
     # 3) Temporal evidence
     p_t = _temporal_kernel(
@@ -332,7 +259,6 @@ def estimate_linkage_probability(
     )  # shape (K,)
 
     # 4) Genetic evidence: p_m for each m=0..M
-    use_deterministic = mutation_model == "deterministic"
     p_m = _genetic_kernel(
         dists=g,
         clock_rates=sim.clock_rates,
@@ -343,9 +269,6 @@ def estimate_linkage_probability(
         incubation_period=sim.incubation_period,
         caseX_to_caseA=sim.caseX_to_caseA,
         intermediates=M,
-        deterministic=use_deterministic,
-        mutation_tolerance=int(mutation_tolerance),
-        use_time_space=use_time_space,
     )  # shape (K, M+1)
 
     # 5) Normalize genetic evidence across m
@@ -375,15 +298,13 @@ def estimate_linkage_probability(
 
 def pairwise_linkage_probability_matrix(
         toit: TOIT,
+        clock: MolecularClock,
         genetic_distances: np.ndarray,  # 1D
         temporal_distances: np.ndarray,  # 1D
         *,
         intermediate_generations: tuple[int, ...] = (0,),
         no_intermediates: int = 10,
         num_simulations: int = 10000,
-        mutation_model: str = "deterministic",
-        mutation_tolerance: int = 0,
-        use_time_space: bool = True,
 ) -> np.ndarray:
     """Compute a (G x T) matrix of `P(link | g, t)` over distance grids.
 
@@ -399,29 +320,25 @@ def pairwise_linkage_probability_matrix(
 
     flat_p = estimate_linkage_probability(
         toit=toit,
+        clock=clock,
         genetic_distance=flat_g,
         temporal_distance=flat_t,
         intermediate_generations=intermediate_generations,
         no_intermediates=no_intermediates,
         num_simulations=num_simulations,
-        mutation_model=mutation_model,
-        mutation_tolerance=mutation_tolerance,
-        use_time_space=use_time_space,
     )
     flat_p = np.asarray(flat_p, dtype=float)
     return flat_p.reshape(g_grid.shape)
 
 def estimate_linkage_probabilities(
         toit: TOIT,
+        clock: MolecularClock,
         genetic_distance: ArrayLike,
         temporal_distance: ArrayLike,
         *,
         intermediate_generations: tuple[int, ...] = (0,),
         no_intermediates: int = 10,
         num_simulations: int = 10000,
-        mutation_model: str = "deterministic",
-        mutation_tolerance: int = 0,
-        use_time_space: bool = True
 ) -> np.ndarray:
     """Vectorized helper to compute `P(link | g, t)` for many observations.
 
@@ -445,14 +362,12 @@ def estimate_linkage_probabilities(
 
     prob_matrix = pairwise_linkage_probability_matrix(
         toit=toit,
+        clock=clock,
         genetic_distances=gd_unique,
         temporal_distances=td_unique,
         intermediate_generations=intermediate_generations,
         no_intermediates=no_intermediates,
         num_simulations=num_simulations,
-        mutation_model=mutation_model,
-        mutation_tolerance=mutation_tolerance,
-        use_time_space=use_time_space,
     )
 
     expected_shape = (gd_unique.size, td_unique.size)
@@ -526,32 +441,21 @@ def temporal_linkage_probability(
 
 def genetic_linkage_probability(
         toit: TOIT,
+        clock: MolecularClock,
         genetic_distance: ArrayLike,
         *,
         num_simulations: int = 10000,
         no_intermediates: int = 10,
         intermediate_generations: tuple[int, ...] | None = None,
         kind: str = "relative",  # "raw" | "relative" | "normalized"
-        mutation_model: str = "deterministic",
-        mutation_tolerance: int = 0,
-        use_time_space: bool = True,
 ) -> np.ndarray:
     """Monte Carlo estimate of the genetic evidence across scenarios.
     """
     g = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
     M = int(no_intermediates)
 
-    if mutation_model not in ("deterministic", "poisson"):
-        raise ValueError(
-            "mutation_model must be 'deterministic' or 'poisson', "
-            f"got {mutation_model!r}.",
-        )
-    if mutation_tolerance < 0:
-        raise ValueError("mutation_tolerance must be non-negative.")
+    sim = _run_simulations(toit, clock, int(num_simulations), M)
 
-    sim = _run_simulations(toit, int(num_simulations), M)
-
-    use_deterministic = mutation_model == "deterministic"
     p_m = _genetic_kernel(
         dists=g,
         clock_rates=sim.clock_rates,
@@ -562,9 +466,6 @@ def genetic_linkage_probability(
         incubation_period=sim.incubation_period,
         caseX_to_caseA=sim.caseX_to_caseA,
         intermediates=M,
-        deterministic=use_deterministic,
-        mutation_tolerance=int(mutation_tolerance),
-        use_time_space=use_time_space,
     )
 
     total = 1.0 - np.prod(1.0 - p_m, axis=1)
