@@ -56,28 +56,28 @@ class InfectiousnessParams:
     Parameters
     ----------
     incubation_shape : float, default=5.807
-        Shape parameter :math:`k_{inc}` of the incubation period distribution.
+        Shape parameter :math:`k_\mathrm{inc}` of the incubation period distribution.
     incubation_scale : float, default=0.948
-        Scale parameter :math:`\theta_{inc}` of the incubation period distribution.
+        Scale parameter :math:`\theta_\mathrm{inc}` of the incubation period distribution.
     latent_shape : float, default=3.38
-        Shape parameter :math:`k_E` of the latent (`E`) stage.
-        Must satisfy :math:`0 < k_E < k_{inc}`.
+        Shape parameter :math:`k_\mathrm{E}` of the latent (`E`) stage.
+        Must satisfy :math:`0 < k_\mathrm{E} < k_\mathrm{inc}`.
     symptomatic_rate : float, default=0.37
         Symptomatic removal rate :math:`\mu`.
-        For :math:`k_I = 1`, the mean symptomatic duration is :math:`1/\mu`.
+        For :math:`k_\mathrm{I} = 1`, the mean symptomatic duration is :math:`1/\mu`.
     symptomatic_shape : float, default=1.0
-        Shape parameter :math:`k_I` of the symptomatic infectious (`I`) stage.
+        Shape parameter :math:`k_\mathrm{I}` of the symptomatic infectious (`I`) stage.
     rel_presymptomatic_infectiousness : float, default=2.29
         Relative infectiousness :math:`\alpha` of `P` compared with `I`.
 
     Attributes
     ----------
     presymptomatic_shape : float
-        Shape parameter of the presymptomatic (`P`) stage: :math:`k_P = k_{inc} - k_E`.
+        Shape parameter of the presymptomatic (`P`) stage: :math:`k_\mathrm{P} = k_\mathrm{inc} - k_\mathrm{E}`.
     symptomatic_scale : float
-        Scale parameter of the symptomatic stage: :math:`\theta_I = 1 / (k_I \cdot \mu)`.
+        Scale parameter of the symptomatic stage: :math:`\theta_\mathrm{I} = 1 / (k_\mathrm{I} \cdot \mu)`.
     incubation_rate : float
-        Rate parameter :math:`\gamma` : :math:`\gamma = 1 / (k_{inc} \cdot \theta_{inc})`.
+        Rate parameter :math:`\gamma` : :math:`\gamma = 1 / (k_\mathrm{inc} \cdot \theta_\mathrm{inc})`.
     infectiousness_normalisation : float
         Normalisation constant :math:`C = \beta_I / \beta_0` used in Hart et al. (2021).
 
@@ -87,37 +87,37 @@ class InfectiousnessParams:
 
     .. math::
 
-        y_E &\sim \text{Gamma}(k_E, \theta_{inc}) \\
-        y_P &\sim \text{Gamma}(k_P, \theta_{inc}) \\
-        y_I &\sim \text{Gamma}(k_I, \theta_I)
+        y_\mathrm{E} &\sim \text{Gamma}(k_\mathrm{E}, \theta_\mathrm{inc}) \\
+        y_\mathrm{P} &\sim \text{Gamma}(k_\mathrm{P}, \theta_\mathrm{inc}) \\
+        y_\mathrm{I} &\sim \text{Gamma}(k_\mathrm{I}, \theta_\mathrm{I})
 
-    The incubation period :math:`\tau_{inc}` is the sum of the latent and
+    The incubation period :math:`\tau_\mathrm{inc}` is the sum of the latent and
     presymptomatic periods:
 
     .. math::
 
-        \tau_{inc} = y_E + y_P \sim \text{Gamma}(k_{inc}, \theta_{inc})
+        \tau_{inc} = y_\mathrm{E} + y_\mathrm{P} \sim \text{Gamma}(k_\mathrm{inc}, \theta_\mathrm{inc})
 
     The infectiousness normalisation constant :math:`C` is defined as:
 
     .. math::
 
-        C = \frac{k_{inc} \cdot \gamma \cdot \mu}{\alpha \cdot k_P \cdot \mu + k_{inc} \cdot \gamma}
+        C = \frac{k_\mathrm{inc} \cdot \gamma \cdot \mu}{\alpha \cdot k_\mathrm{P} \cdot \mu + k_\mathrm{inc} \cdot \gamma}
 
     **Mapping to Hart et al. (2021) notation:**
 
     =================================  ====================
     This code                          Hart et al. (2021)
     =================================  ====================
-    incubation_shape                   :math:`k_{inc}`
-    incubation_scale                   :math:`\theta_{inc}`
-    latent_shape                       :math:`k_E`
-    presymptomatic_shape               :math:`k_P`
+    incubation_shape                   :math:`k_\mathrm{inc}`
+    incubation_scale                   :math:`\theta_\mathrm{inc}`
+    latent_shape                       :math:`k_\mathrm{E}`
+    presymptomatic_shape               :math:`k_\mathrm{P}`
     incubation_rate                    :math:`\gamma`
     symptomatic_rate                   :math:`\mu`
-    symptomatic_shape                  :math:`k_I`
+    symptomatic_shape                  :math:`k_\mathrm{I}`
     rel_presymptomatic_infectiousness  :math:`\alpha`
-    infectiousness_normalisation       :math:`C = \beta_I / \beta_0`
+    infectiousness_normalisation       :math:`C = \beta_\mathrm{I} / \beta_0`
     =================================  ====================
     """
 
@@ -172,7 +172,6 @@ class InfectiousnessParams:
             f"rel_presymptomatic_infectiousness={self.rel_presymptomatic_infectiousness})"
         )
 
-
 class MolecularClock:
     r"""
     Molecular clock model for substitution rates and expected mutations.
@@ -203,13 +202,6 @@ class MolecularClock:
     subs_rate_mu : float
         Mean parameter for the lognormal distribution, adjusted so that
         the median equals ``subs_rate``.
-
-    Examples
-    --------
-    >>> clock = MolecularClock(subs_rate=1e-3, relax_rate=True)
-    >>> rates = clock.sample_clock_rate_per_day(size=100)
-    >>> times = np.array([10.0, 20.0, 30.0])  # days
-    >>> mutations = clock.expected_mutations(times)
     """
 
     def __init__(
@@ -304,7 +296,6 @@ class MolecularClock:
             f"subs_rate_sigma={self.subs_rate_sigma}, "
             f"gen_len={self.gen_len})"
         )
-
 
 class InfectiousnessProfile:
     r"""

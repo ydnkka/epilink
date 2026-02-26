@@ -7,8 +7,7 @@ from .infectiousness_profile import (
 )
 
 from .transmission_linkage_model import (
-    estimate_linkage_probabilities,
-    estimate_linkage_probability,
+    linkage_probability,
     genetic_linkage_probability,
     pairwise_linkage_probability_matrix,
     temporal_linkage_probability,
@@ -25,8 +24,7 @@ __all__ = [
     "MolecularClock",
     "TOIT",
     "TOST",
-    "estimate_linkage_probabilities",
-    "estimate_linkage_probability",
+    "linkage_probability",
     "genetic_linkage_probability",
     "pairwise_linkage_probability_matrix",
     "presymptomatic_fraction",
