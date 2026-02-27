@@ -73,12 +73,45 @@ def test_populate_epidemic_data_deterministic_dates_and_sampling():
     assert sum(sampled_flags) == 2
 
 
+def test_populate_epidemic_data_stochastic_mode():
+    """Test populate_epidemic_data with stochastic sampling (non-zero sampling_scale)."""
+    tree = nx.DiGraph()
+    tree.add_edges_from([("A", "B"), ("A", "C")])
+    toit = TOIT(rng_seed=42)
+
+    out = populate_epidemic_data(
+        toit=toit,
+        tree=tree,
+        prop_sampled=1.0,
+        sampling_scale=1.0,
+        sampling_shape=2.0,
+        root_start_range=5,
+    )
+
+    for node in out.nodes:
+        assert out.nodes[node]["exposure_date"] >= 0
+        assert out.nodes[node]["date_infectious"] > out.nodes[node]["exposure_date"]
+        assert out.nodes[node]["date_symptom_onset"] > out.nodes[node]["date_infectious"]
+        assert out.nodes[node]["sample_date"] >= out.nodes[node]["date_symptom_onset"]
+
+
 def test_sequence_packer_hamming_matches_naive():
     rng = np.random.default_rng(0)
     int8_matrix = rng.integers(0, 4, size=(3, 35), dtype=np.int8)
 
     packed = SequencePacker64.pack_u64(int8_matrix)
     hamming = SequencePacker64.hamming64(packed)
+    expected = _naive_hamming(int8_matrix)
+
+    np.testing.assert_allclose(hamming, expected, rtol=0.0, atol=0.0)
+
+
+def test_sequence_packer_pyfunc_matches_naive():
+    rng = np.random.default_rng(1)
+    int8_matrix = rng.integers(0, 4, size=(2, 33), dtype=np.int8)
+
+    packed = SequencePacker64.pack_u64.py_func(int8_matrix)
+    hamming = SequencePacker64.hamming64.py_func(packed)
     expected = _naive_hamming(int8_matrix)
 
     np.testing.assert_allclose(hamming, expected, rtol=0.0, atol=0.0)
@@ -103,6 +136,42 @@ def test_packed_genomic_data_write_fasta(tmp_path):
     assert contents == ">n1\nACGTAA\n>n2\nTTGGCC\n"
 
 
+def test_packed_genomic_data_write_fasta_wraps_lines(tmp_path):
+    int8_matrix = np.zeros((1, 105), dtype=np.int8)
+    node_map = {"n1": 0}
+    base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
+
+    packed = PackedGenomicData(int8_matrix, original_length=105, node_map=node_map, base_map=base_map)
+    out_path = tmp_path / "wrapped.fasta"
+    packed.write_fasta(str(out_path))
+
+    contents = out_path.read_text()
+    expected = ">n1\n" + ("A" * 100) + "\n" + ("A" * 5) + "\n"
+    assert contents == expected
+
+
+def test_packed_genomic_data_hamming():
+    """Test Hamming distance calculation on packed data."""
+    int8_matrix = np.array(
+        [
+            [0, 1, 2, 3] * 20,  # 80 bases
+            [0, 1, 2, 3] * 20,
+            [3, 2, 1, 0] * 20,
+        ],
+        dtype=np.int8,
+    )
+    node_map = {"n1": 0, "n2": 1, "n3": 2}
+    base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
+
+    packed_data = PackedGenomicData(int8_matrix, original_length=80, node_map=node_map, base_map=base_map)
+
+    hamming = packed_data.compute_hamming_distances()
+
+    assert hamming.shape == (3, 3)
+    assert hamming[0, 1] == 0.0
+    assert hamming[0, 2] == 80.0
+
+
 def test_simulate_genomic_data_zero_branch_length():
     tree = nx.DiGraph()
     tree.add_edge("A", "B")
@@ -123,6 +192,38 @@ def test_simulate_genomic_data_zero_branch_length():
     assert np.array_equal(poisson_raw[idx_a], poisson_raw[idx_b])
     assert np.array_equal(linear_raw[idx_a], poisson_raw[idx_a])
     assert np.all((linear_raw >= 0) & (linear_raw <= 3))
+
+
+def test_simulate_genomic_data_with_mutations():
+    """Test genomic simulation with actual mutations."""
+    tree = nx.DiGraph()
+    tree.add_edge("A", "B")
+    tree.nodes["A"]["sample_date"] = 0.0
+    tree.nodes["B"]["sample_date"] = 10.0
+    tree.nodes["B"]["exposure_date"] = 5.0
+
+    clock = MolecularClock(subs_rate=1e-3, relax_rate=False, gen_len=1000, rng_seed=123)
+    out = simulate_genomic_data(clock=clock, tree=tree, return_raw=True)
+
+    assert "raw" in out
+    assert "packed" in out
+    assert "linear" in out["raw"]
+    assert "poisson" in out["raw"]
+
+    linear_raw = out["raw"]["linear"]
+    assert linear_raw.shape[1] == 1000
+
+
+def test_simulate_genomic_data_missing_dates_raises():
+    tree = nx.DiGraph()
+    tree.add_edge("A", "B")
+    tree.nodes["A"]["sample_date"] = 0.0
+    tree.nodes["B"]["sample_date"] = 1.0
+    # Missing exposure_date for B should trigger ValueError.
+
+    clock = MolecularClock(relax_rate=False, gen_len=16, rng_seed=5)
+    with np.testing.assert_raises(ValueError):
+        simulate_genomic_data(clock=clock, tree=tree, return_raw=False)
 
 
 def test_generate_pairwise_data_relationships():
@@ -180,3 +281,28 @@ def test_generate_pairwise_data_relationships():
 
     row_bd = _row_for_pair(df, "B", "D")
     assert row_bd["TemporalDist"] == 5
+
+
+def test_generate_pairwise_data_skips_missing_nodes():
+    tree = nx.DiGraph()
+    tree.add_edges_from([("A", "B"), ("X", "Y"), ("Z", "X"), ("Z", "Y")])
+    tree.nodes["A"]["sample_date"] = 0
+    tree.nodes["B"]["sample_date"] = 1
+
+    int8_matrix = np.array(
+        [
+            [0, 1, 2, 3],
+            [0, 1, 2, 3],
+        ],
+        dtype=np.int8,
+    )
+    node_map = {"A": 0, "B": 1}
+    base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
+    packed_linear = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
+    packed_poisson = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
+
+    df = generate_pairwise_data({"linear": packed_linear, "poisson": packed_poisson}, tree)
+
+    assert len(df) == 1
+    row_ab = _row_for_pair(df, "A", "B")
+    assert bool(row_ab["Related"]) is True

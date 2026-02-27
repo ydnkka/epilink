@@ -14,6 +14,7 @@ from epilink import (
     TOIT,
     TOST,
     InfectiousnessParams,
+    InfectiousnessProfile,
     MolecularClock,
     presymptomatic_fraction
 )
@@ -104,15 +105,6 @@ def test_infectiousness_params_validation_relative_infectiousness():
         InfectiousnessParams(rel_presymptomatic_infectiousness=-1.0)
 
 
-def test_infectiousness_params_repr():
-    """Test that InfectiousnessParams has a proper string representation."""
-    params = InfectiousnessParams()
-    repr_str = repr(params)
-    assert "InfectiousnessParams" in repr_str
-    assert "incubation_shape" in repr_str
-    assert "latent_shape" in repr_str
-
-
 # ============================================================================
 # MolecularClock Tests
 # ============================================================================
@@ -147,8 +139,14 @@ def test_molecular_clock_validation():
     with pytest.raises(ValueError, match="subs_rate must be positive"):
         MolecularClock(subs_rate=-1e-3)
 
+    with pytest.raises(ValueError, match="subs_rate must be positive"):
+        MolecularClock(subs_rate=0.0)
+
     with pytest.raises(ValueError, match="subs_rate_sigma must be non-negative"):
         MolecularClock(subs_rate_sigma=-0.1)
+
+    with pytest.raises(ValueError, match="gen_len must be positive"):
+        MolecularClock(gen_len=0)
 
     with pytest.raises(ValueError, match="gen_len must be positive"):
         MolecularClock(gen_len=-100)
@@ -223,12 +221,18 @@ def test_molecular_clock_expected_mutations_negative_clipping():
     assert np.all(mutations >= 0)
 
 
-def test_molecular_clock_repr():
-    """Test that MolecularClock has a proper string representation."""
-    clock = MolecularClock()
-    repr_str = repr(clock)
-    assert "MolecularClock" in repr_str
-    assert "subs_rate" in repr_str
+def test_infectiousness_profile_base_class_not_implemented():
+    """Test that base class abstract methods raise NotImplementedError."""
+    class MinimalProfile(InfectiousnessProfile):
+        pass
+
+    profile = MinimalProfile(a=0.0, b=10.0)
+
+    with pytest.raises(NotImplementedError):
+        profile.pdf(np.array([1.0]))
+
+    with pytest.raises(NotImplementedError):
+        profile.rvs(size=1)
 
 
 # ============================================================================
@@ -273,14 +277,6 @@ def test_tost_pdf_piecewise():
     assert np.all(pdf_fine >= 0)
 
 
-def test_tost_pdf_piecewise_nonnegative():
-    """Test TOST PDF is non-negative across the piecewise boundary."""
-    tost = TOST()
-    x = np.array([-1.0, 0.0, 1.0])
-    pdf = tost.pdf(x)
-    assert np.all(pdf >= 0.0)
-
-
 def test_tost_pdf_scalar_input():
     """Test TOST PDF handles scalar input correctly."""
     tost = TOST()
@@ -304,17 +300,6 @@ def test_tost_rvs_shape():
 
     # All samples should be within bounds
     assert np.all((samples >= tost.a) & (samples <= tost.b))
-
-
-def test_tost_rvs_reproducibility():
-    """Test TOST random sampling is reproducible with fixed seed."""
-    tost1 = TOST(rng_seed=42)
-    tost2 = TOST(rng_seed=42)
-
-    samples1 = tost1.rvs(size=50)
-    samples2 = tost2.rvs(size=50)
-
-    assert np.allclose(samples1, samples2)
 
 
 def test_tost_custom_bounds():
@@ -396,22 +381,6 @@ def test_toit_pdf_negative_x():
     assert np.all(pdf == 0)
 
 
-def test_toit_pdf_no_valid_mask():
-    """Test TOIT PDF handles all-negative array input correctly."""
-    toit = TOIT()
-    pdf = toit.pdf([-1.0])
-    assert pdf.shape == (1,)
-    assert pdf[0] == 0.0
-
-
-def test_toit_pdf_no_valid_mask_single():
-    """Test TOIT PDF handles single negative value correctly."""
-    toit = TOIT()
-    pdf = toit.pdf([-1.0])
-    assert pdf.shape == (1,)
-    assert pdf[0] == 0.0
-
-
 def test_toit_pdf_mixed_positive_negative():
     """Test TOIT PDF handles mixed positive and negative inputs."""
     toit = TOIT()
@@ -449,17 +418,6 @@ def test_toit_rvs_shape():
     assert np.all((samples >= toit.a) & (samples <= toit.b))
 
 
-def test_toit_rvs_reproducibility():
-    """Test TOIT random sampling is reproducible with fixed seed."""
-    toit1 = TOIT(rng_seed=42)
-    toit2 = TOIT(rng_seed=42)
-
-    samples1 = toit1.rvs(size=50)
-    samples2 = toit2.rvs(size=50)
-
-    assert np.allclose(samples1, samples2)
-
-
 def test_toit_generation_time():
     """Test TOIT generation time calculation (latent + TOIT)."""
     toit = TOIT(rng_seed=42)
@@ -492,6 +450,19 @@ def test_toit_grid_fallback_uniform():
 
     # All probabilities should be non-negative
     assert np.all(ps >= 0)
+
+
+def test_ensure_grid_fallback_uniform():
+    """Test that zero PDFs fall back to a uniform grid."""
+    class ZeroPdfProfile(InfectiousnessProfile):
+        def pdf(self, x):
+            return np.zeros_like(np.asarray(x, dtype=float))
+
+    profile = ZeroPdfProfile(a=0.0, b=1.0, grid_points=10)
+    xs, ps = profile._ensure_grid()
+
+    assert xs.shape == ps.shape
+    assert np.allclose(ps, np.ones_like(ps) / len(ps))
 
 
 def test_toit_sampling_grid_normalized():
@@ -734,19 +705,6 @@ def test_frozen_gamma_distributions():
     assert symp_samples.shape == (100,)
 
 
-def test_rng_seed_consistency():
-    """Test that providing the same seed gives reproducible results across classes."""
-    # TOIT reproducibility
-    toit1 = TOIT(rng_seed=123)
-    toit2 = TOIT(rng_seed=123)
-    assert np.allclose(toit1.rvs(10), toit2.rvs(10))
-
-    # TOST reproducibility
-    tost1 = TOST(rng_seed=456)
-    tost2 = TOST(rng_seed=456)
-    assert np.allclose(tost1.rvs(10), tost2.rvs(10))
-
-
 def test_repr_methods():
     """Test string representations of all classes."""
     # InfectiousnessParams
@@ -764,6 +722,63 @@ def test_repr_methods():
     # TOST
     tost = TOST()
     assert "TOST" in repr(tost)
+
+
+@pytest.mark.parametrize(
+    "profile_cls, seed",
+    [
+        (TOIT, 123),
+        (TOST, 456),
+    ],
+)
+def test_profile_rvs_reproducibility(profile_cls, seed):
+    """Test reproducible sampling with a fixed RNG seed."""
+    profile1 = profile_cls(rng_seed=seed)
+    profile2 = profile_cls(rng_seed=seed)
+    assert np.allclose(profile1.rvs(10), profile2.rvs(10))
+
+
+def test_infectiousness_profile_cdf_requires_trapz(monkeypatch):
+    """Test cdf raises ImportError when trapezoid integration is unavailable."""
+    from epilink import infectiousness_profile as ip
+
+    class UniformProfile(InfectiousnessProfile):
+        def pdf(self, x):
+            x_arr = np.asarray(x, dtype=float)
+            return np.ones_like(x_arr) / (self.b - self.a)
+
+    profile = UniformProfile(a=0.0, b=1.0)
+    monkeypatch.setattr(ip, "_trapz", None)
+
+    with pytest.raises(ImportError, match="Neither np.trapezoid nor np.trapz found in NumPy."):
+        profile.cdf(0.5)
+
+
+def test_infectiousness_profile_mean_requires_trapz(monkeypatch):
+    """Test mean raises ImportError when trapezoid integration is unavailable."""
+    from epilink import infectiousness_profile as ip
+
+    class UniformProfile(InfectiousnessProfile):
+        def pdf(self, x):
+            x_arr = np.asarray(x, dtype=float)
+            return np.ones_like(x_arr) / (self.b - self.a)
+
+    profile = UniformProfile(a=0.0, b=1.0)
+    monkeypatch.setattr(ip, "_trapz", None)
+
+    with pytest.raises(ImportError, match="Neither np.trapezoid nor np.trapz found in NumPy."):
+        profile.mean()
+
+
+def test_toit_pdf_requires_trapz(monkeypatch):
+    """Test TOIT pdf raises ImportError when trapezoid integration is unavailable."""
+    from epilink import infectiousness_profile as ip
+
+    monkeypatch.setattr(ip, "_trapz", None)
+    toit = TOIT()
+
+    with pytest.raises(ImportError, match="Neither np.trapezoid nor np.trapz found in NumPy."):
+        toit.pdf([0.5])
 
 
 def test_pdf_integration_approximates_one():
@@ -831,5 +846,3 @@ def test_vectorized_pdf_evaluation():
     x_2d = np.array([[1.0, 2.0], [3.0, 4.0]])
     pdf_2d = toit.pdf(x_2d)
     assert pdf_2d.shape == (2, 2)
-
-
