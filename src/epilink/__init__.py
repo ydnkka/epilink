@@ -2,6 +2,7 @@ from .infectiousness_profile import (
     TOIT,
     TOST,
     InfectiousnessParams,
+    InfectiousnessProfile,
     MolecularClock,
     presymptomatic_fraction
 )
@@ -29,6 +30,7 @@ __all__ = [
     "TOST",
     "Epilink",
     "linkage_probability",
+    "InfectiousnessProfile",
     "genetic_linkage_probability",
     "linkage_probability_matrix",
     "presymptomatic_fraction",

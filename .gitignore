@@ -42,7 +42,6 @@ env/
 pip-wheel-metadata/
 
 # IDEs
-.vscode/
 .idea/
 *.iml
 
