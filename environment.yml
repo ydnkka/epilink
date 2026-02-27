@@ -7,6 +7,8 @@ dependencies:
   - numpy>=1.22
   - scipy>=1.9
   - numba>=0.58,<0.61
+  - networkx>=3.0
+  - pandas>=2.0
   - pip
   - pip:
       # dev tools only; keep in sync with [project.optional-dependencies].dev

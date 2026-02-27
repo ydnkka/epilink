@@ -33,6 +33,8 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Virtual environments
 .venv/
@@ -40,13 +42,20 @@ venv/
 ENV/
 env/
 pip-wheel-metadata/
+.env
+.env.*
+.python-version
 
 # IDEs
 .idea/
 *.iml
+.vscode/
 
 # MkDocs
 site/
 
 # Hatch/Build artifacts
 *.whl
+
+# macOS
+.DS_Store
