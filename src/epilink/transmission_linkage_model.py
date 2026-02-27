@@ -118,7 +118,7 @@ class Epilink:
         sampling_delay_i: np.ndarray,
         sampling_delay_j: np.ndarray,
         intermediate_generations: np.ndarray,
-        intermediates: int,
+        intermediate_hosts: int,
         diff_infection_ij: np.ndarray,
         incubation_periods: np.ndarray,
         generation_time_xi: np.ndarray,
@@ -138,7 +138,7 @@ class Epilink:
             Sampling delays for case j, shape (N,).
         intermediate_generations : numpy.ndarray
             Generation intervals, shape (N, M+1).
-        intermediates : int
+        intermediate_hosts : int
             Maximum number of intermediate hosts (M).
         diff_infection_ij : numpy.ndarray
             Differences in exposure dates, shape (N,).
@@ -155,7 +155,7 @@ class Epilink:
         num_distances = genetic_distance_ij.shape[0]
         mc_simulations = generation_time_xi.shape[0]
 
-        out = np.zeros((num_distances, intermediates + 1), dtype=np.float64)
+        out = np.zeros((num_distances, intermediate_hosts + 1), dtype=np.float64)
 
         # Invariants across m (computed once for efficiency)
         direct_tmrca_expected = sampling_delay_i + sampling_delay_j  # (N,)
@@ -177,8 +177,8 @@ class Epilink:
             out[k, 0] = count / mc_simulations
 
             # M > 0: scenarios with intermediate hosts
-            for m in range(1, intermediates + 1):
-                idx = intermediates - (m - 1)  # Index for summing generation intervals
+            for m in range(1, intermediate_hosts + 1):
+                idx = intermediate_hosts - (m - 1)  # Index for summing generation intervals
                 count_m = 0
 
                 for j in range(mc_simulations):
@@ -186,13 +186,13 @@ class Epilink:
 
                     # Path 1: Successive transmission
                     sum_gi_successive = 0
-                    for col in range(idx, intermediates + 1):
+                    for col in range(idx, intermediate_hosts + 1):
                         sum_gi_successive += intermediate_generations[j, col]
                     tmrca_successive = direct_tmrca_expected[j] + sum_gi_successive
 
                     # Path 2: Common ancestor
                     sum_gi_common = 0
-                    for col in range(idx, intermediates):
+                    for col in range(idx, intermediate_hosts):
                         sum_gi_common += intermediate_generations[j, col]
                     tmrca_common = diff_infection_ij[j] + incubation_period_sum[j] + sum_gi_common
 
@@ -214,7 +214,7 @@ class Epilink:
         toit: TOIT,
         clock: MolecularClock,
         num_simulations: int,
-        no_intermediates: int,
+        intermediate_hosts: int,
     ) -> Epilink:
         """
         Sample epidemiological quantities for Monte Carlo simulation.
@@ -227,7 +227,7 @@ class Epilink:
             Molecular clock model.
         num_simulations : int
             Number of Monte Carlo draws.
-        no_intermediates : int
+        intermediate_hosts : int
             Maximum number of intermediate hosts (M).
 
         Returns
@@ -236,7 +236,7 @@ class Epilink:
             Container with sampled quantities.
         """
         N = int(num_simulations)
-        M = int(no_intermediates)
+        M = int(intermediate_hosts)
 
         inc_period = toit.sample_incubation(size=(N, 2))  # (N, 2)
         gen_interval = toit.generation_time(size=(N, M + 1))  # (N, M+1)
@@ -278,7 +278,7 @@ def linkage_probability(
     temporal_distance: ArrayLike,
     *,
     intermediate_generations: tuple[int, ...] = (0, 1),
-    no_intermediates: int = 10,
+    intermediate_hosts: int = 10,
     num_simulations: int = 10000,
     cache_unique_distances: bool = True,
 ) -> float | np.ndarray:
@@ -298,7 +298,7 @@ def linkage_probability(
         ``genetic_distance`` after coercion to 1D arrays.
     intermediate_generations : tuple of int, default=(0, 1)
         Which intermediate scenario counts to include.
-    no_intermediates : int, default=10
+    intermediate_hosts : int, default=10
         Maximum number of intermediate hosts (M) considered in simulation.
     num_simulations : int, default=10000
         Number of Monte Carlo draws.
@@ -315,7 +315,7 @@ def linkage_probability(
     ------
     ValueError
         If genetic_distance and temporal_distance have different lengths,
-        or if intermediate_generations values exceed no_intermediates.
+        or if intermediate_generations values exceed intermediate_hosts.
 
     Notes
     -----
@@ -341,7 +341,7 @@ def linkage_probability(
         return np.nan
 
     is_scalar_input = np.isscalar(genetic_distance) and np.isscalar(temporal_distance)
-    num_intermediate_hosts = int(no_intermediates)
+    intermediate_hosts = int(intermediate_hosts)
 
     # 2) Optionally deduplicate unique distance *pairs*
     if cache_unique_distances and genetic_distance_arr.size > 1:
@@ -353,7 +353,7 @@ def linkage_probability(
         t_u = unique_pairs[:, 1]
 
         # Run *once* and evaluate only the U observed pairs
-        sim = Epilink.run_simulations(toit, clock, int(num_simulations), num_intermediate_hosts)
+        sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
         # Temporal evidence for U pairs
         p_temporal_u = Epilink.temporal_kernel(
@@ -369,7 +369,7 @@ def linkage_probability(
             sampling_delay_i=sim.sampling_delay_i,
             sampling_delay_j=sim.sampling_delay_j,
             intermediate_generations=sim.generation_interval,
-            intermediates=num_intermediate_hosts,
+            intermediate_hosts=intermediate_hosts,
             diff_infection_ij=sim.diff_infection_ij,
             incubation_periods=sim.incubation_periods,
             generation_time_xi=sim.generation_time_xi,
@@ -383,9 +383,9 @@ def linkage_probability(
             p_normalized = np.where(row_sums[:, None] > 0.0, p_relative / row_sums[:, None], 0.0)
 
         cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > num_intermediate_hosts:
+        if cols.min() < 0 or cols.max() > intermediate_hosts:
             raise ValueError(
-                f"intermediate_generations must be within [0, {num_intermediate_hosts}], "
+                f"intermediate_generations must be within [0, {intermediate_hosts}], "
                 f"got {intermediate_generations}.",
             )
         selected_u = p_normalized[:, cols].sum(axis=1)  # shape (U,)
@@ -394,7 +394,7 @@ def linkage_probability(
         out = out_u[inv]  # map back to shape (K,)
     else:
         # Compute directly without deduplication
-        sim = Epilink.run_simulations(toit, clock, int(num_simulations), num_intermediate_hosts)
+        sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
         # 3) Temporal evidence
         p_temporal = Epilink.temporal_kernel(
@@ -410,7 +410,7 @@ def linkage_probability(
             sampling_delay_i=sim.sampling_delay_i,
             sampling_delay_j=sim.sampling_delay_j,
             intermediate_generations=sim.generation_interval,
-            intermediates=num_intermediate_hosts,
+            intermediate_hosts=intermediate_hosts,
             diff_infection_ij=sim.diff_infection_ij,
             incubation_periods=sim.incubation_periods,
             generation_time_xi=sim.generation_time_xi,
@@ -426,9 +426,9 @@ def linkage_probability(
 
         # Select columns m specified by intermediate_generations
         cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > num_intermediate_hosts:
+        if cols.min() < 0 or cols.max() > intermediate_hosts:
             raise ValueError(
-                f"intermediate_generations must be within [0, {num_intermediate_hosts}], got {intermediate_generations}.",
+                f"intermediate_generations must be within [0, {intermediate_hosts}], got {intermediate_generations}.",
             )
         selected = p_normalized[:, cols].sum(axis=1)  # shape (K,)
 
@@ -448,7 +448,7 @@ def linkage_probability_matrix(
     temporal_distances: np.ndarray,
     *,
     intermediate_generations: tuple[int, ...] = (0, 1),
-    no_intermediates: int = 10,
+    intermediate_hosts: int = 10,
     num_simulations: int = 10000,
 ) -> np.ndarray:
     """
@@ -466,7 +466,7 @@ def linkage_probability_matrix(
         1D array of temporal distances (days).
     intermediate_generations : tuple of int, default=(0, 1)
         Which intermediate scenario counts to include.
-    no_intermediates : int, default=10
+    intermediate_hosts : int, default=10
         Maximum number of intermediate hosts.
     num_simulations : int, default=10000
         Number of Monte Carlo draws.
@@ -493,7 +493,7 @@ def linkage_probability_matrix(
         genetic_distance=flat_g,
         temporal_distance=flat_t,
         intermediate_generations=intermediate_generations,
-        no_intermediates=no_intermediates,
+        intermediate_hosts=intermediate_hosts,
         num_simulations=num_simulations,
     )
     flat_p = np.asarray(flat_p, dtype=float)
@@ -547,7 +547,7 @@ def genetic_linkage_probability(
     genetic_distance: ArrayLike,
     *,
     num_simulations: int = 10000,
-    no_intermediates: int = 10,
+    intermediate_hosts: int = 10,
     intermediate_generations: tuple[int, ...] = (0, 1),
     kind: str = "relative",  # "raw" | "relative" | "normalized"
 ) -> np.ndarray:
@@ -565,7 +565,7 @@ def genetic_linkage_probability(
         Observed SNP distance(s), scalar or array_like.
     num_simulations : int, default=10000
         Number of Monte Carlo draws.
-    no_intermediates : int, default=10
+    intermediate_hosts : int, default=10
         Maximum number of intermediate hosts (M) considered.
     intermediate_generations : tuple of int or None, default=(0, 1)
         Which intermediate scenario counts to include. If None, return evidence
@@ -586,12 +586,12 @@ def genetic_linkage_probability(
     ------
     ValueError
         If ``intermediate_generations`` contains values outside
-        ``[0, no_intermediates]`` or if ``kind`` is invalid.
+        ``[0, intermediate_hosts]`` or if ``kind`` is invalid.
     """
     genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
-    num_intermediate_hosts = int(no_intermediates)
+    intermediate_hosts = int(intermediate_hosts)
 
-    sim = Epilink.run_simulations(toit, clock, int(num_simulations), num_intermediate_hosts)
+    sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
     p_genetic_by_scenario = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance_arr,
@@ -599,7 +599,7 @@ def genetic_linkage_probability(
         sampling_delay_i=sim.sampling_delay_i,
         sampling_delay_j=sim.sampling_delay_j,
         intermediate_generations=sim.generation_interval,
-        intermediates=num_intermediate_hosts,
+        intermediate_hosts=intermediate_hosts,
         diff_infection_ij=sim.diff_infection_ij,
         incubation_periods=sim.incubation_periods,
         generation_time_xi=sim.generation_time_xi,
@@ -614,9 +614,9 @@ def genetic_linkage_probability(
 
     if intermediate_generations is not None:
         cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > num_intermediate_hosts:
+        if cols.min() < 0 or cols.max() > intermediate_hosts:
             raise ValueError(
-                f"intermediate_generations must be within [0, {num_intermediate_hosts}], got {intermediate_generations}.",
+                f"intermediate_generations must be within [0, {intermediate_hosts}], got {intermediate_generations}.",
             )
 
         if kind == "relative":
