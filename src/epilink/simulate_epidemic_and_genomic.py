@@ -22,14 +22,14 @@ generate_pairwise_data
 from __future__ import annotations
 
 import textwrap
-from typing import Mapping
+from collections.abc import Mapping
 
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
-from scipy.stats import gamma, poisson
-from numba import njit, prange
 import pandas as pd
+from numba import njit, prange
+from scipy.stats import gamma, poisson
 
 from .infectiousness_profile import TOIT, MolecularClock
 
@@ -39,12 +39,12 @@ NDArrayFloat32 = npt.NDArray[np.float32]
 
 
 def populate_epidemic_data(
-        toit: TOIT,
-        tree: nx.DiGraph,
-        prop_sampled: float = 1.0,
-        sampling_scale: float = 1.0,
-        sampling_shape: float = 3.0,
-        root_start_range: int = 30,
+    toit: TOIT,
+    tree: nx.DiGraph,
+    prop_sampled: float = 1.0,
+    sampling_scale: float = 1.0,
+    sampling_shape: float = 3.0,
+    root_start_range: int = 30,
 ) -> nx.DiGraph:
     """
     Populate a transmission tree with simulated epidemic dates and sampling status.
@@ -113,13 +113,15 @@ def populate_epidemic_data(
         exp_date = int(rng.choice(range(root_start_range))) if root_start_range > 0 else 0
         latent_period, pre_sym_inf, sym_test = get_intervals()
 
-        G.nodes[root].update({
-            "exposure_date": exp_date,
-            "date_infectious": exp_date + latent_period,
-            "date_symptom_onset": exp_date + latent_period + pre_sym_inf,
-            "sample_date": exp_date + latent_period + pre_sym_inf + sym_test,
-            "seed": True,
-        })
+        G.nodes[root].update(
+            {
+                "exposure_date": exp_date,
+                "date_infectious": exp_date + latent_period,
+                "date_symptom_onset": exp_date + latent_period + pre_sym_inf,
+                "sample_date": exp_date + latent_period + pre_sym_inf + sym_test,
+                "seed": True,
+            }
+        )
 
         # B. Propagate to Successors (DFS Traversal)
         # Using dfs_edges ensures we always process a parent before their children
@@ -141,13 +143,15 @@ def populate_epidemic_data(
             child_sample_date = child_sym_date + sym_test
 
             # Update Child Node
-            G.nodes[child].update({
-                "exposure_date": child_exp_date,
-                "date_infectious": child_inf_date,
-                "date_symptom_onset": child_sym_date,
-                "sample_date": child_sample_date,
-                "seed": False,
-            })
+            G.nodes[child].update(
+                {
+                    "exposure_date": child_exp_date,
+                    "date_infectious": child_inf_date,
+                    "date_symptom_onset": child_sym_date,
+                    "sample_date": child_sample_date,
+                    "seed": False,
+                }
+            )
 
     return G
 
@@ -359,9 +363,7 @@ class PackedGenomicData:
 
 
 def simulate_genomic_data(
-        clock: MolecularClock,
-        tree: nx.DiGraph,
-        return_raw: bool = False
+    clock: MolecularClock, tree: nx.DiGraph, return_raw: bool = False
 ) -> dict[str, dict]:
     """
     Simulate genomic evolution along a transmission tree.
@@ -458,8 +460,7 @@ def simulate_genomic_data(
 
 
 def generate_pairwise_data(
-        packed_genomic_data: Mapping[str, PackedGenomicData],
-        tree: nx.DiGraph
+    packed_genomic_data: Mapping[str, PackedGenomicData], tree: nx.DiGraph
 ) -> pd.DataFrame:
     """
     Generate a long-format DataFrame with genetic and temporal distances.
@@ -479,8 +480,8 @@ def generate_pairwise_data(
     """
     # 1. Retrieve Data & Map
     # We assume both linear/poisson share the same node map (they should)
-    packed_linear = packed_genomic_data['linear']
-    packed_poisson = packed_genomic_data['poisson']
+    packed_linear = packed_genomic_data["linear"]
+    packed_poisson = packed_genomic_data["poisson"]
     node_map = packed_linear.node_to_idx
     n_nodes = packed_linear.n_seqs
 
@@ -533,14 +534,16 @@ def generate_pairwise_data(
     id_array = np.array([idx_to_node[i] for i in range(n_nodes)])
     sampled_status = np.array([tree.nodes[node].get("sampled", False) for node in id_array])
 
-    df = pd.DataFrame({
-        'NodeA': id_array[rows],
-        'NodeB': id_array[cols],
-        'Related': mat_related[rows, cols],
-        'Sampled': sampled_status[rows] & sampled_status[cols],
-        'LinearDist': mat_linear[rows, cols],
-        'PoissonDist': mat_poisson[rows, cols],
-        'TemporalDist': mat_temporal[rows, cols],
-    })
+    df = pd.DataFrame(
+        {
+            "NodeA": id_array[rows],
+            "NodeB": id_array[cols],
+            "Related": mat_related[rows, cols],
+            "Sampled": sampled_status[rows] & sampled_status[cols],
+            "LinearDist": mat_linear[rows, cols],
+            "PoissonDist": mat_poisson[rows, cols],
+            "TemporalDist": mat_temporal[rows, cols],
+        }
+    )
 
     return df

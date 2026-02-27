@@ -140,7 +140,9 @@ class InfectiousnessParams:
         if self.latent_shape <= 0:
             raise ValueError("latent_shape must be positive.")
         if self.latent_shape >= self.incubation_shape:
-            raise ValueError("latent_shape must be < incubation_shape (so presymptomatic_shape is positive).")
+            raise ValueError(
+                "latent_shape must be < incubation_shape (so presymptomatic_shape is positive)."
+            )
         if self.symptomatic_rate <= 0 or self.symptomatic_shape <= 0:
             raise ValueError("symptomatic_rate and symptomatic_shape must be positive.")
         if self.rel_presymptomatic_infectiousness <= 0:
@@ -162,7 +164,9 @@ class InfectiousnessParams:
     def infectiousness_normalisation(self) -> float:
         numerator = self.incubation_shape * self.incubation_rate * self.symptomatic_rate
         denominator = (
-            self.rel_presymptomatic_infectiousness * self.presymptomatic_shape * self.symptomatic_rate
+            self.rel_presymptomatic_infectiousness
+            * self.presymptomatic_shape
+            * self.symptomatic_rate
             + self.incubation_shape * self.incubation_rate
         )
         return numerator / denominator
@@ -177,6 +181,7 @@ class InfectiousnessParams:
             f"symptomatic_shape={self.symptomatic_shape}, "
             f"rel_presymptomatic_infectiousness={self.rel_presymptomatic_infectiousness})"
         )
+
 
 class MolecularClock:
     r"""
@@ -239,7 +244,7 @@ class MolecularClock:
             raise ValueError("gen_len must be positive.")
 
         # Adjust mu so that the median of lognormal equals subs_rate
-        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
+        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma**2)
 
     def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         r"""
@@ -260,12 +265,16 @@ class MolecularClock:
             Substitution rates in mutations per day.
         """
         if self.relax_rate:
-            per_site_per_year = self.rng.lognormal(self.subs_rate_mu, self.subs_rate_sigma, size=size)
+            per_site_per_year = self.rng.lognormal(
+                self.subs_rate_mu, self.subs_rate_sigma, size=size
+            )
         else:
             per_site_per_year = np.full(size, self.subs_rate, dtype=float)
         return (per_site_per_year * self.gen_len) / 365.0
 
-    def expected_mutations(self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None) -> np.ndarray:
+    def expected_mutations(
+        self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None
+    ) -> np.ndarray:
         r"""
         Compute expected mutation counts for given times (days).
 
@@ -309,6 +318,7 @@ class MolecularClock:
             f"gen_len={self.gen_len})"
         )
 
+
 class InfectiousnessProfile:
     r"""
     Base class for infectiousness profile distributions.
@@ -346,13 +356,13 @@ class InfectiousnessProfile:
     """
 
     def __init__(
-            self,
-            a: float,
-            b: float,
-            params: InfectiousnessParams | None = None,
-            rng: Generator | None = None,
-            rng_seed: int | None = 12345,
-            grid_points: int = 1024,
+        self,
+        a: float,
+        b: float,
+        params: InfectiousnessParams | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = 12345,
+        grid_points: int = 1024,
     ):
         self.a = float(a)
         self.b = float(b)
@@ -477,7 +487,9 @@ class InfectiousnessProfile:
         samples : numpy.ndarray
             Samples of :math:`y_E \sim \text{Gamma}(k_E, \theta_{inc})`.
         """
-        return self.rng.gamma(shape=self.params.latent_shape, scale=self.params.incubation_scale, size=size)
+        return self.rng.gamma(
+            shape=self.params.latent_shape, scale=self.params.incubation_scale, size=size
+        )
 
     def sample_presymptomatic(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         r"""
@@ -493,7 +505,9 @@ class InfectiousnessProfile:
         samples : numpy.ndarray
             Samples of :math:`y_P \sim \text{Gamma}(k_P, \theta_{inc})`.
         """
-        return self.rng.gamma(shape=self.params.presymptomatic_shape, scale=self.params.incubation_scale, size=size)
+        return self.rng.gamma(
+            shape=self.params.presymptomatic_shape, scale=self.params.incubation_scale, size=size
+        )
 
     def sample_incubation(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         r"""
@@ -528,7 +542,9 @@ class InfectiousnessProfile:
         samples : numpy.ndarray
             Samples of :math:`y_I \sim \text{Gamma}(k_I, \theta_I)`.
         """
-        return self.rng.gamma(shape=self.params.symptomatic_shape, scale=self.params.symptomatic_scale, size=size)
+        return self.rng.gamma(
+            shape=self.params.symptomatic_shape, scale=self.params.symptomatic_scale, size=size
+        )
 
     def _ensure_grid(self) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -545,12 +561,15 @@ class InfectiousnessProfile:
             x = np.linspace(self.a, self.b, num=max(2, self.grid_points))
             pdf_vals = np.clip(self.pdf(x), a_min=0.0, a_max=np.inf)
             s = pdf_vals.sum()
-            pdf_vals = (np.ones_like(x) / len(x)) if (not np.isfinite(s) or s <= 0.0) else (pdf_vals / s)
+            pdf_vals = (
+                (np.ones_like(x) / len(x)) if (not np.isfinite(s) or s <= 0.0) else (pdf_vals / s)
+            )
             self._grid, self._pdf_grid = x, pdf_vals
         return self._grid, self._pdf_grid
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(a={self.a}, b={self.b}, params={self.params})"
+
 
 class TOIT(InfectiousnessProfile):
     r"""
@@ -598,16 +617,18 @@ class TOIT(InfectiousnessProfile):
     """
 
     def __init__(
-            self,
-            a: float = 0.0,
-            b: float = 60.0,
-            params: InfectiousnessParams | None = None,
-            rng: Generator | None = None,
-            rng_seed: int | None = 12345,
-            y_grid_points: int = 2048,
-            x_grid_points: int = 1024,
+        self,
+        a: float = 0.0,
+        b: float = 60.0,
+        params: InfectiousnessParams | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = 12345,
+        y_grid_points: int = 2048,
+        x_grid_points: int = 1024,
     ):
-        super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=x_grid_points)
+        super().__init__(
+            a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=x_grid_points
+        )
         self.y_grid_points = int(y_grid_points)
 
     def generation_time(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
@@ -673,16 +694,15 @@ class TOIT(InfectiousnessProfile):
         # Build matrix of F_I(y - presymp_duration) for all y in y_valid
         symptomatic_cdf = self.symptomatic.cdf(y_broadcast - presymp_broadcast)
         integrand = np.where(
-            presymp_broadcast <= y_broadcast,
-            (1.0 - symptomatic_cdf) * presymp_pdf[None, :],
-            0.0
+            presymp_broadcast <= y_broadcast, (1.0 - symptomatic_cdf) * presymp_pdf[None, :], 0.0
         )
 
         integral = _trapz(integrand, presymp_duration_grid, axis=1)
 
         p = self.params
         out[mask] = p.infectiousness_normalisation * (
-            p.rel_presymptomatic_infectiousness * (1.0 - self.presymptomatic.cdf(y_valid)) + integral
+            p.rel_presymptomatic_infectiousness * (1.0 - self.presymptomatic.cdf(y_valid))
+            + integral
         )
         return out
 
@@ -704,6 +724,7 @@ class TOIT(InfectiousnessProfile):
             size = (size,)
         x, probs = self._ensure_grid()
         return self.rng.choice(x, size=size, p=probs)
+
 
 class TOST(InfectiousnessProfile):
     r"""
@@ -760,7 +781,9 @@ class TOST(InfectiousnessProfile):
         rng_seed: int | None = 12345,
         grid_points: int = 2048,
     ):
-        super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=grid_points)
+        super().__init__(
+            a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=grid_points
+        )
 
     def pdf(self, x: ArrayLike) -> np.ndarray:
         """
@@ -805,6 +828,7 @@ class TOST(InfectiousnessProfile):
             size = (size,)
         x, probs = self._ensure_grid()
         return self.rng.choice(x, size=size, p=probs)
+
 
 def presymptomatic_fraction(p: InfectiousnessParams) -> float:
     r"""
