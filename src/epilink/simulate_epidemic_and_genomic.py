@@ -202,7 +202,7 @@ class SequencePacker64:
                     word |= np.uint64(arr[i, k]) << shift
                     shift -= 2
 
-                out[i, b] = word
+                out[i, b] = np.uint64(word)
 
         return out
 
