@@ -341,7 +341,6 @@ def linkage_probability(
         return np.nan
 
     is_scalar_input = np.isscalar(genetic_distance) and np.isscalar(temporal_distance)
-    intermediate_hosts = int(intermediate_hosts)
 
     # 2) Optionally deduplicate unique distance *pairs*
     if cache_unique_distances and genetic_distance_arr.size > 1:

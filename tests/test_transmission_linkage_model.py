@@ -22,7 +22,7 @@ def test_epilink_run_simulations_shapes():
     toit = TOIT(rng_seed=11)
     clock = MolecularClock(relax_rate=False, rng_seed=13)
 
-    sim = Epilink.run_simulations(toit, clock, num_simulations=50, no_intermediates=3)
+    sim = Epilink.run_simulations(toit, clock, num_simulations=50, intermediate_hosts=3)
 
     assert sim.incubation_periods.shape == (50, 2)
     assert sim.generation_interval.shape == (50, 4)
@@ -145,7 +145,7 @@ def test_linkage_probability_scalar_and_array():
         genetic_distance=0,
         temporal_distance=0,
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
     )
     assert isinstance(scalar, float)
     assert 0.0 <= scalar <= 1.0
@@ -156,7 +156,7 @@ def test_linkage_probability_scalar_and_array():
         genetic_distance=np.array([0, 1, 2]),
         temporal_distance=np.array([0, 1, 2]),
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         cache_unique_distances=False,
     )
     assert arr.shape == (3,)
@@ -169,7 +169,7 @@ def test_linkage_probability_scalar_and_array():
             genetic_distance=[0, 1],
             temporal_distance=[1],
             num_simulations=10,
-            no_intermediates=2,
+            intermediate_hosts=2,
             cache_unique_distances=False,
         )
 
@@ -179,7 +179,7 @@ def test_linkage_probability_scalar_and_array():
         genetic_distance=[],
         temporal_distance=[],
         num_simulations=10,
-        no_intermediates=2,
+        intermediate_hosts=2,
         cache_unique_distances=False,
     )
     assert np.isnan(empty)
@@ -195,7 +195,7 @@ def test_pairwise_linkage_probability_matrix_singleton():
         genetic_distances=np.array([0]),
         temporal_distances=np.array([0]),
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
     )
 
     assert mat.shape == (1, 1)
@@ -227,7 +227,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
         clock=clock,
         genetic_distance=[0, 1],
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=(0, 1),
         kind="raw",
     )
@@ -239,7 +239,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
         clock=clock,
         genetic_distance=[0, 1],
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=(0, 1),
         kind="relative",
     )
@@ -250,7 +250,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
         clock=clock,
         genetic_distance=[0, 1],
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=(0, 1),
         kind="normalized",
     )
@@ -261,7 +261,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
         clock=clock,
         genetic_distance=[0, 1],
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=None,
         kind="raw",
     )
@@ -273,7 +273,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
             clock=clock,
             genetic_distance=[0],
             num_simulations=10,
-            no_intermediates=2,
+            intermediate_hosts=2,
             intermediate_generations=(3,),
             kind="relative",
         )
@@ -284,7 +284,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
             clock=clock,
             genetic_distance=[0],
             num_simulations=10,
-            no_intermediates=2,
+            intermediate_hosts=2,
             intermediate_generations=(0,),
             kind="unknown",
         )
@@ -389,7 +389,7 @@ def test_linkage_probability_various_intermediate_generations():
         genetic_distance=5,
         temporal_distance=3,
         intermediate_generations=(0,),
-        no_intermediates=3,
+        intermediate_hosts=3,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -403,7 +403,7 @@ def test_linkage_probability_various_intermediate_generations():
         genetic_distance=5,
         temporal_distance=3,
         intermediate_generations=(0, 1, 2),
-        no_intermediates=3,
+        intermediate_hosts=3,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -439,7 +439,7 @@ def test_genetic_linkage_probability_all_kinds_with_none():
         clock=clock,
         genetic_distance=genetic_dist,
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=None,
         kind="raw",
     )
@@ -452,7 +452,7 @@ def test_genetic_linkage_probability_all_kinds_with_none():
         clock=clock,
         genetic_distance=genetic_dist,
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=None,
         kind="relative",
     )
@@ -465,7 +465,7 @@ def test_genetic_linkage_probability_all_kinds_with_none():
         clock=clock,
         genetic_distance=genetic_dist,
         num_simulations=50,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=None,
         kind="normalized",
     )
@@ -490,7 +490,7 @@ def test_linkage_probability_single_element_no_cache():
         genetic_distance=np.array([5]),
         temporal_distance=np.array([3]),
         num_simulations=30,
-        no_intermediates=2,
+        intermediate_hosts=2,
         cache_unique_distances=False,
     )
 
@@ -507,8 +507,8 @@ def test_epilink_run_simulations_reproducibility():
     toit2 = TOIT(rng_seed=200)
     clock2 = MolecularClock(relax_rate=False, rng_seed=201)
 
-    sim1 = Epilink.run_simulations(toit1, clock1, num_simulations=10, no_intermediates=2)
-    sim2 = Epilink.run_simulations(toit2, clock2, num_simulations=10, no_intermediates=2)
+    sim1 = Epilink.run_simulations(toit1, clock1, num_simulations=10, intermediate_hosts=2)
+    sim2 = Epilink.run_simulations(toit2, clock2, num_simulations=10, intermediate_hosts=2)
 
     np.testing.assert_array_equal(sim1.incubation_periods, sim2.incubation_periods)
     np.testing.assert_array_equal(sim1.generation_interval, sim2.generation_interval)
@@ -526,7 +526,7 @@ def test_linkage_probability_with_larger_no_intermediates():
         genetic_distance=10,
         temporal_distance=5,
         intermediate_generations=(0, 1, 2, 3, 4, 5),
-        no_intermediates=10,
+        intermediate_hosts=10,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -546,7 +546,7 @@ def test_genetic_linkage_probability_scalar_distance():
         clock=clock,
         genetic_distance=5,  # scalar
         num_simulations=30,
-        no_intermediates=2,
+        intermediate_hosts=2,
         intermediate_generations=(0, 1),
         kind="relative",
     )
@@ -567,7 +567,7 @@ def test_linkage_probability_no_cache_direct_path():
         genetic_distance=np.array([0, 5, 10]),
         temporal_distance=np.array([0, 2, 5]),
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -588,7 +588,7 @@ def test_linkage_probability_multiple_intermediate_generations():
         genetic_distance=np.array([5, 10, 15]),
         temporal_distance=np.array([3, 5, 7]),
         intermediate_generations=(0, 1, 2),
-        no_intermediates=5,
+        intermediate_hosts=5,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -609,7 +609,7 @@ def test_linkage_probability_high_genetic_distance():
         genetic_distance=np.array([0, 50, 100, 200]),
         temporal_distance=np.array([0, 10, 20, 30]),
         intermediate_generations=(0, 1),
-        no_intermediates=3,
+        intermediate_hosts=3,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -630,7 +630,7 @@ def test_linkage_probability_high_temporal_distance():
         genetic_distance=np.array([5, 5, 5, 5]),
         temporal_distance=np.array([0, 20, 50, 100]),
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -650,7 +650,7 @@ def test_linkage_probability_matrix_single_distance():
         genetic_distances=np.array([5]),
         temporal_distances=np.array([3]),
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=50,
     )
 
@@ -670,7 +670,7 @@ def test_linkage_probability_zero_distances():
         genetic_distance=0,
         temporal_distance=0,
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=100,
         cache_unique_distances=False,
     )
@@ -693,7 +693,7 @@ def test_linkage_probability_mixed_distances():
         genetic_distance=np.array([0, 100, 5, 50]),
         temporal_distance=np.array([0, 50, 2, 10]),
         intermediate_generations=(0, 1),
-        no_intermediates=3,
+        intermediate_hosts=3,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -714,7 +714,7 @@ def test_linkage_probability_all_intermediate_scenarios():
         genetic_distance=np.array([10]),
         temporal_distance=np.array([5]),
         intermediate_generations=(0, 1, 2, 3, 4, 5),
-        no_intermediates=5,
+        intermediate_hosts=5,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -734,7 +734,7 @@ def test_linkage_probability_single_intermediate_scenario():
         genetic_distance=5,
         temporal_distance=3,
         intermediate_generations=(0,),  # Only direct
-        no_intermediates=3,
+        intermediate_hosts=3,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -757,7 +757,7 @@ def test_linkage_probability_consistency():
         genetic_distance=10,
         temporal_distance=5,
         intermediate_generations=(0, 1),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -768,7 +768,7 @@ def test_linkage_probability_consistency():
         genetic_distance=10,
         temporal_distance=5,
         intermediate_generations=(0, 1),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=50,
         cache_unique_distances=False,
     )
@@ -788,7 +788,7 @@ def test_linkage_probability_with_different_num_simulations():
         genetic_distance=10,
         temporal_distance=5,
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=20,
         cache_unique_distances=False,
     )
@@ -803,7 +803,7 @@ def test_linkage_probability_with_different_num_simulations():
         genetic_distance=10,
         temporal_distance=5,
         intermediate_generations=(0,),
-        no_intermediates=2,
+        intermediate_hosts=2,
         num_simulations=100,
         cache_unique_distances=False,
     )
@@ -819,7 +819,7 @@ class TestCachingPath:
     """Test the caching path in linkage_probability with duplicate distance pairs."""
 
     @pytest.mark.parametrize(
-        "genetic_dist, temporal_dist, intermediate_generations, no_intermediates",
+        "genetic_dist, temporal_dist, intermediate_generations, intermediate_hosts",
         [
             (np.array([5, 10, 5, 15, 10, 5]), np.array([3, 7, 3, 9, 7, 3]), (0, 1), 3),
             (np.array([5, 10, 5, 15]), np.array([3, 7, 3, 9]), (0, 1, 2, 3), 5),
@@ -837,7 +837,7 @@ class TestCachingPath:
         genetic_dist,
         temporal_dist,
         intermediate_generations,
-        no_intermediates,
+        intermediate_hosts,
     ):
         """Test caching path when there are duplicate distance pairs."""
         toit = TOIT(rng_seed=1000)
@@ -849,7 +849,7 @@ class TestCachingPath:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=intermediate_generations,
-            no_intermediates=no_intermediates,
+            intermediate_hosts=intermediate_hosts,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -877,7 +877,7 @@ class TestCachingPath:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0,),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -901,8 +901,8 @@ class TestCachingPath:
                 clock=clock,
                 genetic_distance=genetic_dist,
                 temporal_distance=temporal_dist,
-                intermediate_generations=(10,),  # Exceeds no_intermediates=3
-                no_intermediates=3,
+                intermediate_generations=(10,),  # Exceeds intermediate_hosts=3
+                intermediate_hosts=3,
                 num_simulations=50,
                 cache_unique_distances=True,
             )
@@ -915,7 +915,7 @@ class TestCachingPath:
                 genetic_distance=genetic_dist,
                 temporal_distance=temporal_dist,
                 intermediate_generations=(-1, 0),
-                no_intermediates=3,
+                intermediate_hosts=3,
                 num_simulations=50,
                 cache_unique_distances=True,
             )
@@ -936,7 +936,7 @@ class TestEdgeCasesAndBoundaries:
             genetic_distance=np.array([5]),
             temporal_distance=np.array([3]),
             intermediate_generations=(0,),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=50,
             cache_unique_distances=True,  # Enabled but size=1 so skips caching
         )
@@ -958,7 +958,7 @@ class TestEdgeCasesAndBoundaries:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0, 1),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -980,7 +980,7 @@ class TestEdgeCasesAndBoundaries:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0,),  # Only minimum
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -999,7 +999,7 @@ class TestEdgeCasesAndBoundaries:
             clock=clock,
             genetic_distance=[5],
             num_simulations=30,
-            no_intermediates=10,
+            intermediate_hosts=10,
             intermediate_generations=(0,),  # Minimum
             kind="normalized",
         )
@@ -1013,7 +1013,7 @@ class TestEdgeCasesAndBoundaries:
             clock=clock2,
             genetic_distance=[5],
             num_simulations=30,
-            no_intermediates=10,
+            intermediate_hosts=10,
             intermediate_generations=(10,),  # Maximum
             kind="normalized",
         )
@@ -1033,7 +1033,7 @@ class TestEdgeCasesAndBoundaries:
             genetic_distances=genetic_distances,
             temporal_distances=temporal_distances,
             intermediate_generations=(0, 1, 2),
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
         )
 
@@ -1052,7 +1052,7 @@ class TestEdgeCasesAndBoundaries:
             clock=clock,
             genetic_distance=genetic_dist,
             num_simulations=50,
-            no_intermediates=3,
+            intermediate_hosts=3,
             intermediate_generations=(0, 1, 2),
             kind="normalized",
         )
@@ -1076,7 +1076,7 @@ class TestZeroProbabilityEdgeCases:
             genetic_distance=1000,  # Very large
             temporal_distance=365,  # One year
             intermediate_generations=(0,),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=100,
             cache_unique_distances=False,
         )
@@ -1098,7 +1098,7 @@ class TestZeroProbabilityEdgeCases:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0, 1),
-            no_intermediates=3,
+            intermediate_hosts=3,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -1124,7 +1124,7 @@ class TestComplexScenarios:
                 clock=clock,
                 genetic_distance=genetic_dist,
                 num_simulations=50,
-                no_intermediates=3,
+                intermediate_hosts=3,
                 intermediate_generations=(0, 1, 2),
                 kind=kind,
             )
@@ -1145,7 +1145,7 @@ class TestComplexScenarios:
             genetic_distances=genetic_distances,
             temporal_distances=temporal_distances,
             intermediate_generations=(0,),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=50,
         )
 
@@ -1169,7 +1169,7 @@ class TestIntermediateGenerationsSelection:
             genetic_distance=10,
             temporal_distance=5,
             intermediate_generations=(5,),  # Only high value
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
             cache_unique_distances=False,
         )
@@ -1191,7 +1191,7 @@ class TestIntermediateGenerationsSelection:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(4,),
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -1211,7 +1211,7 @@ class TestIntermediateGenerationsSelection:
             genetic_distance=10,
             temporal_distance=5,
             intermediate_generations=(0, 2, 4),
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
             cache_unique_distances=False,
         )
@@ -1233,7 +1233,7 @@ class TestIntermediateGenerationsSelection:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0, 3, 5),
-            no_intermediates=5,
+            intermediate_hosts=5,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -1261,7 +1261,7 @@ class TestVeryLargeArrays:
             genetic_distance=genetic_dist,
             temporal_distance=temporal_dist,
             intermediate_generations=(0, 1),
-            no_intermediates=3,
+            intermediate_hosts=3,
             num_simulations=50,
             cache_unique_distances=True,
         )
@@ -1285,7 +1285,7 @@ class TestErrorConditions:
                 genetic_distance=np.array([5, 10]),
                 temporal_distance=np.array([3]),  # Different size
                 intermediate_generations=(0,),
-                no_intermediates=2,
+                intermediate_hosts=2,
                 num_simulations=50,
                 cache_unique_distances=False,
             )
@@ -1301,7 +1301,7 @@ class TestErrorConditions:
             genetic_distance=np.array([]),
             temporal_distance=np.array([]),
             intermediate_generations=(0,),
-            no_intermediates=2,
+            intermediate_hosts=2,
             num_simulations=50,
             cache_unique_distances=False,
         )
@@ -1313,15 +1313,15 @@ class TestErrorConditions:
         toit = TOIT(rng_seed=7020)
         clock = MolecularClock(relax_rate=False, rng_seed=7021)
 
-        # Test exceeding no_intermediates
+        # Test exceeding intermediate_hosts
         with pytest.raises(ValueError, match="intermediate_generations must be within"):
             linkage_probability(
                 toit=toit,
                 clock=clock,
                 genetic_distance=np.array([5]),
                 temporal_distance=np.array([3]),
-                intermediate_generations=(10,),  # Exceeds no_intermediates=3
-                no_intermediates=3,
+                intermediate_generations=(10,),  # Exceeds intermediate_hosts=3
+                intermediate_hosts=3,
                 num_simulations=50,
                 cache_unique_distances=False,
             )
@@ -1334,7 +1334,7 @@ class TestErrorConditions:
                 genetic_distance=np.array([5]),
                 temporal_distance=np.array([3]),
                 intermediate_generations=(-1,),
-                no_intermediates=3,
+                intermediate_hosts=3,
                 num_simulations=50,
                 cache_unique_distances=False,
             )
@@ -1344,15 +1344,15 @@ class TestErrorConditions:
         toit = TOIT(rng_seed=7030)
         clock = MolecularClock(relax_rate=False, rng_seed=7031)
 
-        # Test exceeding no_intermediates
+        # Test exceeding intermediate_hosts
         with pytest.raises(ValueError, match="intermediate_generations must be within"):
             genetic_linkage_probability(
                 toit=toit,
                 clock=clock,
                 genetic_distance=[5],
                 num_simulations=30,
-                no_intermediates=3,
-                intermediate_generations=(5,),  # Exceeds no_intermediates=3
+                intermediate_hosts=3,
+                intermediate_generations=(5,),  # Exceeds intermediate_hosts=3
                 kind="relative",
             )
 
@@ -1363,7 +1363,7 @@ class TestErrorConditions:
                 clock=clock,
                 genetic_distance=[5],
                 num_simulations=30,
-                no_intermediates=3,
+                intermediate_hosts=3,
                 intermediate_generations=(-2,),
                 kind="relative",
             )
@@ -1379,7 +1379,7 @@ class TestErrorConditions:
                 clock=clock,
                 genetic_distance=[5],
                 num_simulations=30,
-                no_intermediates=3,
+                intermediate_hosts=3,
                 intermediate_generations=(0, 1),
                 kind="invalid",
             )
@@ -1395,7 +1395,7 @@ class TestErrorConditions:
                 clock=clock,
                 genetic_distance=[5],
                 num_simulations=30,
-                no_intermediates=3,
+                intermediate_hosts=3,
                 intermediate_generations=None,
                 kind="wrong_kind",
             )
@@ -1414,7 +1414,7 @@ class TestErrorConditions:
                 clock=clock,
                 genetic_distance=genetic_dist,
                 num_simulations=30,
-                no_intermediates=2,
+                intermediate_hosts=2,
                 intermediate_generations=None,
                 kind=kind,
             )
