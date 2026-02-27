@@ -256,6 +256,16 @@ class Epilink:
         )
 
 
+def _ensure_pyfunc(func) -> None:
+    """Ensure a .py_func attribute for non-numba callables (test compatibility)."""
+    if not hasattr(func, "py_func"):
+        func.py_func = func
+
+
+_ensure_pyfunc(Epilink.temporal_kernel)
+_ensure_pyfunc(Epilink.genetic_kernel)
+
+
 # =============================================================================
 # Public API
 # =============================================================================

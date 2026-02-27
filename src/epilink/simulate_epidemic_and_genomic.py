@@ -259,6 +259,16 @@ class SequencePacker64:
         return d
 
 
+def _ensure_pyfunc(func: Any) -> None:
+    """Ensure a .py_func attribute for non-numba callables (test compatibility)."""
+    if not hasattr(func, "py_func"):
+        func.py_func = func
+
+
+_ensure_pyfunc(SequencePacker64.pack_u64)
+_ensure_pyfunc(SequencePacker64.hamming64)
+
+
 class PackedGenomicData:
     """
     Container for packed genomic sequences and lookup metadata.
