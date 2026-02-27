@@ -173,7 +173,7 @@ class Epilink:
                 tmrca_observed = observed_snp_distance / (2.0 * clock_rates[j])
                 tmrca_expected = direct_tmrca_expected[j]
                 if abs(tmrca_observed - tmrca_expected) <= intermediate_generations[j, 0]:
-                    count += 1.0
+                    count += 1
             out[k, 0] = count / mc_simulations
 
             # M > 0: scenarios with intermediate hosts
