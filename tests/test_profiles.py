@@ -10,7 +10,13 @@ import numpy as np
 import pytest
 from numpy.random import default_rng
 
-from epilink import TOIT, TOST, InfectiousnessParams, MolecularClock, presymptomatic_fraction
+from epilink import (
+    TOIT,
+    TOST,
+    InfectiousnessParams,
+    MolecularClock,
+    presymptomatic_fraction
+)
 
 
 # ============================================================================
@@ -766,12 +772,12 @@ def test_pdf_integration_approximates_one():
 
     # TOST should integrate to ~1 over its support
     tost = TOST()
-    integral, _ = quad(lambda x: tost.pdf(x), tost.a, tost.b)
+    integral, _ = quad(lambda x: float(tost.pdf(np.array([x]))[0]), tost.a, tost.b)
     assert np.isclose(integral, 1.0, atol=0.01)
 
     # TOIT should integrate to ~1 over its support
     toit = TOIT(b=100.0)  # Use larger upper bound for better coverage
-    integral, _ = quad(lambda x: toit.pdf(x), 0.0, 100.0)
+    integral, _ = quad(lambda x: float(toit.pdf(np.array([x]))[0]), 0.0, 100.0)
     assert np.isclose(integral, 1.0, atol=0.01)
 
 

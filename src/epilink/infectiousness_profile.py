@@ -1,33 +1,37 @@
-r"""
+"""
 E/P/I variable infectiousness model for SARS-CoV-2.
 
-Implements the infectiousness model of Hart et al. (2021), with
-Gamma-distributed durations for the latent (`E`), presymptomatic infectious (`P`), and
-symptomatic infectious (`I`) stages. Infectiousness is piecewise-constant within stages `P` and `I`,
-with presymptomatic infectiousness scaled relative to symptomatic infectiousness.
+Implements the infectiousness model of Hart et al. (2021) with Gamma-distributed
+durations for the latent (``E``), presymptomatic infectious (``P``), and
+symptomatic infectious (``I``) stages. Infectiousness is piecewise-constant
+within ``P`` and ``I``, with presymptomatic infectiousness scaled relative to the
+symptomatic infectiousness.
 
-Key parts
---------------
-``InfectiousnessParams``
+Classes
+-------
+InfectiousnessParams
     Parameter container with derived quantities used in closed-form expressions.
-``MolecularClock``
+MolecularClock
     Molecular clock model for substitution rates and expected mutations.
-``TOIT``
+TOIT
     Distribution for time from start of presymptomatic stage to transmission.
-``TOST``
+TOST
     Distribution for time from symptom onset to transmission.
-``presymptomatic_fraction``
+
+Functions
+---------
+presymptomatic_fraction
     Fraction of transmission occurring presymptomatically (conditional on symptomatic infection).
 
-Conventions
------------
-- Gamma distributions use SciPy/NumPy's ``Gamma(shape, scale)`` parameterisation.
+Notes
+-----
+Gamma distributions use SciPy/NumPy's ``Gamma(shape, scale)`` parametrization.
 
 References
 ----------
-Hart WS, Maini PK, Thompson RN (2021).
-High infectiousness immediately before COVID-19 symptom onset highlights the importance of
-continued contact tracing. eLife, 10:e65534. https://doi.org/10.7554/eLife.65534
+Hart, W. S., Maini, P. K., & Thompson, R. N. (2021).
+High infectiousness immediately before COVID-19 symptom onset highlights
+the importance of continued contact tracing. Elife, 10, e65534.
 """
 
 from __future__ import annotations
@@ -51,33 +55,35 @@ class InfectiousnessParams:
     Parameters for the E/P/I variable infectiousness model.
 
     The model assumes stage durations follow Gamma distributions using the
-    shape-scale parameterisation.
+    shape-scale parameterization.
 
     Parameters
     ----------
     incubation_shape : float, default=5.807
-        Shape parameter :math:`k_\mathrm{inc}` of the incubation period distribution.
+        Shape parameter :math:`k_{inc}` of the incubation period distribution.
     incubation_scale : float, default=0.948
-        Scale parameter :math:`\theta_\mathrm{inc}` of the incubation period distribution.
+        Scale parameter :math:`\theta_{inc}` of the incubation period distribution.
     latent_shape : float, default=3.38
-        Shape parameter :math:`k_\mathrm{E}` of the latent (`E`) stage.
-        Must satisfy :math:`0 < k_\mathrm{E} < k_\mathrm{inc}`.
+        Shape parameter :math:`k_E` of the latent (``E``) stage.
+        Must satisfy :math:`0 < k_E < k_{inc}`.
     symptomatic_rate : float, default=0.37
         Symptomatic removal rate :math:`\mu`.
-        For :math:`k_\mathrm{I} = 1`, the mean symptomatic duration is :math:`1/\mu`.
+        For :math:`k_I = 1`, the mean symptomatic duration is :math:`1/\mu`.
     symptomatic_shape : float, default=1.0
-        Shape parameter :math:`k_\mathrm{I}` of the symptomatic infectious (`I`) stage.
+        Shape parameter :math:`k_I` of the symptomatic infectious (``I``) stage.
     rel_presymptomatic_infectiousness : float, default=2.29
-        Relative infectiousness :math:`\alpha` of `P` compared with `I`.
+        Relative infectiousness :math:`\alpha` of ``P`` compared with ``I``.
 
     Attributes
     ----------
     presymptomatic_shape : float
-        Shape parameter of the presymptomatic (`P`) stage: :math:`k_\mathrm{P} = k_\mathrm{inc} - k_\mathrm{E}`.
+        Shape parameter of the presymptomatic (``P``) stage:
+        :math:`k_P = k_{inc} - k_E`.
     symptomatic_scale : float
-        Scale parameter of the symptomatic stage: :math:`\theta_\mathrm{I} = 1 / (k_\mathrm{I} \cdot \mu)`.
+        Scale parameter of the symptomatic stage: :math:`\theta_I = 1 / (k_I \cdot \mu)`.
     incubation_rate : float
-        Rate parameter :math:`\gamma` : :math:`\gamma = 1 / (k_\mathrm{inc} \cdot \theta_\mathrm{inc})`.
+        Rate parameter :math:`\gamma`. Defined as
+        :math:`\gamma = 1 / (k_{inc} \cdot \theta_{inc})`.
     infectiousness_normalisation : float
         Normalisation constant :math:`C = \beta_I / \beta_0` used in Hart et al. (2021).
 
@@ -87,37 +93,37 @@ class InfectiousnessParams:
 
     .. math::
 
-        y_\mathrm{E} &\sim \text{Gamma}(k_\mathrm{E}, \theta_\mathrm{inc}) \\
-        y_\mathrm{P} &\sim \text{Gamma}(k_\mathrm{P}, \theta_\mathrm{inc}) \\
-        y_\mathrm{I} &\sim \text{Gamma}(k_\mathrm{I}, \theta_\mathrm{I})
+        y_E &\sim \text{Gamma}(k_E, \theta_{inc}) \\
+        y_P &\sim \text{Gamma}(k_P, \theta_{inc}) \\
+        y_I &\sim \text{Gamma}(k_I, \theta_I)
 
-    The incubation period :math:`\tau_\mathrm{inc}` is the sum of the latent and
+    The incubation period :math:`\tau_{inc}` is the sum of the latent and
     presymptomatic periods:
 
     .. math::
 
-        \tau_{inc} = y_\mathrm{E} + y_\mathrm{P} \sim \text{Gamma}(k_\mathrm{inc}, \theta_\mathrm{inc})
+        \tau_{inc} = y_E + y_P \sim \text{Gamma}(k_{inc}, \theta_{inc})
 
     The infectiousness normalisation constant :math:`C` is defined as:
 
     .. math::
 
-        C = \frac{k_\mathrm{inc} \cdot \gamma \cdot \mu}{\alpha \cdot k_\mathrm{P} \cdot \mu + k_\mathrm{inc} \cdot \gamma}
+        C = \frac{k_{inc} \cdot \gamma \cdot \mu}{\alpha \cdot k_P \cdot \mu + k_{inc} \cdot \gamma}
 
     **Mapping to Hart et al. (2021) notation:**
 
     =================================  ====================
     This code                          Hart et al. (2021)
     =================================  ====================
-    incubation_shape                   :math:`k_\mathrm{inc}`
-    incubation_scale                   :math:`\theta_\mathrm{inc}`
-    latent_shape                       :math:`k_\mathrm{E}`
-    presymptomatic_shape               :math:`k_\mathrm{P}`
+    incubation_shape                   :math:`k_{inc}`
+    incubation_scale                   :math:`\theta_{inc}`
+    latent_shape                       :math:`k_E`
+    presymptomatic_shape               :math:`k_P`
     incubation_rate                    :math:`\gamma`
     symptomatic_rate                   :math:`\mu`
-    symptomatic_shape                  :math:`k_\mathrm{I}`
+    symptomatic_shape                  :math:`k_I`
     rel_presymptomatic_infectiousness  :math:`\alpha`
-    infectiousness_normalisation       :math:`C = \beta_\mathrm{I} / \beta_0`
+    infectiousness_normalisation       :math:`C = \beta_I / \beta_0`
     =================================  ====================
     """
 
@@ -185,7 +191,7 @@ class MolecularClock:
         Median substitution rate per site per year.
     relax_rate : bool, default=True
         Whether to draw clock rates from a lognormal distribution (relaxed clock).
-        If False, uses a strict clock with constant rate.
+        If False, uses a strict clock with a constant rate.
     subs_rate_sigma : float, default=0.33
         Lognormal dispersion (:math:`\sigma`) for the relaxed clock.
         Only used if ``relax_rate`` is True.
@@ -195,13 +201,18 @@ class MolecularClock:
     rng : numpy.random.Generator, optional
         Random number generator. If None, a new generator is created.
     rng_seed : int, default=12345
-        Seed for the RNG (ignored if `rng` is provided).
+        Seed for the RNG (ignored if ``rng`` is provided).
 
     Attributes
     ----------
     subs_rate_mu : float
         Mean parameter for the lognormal distribution, adjusted so that
         the median equals ``subs_rate``.
+
+    References
+    ----------
+    Drummond, A. J., Ho, S. Y. W., Phillips, M. J., & Rambaut, A. (2006).
+    Relaxed phylogenetics and dating with confidence. PLoS biology, 4(5), e88.
     """
 
     def __init__(
@@ -219,9 +230,7 @@ class MolecularClock:
         self.gen_len = int(gen_len)
         self.rng: Generator = rng if rng is not None else default_rng(rng_seed)
 
-        # Adjust mu so that the median of lognormal equals subs_rate
-        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
-
+        # Validate before calculations
         if self.subs_rate <= 0:
             raise ValueError("subs_rate must be positive.")
         if self.subs_rate_sigma < 0:
@@ -229,13 +238,16 @@ class MolecularClock:
         if self.gen_len <= 0:
             raise ValueError("gen_len must be positive.")
 
+        # Adjust mu so that the median of lognormal equals subs_rate
+        self.subs_rate_mu = np.log(self.subs_rate) - 0.5 * (self.subs_rate_sigma ** 2)
+
     def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         r"""
         Sample substitution rates per day (mutations/day).
 
         If ``relax_rate`` is True, rates are drawn from a lognormal distribution with
         median ``subs_rate`` (per site per year) and dispersion ``subs_rate_sigma``.
-        Otherwise, a strict clock with constant rate is used.
+        Otherwise, a strict clock with a constant rate is used.
 
         Parameters
         ----------
@@ -244,7 +256,7 @@ class MolecularClock:
 
         Returns
         -------
-        numpy.ndarray
+        rates : numpy.ndarray
             Substitution rates in mutations per day.
         """
         if self.relax_rate:
@@ -267,7 +279,7 @@ class MolecularClock:
 
         Returns
         -------
-        numpy.ndarray
+        expected : numpy.ndarray
             Expected mutation counts with the same shape as ``times_in_days``.
 
         Notes
@@ -307,15 +319,15 @@ class InfectiousnessProfile:
     Parameters
     ----------
     a, b : float
-        Lower and upper bounds of the discretised support used by ``rvs``.
+        Lower and upper bounds of the discretized support used by ``rvs``.
     params : InfectiousnessParams, optional
         Model parameters. If None, defaults to :class:`InfectiousnessParams`.
     rng : numpy.random.Generator, optional
         Random number generator. If None, a new generator is created.
-    rng_seed : int, default=12345
-        Seed for the RNG (ignored if `rng` is provided).
+    rng_seed : int or None, default=12345
+        Seed for the RNG (ignored if ``rng`` is provided).
     grid_points : int, default=1024
-        Number of grid points for discretised sampling over :math:`[a, b]`.
+        Number of grid points for discretized sampling over :math:`[a, b]`.
 
     Attributes
     ----------
@@ -326,7 +338,7 @@ class InfectiousnessProfile:
     presymptomatic : scipy.stats.rv_frozen
         Frozen Gamma distribution for :math:`y_P \sim \text{Gamma}(k_P, \theta_{inc})`.
     symptomatic : scipy.stats.rv_frozen
-        Frozen Gamma distribution for :math:`y_I \sim \text{Gamma}(k_I, \theta_I)`.
+        Frozen Gamma distribution for :math:`y_I \sim \text{Gamma}(k_I, \theta_{I})`.
 
     Notes
     -----
@@ -348,7 +360,7 @@ class InfectiousnessProfile:
         self.rng: Generator = rng if rng is not None else default_rng(rng_seed)
         self.grid_points = int(grid_points)
 
-        # Grid caching for discretised sampling
+        # Grid caching for discretized sampling
         self._grid: np.ndarray | None = None
         self._pdf_grid: np.ndarray | None = None
 
@@ -370,7 +382,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        pdf : numpy.ndarray
             Probability density values.
         """
         raise NotImplementedError
@@ -386,7 +398,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        cdf : numpy.ndarray
             Cumulative probability values.
 
         Notes
@@ -420,7 +432,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        float
+        mean : float
             Expected value (mean) in days.
 
         Notes
@@ -446,7 +458,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Random samples from the infectiousness profile.
         """
         raise NotImplementedError
@@ -462,7 +474,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Samples of :math:`y_E \sim \text{Gamma}(k_E, \theta_{inc})`.
         """
         return self.rng.gamma(shape=self.params.latent_shape, scale=self.params.incubation_scale, size=size)
@@ -478,7 +490,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Samples of :math:`y_P \sim \text{Gamma}(k_P, \theta_{inc})`.
         """
         return self.rng.gamma(shape=self.params.presymptomatic_shape, scale=self.params.incubation_scale, size=size)
@@ -497,7 +509,7 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Samples of :math:`\tau_{inc} \sim \text{Gamma}(k_{inc}, \theta_{inc})`.
         """
         return self.sample_latent(size) + self.sample_presymptomatic(size)
@@ -513,13 +525,22 @@ class InfectiousnessProfile:
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Samples of :math:`y_I \sim \text{Gamma}(k_I, \theta_I)`.
         """
         return self.rng.gamma(shape=self.params.symptomatic_shape, scale=self.params.symptomatic_scale, size=size)
 
     def _ensure_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        """Precompute and cache a discretised pdf on a fixed grid over ``[a, b]``."""
+        """
+        Precompute and cache a discretized PDF on a fixed grid.
+
+        Returns
+        -------
+        grid : numpy.ndarray
+            Grid values over ``[a, b]``.
+        pdf : numpy.ndarray
+            Normalized PDF values evaluated on ``grid``.
+        """
         if self._grid is None or self._pdf_grid is None:
             x = np.linspace(self.a, self.b, num=max(2, self.grid_points))
             pdf_vals = np.clip(self.pdf(x), a_min=0.0, a_max=np.inf)
@@ -533,56 +554,47 @@ class InfectiousnessProfile:
 
 class TOIT(InfectiousnessProfile):
     r"""
-    Time from the start of the presymptomatic stage to transmission (:math:`y^*`).
+    Time from start of the presymptomatic stage to transmission (:math:`y^*`).
 
     This distribution represents the duration from the onset of presymptomatic
     infectiousness to a transmission event, as defined in Hart et al. (2021).
 
     Parameters
     ----------
-    a, b : float
-        Lower and upper bounds of the discretised support used by ``rvs``.
+    a : float, default=0.0
+        Lower bound of the discretized support used by ``rvs``.
+    b : float, default=60.0
+        Upper bound of the discretized support used by ``rvs``.
     params : InfectiousnessParams, optional
         Model parameters. If None, defaults to :class:`InfectiousnessParams`.
     rng : numpy.random.Generator, optional
         Random number generator. If None, a new generator is created.
-    rng_seed : int, default=12345
+    rng_seed : int or None, default=12345
+        Seed for the RNG (ignored if ``rng`` is provided).
     y_grid_points : int, default=2048
         Number of grid points for the numerical integration over :math:`y_P`.
     x_grid_points : int, default=1024
-        Number of grid points for discretised sampling over :math:`[a, b]`.
-
-    Attributes
-    ----------
-    molecular_clock : MolecularClock
-        Molecular clock instance for substitution rate and mutation modeling.
-
-    Methods
-    -------
-    pdf(y)
-        Evaluate the probability density function at :math:`y^*`.
-    rvs(size=1)
-        Draw random variates using a discretised approximation.
-    generation_time(size=1)
-        Draw generation time samples calculated as :math:`y_E + y^*`.
+        Number of grid points for discretized sampling over :math:`[a, b]`.
 
     Notes
     -----
     The probability density function :math:`f_*(y^*)` is defined for
-    :math:`y^* \geq 0` by the integral expression from Hart et al. (2021) (Appendix: "Our mechanistic model"):
+    :math:`y^* \geq 0` by the integral expression from Hart et al. (2021)
+    (Appendix: "Our mechanistic model"):
 
     .. math::
 
-       f_*(y^*) = C \\left[ a (1 - F_P(y^*)) + \\int_0^{y^*} (1 - F_I(y^* - y_P)) f_P(y_P)\\,dy_P \\right]
+       f^*(y^*) = C \left[ a (1 - F_P(y^*)) + \int_0^{y^*} (1 - F_I(y^* - y_P)) f_P(y_P)dy_P \right]
 
-    Where:
+    where:
+
     - :math:`C` is the normalisation constant.
     - :math:`a` is the relative presymptomatic infectiousness.
-    - :math:`F_P, F_I` are the CDFs of the P and I stage durations.
+    - :math:`F_P, F_I` are the CDFs of the ``P`` and ``I`` stage durations.
     - :math:`f_P` is the PDF of the presymptomatic stage duration.
 
     The implementation evaluates this integral numerically using a
-    vectorised trapezoidal rule.
+    vectorized trapezoidal rule.
     """
 
     def __init__(
@@ -602,7 +614,7 @@ class TOIT(InfectiousnessProfile):
         r"""
         Generate generation time samples.
 
-        Generation time is calculated as :math:`\tau_g = y_E + y^*`, where
+        Generation time is calculated as :math:`\tau_{gen} = y_E + y^*`, where
         :math:`y_E` is the latent period and :math:`y^*` is the time from
         onset of presymptomatic infectiousness to transmission.
 
@@ -613,57 +625,16 @@ class TOIT(InfectiousnessProfile):
 
         Returns
         -------
-        numpy.ndarray
+        samples : numpy.ndarray
             Generation time samples in days.
         """
         return self.sample_latent(size=size) + self.rvs(size=size)
-
-    def sample_clock_rate_per_day(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """
-        Sample substitution rates per day (mutations/day).
-
-        This method delegates to the molecular_clock instance.
-        Maintained for backward compatibility.
-
-        Parameters
-        ----------
-        size : int or tuple of int, default=1
-            Output shape.
-
-        Returns
-        -------
-        numpy.ndarray
-            Substitution rates in mutations per day.
-        """
-        return self.molecular_clock.sample_clock_rate_per_day(size=size)
-
-    def expected_mutations(self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None) -> np.ndarray:
-        """
-        Compute expected mutation counts for given times (days).
-
-        This method delegates to the molecular_clock instance.
-        Maintained for backward compatibility.
-
-        Parameters
-        ----------
-        times_in_days : array_like
-            Times in days (e.g., TMRCAs or branch lengths).
-        rates_per_day : array_like, optional
-            Per-day substitution rates (mutations/day). If None, uses the
-            deterministic rate derived from subs_rate and gen_len.
-
-        Returns
-        -------
-        numpy.ndarray
-            Expected mutation counts with the same shape as times_in_days.
-        """
-        return self.molecular_clock.expected_mutations(times_in_days, rates_per_day)
 
     def pdf(self, y: ArrayLike) -> np.ndarray:
         r"""
         Evaluate the TOIT PDF at ``y`` (days).
 
-        Uses the vectorised trapezoidal rule to approximate the integral in the paper.
+        Uses the vectorized trapezoidal rule to approximate the integral in the paper.
         Returns zero for ``y < 0``.
 
         Parameters
@@ -673,7 +644,7 @@ class TOIT(InfectiousnessProfile):
 
         Returns
         -------
-        numpy.ndarray
+        pdf : numpy.ndarray
             Probability density values.
         """
         y_arr = np.asarray(y, dtype=float)
@@ -716,7 +687,19 @@ class TOIT(InfectiousnessProfile):
         return out
 
     def rvs(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """Draw random variates from a discretised approximation on ``[a, b]``."""
+        """
+        Draw random variates from a discretized approximation.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        samples : numpy.ndarray
+            Random samples from the TOIT distribution.
+        """
         if isinstance(size, int):
             size = (size,)
         x, probs = self._ensure_grid()
@@ -730,12 +713,20 @@ class TOST(InfectiousnessProfile):
     in the infector and the timing of a transmission event. Negative values
     indicate presymptomatic transmission.
 
-    Methods
-    -------
-    pdf(x)
-        Evaluate the piecewise PDF at :math:`x`.
-    rvs(size=1)
-        Draw random variates from the discretised approximation.
+    Parameters
+    ----------
+    a : float, default=-30.0
+        Lower bound of the discretized support used by ``rvs``.
+    b : float, default=30.0
+        Upper bound of the discretized support used by ``rvs``.
+    params : InfectiousnessParams, optional
+        Model parameters. If None, defaults to :class:`InfectiousnessParams`.
+    rng : numpy.random.Generator, optional
+        Random number generator. If None, a new generator is created.
+    rng_seed : int or None, default=12345
+        Seed for the RNG (ignored if ``rng`` is provided).
+    grid_points : int, default=2048
+        Number of grid points for discretized sampling over :math:`[a, b]`.
 
     Notes
     -----
@@ -749,13 +740,14 @@ class TOST(InfectiousnessProfile):
        C (1 - F_I(x)) & \text{for } x \geq 0
        \end{cases}
 
-    Where:
+    where:
+
     - :math:`\alpha` is the relative presymptomatic infectiousness.
     - :math:`C` is the infectiousness normalisation constant.
     - :math:`F_P` is the CDF of the presymptomatic stage duration.
     - :math:`F_I` is the CDF of the symptomatic stage duration.
 
-    Random variates are drawn from a discretised approximation on a fixed
+    Random variates are drawn from a discretized approximation on a fixed
     grid over the support :math:`[a, b]`.
     """
 
@@ -771,7 +763,19 @@ class TOST(InfectiousnessProfile):
         super().__init__(a=a, b=b, params=params, rng=rng, rng_seed=rng_seed, grid_points=grid_points)
 
     def pdf(self, x: ArrayLike) -> np.ndarray:
-        """Evaluate the TOST ``pdf`` at ``x`` (days)."""
+        """
+        Evaluate the TOST PDF at ``x`` (days).
+
+        Parameters
+        ----------
+        x : array_like
+            Points at which to evaluate the PDF (days).
+
+        Returns
+        -------
+        pdf : numpy.ndarray
+            Probability density values.
+        """
         x_arr = np.atleast_1d(np.asarray(x, dtype=float))
         p = self.params
         pdf_vals = np.where(
@@ -784,7 +788,19 @@ class TOST(InfectiousnessProfile):
         return np.clip(pdf_vals, a_min=0.0, a_max=np.inf)
 
     def rvs(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """Draw random variates from a discretised approximation on ``[a, b]``."""
+        """
+        Draw random variates from a discretized approximation.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        samples : numpy.ndarray
+            Random samples from the TOST distribution.
+        """
         if isinstance(size, int):
             size = (size,)
         x, probs = self._ensure_grid()
@@ -817,7 +833,8 @@ def presymptomatic_fraction(p: InfectiousnessParams) -> float:
 
         q_P = \frac{\alpha k_P \mu}{\alpha k_P \mu + k_{inc} \gamma}
 
-    Where:
+    where:
+
     - :math:`\alpha` is the relative presymptomatic infectiousness.
     - :math:`k_P` is the presymptomatic shape (:math:`k_{inc} - k_E`).
     - :math:`\mu` is the symptomatic removal rate.
@@ -828,4 +845,3 @@ def presymptomatic_fraction(p: InfectiousnessParams) -> float:
     num = p.rel_presymptomatic_infectiousness * p.presymptomatic_shape * p.symptomatic_rate
     den = num + (p.incubation_shape * p.incubation_rate)
     return num / den
-
