@@ -1,24 +1,41 @@
 """
 Simulate epidemic dates and genomic sequences along a transmission tree.
 
-This script exposes three main functions:
-- populate_epidemic_data(tree, toit, ...)
-- simulate_genomic_data(tree, toit, ...)
-- generate_pairwise_data(packed_genomic_data, tree)
+Provides utilities to populate epidemic dates on a transmission tree, simulate
+genomic evolution along branches, and generate pairwise genetic and temporal
+distance tables.
 
+Classes
+-------
+SequencePacker64
+    64-bit sequence packer and Hamming distance utilities.
+PackedGenomicData
+    Container for packed sequences and metadata.
+
+Functions
+---------
+populate_epidemic_data
+simulate_genomic_data
+generate_pairwise_data
 """
 
 from __future__ import annotations
 
 import textwrap
+from typing import Mapping
 
 import networkx as nx
 import numpy as np
+import numpy.typing as npt
 from scipy.stats import gamma, poisson
 from numba import njit, prange
 import pandas as pd
 
-from .infectiousness_profile import TOIT
+from .infectiousness_profile import TOIT, MolecularClock
+
+NDArrayInt8 = npt.NDArray[np.int8]
+NDArrayUInt64 = npt.NDArray[np.uint64]
+NDArrayFloat32 = npt.NDArray[np.float32]
 
 
 def populate_epidemic_data(
@@ -30,19 +47,28 @@ def populate_epidemic_data(
         root_start_range: int = 30,
 ) -> nx.DiGraph:
     """
-    Populates a transmission tree with simulated epidemic dates and sampling status.
+    Populate a transmission tree with simulated epidemic dates and sampling status.
 
-    Args:
-        tree: The directed transmission tree (roots -> infections).
-        toit: Instance of the TOIT class for generation interval sampling.
-        prop_sampled: proportion (0-1) nodes 'sampled' (observed).
-        sampling_scale: Scale parameter for the Gamma distribution of sampling delay.
-                        If <= 0, uses deterministic mean values.
-        sampling_shape: Shape parameter for the Gamma distribution of sampling delay.
-        root_start_range: Upper bound for the random start date of the index case.
+    Parameters
+    ----------
+    toit : TOIT
+        Infectiousness profile used to sample generation intervals and stage durations.
+    tree : networkx.DiGraph
+        Directed transmission tree (roots -> infections).
+    prop_sampled : float, default=1.0
+        Proportion of nodes marked as sampled.
+    sampling_scale : float, default=1.0
+        Scale parameter for the Gamma distribution of sampling delay.
+        If <= 0, use deterministic mean values.
+    sampling_shape : float, default=3.0
+        Shape parameter for the Gamma distribution of sampling delay.
+    root_start_range : int, default=30
+        Upper bound (exclusive) for the random start date of the index case.
 
-    Returns:
-        The modified NetworkX graph with added node attributes.
+    Returns
+    -------
+    graph : networkx.DiGraph
+        Copy of the input graph with added node attributes.
     """
     # Create a shallow copy to avoid mutating the original object unexpectedly
     G = tree.copy()
@@ -60,18 +86,18 @@ def populate_epidemic_data(
     nx.set_node_attributes(G, {n: (True if n in sampled_node_ids else False) for n in G}, "sampled")
 
     # --- 2. Helper for Interval Sampling ---
-    def get_intervals():
-        """Returns (Latent Period, Pre-symptomatic Period, Sampling Delay)"""
+    def get_intervals() -> tuple[float, float, float]:
+        """Return latent period, presymptomatic period, and sampling delay."""
         if sampling_scale <= 0:
             # Deterministic mode (useful for testing/control)
             # Expected value of a gamma distribution
-            yE = toit.params.k_E * toit.params.scale_inc
-            yP = toit.params.k_P * toit.params.scale_inc
+            yE = toit.params.latent_shape * toit.params.incubation_scale
+            yP = toit.params.presymptomatic_shape * toit.params.incubation_scale
             test_delay = 0
         else:
             # Stochastic mode
-            yE = toit.sample_E().item()
-            yP = toit.sample_P().item()
+            yE = toit.sample_latent().item()
+            yP = toit.sample_presymptomatic().item()
             # Gamma distribution for delay between symptom onset and test
             test_delay = gamma.rvs(a=sampling_shape, scale=sampling_scale, random_state=rng)
 
@@ -128,8 +154,11 @@ def populate_epidemic_data(
 
 class SequencePacker64:
     """
-    Utility engine providing 64-bit packing for 2-bit nucleotide sequences
-    and a fast Hamming distance calculator using SWAR (SIMD Within A Register).
+    Utility engine for 64-bit packing and Hamming distance calculation.
+
+    Notes
+    -----
+    Uses a 2-bit encoding mapping: A=0, C=1, G=2, T=3.
     """
 
     # 2-bit encoding mapping for reference
@@ -137,10 +166,19 @@ class SequencePacker64:
 
     @staticmethod
     @njit(parallel=True, fastmath=True)
-    def pack_u64(arr: np.ndarray) -> np.ndarray:
+    def pack_u64(arr: NDArrayInt8) -> NDArrayUInt64:
         """
-        Packs an (N x L) array of 2-bit integers (0,1,2,3) into 64-bit blocks.
-        Each block encodes 32 nucleotides (32 * 2 = 64 bits).
+        Pack 2-bit nucleotide arrays into 64-bit blocks.
+
+        Parameters
+        ----------
+        arr : numpy.ndarray
+            Array of shape (N, L) with values in {0, 1, 2, 3}.
+
+        Returns
+        -------
+        packed : numpy.ndarray
+            Packed array of shape (N, ceil(L / 32)) with dtype uint64.
         """
         N, L = arr.shape
         B = (L + 31) // 32  # number of 64-bit blocks needed
@@ -165,10 +203,19 @@ class SequencePacker64:
 
     @staticmethod
     @njit(parallel=True, fastmath=True)
-    def hamming64(packed: np.ndarray) -> np.ndarray:
+    def hamming64(packed: NDArrayUInt64) -> NDArrayFloat32:
         """
-        Computes pairwise Hamming distances on 64-bit packed sequences.
-        Uses SWAR logic to count bit differences in parallel chunks.
+        Compute pairwise Hamming distances for packed sequences.
+
+        Parameters
+        ----------
+        packed : numpy.ndarray
+            Packed array of shape (N, B) with dtype uint64.
+
+        Returns
+        -------
+        distances : numpy.ndarray
+            Pairwise Hamming distance matrix of shape (N, N).
         """
         # Bitmasks for SWAR Hamming distance
         M55 = np.uint64(0x5555555555555555)  # 0101...
@@ -208,43 +255,81 @@ class SequencePacker64:
 
 class PackedGenomicData:
     """
-    High-level container for genomic sequences.
+    Container for packed genomic sequences and lookup metadata.
 
-    Attributes:
-        packed_u64 (np.ndarray): The N x B uint64 array of packed sequences.
-        original_length (int): Original length of the sequences (L).
+    Parameters
+    ----------
+    int8_matrix : numpy.ndarray
+        Array of shape (N, L) with values in {0, 1, 2, 3}.
+    original_length : int
+        Original length of the sequences (L).
+    node_map : dict[str, int]
+        Mapping from node names to row indices.
+    base_map : dict[int, str]
+        Mapping from integer codes to base characters (e.g., 0 -> "A").
+
+    Attributes
+    ----------
+    packed_u64 : numpy.ndarray
+        Packed array of shape (N, B) with dtype uint64.
+    original_length : int
+        Original length of the sequences (L).
+    n_seqs : int
+        Number of sequences (N).
+    node_to_idx : dict[str, int]
+        Mapping from node names to row indices.
+    idx_to_node : dict[int, str]
+        Mapping from row indices to node names.
+    bases_map : dict[int, str]
+        Mapping from integer codes to base characters.
     """
 
     def __init__(
         self,
-        int8_matrix: np.ndarray,
+        int8_matrix: NDArrayInt8,
         original_length: int,
-        node_map: dict,
-        base_map: dict,
+        node_map: dict[str, int],
+        base_map: dict[int, str],
     ):
-        """
-        Args:
-            int8_matrix: Numpy array (N, L) of integers (0-3).
-            original_length: Integer L.
-            node_map: Dictionary mapping Node Names -> Index.
-            base_map: Dictionary mapping Integer -> Character (e.g. 0->'A').
-        """
+        """Initialize packed genomic data and metadata."""
+        self.n_seqs: int
+        self.original_length: int
+        self.node_to_idx: dict[str, int]
+        self.idx_to_node: dict[int, str]
+        self.bases_map: dict[int, str]
+        self.packed_u64: NDArrayUInt64
+
         self.n_seqs, L = int8_matrix.shape
         self.original_length = original_length
         self.node_to_idx = node_map
         self.idx_to_node = {v: k for k, v in node_map.items()}
-        self.BASES_MAP = base_map
+        self.bases_map = base_map
         self.packed_u64 = SequencePacker64.pack_u64(int8_matrix)
 
-    def compute_hamming_distances(self):
-        """Calculates the N x N distance matrix using the packed representation."""
+    def compute_hamming_distances(self) -> NDArrayFloat32:
+        """
+        Compute the pairwise Hamming distance matrix.
+
+        Returns
+        -------
+        distances : numpy.ndarray
+            Distance matrix of shape (N, N).
+        """
         print(f"Computing 64-bit Hamming distances for {self.n_seqs} sequences...")
         return SequencePacker64.hamming64(self.packed_u64)
 
-    def write_fasta(self, filepath):
+    def write_fasta(self, filepath: str) -> None:
         """
-        Unpack directly from 64-bit blocks and write to FASTA file.
-        Useful for verifying integrity or exporting data.
+        Write unpacked sequences to a FASTA file.
+
+        Parameters
+        ----------
+        filepath : str
+            Output FASTA path.
+
+        Returns
+        -------
+        None
         """
         print(f"Exporting FASTA to {filepath}...")
 
@@ -258,16 +343,14 @@ class PackedGenomicData:
 
                 idx = 0
                 for w in blocks:
-                    shift = np.uint64(62)
                     # Extract 32 nucleotides from the 64-bit word
-                    for _ in range(32):
+                    for shift in range(62, -1, -2):  # 62, 60, 58, ..., 2, 0
                         unpacked[idx] = (w >> shift) & 3
                         idx += 1
-                        shift -= 2
 
                 # Trim padding and convert to string
                 seq = unpacked[:L]
-                seq_str = "".join(self.BASES_MAP[int(b)] for b in seq)
+                seq_str = "".join(self.bases_map[int(b)] for b in seq)
 
                 # Write header and wrapped sequence
                 header = f">{self.idx_to_node[i]}"
@@ -276,12 +359,28 @@ class PackedGenomicData:
 
 
 def simulate_genomic_data(
-        toit: TOIT,
+        clock: MolecularClock,
         tree: nx.DiGraph,
         return_raw: bool = False
-) -> dict:
+) -> dict[str, dict]:
     """
-    Simulates genomic evolution and returns efficient PackedGenomicData objects.
+    Simulate genomic evolution along a transmission tree.
+
+    Parameters
+    ----------
+    clock : MolecularClock
+        Molecular clock model for sampling substitution rates.
+    tree : networkx.DiGraph
+        Transmission tree with epidemic dates on nodes.
+    return_raw : bool, default=False
+        If True, include raw int8 mutation matrices in the output.
+
+    Returns
+    -------
+    output : GenomicSimulationOutput
+        Dictionary with "packed" mapping to PackedGenomicData objects ("linear"
+        and "poisson") and "raw" mapping to int8 arrays when return_raw is True,
+        otherwise None.
     """
     BASES = np.array([0, 1, 2, 3], dtype=np.int8)
     BASES_MAP = {0: "A", 1: "C", 2: "G", 3: "T"}
@@ -290,28 +389,28 @@ def simulate_genomic_data(
     n_nodes = len(nodes)
 
     # Use int8 for active simulation (easier to mutate)
-    linear_mat = np.zeros((n_nodes, toit.gen_len), dtype=np.int8)
-    poisson_mat = np.zeros((n_nodes, toit.gen_len), dtype=np.int8)
+    linear_mat = np.zeros((n_nodes, clock.gen_len), dtype=np.int8)
+    poisson_mat = np.zeros((n_nodes, clock.gen_len), dtype=np.int8)
 
     # Generate Reference
-    ref_seq = toit.rng.choice(BASES, size=toit.gen_len)
+    ref_seq = clock.rng.choice(BASES, size=clock.gen_len)
 
-    def mutate(seq, n_mut):
+    def mutate(seq: NDArrayInt8, n_mut: int) -> NDArrayInt8:
         if n_mut <= 0:
             return seq.copy()
         new_seq = seq.copy()
-        pos_indices = np.array(toit.rng.choice(toit.gen_len, size=n_mut, replace=False))
+        pos_indices = np.array(clock.rng.choice(clock.gen_len, size=n_mut, replace=False))
         for pos in pos_indices:
             current = new_seq[pos]
             # Choose any base except current
-            new_seq[pos] = toit.rng.choice(BASES[BASES != current])
+            new_seq[pos] = clock.rng.choice(BASES[BASES != current])
         return new_seq
 
     # Initialize Roots (Random drift from reference)
     roots = [n for n, d in tree.in_degree(tree.nodes) if d == 0]
     for root in roots:
         idx = node_to_idx[root]
-        root_drift = int(toit.rng.choice(range(1, 35)))
+        root_drift = int(clock.rng.choice(range(1, 35)))
         root_seq = mutate(ref_seq, root_drift)
         linear_mat[idx] = root_seq
         poisson_mat[idx] = root_seq
@@ -323,8 +422,8 @@ def simulate_genomic_data(
             par_idx = node_to_idx[parent]
             chi_idx = node_to_idx[child]
 
-            # 1. Calculate Time Duration (Psi)
-            # Psi = |Sample_Par - Trans| + |Sample_Chi - Trans|
+            # 1. Calculate Time Duration
+            # branch_length = |Sample_Par - Trans| + |Sample_Chi - Trans|
             try:
                 t_trans = tree.nodes[child]["exposure_date"]
                 t_samp_par = tree.nodes[parent]["sample_date"]
@@ -332,24 +431,24 @@ def simulate_genomic_data(
             except KeyError:
                 raise ValueError("Missing dates in tree. Run epidemic simulation first.")
 
-            psi = abs(t_samp_par - t_trans) + abs(t_samp_chi - t_trans)
+            branch_length = abs(t_samp_par - t_trans) + abs(t_samp_chi - t_trans)
 
             # 2. Get Clock Rate from TOIT (Strict or Relaxed)
-            rate_val = toit.sample_clock_rate_per_day().item()
-            genetic_dist = rate_val * psi
+            rate_val = clock.sample_clock_rate_per_day().item()
+            genetic_dist = rate_val * branch_length
 
             # 3. Mutate (Linear)
             n_lin = int(round(genetic_dist))
             linear_mat[chi_idx] = mutate(linear_mat[par_idx], n_lin)
 
             # 4. Mutate (Poisson)
-            n_poi = int(poisson.rvs(genetic_dist, random_state=toit.rng))
+            n_poi = int(poisson.rvs(genetic_dist, random_state=clock.rng))
             poisson_mat[chi_idx] = mutate(poisson_mat[par_idx], n_poi)
 
     print("Packing data into 2-bit format...")
     packed = {
-        "linear": PackedGenomicData(linear_mat, toit.gen_len, node_to_idx, BASES_MAP),
-        "poisson": PackedGenomicData(poisson_mat, toit.gen_len, node_to_idx, BASES_MAP),
+        "linear": PackedGenomicData(linear_mat, clock.gen_len, node_to_idx, BASES_MAP),
+        "poisson": PackedGenomicData(poisson_mat, clock.gen_len, node_to_idx, BASES_MAP),
     }
     raw = {"linear": linear_mat, "poisson": poisson_mat}
 
@@ -359,20 +458,24 @@ def simulate_genomic_data(
 
 
 def generate_pairwise_data(
-        packed_genomic_data: dict[str, PackedGenomicData],
+        packed_genomic_data: Mapping[str, PackedGenomicData],
         tree: nx.DiGraph
 ) -> pd.DataFrame:
     """
-    Generates a long-format DataFrame with Linear, Poisson, and Temporal distances.
+    Generate a long-format DataFrame with genetic and temporal distances.
 
-    Args:
-        packed_genomic_data: Output dict from simulate_genomic_data containing:
-                         - 'linear': PackedGenomicData object
-                         - 'poisson': PackedGenomicData object
-        tree: NetworkX DiGraph with 'sample_date' node attributes.
+    Parameters
+    ----------
+    packed_genomic_data : Mapping[str, PackedGenomicData]
+        Packed genomic data containing "linear" and "poisson" entries.
+    tree : networkx.DiGraph
+        Transmission tree with "sample_date" node attributes.
 
-    Returns:
-        pd.DataFrame: Columns ['NodeA', 'NodeB', 'Related', 'Sampled', 'LinearDist', 'PoissonDist', 'TemporalDist']
+    Returns
+    -------
+    df : pandas.DataFrame
+        Columns: ["NodeA", "NodeB", "Related", "Sampled", "LinearDist",
+        "PoissonDist", "TemporalDist"].
     """
     # 1. Retrieve Data & Map
     # We assume both linear/poisson share the same node map (they should)
