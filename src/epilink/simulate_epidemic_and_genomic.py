@@ -199,10 +199,11 @@ class SequencePacker64:
                 shift = 62
 
                 for k in range(start, end):
-                    word |= np.uint64(arr[i, k]) << shift
+                    # Cast to uint64 to keep the bitwise ops in unsigned space.
+                    word |= np.uint64(np.uint64(arr[i, k]) << shift)
                     shift -= 2
 
-                out[i, b] = np.uint64(word)
+                out[i, b] = word
 
         return out
 
