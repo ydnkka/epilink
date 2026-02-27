@@ -11,5 +11,17 @@
 ::: epilink.transmission_linkage_model
     options:
       members:
-        - estimate_linkage_probability
-        - pairwise_linkage_probability_matrix
+        - Epilink
+        - linkage_probability
+        - linkage_probability_matrix
+        - genetic_linkage_probability
+        - temporal_linkage_probability
+
+::: epilink.simulate_epidemic_and_genomic
+    options:
+      members:
+        - SequencePacker64
+        - PackedGenomicData
+        - populate_epidemic_data
+        - simulate_genomic_data
+        - generate_pairwise_data

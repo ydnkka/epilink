@@ -7,22 +7,28 @@ Estimate the probability that two cases are epidemiologically linked from their 
 ## Features
 
 - Estimate P(link | genetic distance g, temporal gap t)
-- Parameterised infectiousness profiles (e.g. TOST; configurable)
+- Parameterised infectiousness profiles (TOIT/TOST; configurable)
 - Fast simulation kernels with optional JIT (Numba)
-- Python API and CLI for pipelines and scripts
+- Python API plus a lightweight CLI for batch runs
 
 ---
 
 ## Installation
 
+From PyPI:
+
+```bash
+pip install epilink
+```
+
 Recommended (conda/mamba):
 
 ```bash
 # Create a fresh env (uses compiled deps from conda-forge)
-conda create -n epilink -c conda-forge python=3.11 numpy scipy numba pip
+conda create -n epilink -c conda-forge python=3.11 numpy scipy numba networkx pandas pip
 conda activate epilink
- git clone https://github.com/ydnkka/epilink.git
- cd epilink
+git clone https://github.com/ydnkka/epilink.git
+cd epilink
 
 # Install the package from source without touching conda-managed deps
 pip install -e . --no-deps
@@ -53,26 +59,32 @@ Notes:
 
 ```python
 import numpy as np
-from epilink import (
-    estimate_linkage_probability,
-    pairwise_linkage_probability_matrix,
-    InfectiousnessParams,
-)
+from epilink import TOIT, MolecularClock, linkage_probability, linkage_probability_matrix
+
+toit = TOIT(rng_seed=123)
+clock = MolecularClock(relax_rate=False, rng_seed=123)
 
 # Probability that a pair with 2 SNPs and 4 days apart is directly linked (m=0)
-p = estimate_linkage_probability(
+p = linkage_probability(
+    toit=toit,
+    clock=clock,
     genetic_distance=2,
-    sampling_interval=4,
+    temporal_distance=4,
     intermediate_generations=(0,),
     num_simulations=10_000,
-    infectiousness_profile=InfectiousnessParams(),
 )
 print("P(link):", p)
 
 # Grid over genetic distances (SNPs) and temporal gaps (days)
 gd = np.arange(0, 6)       # 0..5 SNPs
 td = np.arange(0, 15, 3)   # 0..12 days, step 3
-mat = pairwise_linkage_probability_matrix(gd, td, num_simulations=10_000)
+mat = linkage_probability_matrix(
+    toit=toit,
+    clock=clock,
+    genetic_distances=gd,
+    temporal_distances=td,
+    num_simulations=10_000,
+)
 print(mat)
 ```
 
@@ -102,77 +114,6 @@ Commonly used options (see `--help` for full list):
 - `--subs-rate 1e-3`
 - `--subs-rate-sigma 0.33`
 - `--seed 12345`
-
----
-
-## Mutation accumulation models
-
-`epilink` supports two ways of modelling how mutations accumulate along the
-transmission tree, conditional on the molecular clock:
-
-- **Deterministic** (default):
-  - Uses the legacy, time-based genetic kernel.
-  - Effectively treats the expected number of mutations along each path as
-    a fixed quantity.
-  - Backwards‑compatible with previous versions of the package.
-- **Poisson**:
-  - Uses a mutation‑count kernel where the observed SNP distance is modelled
-    as a Poisson random variable with mean equal to the expected number of
-    mutations along the path.
-  - Provides a more explicit mutation‑likelihood formulation.
-
-You choose the model via the ``mutation_model`` argument in the Python API.
-
-### Python API examples
-
-Deterministic (legacy behaviour):
-
-```python
-from epilink import estimate_linkage_probability
-
-p_det = estimate_linkage_probability(
-    genetic_distance=2,
-    temporal_distance=4,
-    intermediate_generations=(0,),
-    num_simulations=10_000,
-    mutation_model="deterministic",   # default
-    mutation_tolerance=0,              # use legacy time-based kernel
-)
-``
-
-Deterministic in mutation space with an integer tolerance around the expected
-mutation count:
-
-```python
-p_det_tol = estimate_linkage_probability(
-    genetic_distance=2,
-    temporal_distance=4,
-    intermediate_generations=(0, 1),
-    num_simulations=10_000,
-    mutation_model="deterministic",
-    mutation_tolerance=1,  # accept ±1 mutation around expected count
-)
-```
-
-Poisson mutation accumulation:
-
-```python
-p_pois = estimate_linkage_probability(
-    genetic_distance=2,
-    temporal_distance=4,
-    intermediate_generations=(0, 1, 2),
-    num_simulations=10_000,
-    mutation_model="poisson",
-)
-```
-
-The same options are available in the lower‑level
-:func:`epilink.genetic_linkage_probability` function via the ``mutation_model``
-and ``mutation_tolerance`` keyword arguments.
-
-> Note: if you do not pass ``mutation_model``, the default behaviour remains
-> deterministic with the original time‑based genetic kernel, so existing code
-> continues to work unchanged.
 
 ---
 
@@ -212,8 +153,8 @@ mkdocs serve
 ## Examples
 
 Examples in `examples/`:
-- Generate grid CSV: `python examples/generate_grid.py ...`
-- Plot heatmap: `python examples/plot_grid.py grid.csv --out grid.png`
+- `python examples/quickstart.py`
+- `python examples/grid_to_csv.py --out grid.csv`
 
 Install plotting deps if needed:
 

@@ -6,4 +6,8 @@ This package estimates probabilities of transmission linkage between cases based
 - Monte Carlo simulations for epidemiological quantities
 - Numba-accelerated kernels for probability calculations
 
-See Usage for examples and API for reference.
+See Usage for examples and API for reference. The package ships with a CLI:
+
+```bash
+epilink point -g 2 -t 4 --nsims 10000
+```
