@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import textwrap
 from collections.abc import Mapping
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -364,7 +365,7 @@ class PackedGenomicData:
 
 def simulate_genomic_data(
     clock: MolecularClock, tree: nx.DiGraph, return_raw: bool = False
-) -> dict[str, dict]:
+) -> dict[str, Any]:
     """
     Simulate genomic evolution along a transmission tree.
 
