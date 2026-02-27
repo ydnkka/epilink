@@ -4,23 +4,21 @@ from .infectiousness_profile import (
     InfectiousnessParams,
     InfectiousnessProfile,
     MolecularClock,
-    presymptomatic_fraction
+    presymptomatic_fraction,
 )
-
-from .transmission_linkage_model import (
-    Epilink,
-    linkage_probability,
-    genetic_linkage_probability,
-    linkage_probability_matrix,
-    temporal_linkage_probability,
-)
-
 from .simulate_epidemic_and_genomic import (
-    SequencePacker64,
     PackedGenomicData,
+    SequencePacker64,
+    generate_pairwise_data,
     populate_epidemic_data,
     simulate_genomic_data,
-    generate_pairwise_data
+)
+from .transmission_linkage_model import (
+    Epilink,
+    genetic_linkage_probability,
+    linkage_probability,
+    linkage_probability_matrix,
+    temporal_linkage_probability,
 )
 
 __all__ = [

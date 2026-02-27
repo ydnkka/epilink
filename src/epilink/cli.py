@@ -86,7 +86,9 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         help="Comma-separated intermediate generations to include, e.g. '0,1,2'.",
     )
     parser.add_argument("--seed", type=int, default=12345, help="Random seed for simulations.")
-    parser.add_argument("--subs-rate", type=float, default=1e-3, help="Substitution rate per site/year.")
+    parser.add_argument(
+        "--subs-rate", type=float, default=1e-3, help="Substitution rate per site/year."
+    )
     parser.add_argument(
         "--subs-rate-sigma",
         type=float,
@@ -197,11 +199,19 @@ def build_parser() -> argparse.ArgumentParser:
     point.set_defaults(func=_handle_point)
 
     grid = subparsers.add_parser("grid", help="Estimate linkage probabilities on a grid.")
-    grid.add_argument("--g-start", type=float, required=True, help="Genetic distance start (inclusive).")
-    grid.add_argument("--g-stop", type=float, required=True, help="Genetic distance stop (exclusive).")
+    grid.add_argument(
+        "--g-start", type=float, required=True, help="Genetic distance start (inclusive)."
+    )
+    grid.add_argument(
+        "--g-stop", type=float, required=True, help="Genetic distance stop (exclusive)."
+    )
     grid.add_argument("--g-step", type=float, required=True, help="Genetic distance step.")
-    grid.add_argument("--t-start", type=float, required=True, help="Temporal distance start (inclusive).")
-    grid.add_argument("--t-stop", type=float, required=True, help="Temporal distance stop (exclusive).")
+    grid.add_argument(
+        "--t-start", type=float, required=True, help="Temporal distance start (inclusive)."
+    )
+    grid.add_argument(
+        "--t-stop", type=float, required=True, help="Temporal distance stop (exclusive)."
+    )
     grid.add_argument("--t-step", type=float, required=True, help="Temporal distance step.")
     grid.add_argument("--out", help="Optional output CSV path (defaults to stdout).")
     _add_common_args(grid)

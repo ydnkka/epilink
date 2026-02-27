@@ -197,7 +197,9 @@ class Epilink:
                     tmrca_common = diff_infection_ij[j] + incubation_period_sum[j] + sum_gi_common
 
                     # Accept if either path's expected TMRCA matches observed (within tolerance)
-                    match_successive = abs(tmrca_observed - tmrca_successive) <= intermediate_generations[j, 0]
+                    match_successive = (
+                        abs(tmrca_observed - tmrca_successive) <= intermediate_generations[j, 0]
+                    )
                     match_common = abs(tmrca_observed - tmrca_common) <= generation_time_xi[j]
                     if match_successive or match_common:  # Inclusion-exclusion on events
                         count_m += 1
@@ -213,7 +215,7 @@ class Epilink:
         clock: MolecularClock,
         num_simulations: int,
         no_intermediates: int,
-    ) -> "Epilink":
+    ) -> Epilink:
         """
         Sample epidemiological quantities for Monte Carlo simulation.
 
@@ -253,21 +255,22 @@ class Epilink:
             clock_rates=clock_rates,
         )
 
+
 # =============================================================================
 # Public API
 # =============================================================================
 
 
 def linkage_probability(
-        toit: TOIT,
-        clock: MolecularClock,
-        genetic_distance: ArrayLike,
-        temporal_distance: ArrayLike,
-        *,
-        intermediate_generations: tuple[int, ...] = (0,1),
-        no_intermediates: int = 10,
-        num_simulations: int = 10000,
-        cache_unique_distances: bool = True,
+    toit: TOIT,
+    clock: MolecularClock,
+    genetic_distance: ArrayLike,
+    temporal_distance: ArrayLike,
+    *,
+    intermediate_generations: tuple[int, ...] = (0, 1),
+    no_intermediates: int = 10,
+    num_simulations: int = 10000,
+    cache_unique_distances: bool = True,
 ) -> float | np.ndarray:
     """
     Estimate linkage probability from genetic and temporal distances.
@@ -378,7 +381,7 @@ def linkage_probability(
         selected_u = p_normalized[:, cols].sum(axis=1)  # shape (U,)
 
         out_u = p_temporal_u * selected_u  # shape (U,)
-        out = out_u[inv]                  # map back to shape (K,)
+        out = out_u[inv]  # map back to shape (K,)
     else:
         # Compute directly without deduplication
         sim = Epilink.run_simulations(toit, clock, int(num_simulations), num_intermediate_hosts)
@@ -429,14 +432,14 @@ def linkage_probability(
 
 
 def linkage_probability_matrix(
-        toit: TOIT,
-        clock: MolecularClock,
-        genetic_distances: np.ndarray,
-        temporal_distances: np.ndarray,
-        *,
-        intermediate_generations: tuple[int, ...] = (0,1),
-        no_intermediates: int = 10,
-        num_simulations: int = 10000,
+    toit: TOIT,
+    clock: MolecularClock,
+    genetic_distances: np.ndarray,
+    temporal_distances: np.ndarray,
+    *,
+    intermediate_generations: tuple[int, ...] = (0, 1),
+    no_intermediates: int = 10,
+    num_simulations: int = 10000,
 ) -> np.ndarray:
     """
     Compute linkage probabilities over distance grids.
@@ -487,11 +490,10 @@ def linkage_probability_matrix(
     return flat_p.reshape(g_grid.shape)
 
 
-
 def temporal_linkage_probability(
-        temporal_distance: ArrayLike,
-        toit: TOIT,
-        num_simulations: int = 10000,
+    temporal_distance: ArrayLike,
+    toit: TOIT,
+    num_simulations: int = 10000,
 ) -> np.ndarray:
     """
     Estimate temporal evidence for one or more distances.
@@ -530,14 +532,14 @@ def temporal_linkage_probability(
 
 
 def genetic_linkage_probability(
-        toit: TOIT,
-        clock: MolecularClock,
-        genetic_distance: ArrayLike,
-        *,
-        num_simulations: int = 10000,
-        no_intermediates: int = 10,
-        intermediate_generations: tuple[int, ...] = (0,1),
-        kind: str = "relative",  # "raw" | "relative" | "normalized"
+    toit: TOIT,
+    clock: MolecularClock,
+    genetic_distance: ArrayLike,
+    *,
+    num_simulations: int = 10000,
+    no_intermediates: int = 10,
+    intermediate_generations: tuple[int, ...] = (0, 1),
+    kind: str = "relative",  # "raw" | "relative" | "normalized"
 ) -> np.ndarray:
     """
     Estimate genetic evidence for transmission linkage.
@@ -615,8 +617,7 @@ def genetic_linkage_probability(
             selected = p_normalized[:, cols].sum(axis=1)
         else:
             raise ValueError(
-                "kind must be 'relative', 'raw', or 'normalized', "
-                f"got {kind!r}.",
+                "kind must be 'relative', 'raw', or 'normalized', " f"got {kind!r}.",
             )
         return selected
 

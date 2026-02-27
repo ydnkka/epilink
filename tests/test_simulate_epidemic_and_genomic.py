@@ -4,8 +4,8 @@ Comprehensive tests for simulate_epidemic_and_genomic utilities.
 
 from __future__ import annotations
 
-import numpy as np
 import networkx as nx
+import numpy as np
 
 from epilink import (
     TOIT,
@@ -61,7 +61,9 @@ def test_populate_epidemic_data_deterministic_dates_and_sampling():
 
     for child in ("B", "C"):
         assert np.isclose(out.nodes[child]["exposure_date"], out.nodes["A"]["date_infectious"])
-        assert np.isclose(out.nodes[child]["date_infectious"], out.nodes[child]["exposure_date"] + latent)
+        assert np.isclose(
+            out.nodes[child]["date_infectious"], out.nodes[child]["exposure_date"] + latent
+        )
         assert np.isclose(
             out.nodes[child]["date_symptom_onset"],
             out.nodes[child]["date_infectious"] + presymp,
@@ -141,7 +143,9 @@ def test_packed_genomic_data_write_fasta_wraps_lines(tmp_path):
     node_map = {"n1": 0}
     base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
 
-    packed = PackedGenomicData(int8_matrix, original_length=105, node_map=node_map, base_map=base_map)
+    packed = PackedGenomicData(
+        int8_matrix, original_length=105, node_map=node_map, base_map=base_map
+    )
     out_path = tmp_path / "wrapped.fasta"
     packed.write_fasta(str(out_path))
 
@@ -163,7 +167,9 @@ def test_packed_genomic_data_hamming():
     node_map = {"n1": 0, "n2": 1, "n3": 2}
     base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
 
-    packed_data = PackedGenomicData(int8_matrix, original_length=80, node_map=node_map, base_map=base_map)
+    packed_data = PackedGenomicData(
+        int8_matrix, original_length=80, node_map=node_map, base_map=base_map
+    )
 
     hamming = packed_data.compute_hamming_distances()
 
@@ -249,8 +255,12 @@ def test_generate_pairwise_data_relationships():
     )
     node_map = {"A": 0, "B": 1, "C": 2, "D": 3}
     base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
-    packed_linear = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
-    packed_poisson = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
+    packed_linear = PackedGenomicData(
+        int8_matrix, original_length=4, node_map=node_map, base_map=base_map
+    )
+    packed_poisson = PackedGenomicData(
+        int8_matrix, original_length=4, node_map=node_map, base_map=base_map
+    )
 
     df = generate_pairwise_data({"linear": packed_linear, "poisson": packed_poisson}, tree)
 
@@ -298,8 +308,12 @@ def test_generate_pairwise_data_skips_missing_nodes():
     )
     node_map = {"A": 0, "B": 1}
     base_map = {0: "A", 1: "C", 2: "G", 3: "T"}
-    packed_linear = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
-    packed_poisson = PackedGenomicData(int8_matrix, original_length=4, node_map=node_map, base_map=base_map)
+    packed_linear = PackedGenomicData(
+        int8_matrix, original_length=4, node_map=node_map, base_map=base_map
+    )
+    packed_poisson = PackedGenomicData(
+        int8_matrix, original_length=4, node_map=node_map, base_map=base_map
+    )
 
     df = generate_pairwise_data({"linear": packed_linear, "poisson": packed_poisson}, tree)
 

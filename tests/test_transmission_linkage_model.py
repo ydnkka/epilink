@@ -9,8 +9,8 @@ import pytest
 
 from epilink import (
     TOIT,
-    MolecularClock,
     Epilink,
+    MolecularClock,
     genetic_linkage_probability,
     linkage_probability,
     linkage_probability_matrix,
@@ -814,6 +814,7 @@ def test_linkage_probability_with_different_num_simulations():
     assert 0.0 <= result_few <= 1.0
     assert 0.0 <= result_many <= 1.0
 
+
 class TestCachingPath:
     """Test the caching path in linkage_probability with duplicate distance pairs."""
 
@@ -1073,7 +1074,7 @@ class TestZeroProbabilityEdgeCases:
             toit=toit,
             clock=clock,
             genetic_distance=1000,  # Very large
-            temporal_distance=365,   # One year
+            temporal_distance=365,  # One year
             intermediate_generations=(0,),
             no_intermediates=2,
             num_simulations=100,

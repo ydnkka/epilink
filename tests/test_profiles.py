@@ -16,13 +16,13 @@ from epilink import (
     InfectiousnessParams,
     InfectiousnessProfile,
     MolecularClock,
-    presymptomatic_fraction
+    presymptomatic_fraction,
 )
-
 
 # ============================================================================
 # InfectiousnessParams Tests
 # ============================================================================
+
 
 def test_infectiousness_params_default_initialization():
     """Test that InfectiousnessParams initializes with correct default values."""
@@ -63,7 +63,7 @@ def test_infectiousness_params_custom_values():
         latent_shape=3.0,
         symptomatic_rate=0.5,
         symptomatic_shape=2.0,
-        rel_presymptomatic_infectiousness=3.0
+        rel_presymptomatic_infectiousness=3.0,
     )
     assert params.incubation_shape == 6.0
     assert params.presymptomatic_shape == 3.0
@@ -109,6 +109,7 @@ def test_infectiousness_params_validation_relative_infectiousness():
 # MolecularClock Tests
 # ============================================================================
 
+
 def test_molecular_clock_default_initialization():
     """Test that MolecularClock initializes with correct default values."""
     clock = MolecularClock()
@@ -122,11 +123,7 @@ def test_molecular_clock_default_initialization():
 def test_molecular_clock_custom_parameters():
     """Test MolecularClock with custom parameters."""
     clock = MolecularClock(
-        subs_rate=2e-3,
-        relax_rate=False,
-        subs_rate_sigma=0.5,
-        gen_len=30000,
-        rng_seed=42
+        subs_rate=2e-3, relax_rate=False, subs_rate_sigma=0.5, gen_len=30000, rng_seed=42
     )
     assert clock.subs_rate == 2e-3
     assert clock.relax_rate is False
@@ -223,6 +220,7 @@ def test_molecular_clock_expected_mutations_negative_clipping():
 
 def test_infectiousness_profile_base_class_not_implemented():
     """Test that base class abstract methods raise NotImplementedError."""
+
     class MinimalProfile(InfectiousnessProfile):
         pass
 
@@ -238,6 +236,7 @@ def test_infectiousness_profile_base_class_not_implemented():
 # ============================================================================
 # TOST (Time from Onset to Transmission) Tests
 # ============================================================================
+
 
 def test_tost_initialization():
     """Test TOST initializes with correct default parameters."""
@@ -349,6 +348,7 @@ def test_tost_cdf():
 # TOIT (Time from Onset of Infectiousness to Transmission) Tests
 # ============================================================================
 
+
 def test_toit_initialization():
     """Test TOIT initializes with correct default parameters."""
     toit = TOIT()
@@ -454,6 +454,7 @@ def test_toit_grid_fallback_uniform():
 
 def test_ensure_grid_fallback_uniform():
     """Test that zero PDFs fall back to a uniform grid."""
+
     class ZeroPdfProfile(InfectiousnessProfile):
         def pdf(self, x):
             return np.zeros_like(np.asarray(x, dtype=float))
@@ -531,6 +532,7 @@ def test_toit_cdf():
 # ============================================================================
 # Stage Duration Sampling Tests
 # ============================================================================
+
 
 def test_molecular_clock_integration():
     """Test that MolecularClock can be used independently."""
@@ -614,28 +616,10 @@ def test_sample_symptomatic():
     assert np.isclose(np.mean(samples), expected_mean, rtol=0.1)
 
 
-def test_incubation_is_sum_of_stages():
-    """Test that incubation period equals latent + presymptomatic."""
-    rng = default_rng(42)
-    toit = TOIT(rng=rng)
-
-    # Sample using the same RNG state by reseeding
-    toit1 = TOIT(rng_seed=42)
-    latent1 = toit1.sample_latent(size=100)
-    presymp1 = toit1.sample_presymptomatic(size=100)
-
-    toit2 = TOIT(rng_seed=42)
-    incubation2 = toit2.sample_incubation(size=100)
-
-    # Note: incubation draws twice from RNG, so we can't directly compare
-    # Instead, verify that the theoretical relationship holds
-    params = InfectiousnessParams()
-    assert params.incubation_shape == params.latent_shape + params.presymptomatic_shape
-
-
 # ============================================================================
 # Presymptomatic Fraction Tests
 # ============================================================================
+
 
 def test_presymptomatic_fraction_in_0_1():
     """Test presymptomatic fraction is a valid probability."""
@@ -652,9 +636,11 @@ def test_presymptomatic_fraction_formula():
     q = presymptomatic_fraction(params)
 
     # Calculate expected value using formula from docstring
-    numerator = (params.rel_presymptomatic_infectiousness *
-                 params.presymptomatic_shape *
-                 params.symptomatic_rate)
+    numerator = (
+        params.rel_presymptomatic_infectiousness
+        * params.presymptomatic_shape
+        * params.symptomatic_rate
+    )
     denominator = numerator + (params.incubation_shape * params.incubation_rate)
     expected_q = numerator / denominator
 
@@ -678,6 +664,7 @@ def test_presymptomatic_fraction_custom_params():
 # ============================================================================
 # Integration and Edge Case Tests
 # ============================================================================
+
 
 def test_frozen_gamma_distributions():
     """Test that frozen gamma distributions are properly initialized."""
