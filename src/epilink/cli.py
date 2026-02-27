@@ -73,7 +73,7 @@ def _write_grid_results(
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--nsims", type=int, default=10000, help="Number of Monte Carlo draws.")
     parser.add_argument(
-        "--no-intermediates",
+        "--intermediate-hosts",
         type=int,
         default=10,
         help="Maximum number of intermediate hosts (M).",
@@ -126,7 +126,7 @@ def _handle_point(args: argparse.Namespace) -> int:
         genetic_distance=genetic,
         temporal_distance=temporal,
         intermediate_generations=intermediate_generations,
-        no_intermediates=args.no_intermediates,
+        intermediate_hosts=args.intermediate_hosts,
         num_simulations=args.nsims,
         cache_unique_distances=True,
     )
@@ -158,7 +158,7 @@ def _handle_grid(args: argparse.Namespace) -> int:
         genetic_distances=genetic,
         temporal_distances=temporal,
         intermediate_generations=intermediate_generations,
-        no_intermediates=args.no_intermediates,
+        intermediate_hosts=args.intermediate_hosts,
         num_simulations=args.nsims,
     )
 

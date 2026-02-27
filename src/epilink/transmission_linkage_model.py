@@ -547,7 +547,7 @@ def genetic_linkage_probability(
     *,
     num_simulations: int = 10000,
     intermediate_hosts: int = 10,
-    intermediate_generations: tuple[int, ...] = (0, 1),
+    intermediate_generations: tuple[int, ...] | None= (0, 1),
     kind: str = "relative",  # "raw" | "relative" | "normalized"
 ) -> np.ndarray:
     """
@@ -588,7 +588,6 @@ def genetic_linkage_probability(
         ``[0, intermediate_hosts]`` or if ``kind`` is invalid.
     """
     genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
-    intermediate_hosts = int(intermediate_hosts)
 
     sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
