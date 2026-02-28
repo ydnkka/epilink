@@ -218,6 +218,34 @@ def test_molecular_clock_expected_mutations_negative_clipping():
     assert np.all(mutations >= 0)
 
 
+def test_molecular_clock_expected_mutations_sampled_size_strict():
+    """Test expected mutations with sampled rates using size on a strict clock."""
+    clock = MolecularClock(relax_rate=False, subs_rate=1e-3, gen_len=1000)
+    times = np.array([2.0, 4.0, 6.0])
+
+    mutations = clock.expected_mutations(times, size=3)
+
+    expected_rate = (1e-3 * 1000) / 365.0
+    expected = np.broadcast_to(expected_rate * times, (3, times.size))
+    assert mutations.shape == (3, times.size)
+    assert np.allclose(mutations, expected)
+
+
+def test_molecular_clock_expected_mutations_sampled_size_relaxed():
+    """Test expected mutations with sampled rates using size on a relaxed clock."""
+    times = np.array([1.0, 3.0, 5.0])
+
+    clock_rates = MolecularClock(relax_rate=True, rng_seed=42)
+    rates = clock_rates.sample_clock_rate_per_day(size=4)
+
+    clock_mut = MolecularClock(relax_rate=True, rng_seed=42)
+    mutations = clock_mut.expected_mutations(times, size=4)
+
+    expected = rates[:, None] * times
+    assert mutations.shape == (4, times.size)
+    assert np.allclose(mutations, expected)
+
+
 def test_infectiousness_profile_base_class_not_implemented():
     """Test that base class abstract methods raise NotImplementedError."""
 

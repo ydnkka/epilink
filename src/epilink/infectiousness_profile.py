@@ -273,7 +273,10 @@ class MolecularClock:
         return (per_site_per_year * self.gen_len) / 365.0
 
     def expected_mutations(
-        self, times_in_days: ArrayLike, rates_per_day: ArrayLike | None = None
+        self,
+        times_in_days: ArrayLike,
+        rates_per_day: ArrayLike | None = None,
+        size: int | tuple[int, ...] = 1,
     ) -> np.ndarray:
         r"""
         Compute expected mutation counts for given times (days).
@@ -284,12 +287,17 @@ class MolecularClock:
             Times in days (e.g., TMRCAs or branch lengths).
         rates_per_day : array_like, optional
             Per-day substitution rates (mutations/day). If None, uses the
-            deterministic rate derived from ``subs_rate`` and ``gen_len``.
+            sampled rates from ``sample_clock_rate_per_day``.
+        size : int or tuple of int, default=1
+            Number or shape of clock rates to sample when ``rates_per_day`` is None.
+            If ``size`` is greater than 1, the output contains a distribution of
+            expected mutations for each duration.
 
         Returns
         -------
         expected : numpy.ndarray
-            Expected mutation counts with the same shape as ``times_in_days``.
+            Expected mutation counts. If ``rates_per_day`` is provided or ``size`` is 1,
+            the shape matches ``times_in_days``; otherwise it is ``size + times.shape``.
 
         Notes
         -----
@@ -303,8 +311,13 @@ class MolecularClock:
         """
         times = np.asarray(times_in_days, dtype=float)
         if rates_per_day is None:
-            rate = (self.subs_rate * self.gen_len) / 365.0
-            mut = rate * times
+            if isinstance(size, int) and size == 1:
+                rate = float(self.sample_clock_rate_per_day(size=1).item())
+                mut = rate * times
+            else:
+                rates = np.asarray(self.sample_clock_rate_per_day(size=size), dtype=float)
+                expand_axes = (None,) * times.ndim
+                mut = rates[(...,) + expand_axes] * times
         else:
             mut = np.asarray(rates_per_day, dtype=float) * times
         return np.clip(mut, a_min=0.0, a_max=np.inf)
