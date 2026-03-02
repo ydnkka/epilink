@@ -15,7 +15,7 @@ Estimate the probability that two cases are epidemiologically linked from their 
 
 ## Installation
 
-From PyPI:
+From PyPI (yet to be released):
 
 ```bash
 pip install epilink
@@ -176,6 +176,14 @@ mamba install -c conda-forge matplotlib seaborn
 ## License
 
 MIT License (see [LICENSE](LICENSE))
+
+---
+
+## Development & Contributing
+
+For developers:
+- **Testing releases**: See [TESTPYPI.md](TESTPYPI.md) for instructions on testing package releases on TestPyPI before publishing to PyPI
+- **Contributing**: Pull requests welcome! Please ensure tests pass and coverage remains high
 
 ---
 
