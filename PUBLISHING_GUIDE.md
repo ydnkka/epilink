@@ -36,6 +36,8 @@ Publish to PyPI
 Users can: pip install your-package
 ```
 
+Recommended approach: use GitHub Actions with Trusted Publisher (OIDC) for CI. Token-based uploads are optional for manual runs only.
+
 ---
 
 ## Pre-Publishing Setup
@@ -97,9 +99,16 @@ Documentation = "https://mypackage.readthedocs.io"
 - **Manual versioning:** Set explicitly in `pyproject.toml`: `version = "1.0.0"`
 - **Dynamic versioning (recommended):** Use `hatch-vcs` to auto-detect from git tags
   ```toml
-  [tool.hatchling.version]
-  path = "src/my_package/__init__.py"
+  [project]
+  dynamic = ["version"]
+
+  [tool.hatch.version]
+  source = "vcs"
+
+  [tool.hatch.build.hooks.vcs]
+  version-file = "src/my_package/_version.py"
   ```
+  Tags can be `v1.2.3` or `1.2.3`.
 
 ### 3. Create Required Files
 
@@ -142,32 +151,22 @@ print(result)
 
 Use the same email/username for consistency.
 
-### 5. Generate API Tokens
+### 5. Configure Trusted Publisher (OIDC)
 
-For secure automated uploads:
+Trusted Publisher uses GitHub OIDC to mint short-lived upload tokens. No long-lived API tokens are stored in GitHub secrets.
 
-1. Go to **Account Settings** → **API tokens**
-2. Create a **"Scope: Entire account"** token
-3. Save it securely (you can't view it again!)
-4. Store in `~/.pypirc`:
+1. In TestPyPI and PyPI:
+   - Open your project page -> **Manage** -> **Publishing**.
+   - Add a **Trusted Publisher** for GitHub Actions.
+   - Set **Owner**, **Repository**, **Workflow filename**, and **Environment**.
+     - Example workflow files: `test-release.yml` (TestPyPI) and `release.yml` (PyPI)
+     - Example environments: `testpypi` and `pypi`
 
-```ini
-[distutils]
-index-servers =
-    pypi
-    testpypi
+2. In GitHub:
+   - Ensure your workflows use matching `environment` names.
+   - Ensure the workflow has `permissions: id-token: write`.
 
-[pypi]
-username = __token__
-password = pypi_your_token_here
-
-[testpypi]
-repository = https://test.pypi.org/legacy/
-username = __token__
-password = pypi_your_testpypi_token_here
-```
-
-**⚠️ Security:** Never commit `.pypirc` to git. Add to `.gitignore`.
+Note: Trusted Publisher entries are separate for TestPyPI and PyPI.
 
 ---
 
@@ -175,13 +174,11 @@ password = pypi_your_testpypi_token_here
 
 Always test on TestPyPI before publishing to PyPI. You can't delete versions from PyPI!
 
-### Method 1: Using GitHub Actions (Recommended for Teams)
+### Method 1: Using GitHub Actions (Trusted Publisher, Recommended)
 
-1. **Create GitHub Secret:**
-   - Go to **Settings** → **Secrets and variables** → **Actions**
-   - Add secret: `TESTPYPI_API_TOKEN`
+1. Ensure Trusted Publisher is configured in TestPyPI for this repo, workflow file, and environment.
 
-2. **Create `.github/workflows/test-release.yml`:**
+2. Create `.github/workflows/test-release.yml`:
 
 ```yaml
 name: Test Release
@@ -190,40 +187,80 @@ on:
   workflow_dispatch:
     inputs:
       version_suffix:
-        description: 'Version suffix (optional)'
+        description: 'PEP 440 suffix (e.g., dev123, rc1, b1). Leave blank for dev<run_number>.'
         required: false
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  publish:
+  publish-testpypi:
     runs-on: ubuntu-latest
-    environment: testpypi
-    
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/your-project
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: actions/setup-python@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      
-      - run: pip install build twine
-      
-      - run: python -m build
-      
-      - name: Check distribution
-        run: twine check dist/*
-      
-      - name: Publish to TestPyPI
+
+      - name: Set test version
         run: |
-          twine upload --repository testpypi dist/* \
-            -u __token__ \
-            -p ${{ secrets.TESTPYPI_API_TOKEN }}
+          python -m pip install --upgrade pip tomlkit
+          SUFFIX="${{ inputs.version_suffix }}"
+          if [ -z "$SUFFIX" ]; then
+            SUFFIX="dev${GITHUB_RUN_NUMBER}"
+          fi
+
+          export EPILINK_SUFFIX="$SUFFIX"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import tomlkit
+
+          path = Path("pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          data = tomlkit.parse(text)
+          project = data.get("project")
+          if not project or "version" not in project:
+            raise SystemExit("version not found in pyproject.toml")
+
+          base_version = str(project["version"])
+          suffix = os.environ["EPILINK_SUFFIX"]
+          new_version = f"{base_version}.{suffix}"
+
+          project["version"] = new_version
+          path.write_text(tomlkit.dumps(data), encoding="utf-8")
+          print(f"Using test version: {new_version}")
+          PY
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
 ```
 
-3. **Run Workflow:**
-   - GitHub → **Actions** → **Test Release**
-   - Click **Run workflow** (blue button)
+3. Run Workflow:
+   - GitHub -> **Actions** -> **Test Release**
+   - Click **Run workflow**
 
-### Method 2: Manual Release (Single User)
+### Method 2: Manual Upload (Token-based, Optional)
+
+This is useful for one-off local uploads. For CI, prefer Trusted Publisher.
+
+Create a TestPyPI API token in your account settings before starting.
 
 **Step 1: Install tools**
 
@@ -315,8 +352,9 @@ version = MAJOR.MINOR.PATCH
 version = "1.0.0"
 ```
 
-2. **Create GitHub Secret for PyPI:**
-   - **Settings** → **Secrets** → Add `PYPI_API_TOKEN`
+If you are using dynamic versioning, create a git tag instead (for example `v1.0.0`).
+
+2. **Ensure Trusted Publisher is configured in PyPI for this repo, workflow file, and environment.**
 
 3. **Create `.github/workflows/release.yml`:**
 
@@ -327,30 +365,35 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/your-project
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       
-      - run: pip install build twine
+      - run: python -m pip install --upgrade pip build twine
       
       - run: python -m build
       
       - name: Check distribution
-        run: twine check dist/*
+        run: python -m twine check dist/*
       
       - name: Publish to PyPI
-        run: |
-          twine upload dist/* \
-            -u __token__ \
-            -p ${{ secrets.PYPI_API_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@release/v1
 ```
 
 4. **Trigger Release:**
@@ -360,7 +403,9 @@ jobs:
    - Click **Publish release**
    - Workflow runs automatically
 
-### Publishing Manually
+### Publishing Manually (Token-based, Optional)
+
+If you must upload locally, create a PyPI API token in your account settings and use `twine`. This is not recommended for CI.
 
 ```bash
 # 1. Ensure clean working directory
@@ -396,7 +441,7 @@ pip install my-package
 
 ### Error: "Filename already exists"
 
-**Cause:** Version already published (TestPyPI/PyPI doesn't allow re-uploads)
+**Cause:** Version already published (TestPyPI/PyPI doesn't allow re-uploads, even if the release was deleted)
 
 **Solution:** Increment version and rebuild
 
@@ -469,6 +514,14 @@ my_package/module.py
 ls dist/
 ```
 
+### Error: "Not authorized" / "Invalid or missing OIDC token"
+
+**Cause:** Trusted Publisher not configured or workflow/environment mismatch. `id-token` permission may be missing.
+
+**Solution:**
+- Ensure the Trusted Publisher entry matches owner, repo, workflow file, and environment name.
+- Ensure the workflow has `permissions: id-token: write`.
+
 ---
 
 ## Best Practices Checklist
@@ -491,14 +544,16 @@ ls dist/
 
 | Task | Command |
 |------|---------|
+| Run TestPyPI publish (OIDC) | GitHub Actions -> Test Release |
+| Run PyPI publish (OIDC) | Publish a GitHub Release |
 | Build package | `python -m build` |
 | Check metadata | `twine check dist/*` |
-| Upload to TestPyPI | `twine upload --repository testpypi dist/*` |
-| Upload to PyPI | `twine upload dist/*` |
+| Manual upload to TestPyPI (token) | `twine upload --repository testpypi dist/*` |
+| Manual upload to PyPI (token) | `twine upload dist/*` |
 | Check PyPI page | `https://pypi.org/project/YOUR_PACKAGE/` |
 | View package files | `twine download package-name==1.0.0` |
-| Get token (TestPyPI) | https://test.pypi.org/manage/account/tokens/ |
-| Get token (PyPI) | https://pypi.org/manage/account/tokens/ |
+| Configure Trusted Publisher (TestPyPI) | https://test.pypi.org/manage/project/YOUR_PACKAGE/ |
+| Configure Trusted Publisher (PyPI) | https://pypi.org/manage/project/YOUR_PACKAGE/ |
 
 ---
 
@@ -522,4 +577,3 @@ If something isn't clear, check these in order:
 4. GitHub Issues for your project
 
 Good luck publishing! 🚀
-
