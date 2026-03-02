@@ -36,7 +36,7 @@ from .infectiousness_profile import TOIT, MolecularClock
 
 NDArrayInt8 = npt.NDArray[np.int8]
 NDArrayUInt64 = npt.NDArray[np.uint64]
-NDArrayFloat32 = npt.NDArray[np.float32]
+NDArrayInt32 = npt.NDArray[np.int32]
 
 
 def populate_epidemic_data(
@@ -200,7 +200,7 @@ class SequencePacker64:
 
                 for k in range(start, end):
                     # Cast to uint64 to keep the bitwise ops in unsigned space.
-                    word |= np.uint64(np.uint64(arr[i, k]) << shift)
+                    word |= np.uint64(arr[i, k]) << np.uint64(shift)
                     shift -= 2
 
                 out[i, b] = word
@@ -209,7 +209,7 @@ class SequencePacker64:
 
     @staticmethod
     @njit(parallel=True, fastmath=True)
-    def hamming64(packed: NDArrayUInt64) -> NDArrayFloat32:
+    def hamming64(packed: NDArrayUInt64) -> NDArrayInt32:
         """
         Compute pairwise Hamming distances for packed sequences.
 
@@ -221,7 +221,7 @@ class SequencePacker64:
         Returns
         -------
         distances : numpy.ndarray
-            Pairwise Hamming distance matrix of shape (N, N).
+            Pairwise Hamming distance matrix of shape (N, N) with dtype int32.
         """
         # Bitmasks for SWAR Hamming distance
         M55 = np.uint64(0x5555555555555555)  # 0101...
@@ -230,7 +230,7 @@ class SequencePacker64:
         M01 = np.uint64(0x0101010101010101)  # accumulator
 
         N, B = packed.shape
-        d = np.zeros((N, N), dtype=np.float32)
+        d = np.zeros((N, N), dtype=np.int32)
 
         for i in prange(N):
             for j in range(i + 1, N):
@@ -242,14 +242,14 @@ class SequencePacker64:
                     # Step 2: Vertical collapse (2-bit diff -> 1-bit count)
                     # If bits are 00 or 11 -> 0. If 01 or 10 -> 1.
                     # This maps nucleotide diffs to binary 1s.
-                    diff = (x & M55) | ((x >> 1) & M55)
+                    diff = (x & M55) | ((x >> np.uint64(1)) & M55)
 
                     # Step 3: Standard 64-bit Population Count (SWAR)
                     c = diff
-                    c = (c & M33) + ((c >> 2) & M33)
-                    c = (c & M0F) + ((c >> 4) & M0F)
+                    c = (c & M33) + ((c >> np.uint64(2)) & M33)
+                    c = (c & M0F) + ((c >> np.uint64(4)) & M0F)
                     # Multiplication acts as a parallel adder for bytes
-                    c = (c * M01) >> 56
+                    c = (c * M01) >> np.uint64(56)
 
                     total += int(c)
 
@@ -315,6 +315,16 @@ class PackedGenomicData:
         self.bases_map: dict[int, str]
         self.packed_u64: NDArrayUInt64
 
+        if not np.issubdtype(int8_matrix.dtype, np.integer):
+            raise TypeError("int8_matrix must be an integer array with values in {0, 1, 2, 3}.")
+        if int8_matrix.size:
+            min_val = int8_matrix.min()
+            max_val = int8_matrix.max()
+            if min_val < 0 or max_val > 3:
+                raise ValueError("int8_matrix contains values outside {0, 1, 2, 3}.")
+        if int8_matrix.dtype != np.int8:
+            int8_matrix = int8_matrix.astype(np.int8, copy=False)
+
         self.n_seqs, L = int8_matrix.shape
         self.original_length = original_length
         self.node_to_idx = node_map
@@ -322,14 +332,14 @@ class PackedGenomicData:
         self.bases_map = base_map
         self.packed_u64 = SequencePacker64.pack_u64(int8_matrix)
 
-    def compute_hamming_distances(self) -> NDArrayFloat32:
+    def compute_hamming_distances(self) -> NDArrayInt32:
         """
         Compute the pairwise Hamming distance matrix.
 
         Returns
         -------
         distances : numpy.ndarray
-            Distance matrix of shape (N, N).
+            Distance matrix of shape (N, N) with dtype int32.
         """
         print(f"Computing 64-bit Hamming distances for {self.n_seqs} sequences...")
         return SequencePacker64.hamming64(self.packed_u64)
@@ -361,7 +371,7 @@ class PackedGenomicData:
                 for w in blocks:
                     # Extract 32 nucleotides from the 64-bit word
                     for shift in range(62, -1, -2):  # 62, 60, 58, ..., 2, 0
-                        unpacked[idx] = (w >> shift) & 3
+                        unpacked[idx] = (w >> np.uint64(shift)) & np.uint64(3)
                         idx += 1
 
                 # Trim padding and convert to string
@@ -442,8 +452,8 @@ def simulate_genomic_data(
                 t_trans = tree.nodes[child]["exposure_date"]
                 t_samp_par = tree.nodes[parent]["sample_date"]
                 t_samp_chi = tree.nodes[child]["sample_date"]
-            except KeyError:
-                raise ValueError("Missing dates in tree. Run epidemic simulation first.")
+            except KeyError as err:
+                raise ValueError("Missing dates in tree. Run epidemic simulation first.") from err
 
             branch_length = abs(t_samp_par - t_trans) + abs(t_samp_chi - t_trans)
 
