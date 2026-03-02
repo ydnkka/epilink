@@ -1,37 +1,18 @@
-# Byte-compiled / optimized / DLL files
+# Python bytecode
 __pycache__/
 *.py[cod]
-*$py.class
 
-# Distribution / packaging
-.Python
+# Build artifacts
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
 *.egg
+*.whl
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+# Test and coverage artifacts
 .coverage
 .coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
+htmlcov/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -39,27 +20,18 @@ coverage.xml
 # Virtual environments
 .venv/
 venv/
-ENV/
 env/
-pip-wheel-metadata/
-.env
-.env.*
-.python-version
-
-# IDEs
-.idea/
-*.iml
-.vscode/
 
 # MkDocs
 site/
 
-# Hatch/Build artifacts
-*.whl
+# IDEs
+.idea/
+.vscode/
+*.iml
 
 # macOS
 .DS_Store
 
 # PyPI credentials (use .pypirc.example as template)
 .pypirc
-
