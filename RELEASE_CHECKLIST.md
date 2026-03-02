@@ -17,7 +17,11 @@
 - [ ] Code linted: `ruff check .` and `black --check .`
 - [ ] Type checking clean: `mypy src/epilink`
 - [ ] CHANGELOG updated (if applicable)
-- [ ] Version number appropriate for test
+- [ ] ✅ Version will be auto-generated (no manual action needed!)
+
+**Note:** Versions are automatically unique:
+- GitHub Actions: `0.0.0.dev{run_number}` (auto-incrementing)
+- Manual script: `0.0.0.dev{timestamp}` (uses current time)
 
 ## Release via GitHub Actions (Recommended)
 
