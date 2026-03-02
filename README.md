@@ -70,7 +70,7 @@ p = linkage_probability(
     clock=clock,
     genetic_distance=2,
     temporal_distance=4,
-    intermediate_generations=(0,),
+    intermediate_generations=0,
     num_simulations=10_000,
 )
 print("P(link):", p)
