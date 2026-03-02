@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -39,20 +41,41 @@ jobs:
           python - <<'PY'
           import os
           from pathlib import Path
+          import subprocess
           import tomlkit
 
           path = Path("pyproject.toml")
           text = path.read_text(encoding="utf-8")
           data = tomlkit.parse(text)
           project = data.get("project")
-          if not project or "version" not in project:
+          if not project:
             raise SystemExit("version not found in pyproject.toml")
 
-          base_version = str(project["version"])
+          if "version" in project:
+            base_version = str(project["version"])
+          elif "version" in project.get("dynamic", []):
+            try:
+              tag = subprocess.check_output(
+                  ["git", "describe", "--tags", "--abbrev=0"],
+                  text=True,
+              ).strip()
+            except subprocess.CalledProcessError:
+              tag = "0.0.0"
+            base_version = tag[1:] if tag.startswith("v") else tag
+          else:
+            raise SystemExit("version not found in pyproject.toml")
+
           suffix = os.environ["EPILINK_SUFFIX"]
           new_version = f"{base_version}.{suffix}"
 
           project["version"] = new_version
+          if "dynamic" in project:
+            dynamic = [item for item in project["dynamic"] if item != "version"]
+            if dynamic:
+              project["dynamic"] = dynamic
+            else:
+              del project["dynamic"]
+
           path.write_text(tomlkit.dumps(data), encoding="utf-8")
           print(f"Using test version: {new_version}")
           PY

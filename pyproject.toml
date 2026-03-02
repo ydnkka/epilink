@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "epilink"
-version = "1.0.0"  # Semantic versioning: https://semver.org/
+dynamic = ["version"]
 description = "Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -104,6 +104,12 @@ include = [
     "PUBLISHING_GUIDE.md",
 ]
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/epilink/_version.py"
+
 [tool.coverage.run]
 branch = true
 source = ["epilink"]
@@ -134,6 +140,7 @@ show_missing = true
 line-length = 100
 target-version = "py39"
 src = ["src"]
+extend-exclude = ["src/epilink/_version.py"]
 
 [tool.ruff.lint]
 select = [
