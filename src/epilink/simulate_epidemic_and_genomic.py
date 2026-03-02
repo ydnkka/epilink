@@ -442,8 +442,8 @@ def simulate_genomic_data(
                 t_trans = tree.nodes[child]["exposure_date"]
                 t_samp_par = tree.nodes[parent]["sample_date"]
                 t_samp_chi = tree.nodes[child]["sample_date"]
-            except KeyError:
-                raise ValueError("Missing dates in tree. Run epidemic simulation first.")
+            except KeyError as err:
+                raise ValueError("Missing dates in tree. Run epidemic simulation first.") from err
 
             branch_length = abs(t_samp_par - t_trans) + abs(t_samp_chi - t_trans)
 
