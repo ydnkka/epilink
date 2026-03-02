@@ -11,3 +11,5 @@ See Usage for examples and API for reference. The package ships with a CLI:
 ```bash
 epilink point -g 2 -t 4 --nsims 10000
 ```
+
+You can also override infectiousness profile parameters and TOIT support bounds via CLI flags (see `epilink point --help`).

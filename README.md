@@ -102,6 +102,13 @@ epilink point -g 2 -t 4 --nsims 200
 # Multiple pairs (CSV to stdout)
 epilink point -g 0 1 2 -t 0 2 5 --nsims 500 > out.csv
 
+# Custom infectiousness profile and TOIT support
+epilink point -g 2 -t 4 --nsims 200 \
+             --a 0 --b 40 \
+             --incubation-shape 5.0 --incubation-scale 1.1 \
+             --latent-shape 2.0 --symptomatic-rate 0.4 \
+             --symptomatic-shape 1.2 --rel-presymptomatic-infectiousness 2.0
+
 # Grid (CSV to file)
 epilink grid --g-start 0 --g-stop 5 --g-step 1 \
              --t-start 0 --t-stop 12 --t-step 3 \
@@ -114,6 +121,8 @@ Commonly used options (see `--help` for full list):
 - `--subs-rate 1e-3`
 - `--subs-rate-sigma 0.33`
 - `--seed 12345`
+- `--a 0 --b 60` (TOIT support bounds)
+- `--incubation-shape`, `--incubation-scale`, `--latent-shape`, `--symptomatic-rate`, `--symptomatic-shape`, `--rel-presymptomatic-infectiousness`
 
 ---
 
