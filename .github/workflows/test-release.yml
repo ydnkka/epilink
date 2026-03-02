@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_suffix:
-        description: 'PEP 440 suffix (e.g., dev123, rc1, b1). Leave blank for dev${{ github.run_number }}.'
+        description: 'PEP 440 suffix (e.g., dev123, rc1, b1). Leave blank for dev<run_number>.'
         required: false
         default: ''
 
