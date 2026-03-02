@@ -48,9 +48,12 @@ The workflow is triggered manually:
 6. Click the green "Run workflow" button
 
 The workflow will:
-- Build your package
+- Create a unique dev version tag (e.g., `v0.0.0.dev123` where 123 is the run number)
+- Build your package with this unique version
 - Run twine check to validate
 - Publish to TestPyPI
+
+**Note:** Each workflow run creates a unique version number automatically using the GitHub run number, so you won't get "version already exists" errors on TestPyPI.
 
 ### Verify the Test Release
 
@@ -89,10 +92,21 @@ For quick local testing without GitHub Actions:
 # Install build tools
 pip install --upgrade build twine
 
+# Create a unique dev version tag (using timestamp)
+git tag -a "v0.0.0.dev$(date +%s)" -m "Test release"
+
 # Build distributions
 python -m build
 
-# This creates dist/epilink-X.Y.Z.tar.gz and dist/epilink-X.Y.Z-py3-none-any.whl
+# This creates dist/epilink-0.0.0.devXXXXXXXXXX.tar.gz and .whl files
+
+# Clean up the temporary tag
+git tag -d v0.0.0.dev*
+```
+
+**Alternative:** Use the provided script which does all this for you:
+```bash
+./scripts/test_release.sh
 ```
 
 ### 2. Check the build
@@ -165,8 +179,16 @@ git push origin v0.1.0-rc1
 ### Version Numbers
 
 - Your project uses `hatch-vcs` for dynamic versioning from git tags
-- The version will be automatically determined from your git tags
+- **For GitHub Actions test releases:** The workflow automatically creates unique dev versions (e.g., `0.0.0.dev123`) using the workflow run number
+- **For manual test releases:** You'll need to create a temporary git tag before building:
+  ```bash
+  # Create a unique dev version tag
+  git tag v0.0.0.dev$(date +%s)  # Uses timestamp
+  python -m build
+  git tag -d v0.0.0.dev*  # Clean up the tag after building
+  ```
 - TestPyPI versions are separate from PyPI, so you can safely test
+- Once you're ready for a real release, use proper semantic versioning (e.g., `v1.0.0`)
 
 ### TestPyPI Limitations
 
@@ -197,9 +219,20 @@ rm -rf dist/
 ### "File already exists" error
 
 TestPyPI (like PyPI) doesn't allow re-uploading the same version. Solutions:
+
+**For GitHub Actions:**
+- The workflow automatically creates unique versions using the run number
+- Just trigger a new workflow run - it will create a new version automatically
+
+**For manual uploads:**
 - Delete your local `dist/` folder: `rm -rf dist/`
-- Create a new git tag with a different version
-- Use a version suffix (e.g., `-test2`, `-rc2`)
+- Create a new unique dev tag:
+  ```bash
+  git tag -a "v0.0.0.dev$(date +%s)" -m "Test release"
+  python -m build
+  git tag -d v0.0.0.dev*  # Clean up after building
+  ```
+- Or use the script: `./scripts/test_release.sh` (handles versioning automatically)
 
 ### Authentication errors
 
