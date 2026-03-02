@@ -242,14 +242,14 @@ class SequencePacker64:
                     # Step 2: Vertical collapse (2-bit diff -> 1-bit count)
                     # If bits are 00 or 11 -> 0. If 01 or 10 -> 1.
                     # This maps nucleotide diffs to binary 1s.
-                    diff = (x & M55) | ((x >> 1) & M55)
+                    diff = (x & M55) | ((x >> np.uint64(1)) & M55)
 
                     # Step 3: Standard 64-bit Population Count (SWAR)
                     c = diff
-                    c = (c & M33) + ((c >> 2) & M33)
-                    c = (c & M0F) + ((c >> 4) & M0F)
+                    c = (c & M33) + ((c >> np.uint64(2)) & M33)
+                    c = (c & M0F) + ((c >> np.uint64(4)) & M0F)
                     # Multiplication acts as a parallel adder for bytes
-                    c = (c * M01) >> 56
+                    c = (c * M01) >> np.uint64(56)
 
                     total += int(c)
 
@@ -371,7 +371,7 @@ class PackedGenomicData:
                 for w in blocks:
                     # Extract 32 nucleotides from the 64-bit word
                     for shift in range(62, -1, -2):  # 62, 60, 58, ..., 2, 0
-                        unpacked[idx] = (w >> shift) & 3
+                        unpacked[idx] = (w >> np.uint64(shift)) & np.uint64(3)
                         idx += 1
 
                 # Trim padding and convert to string
