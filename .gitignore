@@ -32,6 +32,3 @@ site/
 
 # macOS
 .DS_Store
-
-# PyPI credentials (use .pypirc.example as template)
-.pypirc
