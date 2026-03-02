@@ -547,7 +547,7 @@ def genetic_linkage_probability(
     *,
     num_simulations: int = 10000,
     intermediate_hosts: int = 10,
-    intermediate_generations: tuple[int, ...] | None= (0, 1),
+    intermediate_generations: tuple[int, ...] | None = (0, 1),
     kind: str = "relative",  # "raw" | "relative" | "normalized"
 ) -> np.ndarray:
     """

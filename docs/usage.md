@@ -12,7 +12,7 @@ p = linkage_probability(
     genetic_distance=2,
     temporal_distance=4,
     intermediate_generations=(0, 1, 2),
-    no_intermediates=10,
+    intermediate_hosts=10,
     num_simulations=10_000,
 )
 print(p)
