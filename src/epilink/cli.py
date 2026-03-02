@@ -10,7 +10,7 @@ import sys
 
 import numpy as np
 
-from .infectiousness_profile import TOIT, MolecularClock
+from .infectiousness_profile import TOIT, InfectiousnessParams, MolecularClock
 from .transmission_linkage_model import linkage_probability, linkage_probability_matrix
 
 
@@ -33,7 +33,15 @@ def _normalize_intermediate_generations(value: tuple[int, ...] | str) -> tuple[i
 
 
 def _build_models(args: argparse.Namespace) -> tuple[TOIT, MolecularClock]:
-    toit = TOIT(rng_seed=args.seed)
+    params = InfectiousnessParams(
+        incubation_shape=args.incubation_shape,
+        incubation_scale=args.incubation_scale,
+        latent_shape=args.latent_shape,
+        symptomatic_rate=args.symptomatic_rate,
+        symptomatic_shape=args.symptomatic_shape,
+        rel_presymptomatic_infectiousness=args.rel_presymptomatic_infectiousness,
+    )
+    toit = TOIT(a=args.a, b=args.b, params=params, rng_seed=args.seed)
     clock = MolecularClock(
         subs_rate=args.subs_rate,
         relax_rate=args.relax_rate,
@@ -71,6 +79,7 @@ def _write_grid_results(
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    default_params = InfectiousnessParams()
     parser.add_argument("--nsims", type=int, default=10000, help="Number of Monte Carlo draws.")
     parser.add_argument(
         "--intermediate-hosts",
@@ -86,6 +95,54 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         help="Comma-separated intermediate generations to include, e.g. '0,1,2'.",
     )
     parser.add_argument("--seed", type=int, default=12345, help="Random seed for simulations.")
+    parser.add_argument(
+        "--a",
+        type=float,
+        default=0.0,
+        help="Lower bound of the TOIT support (days).",
+    )
+    parser.add_argument(
+        "--b",
+        type=float,
+        default=60.0,
+        help="Upper bound of the TOIT support (days).",
+    )
+    parser.add_argument(
+        "--incubation-shape",
+        type=float,
+        default=default_params.incubation_shape,
+        help="Incubation Gamma shape parameter.",
+    )
+    parser.add_argument(
+        "--incubation-scale",
+        type=float,
+        default=default_params.incubation_scale,
+        help="Incubation Gamma scale parameter.",
+    )
+    parser.add_argument(
+        "--latent-shape",
+        type=float,
+        default=default_params.latent_shape,
+        help="Latent Gamma shape parameter.",
+    )
+    parser.add_argument(
+        "--symptomatic-rate",
+        type=float,
+        default=default_params.symptomatic_rate,
+        help="Symptomatic removal rate.",
+    )
+    parser.add_argument(
+        "--symptomatic-shape",
+        type=float,
+        default=default_params.symptomatic_shape,
+        help="Symptomatic Gamma shape parameter.",
+    )
+    parser.add_argument(
+        "--rel-presymptomatic-infectiousness",
+        type=float,
+        default=default_params.rel_presymptomatic_infectiousness,
+        help="Relative presymptomatic infectiousness.",
+    )
     parser.add_argument(
         "--subs-rate", type=float, default=1e-3, help="Substitution rate per site/year."
     )
