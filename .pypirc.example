@@ -1,0 +1,22 @@
+# Twine configuration for easier uploads
+# Place this in your home directory as ~/.pypirc
+#
+# IMPORTANT: Replace YOUR-TOKEN-HERE with your actual tokens
+# Get tokens from:
+#   - TestPyPI: https://test.pypi.org/manage/account/token/
+#   - PyPI: https://pypi.org/manage/account/token/
+
+[distutils]
+index-servers =
+    pypi
+    testpypi
+
+[pypi]
+username = __token__
+password = pypi-YOUR-PYPI-TOKEN-HERE
+
+[testpypi]
+repository = https://test.pypi.org/legacy/
+username = __token__
+password = pypi-YOUR-TESTPYPI-TOKEN-HERE
+
