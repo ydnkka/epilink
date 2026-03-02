@@ -36,7 +36,7 @@ from .infectiousness_profile import TOIT, MolecularClock
 
 NDArrayInt8 = npt.NDArray[np.int8]
 NDArrayUInt64 = npt.NDArray[np.uint64]
-NDArrayFloat32 = npt.NDArray[np.float32]
+NDArrayInt32 = npt.NDArray[np.int32]
 
 
 def populate_epidemic_data(
@@ -200,7 +200,7 @@ class SequencePacker64:
 
                 for k in range(start, end):
                     # Cast to uint64 to keep the bitwise ops in unsigned space.
-                    word |= np.uint64(np.uint64(arr[i, k]) << shift)
+                    word |= np.uint64(arr[i, k]) << np.uint64(shift)
                     shift -= 2
 
                 out[i, b] = word
@@ -209,7 +209,7 @@ class SequencePacker64:
 
     @staticmethod
     @njit(parallel=True, fastmath=True)
-    def hamming64(packed: NDArrayUInt64) -> NDArrayFloat32:
+    def hamming64(packed: NDArrayUInt64) -> NDArrayInt32:
         """
         Compute pairwise Hamming distances for packed sequences.
 
@@ -221,7 +221,7 @@ class SequencePacker64:
         Returns
         -------
         distances : numpy.ndarray
-            Pairwise Hamming distance matrix of shape (N, N).
+            Pairwise Hamming distance matrix of shape (N, N) with dtype int32.
         """
         # Bitmasks for SWAR Hamming distance
         M55 = np.uint64(0x5555555555555555)  # 0101...
@@ -230,7 +230,7 @@ class SequencePacker64:
         M01 = np.uint64(0x0101010101010101)  # accumulator
 
         N, B = packed.shape
-        d = np.zeros((N, N), dtype=np.float32)
+        d = np.zeros((N, N), dtype=np.int32)
 
         for i in prange(N):
             for j in range(i + 1, N):
@@ -315,6 +315,16 @@ class PackedGenomicData:
         self.bases_map: dict[int, str]
         self.packed_u64: NDArrayUInt64
 
+        if not np.issubdtype(int8_matrix.dtype, np.integer):
+            raise TypeError("int8_matrix must be an integer array with values in {0, 1, 2, 3}.")
+        if int8_matrix.size:
+            min_val = int8_matrix.min()
+            max_val = int8_matrix.max()
+            if min_val < 0 or max_val > 3:
+                raise ValueError("int8_matrix contains values outside {0, 1, 2, 3}.")
+        if int8_matrix.dtype != np.int8:
+            int8_matrix = int8_matrix.astype(np.int8, copy=False)
+
         self.n_seqs, L = int8_matrix.shape
         self.original_length = original_length
         self.node_to_idx = node_map
@@ -322,14 +332,14 @@ class PackedGenomicData:
         self.bases_map = base_map
         self.packed_u64 = SequencePacker64.pack_u64(int8_matrix)
 
-    def compute_hamming_distances(self) -> NDArrayFloat32:
+    def compute_hamming_distances(self) -> NDArrayInt32:
         """
         Compute the pairwise Hamming distance matrix.
 
         Returns
         -------
         distances : numpy.ndarray
-            Distance matrix of shape (N, N).
+            Distance matrix of shape (N, N) with dtype int32.
         """
         print(f"Computing 64-bit Hamming distances for {self.n_seqs} sequences...")
         return SequencePacker64.hamming64(self.packed_u64)
