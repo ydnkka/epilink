@@ -10,7 +10,7 @@ def main() -> None:
         clock=clock,
         genetic_distance=2,
         temporal_distance=4,
-        intermediate_generations=(0,),
+        intermediate_generations=0,
         num_simulations=10_000,
     )
     print(f"P(link | g=2, t=4): {p:.4f}")
