@@ -170,7 +170,7 @@ class SequencePacker64:
     # A=0, C=1, G=2, T=3
 
     @staticmethod
-    @njit(parallel=True, fastmath=True)
+    @njit(parallel=True)
     def pack_u64(arr: NDArrayInt8) -> NDArrayUInt64:
         """
         Pack 2-bit nucleotide arrays into 64-bit blocks.
@@ -208,7 +208,7 @@ class SequencePacker64:
         return out
 
     @staticmethod
-    @njit(parallel=True, fastmath=True)
+    @njit(parallel=True)
     def hamming64(packed: NDArrayUInt64) -> NDArrayInt32:
         """
         Compute pairwise Hamming distances for packed sequences.
