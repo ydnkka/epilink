@@ -140,6 +140,7 @@ show_missing = true
 line-length = 100
 target-version = "py39"
 src = ["src"]
+extend-exclude = ["src/epilink/_version.py"]
 
 [tool.ruff.lint]
 select = [

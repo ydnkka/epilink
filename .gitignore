@@ -8,6 +8,7 @@ dist/
 *.egg-info/
 *.egg
 *.whl
+src/epilink/_version.py
 
 # Test and coverage artifacts
 .coverage
