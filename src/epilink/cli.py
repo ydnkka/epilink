@@ -60,7 +60,7 @@ def _write_point_results(
 ) -> None:
     writer = csv.writer(out_stream)
     writer.writerow(["GeneticDistance", "TemporalDistance", "Probability"])
-    for g, t, p in zip(genetic_distances, temporal_distances, probabilities):
+    for g, t, p in zip(genetic_distances, temporal_distances, probabilities, strict=False):
         writer.writerow([g, t, p])
 
 

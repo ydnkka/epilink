@@ -856,7 +856,7 @@ class TestCachingPath:
 
         assert result.shape == (genetic_dist.size,)
         assert np.all((result >= 0.0) & (result <= 1.0))
-        pairs = list(zip(genetic_dist, temporal_dist))
+        pairs = list(zip(genetic_dist, temporal_dist, strict=False))
         for i in range(len(pairs)):
             for j in range(i + 1, len(pairs)):
                 if pairs[i] == pairs[j]:

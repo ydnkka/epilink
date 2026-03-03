@@ -23,6 +23,7 @@ genetic_linkage_probability
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -75,7 +76,7 @@ class Epilink:
     clock_rates: NDArrayFloat
 
     @staticmethod
-    @njit(parallel=True, fastmath=True)
+    @njit(cache=True, parallel=True, fastmath=True)
     def temporal_kernel(
         temporal_distance_ij: np.ndarray,
         diff_incubation_ij: np.ndarray,
@@ -98,20 +99,21 @@ class Epilink:
         evidence : numpy.ndarray
             Temporal evidence for each distance, shape (K,).
         """
-        num_distances = temporal_distance_ij.shape[0]
-        mc_simulations = diff_incubation_ij.shape[0]
-        out = np.empty(num_distances, dtype=np.float64)
-        for i in prange(num_distances):
+        K = temporal_distance_ij.shape[0]
+        N = diff_incubation_ij.shape[0]
+        out = np.empty(K, dtype=np.float64)
+
+        for i in prange(K):
             t = temporal_distance_ij[i]
-            count = 0
-            for j in range(mc_simulations):
-                if abs(t + diff_incubation_ij[j]) <= generation_interval[j]:
-                    count += 1
-            out[i] = count / mc_simulations
+            cnt = 0
+            for j in range(N):
+                if math.fabs(t + diff_incubation_ij[j]) <= generation_interval[j]:
+                    cnt += 1
+            out[i] = cnt / N
         return out
 
     @staticmethod
-    @njit(parallel=True, fastmath=True)
+    @njit(cache=True, parallel=True, fastmath=True)
     def genetic_kernel(
         genetic_distance_ij: np.ndarray,
         clock_rates: np.ndarray,
@@ -152,59 +154,67 @@ class Epilink:
         evidence : numpy.ndarray
             Genetic evidence matrix, shape (K, M+1).
         """
-        num_distances = genetic_distance_ij.shape[0]
-        mc_simulations = generation_time_xi.shape[0]
+        K = genetic_distance_ij.shape[0]
+        N = generation_time_xi.shape[0]
+        M = intermediate_hosts
 
-        out = np.zeros((num_distances, intermediate_hosts + 1), dtype=np.float64)
+        out = np.zeros((K, M + 1), dtype=np.float64)
 
-        # Invariants across m (computed once for efficiency)
+        # Invariants across k,m
         direct_tmrca_expected = sampling_delay_i + sampling_delay_j  # (N,)
         incubation_period_sum = incubation_periods[:, 0] + incubation_periods[:, 1]  # (N,)
 
-        for k in prange(num_distances):
-            observed_snp_distance = int(genetic_distance_ij[k])
-            if observed_snp_distance < 0:
-                # Negative genetic distances are not meaningful; leave zeros.
+        # Precompute 1/(2*clock_rates) for efficiency
+        inv_2_clock = 0.5 / clock_rates  # (N,)
+
+        # Precompute suffix sums of intermediate_generations along axis=1
+        # suffix[j, c] = sum_{u=c..M} intermediate_generations[j, u]
+        suffix = np.empty((N, M + 2), dtype=np.float64)
+        for j in prange(N):
+            suffix[j, M + 1] = 0.0
+            for c in range(M, -1, -1):
+                suffix[j, c] = suffix[j, c + 1] + intermediate_generations[j, c]
+
+        # Main loops
+        for k in prange(K):
+            d = genetic_distance_ij[k]
+            if d < 0:
                 continue
 
-            # M = 0: direct transmission case
-            count = 0
-            for j in range(mc_simulations):
-                tmrca_observed = observed_snp_distance / (2.0 * clock_rates[j])
-                tmrca_expected = direct_tmrca_expected[j]
-                if abs(tmrca_observed - tmrca_expected) <= intermediate_generations[j, 0]:
-                    count += 1
-            out[k, 0] = count / mc_simulations
+            # M = 0
+            cnt0 = 0
+            for j in range(N):
+                tmrca_obs = d * inv_2_clock[j]
+                tmrca_exp = direct_tmrca_expected[j]
+                if math.fabs(tmrca_obs - tmrca_exp) <= intermediate_generations[j, 0]:
+                    cnt0 += 1
+            out[k, 0] = cnt0 / N
 
-            # M > 0: scenarios with intermediate hosts
-            for m in range(1, intermediate_hosts + 1):
-                idx = intermediate_hosts - (m - 1)  # Index for summing generation intervals
-                count_m = 0
+            # M > 0
+            for m in range(1, M + 1):
+                idx = M - (m - 1)
 
-                for j in range(mc_simulations):
-                    tmrca_observed = observed_snp_distance / (2.0 * clock_rates[j])
+                cntm = 0
+                for j in range(N):
+                    tmrca_obs = d * inv_2_clock[j]
 
-                    # Path 1: Successive transmission
-                    sum_gi_successive = 0
-                    for col in range(idx, intermediate_hosts + 1):
-                        sum_gi_successive += intermediate_generations[j, col]
-                    tmrca_successive = direct_tmrca_expected[j] + sum_gi_successive
+                    # Path 1: successive transmission
+                    sum_successive = suffix[j, idx]  # idx..M
+                    tmrca_successive = direct_tmrca_expected[j] + sum_successive
 
-                    # Path 2: Common ancestor
-                    sum_gi_common = 0
-                    for col in range(idx, intermediate_hosts):
-                        sum_gi_common += intermediate_generations[j, col]
-                    tmrca_common = diff_infection_ij[j] + incubation_period_sum[j] + sum_gi_common
+                    # Path 2: common ancestor
+                    sum_common = suffix[j, idx] - intermediate_generations[j, M]  # idx..M-1
+                    tmrca_common = diff_infection_ij[j] + incubation_period_sum[j] + sum_common
 
-                    # Accept if either path's expected TMRCA matches observed (within tolerance)
                     match_successive = (
-                        abs(tmrca_observed - tmrca_successive) <= intermediate_generations[j, 0]
+                        math.fabs(tmrca_obs - tmrca_successive) <= intermediate_generations[j, 0]
                     )
-                    match_common = abs(tmrca_observed - tmrca_common) <= generation_time_xi[j]
-                    if match_successive or match_common:  # Inclusion-exclusion on events
-                        count_m += 1
+                    match_common = math.fabs(tmrca_obs - tmrca_common) <= generation_time_xi[j]
 
-                out[k, m] = count_m / float(mc_simulations)
+                    if match_successive or match_common:
+                        cntm += 1
+
+                out[k, m] = cntm / N
 
         return out
 
@@ -328,8 +338,8 @@ def linkage_probability(
     genetic_linkage_probability : Genetic evidence only.
     """
     # 1) Prepare inputs as 1D arrays of same length
-    genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
-    temporal_distance_arr = np.atleast_1d(np.asarray(temporal_distance, dtype=float))
+    genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=np.int64))
+    temporal_distance_arr = np.atleast_1d(np.asarray(temporal_distance, dtype=np.int64))
     if genetic_distance_arr.size != temporal_distance_arr.size:
         raise ValueError(
             "genetic_distance and temporal_distance must have the same length, "
@@ -479,8 +489,8 @@ def linkage_probability_matrix(
     --------
     linkage_probability : Compute for single or paired distances.
     """
-    genetic_distances_arr = np.asarray(genetic_distances, dtype=float)
-    temporal_distances_arr = np.asarray(temporal_distances, dtype=float)
+    genetic_distances_arr = np.asarray(genetic_distances, dtype=np.int64)
+    temporal_distances_arr = np.asarray(temporal_distances, dtype=np.int64)
 
     g_grid, t_grid = np.meshgrid(genetic_distances_arr, temporal_distances_arr, indexing="ij")
     flat_g = g_grid.ravel()
@@ -527,7 +537,7 @@ def temporal_linkage_probability(
     This is the temporal component only; combine with genetic evidence via
     :func:`linkage_probability`.
     """
-    td = np.atleast_1d(np.asarray(temporal_distance, dtype=float))  # ensure 1D array
+    td = np.atleast_1d(np.asarray(temporal_distance, dtype=np.int64))  # ensure 1D array
 
     inc_period = toit.sample_incubation(size=(num_simulations, 2))  # (N, 2)
     diff_inc = inc_period[:, 0] - inc_period[:, 1]  # (N,)
@@ -587,7 +597,7 @@ def genetic_linkage_probability(
         If ``intermediate_generations`` contains values outside
         ``[0, intermediate_hosts]`` or if ``kind`` is invalid.
     """
-    genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=float))
+    genetic_distance_arr = np.atleast_1d(np.asarray(genetic_distance, dtype=np.int64))
 
     sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
