@@ -21,6 +21,8 @@ from .transmission_linkage_model import (
     temporal_linkage_probability,
 )
 
+__version__ = "0.1.0"
+
 __all__ = [
     "InfectiousnessParams",
     "MolecularClock",

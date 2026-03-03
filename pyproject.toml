@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling>=1.22", "hatch-vcs>=0.4"]
+requires = ["hatchling>=1.22"]
 build-backend = "hatchling.build"
 
 [project]
 name = "epilink"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }
@@ -30,36 +30,25 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    "numpy>=1.22,<2.0",
-    "scipy>=1.9,<2.0",
-    "numba>=0.58,<0.61",
-    "llvmlite>=0.41,<0.44",
+    "numpy>=2.0,<2.5",
+    "scipy>=1.14,<2.0",
+    "numba>=0.64,<0.65",
+    "llvmlite>=0.46,<0.47",
     "networkx>=3.0,<4.0",
     "pandas>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.3",
-    "pytest-mock>=3.10",
-    "pytest-cov>=4.0",
-]
-type-check = [
-    "mypy>=1.4",
-]
-lint = [
-    "ruff>=0.5",
-    "black>=24.1",
-]
 dev = [
     "pytest>=7.3",
     "pytest-mock>=3.10",
@@ -75,7 +64,7 @@ docs = [
     "mkdocstrings[python]>=0.24",
 ]
 all = [
-    "epilink[test,type-check,lint,docs]",
+    "epilink[dev,docs]",
 ]
 
 [project.urls]
@@ -102,13 +91,9 @@ include = [
     "LICENSE",
     "CITATION.cff",
     "PUBLISHING_GUIDE.md",
+    "VERSION_MANAGEMENT.md",
 ]
 
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.build.hooks.vcs]
-version-file = "src/epilink/_version.py"
 
 [tool.coverage.run]
 branch = true
@@ -138,9 +123,8 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 src = ["src"]
-extend-exclude = ["src/epilink/_version.py"]
 
 [tool.ruff.lint]
 select = [
@@ -160,7 +144,7 @@ known-first-party = ["epilink"]
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312", "py313", "py314"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -177,7 +161,7 @@ extend-exclude = '''
 '''
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = false
 warn_unused_ignores = true
 ignore_missing_imports = true
