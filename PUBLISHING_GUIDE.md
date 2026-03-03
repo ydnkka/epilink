@@ -96,10 +96,20 @@ Documentation = "https://mypackage.readthedocs.io"
 
 **Version Strategies:**
 
-- **Manual versioning:** Set explicitly in `pyproject.toml`: `version = "1.0.0"`
-- **Dynamic versioning (recommended):** Use `hatch-vcs` to auto-detect from git tags
+- **Static versioning (recommended):** Set explicitly in `pyproject.toml`: `version = "1.0.0"`
   ```toml
   [project]
+  name = "my-package"
+  version = "1.0.0"
+  ```
+  
+- **Dynamic versioning (optional):** Use `hatch-vcs` to auto-detect from git tags
+  ```toml
+  [build-system]
+  requires = ["hatchling>=1.22", "hatch-vcs>=0.4"]
+  
+  [project]
+  name = "my-package"
   dynamic = ["version"]
 
   [tool.hatch.version]
@@ -109,6 +119,8 @@ Documentation = "https://mypackage.readthedocs.io"
   version-file = "src/my_package/_version.py"
   ```
   Tags can be `v1.2.3` or `1.2.3`.
+
+**Note:** This project (epilink) uses **static versioning**. Update the version in `pyproject.toml` before each release.
 
 ### 3. Create Required Files
 
@@ -203,8 +215,6 @@ jobs:
       url: https://test.pypi.org/p/your-project
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -346,17 +356,27 @@ version = MAJOR.MINOR.PATCH
 
 ### Publishing with GitHub Actions
 
+**Important for epilink (static versioning):** When bumping the version, you must update it in **two places**:
+
 1. **Update version in `pyproject.toml`:**
 
 ```toml
-version = "1.0.0"
+[project]
+name = "epilink"
+version = "1.0.0"  # Update this to your new version
 ```
 
-If you are using dynamic versioning, create a git tag instead (for example `v1.0.0`).
+2. **Update version in `src/epilink/__init__.py`:**
 
-2. **Ensure Trusted Publisher is configured in PyPI for this repo, workflow file, and environment.**
+```python
+__version__ = "1.0.0"  # Must match pyproject.toml
+```
 
-3. **Create `.github/workflows/release.yml`:**
+Commit both changes to your repository.
+
+3. **Ensure Trusted Publisher is configured in PyPI for this repo, workflow file, and environment.**
+
+4. **Create `.github/workflows/release.yml`:**
 
 ```yaml
 name: Release to PyPI
@@ -378,8 +398,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - uses: actions/setup-python@v5
         with:
@@ -396,9 +414,11 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
 ```
 
-4. **Trigger Release:**
+5. **Trigger Release:**
+   - Commit the version change to your repository
+   - Push to GitHub
    - Go to **Releases** → **Create a new release**
-   - Tag: `v1.0.0`
+   - Tag: `v1.0.0` (should match the version in pyproject.toml)
    - Title: `Release 1.0.0`
    - Click **Publish release**
    - Workflow runs automatically
