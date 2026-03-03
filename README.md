@@ -15,7 +15,7 @@ Estimate the probability that two cases are epidemiologically linked from their 
 
 ## Installation
 
-From PyPI (yet to be released):
+From PyPI:
 
 ```bash
 pip install epilink
