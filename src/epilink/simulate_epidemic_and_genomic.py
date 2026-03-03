@@ -94,7 +94,7 @@ def populate_epidemic_data(
             # Expected value of a gamma distribution
             yE = toit.params.latent_shape * toit.params.incubation_scale
             yP = toit.params.presymptomatic_shape * toit.params.incubation_scale
-            test_delay = 0
+            test_delay = 0.0
         else:
             # Stochastic mode
             yE = toit.sample_latent().item()
@@ -170,7 +170,7 @@ class SequencePacker64:
     # A=0, C=1, G=2, T=3
 
     @staticmethod
-    @njit(parallel=True)
+    @njit(parallel=True, cache=True, nogil=True)
     def pack_u64(arr: NDArrayInt8) -> NDArrayUInt64:
         """
         Pack 2-bit nucleotide arrays into 64-bit blocks.
@@ -208,7 +208,7 @@ class SequencePacker64:
         return out
 
     @staticmethod
-    @njit(parallel=True)
+    @njit(parallel=True, cache=True, nogil=True)
     def hamming64(packed: NDArrayUInt64) -> NDArrayInt32:
         """
         Compute pairwise Hamming distances for packed sequences.
@@ -221,40 +221,43 @@ class SequencePacker64:
         Returns
         -------
         distances : numpy.ndarray
-            Pairwise Hamming distance matrix of shape (N, N) with dtype int32.
+            Pairwise Hamming distance matrix of shape (N, N) with dtype int64.
         """
-        # Bitmasks for SWAR Hamming distance
-        M55 = np.uint64(0x5555555555555555)  # 0101...
-        M33 = np.uint64(0x3333333333333333)  # 0011...
-        M0F = np.uint64(0x0F0F0F0F0F0F0F0F)  # 00001111...
-        M01 = np.uint64(0x0101010101010101)  # accumulator
+        # Bitmasks for SWAR popcount
+        M55 = np.uint64(0x5555555555555555)
+        M33 = np.uint64(0x3333333333333333)
+        M0F = np.uint64(0x0F0F0F0F0F0F0F0F)
+        M01 = np.uint64(0x0101010101010101)
 
         N, B = packed.shape
-        d = np.zeros((N, N), dtype=np.int32)
+        d = np.empty((N, N), dtype=np.int32)
+
+        # diagonal
+        for i in prange(N):
+            d[i, i] = 0
 
         for i in prange(N):
+            pi = packed[i]  # row view (Numba-friendly)
             for j in range(i + 1, N):
-                total = 0
+                pj = packed[j]
+                total = 0  # int64 in nopython
+
                 for k in range(B):
-                    # Step 1: XOR identifies differences
-                    x = packed[i, k] ^ packed[j, k]
+                    x = pi[k] ^ pj[k]
 
-                    # Step 2: Vertical collapse (2-bit diff -> 1-bit count)
-                    # If bits are 00 or 11 -> 0. If 01 or 10 -> 1.
-                    # This maps nucleotide diffs to binary 1s.
-                    diff = (x & M55) | ((x >> np.uint64(1)) & M55)
+                    # collapse each 2-bit group to 1 bit: 1 if group != 0
+                    diff = (x | (x >> 1)) & M55
 
-                    # Step 3: Standard 64-bit Population Count (SWAR)
+                    # SWAR popcount on diff
                     c = diff
-                    c = (c & M33) + ((c >> np.uint64(2)) & M33)
-                    c = (c & M0F) + ((c >> np.uint64(4)) & M0F)
-                    # Multiplication acts as a parallel adder for bytes
-                    c = (c * M01) >> np.uint64(56)
+                    c = (c & M33) + ((c >> 2) & M33)
+                    c = (c & M0F) + ((c >> 4) & M0F)
+                    c = (c * M01) >> 56
 
-                    total += int(c)
+                    total += c
 
-                d[i, j] = total
-                d[j, i] = total
+                d[i, j] = np.int64(total)
+                d[j, i] = np.int64(total)
 
         return d
 
@@ -322,8 +325,8 @@ class PackedGenomicData:
             max_val = int8_matrix.max()
             if min_val < 0 or max_val > 3:
                 raise ValueError("int8_matrix contains values outside {0, 1, 2, 3}.")
-        if int8_matrix.dtype != np.int8:
-            int8_matrix = int8_matrix.astype(np.int8, copy=False)
+        if int8_matrix.dtype != np.int8 or not int8_matrix.flags["C_CONTIGUOUS"]:
+            int8_matrix = np.ascontiguousarray(int8_matrix, dtype=np.int8)
 
         self.n_seqs, L = int8_matrix.shape
         self.original_length = original_length
@@ -342,7 +345,12 @@ class PackedGenomicData:
             Distance matrix of shape (N, N) with dtype int32.
         """
         print(f"Computing 64-bit Hamming distances for {self.n_seqs} sequences...")
-        return SequencePacker64.hamming64(self.packed_u64)
+        packed = (
+            self.packed_u64
+            if self.packed_u64.flags["C_CONTIGUOUS"]
+            else np.ascontiguousarray(self.packed_u64)
+        )
+        return SequencePacker64.hamming64(packed)
 
     def write_fasta(self, filepath: str) -> None:
         """
