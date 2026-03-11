@@ -4,6 +4,8 @@
 
 Estimate the probability that two cases are epidemiologically linked from their temporal and genetic distances. Implements a mechanistic SARS‑CoV‑2 infectiousness model (E/P/I) with optional Numba acceleration. Usable from Python or the command line.
 
+By default, linkage estimates follow the appendix definition of recent transmission and use only `M=0` genetic compatibility, i.e. `intermediate_generations=(0,)`.
+
 ## Features
 
 - Estimate P(link | genetic distance g, temporal gap t)
@@ -116,7 +118,7 @@ epilink grid --g-start 0 --g-stop 5 --g-step 1 \
 ```
 
 Commonly used options (see `--help` for full list):
-- `-m, --intermediate-generations` e.g. `"0,1,2"`
+- `-m, --intermediate-generations` default `"0"`; e.g. `"0,1,2"` to include longer chains
 - `--relax-rate`
 - `--subs-rate 1e-3`
 - `--subs-rate-sigma 0.33`

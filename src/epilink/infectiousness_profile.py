@@ -37,6 +37,7 @@ the importance of continued contact tracing. Elife, 10, e65534.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -46,7 +47,7 @@ from scipy import stats
 # NumPy 2.0 deprecates np.trapz in favour of np.trapezoid.
 _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
 
-ArrayLike = npt.ArrayLike
+ArrayLike: TypeAlias = npt.ArrayLike
 
 
 @dataclass(frozen=True)
