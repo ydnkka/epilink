@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import textwrap
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TypeAlias
 
 import networkx as nx
 import numpy as np
@@ -34,9 +34,9 @@ from scipy.stats import gamma, poisson
 
 from .infectiousness_profile import TOIT, MolecularClock
 
-NDArrayInt8 = npt.NDArray[np.int8]
-NDArrayUInt64 = npt.NDArray[np.uint64]
-NDArrayInt32 = npt.NDArray[np.int32]
+NDArrayInt8: TypeAlias = npt.NDArray[np.int8]
+NDArrayUInt64: TypeAlias = npt.NDArray[np.uint64]
+NDArrayInt32: TypeAlias = npt.NDArray[np.int32]
 
 
 def populate_epidemic_data(

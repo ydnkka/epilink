@@ -29,7 +29,6 @@ def test_epilink_run_simulations_shapes():
     assert sim.sampling_delay_i.shape == (50,)
     assert sim.sampling_delay_j.shape == (50,)
     assert sim.diff_incubation_ij.shape == (50,)
-    assert sim.generation_time_xi.shape == (50,)
     assert sim.diff_infection_ij.shape == (50,)
     assert sim.clock_rates.shape == (50,)
     assert np.all(sim.sampling_delay_i >= 0.0)
@@ -64,7 +63,6 @@ def test_genetic_kernel_zero_distance_and_negative():
     intermediate_generations = np.zeros((1, 3))
     diff_infection_ij = np.array([0.0])
     incubation_periods = np.zeros((1, 2))
-    generation_time_xi = np.array([0.0])
 
     out = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance,
@@ -75,11 +73,10 @@ def test_genetic_kernel_zero_distance_and_negative():
         intermediate_hosts=2,
         diff_infection_ij=diff_infection_ij,
         incubation_periods=incubation_periods,
-        generation_time_xi=generation_time_xi,
     )
 
     assert out.shape == (2, 3)
-    np.testing.assert_allclose(out[0], np.ones(3), rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(out[0], np.full(3, 2.0), rtol=0.0, atol=0.0)
     np.testing.assert_allclose(out[1], np.zeros(3), rtol=0.0, atol=0.0)
 
 
@@ -91,7 +88,6 @@ def test_genetic_kernel_pyfunc_simple_case():
     intermediate_generations = np.zeros((1, 2))
     diff_infection_ij = np.array([0.0])
     incubation_periods = np.zeros((1, 2))
-    generation_time_xi = np.array([0.0])
 
     out = Epilink.genetic_kernel.py_func(
         genetic_distance_ij=genetic_distance,
@@ -102,10 +98,9 @@ def test_genetic_kernel_pyfunc_simple_case():
         intermediate_hosts=1,
         diff_infection_ij=diff_infection_ij,
         incubation_periods=incubation_periods,
-        generation_time_xi=generation_time_xi,
     )
 
-    np.testing.assert_allclose(out, np.array([[1.0, 1.0]]), rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(out, np.array([[2.0, 2.0]]), rtol=0.0, atol=0.0)
 
 
 def test_genetic_kernel_with_intermediates():
@@ -117,7 +112,6 @@ def test_genetic_kernel_with_intermediates():
     intermediate_generations = np.array([[2.0, 3.0, 4.0], [2.5, 3.5, 4.5]])
     diff_infection_ij = np.array([1.0, 1.2])
     incubation_periods = np.array([[5.0, 5.0], [5.5, 5.5]])
-    generation_time_xi = np.array([3.0, 3.5])
 
     out = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance,
@@ -128,11 +122,11 @@ def test_genetic_kernel_with_intermediates():
         intermediate_hosts=2,
         diff_infection_ij=diff_infection_ij,
         incubation_periods=incubation_periods,
-        generation_time_xi=generation_time_xi,
     )
 
     assert out.shape == (3, 3)
-    assert np.all((out >= 0.0) & (out <= 1.0))
+    assert np.all(np.isfinite(out))
+    assert np.all((out >= 0.0) & (out <= 2.0))
 
 
 def test_linkage_probability_scalar_and_array():
@@ -232,7 +226,8 @@ def test_genetic_linkage_probability_kinds_and_errors():
         kind="raw",
     )
     assert out_raw.shape == (2,)
-    assert np.all((out_raw >= 0.0) & (out_raw <= 1.0))
+    assert np.all(np.isfinite(out_raw))
+    assert np.all(out_raw >= 0.0)
 
     out_relative = genetic_linkage_probability(
         toit=toit,
@@ -266,6 +261,8 @@ def test_genetic_linkage_probability_kinds_and_errors():
         kind="raw",
     )
     assert out_all.shape == (2, 3)
+    assert np.all(np.isfinite(out_all))
+    assert np.all((out_all >= 0.0) & (out_all <= 2.0))
 
     with pytest.raises(ValueError, match="intermediate_generations"):
         genetic_linkage_probability(
@@ -328,7 +325,6 @@ def test_genetic_kernel_multiple_intermediates():
     intermediate_generations = np.array([[3.0, 4.0, 5.0], [3.5, 4.5, 5.5], [3.2, 4.2, 5.2]])
     diff_infection_ij = np.array([1.0, 1.5, 1.2])
     incubation_periods = np.array([[5.0, 5.0], [6.0, 6.0], [5.5, 5.5]])
-    generation_time_xi = np.array([4.0, 4.5, 4.2])
 
     out = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance,
@@ -339,13 +335,13 @@ def test_genetic_kernel_multiple_intermediates():
         intermediate_hosts=2,
         diff_infection_ij=diff_infection_ij,
         incubation_periods=incubation_periods,
-        generation_time_xi=generation_time_xi,
     )
 
     # Shape should be (num_distances, num_intermediates + 1)
     assert out.shape == (4, 3)
     # All probabilities should be valid
-    assert np.all((out >= 0.0) & (out <= 1.0))
+    assert np.all(np.isfinite(out))
+    assert np.all((out >= 0.0) & (out <= 2.0))
 
 
 def test_genetic_kernel_m_greater_than_zero():
@@ -358,7 +354,6 @@ def test_genetic_kernel_m_greater_than_zero():
     intermediate_generations = np.array([[3.0, 4.0, 5.0, 6.0], [3.5, 4.5, 5.5, 6.5]])
     diff_infection_ij = np.array([2.0, 2.5])
     incubation_periods = np.array([[5.0, 5.0], [5.5, 5.5]])
-    generation_time_xi = np.array([4.0, 4.5])
 
     out = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance,
@@ -369,12 +364,12 @@ def test_genetic_kernel_m_greater_than_zero():
         intermediate_hosts=3,  # M=3, so we test m=1, 2, 3
         diff_infection_ij=diff_infection_ij,
         incubation_periods=incubation_periods,
-        generation_time_xi=generation_time_xi,
     )
 
     # Shape: (1 distance, 4 scenarios: m=0,1,2,3)
     assert out.shape == (1, 4)
-    assert np.all((out >= 0.0) & (out <= 1.0))
+    assert np.all(np.isfinite(out))
+    assert np.all((out >= 0.0) & (out <= 2.0))
 
 
 def test_linkage_probability_various_intermediate_generations():
@@ -428,15 +423,12 @@ def test_temporal_linkage_probability_scalar_input():
 
 def test_genetic_linkage_probability_all_kinds_with_none():
     """Test genetic_linkage_probability with intermediate_generations=None for all kinds."""
-    toit = TOIT(rng_seed=150)
-    clock = MolecularClock(relax_rate=False, rng_seed=151)
-
     genetic_dist = np.array([0, 5, 10])
 
     # Test 'raw' with None
     result_raw = genetic_linkage_probability(
-        toit=toit,
-        clock=clock,
+        toit=TOIT(rng_seed=150),
+        clock=MolecularClock(relax_rate=False, rng_seed=151),
         genetic_distance=genetic_dist,
         num_simulations=50,
         intermediate_hosts=2,
@@ -444,12 +436,13 @@ def test_genetic_linkage_probability_all_kinds_with_none():
         kind="raw",
     )
     assert result_raw.shape == (3, 3)  # 3 distances, 3 scenarios (m=0,1,2)
-    assert np.all((result_raw >= 0.0) & (result_raw <= 1.0))
+    assert np.all(np.isfinite(result_raw))
+    assert np.all((result_raw >= 0.0) & (result_raw <= 2.0))
 
     # Test 'relative' with None
     result_relative = genetic_linkage_probability(
-        toit=toit,
-        clock=clock,
+        toit=TOIT(rng_seed=150),
+        clock=MolecularClock(relax_rate=False, rng_seed=151),
         genetic_distance=genetic_dist,
         num_simulations=50,
         intermediate_hosts=2,
@@ -458,11 +451,13 @@ def test_genetic_linkage_probability_all_kinds_with_none():
     )
     assert result_relative.shape == (3, 3)
     assert np.all((result_relative >= 0.0) & (result_relative <= 1.0))
+    expected_row_sums = np.where(result_raw.sum(axis=1) > 0.0, 1.0, 0.0)
+    np.testing.assert_allclose(result_relative.sum(axis=1), expected_row_sums, atol=1e-10)
 
     # Test 'normalized' with None
     result_normalized = genetic_linkage_probability(
-        toit=toit,
-        clock=clock,
+        toit=TOIT(rng_seed=150),
+        clock=MolecularClock(relax_rate=False, rng_seed=151),
         genetic_distance=genetic_dist,
         num_simulations=50,
         intermediate_hosts=2,
@@ -471,11 +466,40 @@ def test_genetic_linkage_probability_all_kinds_with_none():
     )
     assert result_normalized.shape == (3, 3)
     assert np.all((result_normalized >= 0.0) & (result_normalized <= 1.0))
-    # Each row should sum to ~1.0 for normalized (or 0.0 if all zeros)
+    np.testing.assert_allclose(result_relative, result_normalized, atol=1e-10)
+    # Each row should sum to ~1.0 when there is support, otherwise remain all zeros.
     row_sums = result_normalized.sum(axis=1)
-    # Check that each row either sums to ~1.0 or is all zeros
-    for row_sum in row_sums:
-        assert np.abs(row_sum - 1.0) < 0.01 or np.abs(row_sum) < 1e-10
+    np.testing.assert_allclose(row_sums, expected_row_sums, atol=1e-10)
+
+
+def test_scalar_intermediate_generation_selection():
+    toit = TOIT(rng_seed=152)
+    clock = MolecularClock(relax_rate=False, rng_seed=153)
+
+    p_link = linkage_probability(
+        toit=toit,
+        clock=clock,
+        genetic_distance=2,
+        temporal_distance=3,
+        intermediate_generations=0,
+        intermediate_hosts=2,
+        num_simulations=50,
+        cache_unique_distances=False,
+    )
+    assert isinstance(p_link, float)
+    assert 0.0 <= p_link <= 1.0
+
+    p_genetic = genetic_linkage_probability(
+        toit=toit,
+        clock=clock,
+        genetic_distance=[2],
+        num_simulations=50,
+        intermediate_hosts=2,
+        intermediate_generations=0,
+        kind="normalized",
+    )
+    assert p_genetic.shape == (1,)
+    assert 0.0 <= p_genetic[0] <= 1.0
 
 
 def test_linkage_probability_single_element_no_cache():
@@ -1129,7 +1153,10 @@ class TestComplexScenarios:
                 kind=kind,
             )
             assert result.shape == (3,)
-            assert np.all((result >= 0.0) & (result <= 1.0))
+            assert np.all(np.isfinite(result))
+            assert np.all(result >= 0.0)
+            if kind != "raw":
+                assert np.all(result <= 1.0)
 
     def test_linkage_probability_matrix_with_zeros(self):
         """Test matrix computation with zero distances included."""

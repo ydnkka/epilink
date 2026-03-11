@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -32,8 +33,8 @@ from numba import njit, prange
 
 from .infectiousness_profile import TOIT, MolecularClock
 
-ArrayLike = npt.ArrayLike
-NDArrayFloat = npt.NDArray[np.float64]
+ArrayLike: TypeAlias = npt.ArrayLike
+NDArrayFloat: TypeAlias = npt.NDArray[np.float64]
 
 
 # =============================================================================
@@ -58,10 +59,8 @@ class Epilink:
         Time from transmission to sampling for case j, shape (N,).
     diff_incubation_ij : numpy.ndarray
         Incubation period difference (i - j), shape (N,).
-    generation_time_xi : numpy.ndarray
-        Time from common source X to case i, shape (N,).
     diff_infection_ij : numpy.ndarray
-        Absolute difference in exposure dates, shape (N,).
+        Absolute difference in TOIT draws, shape (N,).
     clock_rates : numpy.ndarray
         Substitution rates (mutations/day), shape (N,).
     """
@@ -71,7 +70,6 @@ class Epilink:
     sampling_delay_i: NDArrayFloat
     sampling_delay_j: NDArrayFloat
     diff_incubation_ij: NDArrayFloat
-    generation_time_xi: NDArrayFloat
     diff_infection_ij: NDArrayFloat
     clock_rates: NDArrayFloat
 
@@ -123,7 +121,6 @@ class Epilink:
         intermediate_hosts: int,
         diff_infection_ij: np.ndarray,
         incubation_periods: np.ndarray,
-        generation_time_xi: np.ndarray,
     ) -> np.ndarray:
         """
         Estimate genetic evidence across intermediate scenarios.
@@ -143,19 +140,20 @@ class Epilink:
         intermediate_hosts : int
             Maximum number of intermediate hosts (M).
         diff_infection_ij : numpy.ndarray
-            Differences in exposure dates, shape (N,).
+            Absolute TOIT differences ``Δy_toit``, shape (N,).
         incubation_periods : numpy.ndarray
             Incubation periods for two cases, shape (N, 2).
-        generation_time_xi : numpy.ndarray
-            Time from common source X to case i, shape (N,).
 
         Returns
         -------
         evidence : numpy.ndarray
-            Genetic evidence matrix, shape (K, M+1).
+            Raw compatibility weights by total intermediary count, shape (K, M+1)
+            ``(K, M+1)``. Column 0 stores
+            ``f(Hdir | d_obs) + f(Hcs_0 | d_obs)``, and columns ``m>=1`` store
+            ``f(Hchain_m | d_obs) + f(Hcs_m | d_obs)``.
         """
         K = genetic_distance_ij.shape[0]
-        N = generation_time_xi.shape[0]
+        N = clock_rates.shape[0]
         M = intermediate_hosts
 
         out = np.zeros((K, M + 1), dtype=np.float64)
@@ -182,39 +180,40 @@ class Epilink:
                 continue
 
             # M = 0
-            cnt0 = 0
+            dir0 = 0
+            common_source0 = 0
             for j in range(N):
                 tmrca_obs = d * inv_2_clock[j]
-                tmrca_exp = direct_tmrca_expected[j]
-                if math.fabs(tmrca_obs - tmrca_exp) <= intermediate_generations[j, 0]:
-                    cnt0 += 1
-            out[k, 0] = cnt0 / N
+                tmrca_dir = direct_tmrca_expected[j]
+                tmrca_cs = diff_infection_ij[j] + incubation_period_sum[j]
+                if math.fabs(tmrca_obs - tmrca_dir) <= intermediate_generations[j, 0]:
+                    dir0 += 1
+                if math.fabs(tmrca_obs - tmrca_cs) <= intermediate_generations[j, 0]:
+                    common_source0 += 1
+            out[k, 0] = (dir0 / N) + (common_source0 / N)
 
             # M > 0
             for m in range(1, M + 1):
                 idx = M - (m - 1)
 
-                cntm = 0
+                chain = 0
+                common_source = 0
                 for j in range(N):
                     tmrca_obs = d * inv_2_clock[j]
 
                     # Path 1: successive transmission
-                    sum_successive = suffix[j, idx]  # idx..M
-                    tmrca_successive = direct_tmrca_expected[j] + sum_successive
+                    tmrca_chain = direct_tmrca_expected[j] + suffix[j, idx]  # idx..M
 
                     # Path 2: common ancestor
-                    sum_common = suffix[j, idx] - intermediate_generations[j, M]  # idx..M-1
-                    tmrca_common = diff_infection_ij[j] + incubation_period_sum[j] + sum_common
+                    tmrca_cs = diff_infection_ij[j] + incubation_period_sum[j] + suffix[j, idx]
 
-                    match_successive = (
-                        math.fabs(tmrca_obs - tmrca_successive) <= intermediate_generations[j, 0]
-                    )
-                    match_common = math.fabs(tmrca_obs - tmrca_common) <= generation_time_xi[j]
+                    if math.fabs(tmrca_obs - tmrca_chain) <= intermediate_generations[j, 0]:
+                        chain += 1
 
-                    if match_successive or match_common:
-                        cntm += 1
+                    if math.fabs(tmrca_obs - tmrca_cs) <= intermediate_generations[j, 0]:
+                        common_source += 1
 
-                out[k, m] = cntm / N
+                out[k, m] = (chain / N) + (common_source / N)
 
         return out
 
@@ -251,7 +250,6 @@ class Epilink:
         inc_period = toit.sample_incubation(size=(N, 2))  # (N, 2)
         gen_interval = toit.generation_time(size=(N, M + 1))  # (N, M+1)
         toit_values = toit.rvs(size=(N, 2))  # (N, 2)
-        latent_period = toit.sample_latent(size=N)  # (N,)
         clock_rates = clock.sample_clock_rate_per_day(size=N)  # (N,)
 
         return cls(
@@ -260,7 +258,6 @@ class Epilink:
             sampling_delay_i=np.abs(gen_interval[:, 0] - inc_period[:, 0]),
             sampling_delay_j=inc_period[:, 1],
             diff_incubation_ij=inc_period[:, 0] - inc_period[:, 1],
-            generation_time_xi=latent_period + np.minimum(toit_values[:, 0], toit_values[:, 1]),
             diff_infection_ij=np.abs(toit_values[:, 1] - toit_values[:, 0]),
             clock_rates=clock_rates,
         )
@@ -276,6 +273,36 @@ _ensure_pyfunc(Epilink.temporal_kernel)
 _ensure_pyfunc(Epilink.genetic_kernel)
 
 
+def _normalize_genetic_scores(scores: NDArrayFloat) -> NDArrayFloat:
+    """
+    Normalize raw compatibility weights over total intermediary count.
+
+    The genetic kernel returns Monte Carlo compatibility scores aggregated by
+    total intermediary count M:
+
+    - column 0: ``f(Hdir | d_obs) + f(Hcs_0 | d_obs)``
+    - column m>=1: ``f(Hchain_m | d_obs) + f(Hcs_m | d_obs)``
+
+    These raw scores are normalized by their row-wise sum.
+    """
+    totals = scores.sum(axis=1, keepdims=True)
+    return np.divide(scores, totals, out=np.zeros_like(scores), where=totals > 0.0)
+
+
+def _coerce_intermediate_generations(
+    intermediate_generations: int | tuple[int, ...] | list[int] | np.ndarray,
+    intermediate_hosts: int,
+) -> np.ndarray:
+    """Coerce one or more selected intermediary counts to a validated 1D array."""
+    cols = np.atleast_1d(np.asarray(intermediate_generations, dtype=np.int64))
+    if cols.size == 0 or cols.min() < 0 or cols.max() > intermediate_hosts:
+        raise ValueError(
+            f"intermediate_generations must be within [0, {intermediate_hosts}], "
+            f"got {intermediate_generations}.",
+        )
+    return cols
+
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -287,7 +314,7 @@ def linkage_probability(
     genetic_distance: ArrayLike,
     temporal_distance: ArrayLike,
     *,
-    intermediate_generations: tuple[int, ...] = (0, 1),
+    intermediate_generations: tuple[int, ...] = (0,),
     intermediate_hosts: int = 10,
     num_simulations: int = 10000,
     cache_unique_distances: bool = True,
@@ -306,7 +333,7 @@ def linkage_probability(
     temporal_distance : array_like
         Observed temporal distance(s) in days. Must have the same length as
         ``genetic_distance`` after coercion to 1D arrays.
-    intermediate_generations : tuple of int, default=(0, 1)
+    intermediate_generations : tuple of int, default=(0,)
         Which intermediate scenario counts to include.
     intermediate_hosts : int, default=10
         Maximum number of intermediate hosts (M) considered in simulation.
@@ -371,8 +398,8 @@ def linkage_probability(
             generation_interval=sim.generation_interval[:, 0],
         )  # shape (U,)
 
-        # Genetic evidence for U pairs
-        p_genetic_u = Epilink.genetic_kernel(
+        # Genetic evidence for U pairs as raw compatibility weights over M.
+        genetic_scores_u = Epilink.genetic_kernel(
             genetic_distance_ij=g_u,
             clock_rates=sim.clock_rates,
             sampling_delay_i=sim.sampling_delay_i,
@@ -381,23 +408,12 @@ def linkage_probability(
             intermediate_hosts=intermediate_hosts,
             diff_infection_ij=sim.diff_infection_ij,
             incubation_periods=sim.incubation_periods,
-            generation_time_xi=sim.generation_time_xi,
         )  # shape (U, M+1)
 
-        total = 1.0 - np.prod(1.0 - p_genetic_u, axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            p_relative = np.where(total[:, None] > 0.0, p_genetic_u / total[:, None], 0.0)
-        row_sums = p_relative.sum(axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            p_normalized = np.where(row_sums[:, None] > 0.0, p_relative / row_sums[:, None], 0.0)
+        p_posterior_u = _normalize_genetic_scores(genetic_scores_u)
 
-        cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > intermediate_hosts:
-            raise ValueError(
-                f"intermediate_generations must be within [0, {intermediate_hosts}], "
-                f"got {intermediate_generations}.",
-            )
-        selected_u = p_normalized[:, cols].sum(axis=1)  # shape (U,)
+        cols = _coerce_intermediate_generations(intermediate_generations, intermediate_hosts)
+        selected_u = p_posterior_u[:, cols].sum(axis=1)  # shape (U,)
 
         out_u = p_temporal_u * selected_u  # shape (U,)
         out = out_u[inv]  # map back to shape (K,)
@@ -412,8 +428,8 @@ def linkage_probability(
             generation_interval=sim.generation_interval[:, 0],
         )  # shape (K,)
 
-        # 4) Genetic evidence: p_m for each m=0..M
-        p_genetic_by_scenario = Epilink.genetic_kernel(
+        # 4) Genetic evidence as raw compatibility weights over total M.
+        genetic_scores_by_scenario = Epilink.genetic_kernel(
             genetic_distance_ij=genetic_distance_arr,
             clock_rates=sim.clock_rates,
             sampling_delay_i=sim.sampling_delay_i,
@@ -422,24 +438,14 @@ def linkage_probability(
             intermediate_hosts=intermediate_hosts,
             diff_infection_ij=sim.diff_infection_ij,
             incubation_periods=sim.incubation_periods,
-            generation_time_xi=sim.generation_time_xi,
         )  # shape (K, M+1)
 
-        # 5) Normalize genetic evidence across m
-        total = 1.0 - np.prod(1.0 - p_genetic_by_scenario, axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            p_relative = np.where(total[:, None] > 0.0, p_genetic_by_scenario / total[:, None], 0.0)
-        row_sums = p_relative.sum(axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            p_normalized = np.where(row_sums[:, None] > 0.0, p_relative / row_sums[:, None], 0.0)
+        # 5) Convert raw compatibility weights into posterior mass over M.
+        p_posterior = _normalize_genetic_scores(genetic_scores_by_scenario)
 
         # Select columns m specified by intermediate_generations
-        cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > intermediate_hosts:
-            raise ValueError(
-                f"intermediate_generations must be within [0, {intermediate_hosts}], got {intermediate_generations}.",
-            )
-        selected = p_normalized[:, cols].sum(axis=1)  # shape (K,)
+        cols = _coerce_intermediate_generations(intermediate_generations, intermediate_hosts)
+        selected = p_posterior[:, cols].sum(axis=1)  # shape (K,)
 
         # 6) Combine temporal and genetic evidence
         out = p_temporal * selected
@@ -456,7 +462,7 @@ def linkage_probability_matrix(
     genetic_distances: np.ndarray,
     temporal_distances: np.ndarray,
     *,
-    intermediate_generations: tuple[int, ...] = (0, 1),
+    intermediate_generations: tuple[int, ...] = (0,),
     intermediate_hosts: int = 10,
     num_simulations: int = 10000,
 ) -> np.ndarray:
@@ -473,7 +479,7 @@ def linkage_probability_matrix(
         1D array of genetic distances (SNP counts).
     temporal_distances : array_like
         1D array of temporal distances (days).
-    intermediate_generations : tuple of int, default=(0, 1)
+    intermediate_generations : tuple of int, default=(0,)
         Which intermediate scenario counts to include.
     intermediate_hosts : int, default=10
         Maximum number of intermediate hosts.
@@ -557,7 +563,7 @@ def genetic_linkage_probability(
     *,
     num_simulations: int = 10000,
     intermediate_hosts: int = 10,
-    intermediate_generations: tuple[int, ...] | None = (0, 1),
+    intermediate_generations: tuple[int, ...] | None = (0,),
     kind: str = "relative",  # "raw" | "relative" | "normalized"
 ) -> np.ndarray:
     """
@@ -576,12 +582,14 @@ def genetic_linkage_probability(
         Number of Monte Carlo draws.
     intermediate_hosts : int, default=10
         Maximum number of intermediate hosts (M) considered.
-    intermediate_generations : tuple of int or None, default=(0, 1)
+    intermediate_generations : tuple of int or None, default=(0,)
         Which intermediate scenario counts to include. If None, return evidence
         for all intermediate scenarios.
     kind : {'raw', 'relative', 'normalized'}, default='relative'
-        Output type: raw scenario probabilities, relative probabilities, or
-        row-normalized relative probabilities.
+        Output type. ``raw`` returns unnormalized compatibility weights.
+        ``relative`` and ``normalized`` both return the appendix posterior mass
+        over total intermediary count after Eq. S21-S26 normalization;
+        ``normalized`` is retained as a backward-compatible alias.
 
     Returns
     -------
@@ -601,7 +609,7 @@ def genetic_linkage_probability(
 
     sim = Epilink.run_simulations(toit, clock, int(num_simulations), intermediate_hosts)
 
-    p_genetic_by_scenario = Epilink.genetic_kernel(
+    genetic_scores_by_scenario = Epilink.genetic_kernel(
         genetic_distance_ij=genetic_distance_arr,
         clock_rates=sim.clock_rates,
         sampling_delay_i=sim.sampling_delay_i,
@@ -610,29 +618,19 @@ def genetic_linkage_probability(
         intermediate_hosts=intermediate_hosts,
         diff_infection_ij=sim.diff_infection_ij,
         incubation_periods=sim.incubation_periods,
-        generation_time_xi=sim.generation_time_xi,
     )
 
-    total = 1.0 - np.prod(1.0 - p_genetic_by_scenario, axis=1)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        p_relative = np.where(total[:, None] > 0.0, p_genetic_by_scenario / total[:, None], 0.0)
-    row_sums = p_relative.sum(axis=1)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        p_normalized = np.where(row_sums[:, None] > 0.0, p_relative / row_sums[:, None], 0.0)
+    p_posterior = _normalize_genetic_scores(genetic_scores_by_scenario)
 
     if intermediate_generations is not None:
-        cols = np.array(intermediate_generations, dtype=np.int64)
-        if cols.min() < 0 or cols.max() > intermediate_hosts:
-            raise ValueError(
-                f"intermediate_generations must be within [0, {intermediate_hosts}], got {intermediate_generations}.",
-            )
+        cols = _coerce_intermediate_generations(intermediate_generations, intermediate_hosts)
 
-        if kind == "relative":
-            selected = p_relative[:, cols].mean(axis=1)
+        if kind == "relative":  #  It is just a backward-compatible alias of normalizedblaxk .
+            selected = p_posterior[:, cols].sum(axis=1)
         elif kind == "raw":
-            selected = p_genetic_by_scenario[:, cols].mean(axis=1)
+            selected = genetic_scores_by_scenario[:, cols].sum(axis=1)
         elif kind == "normalized":
-            selected = p_normalized[:, cols].sum(axis=1)
+            selected = p_posterior[:, cols].sum(axis=1)
         else:
             raise ValueError(
                 "kind must be 'relative', 'raw', or 'normalized', " f"got {kind!r}.",
@@ -640,9 +638,9 @@ def genetic_linkage_probability(
         return selected
 
     if kind == "relative":
-        return p_relative
+        return p_posterior
     if kind == "raw":
-        return p_genetic_by_scenario
+        return genetic_scores_by_scenario
     if kind == "normalized":
-        return p_normalized
+        return p_posterior
     raise ValueError(f"kind must be 'relative', 'raw', or 'normalized', got {kind!r}.")

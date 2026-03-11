@@ -91,8 +91,8 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         "-m",
         "--intermediate-generations",
         type=_parse_intermediate_generations,
-        default="0,1",
-        help="Comma-separated intermediate generations to include, e.g. '0,1,2'.",
+        default="0",
+        help="Comma-separated intermediate generations to include; default '0'.",
     )
     parser.add_argument("--seed", type=int, default=12345, help="Random seed for simulations.")
     parser.add_argument(

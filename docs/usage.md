@@ -11,7 +11,6 @@ p = linkage_probability(
     clock=clock,
     genetic_distance=2,
     temporal_distance=4,
-    intermediate_generations=(0, 1, 2),
     intermediate_hosts=10,
     num_simulations=10_000,
 )
@@ -19,6 +18,7 @@ print(p)
 ```
 
 Notes:
+- Default behavior uses `intermediate_generations=(0,)`, matching the appendix definition of recent transmission.
 - Reproducibility: set rng_seed in TOIT/MolecularClock if needed.
 - Performance: increase num_simulations for smoother estimates.
 - TOIT parameters can be customized via InfectiousnessParams.
