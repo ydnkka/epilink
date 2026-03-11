@@ -99,7 +99,7 @@ class Epilink:
         """
         K = temporal_distance_ij.shape[0]
         N = diff_incubation_ij.shape[0]
-        out = np.empty(K, dtype=np.float64)
+        out = np.zeros(K, dtype=np.float64)
 
         for i in prange(K):
             t = temporal_distance_ij[i]
@@ -140,7 +140,7 @@ class Epilink:
         intermediate_hosts : int
             Maximum number of intermediate hosts (M).
         diff_infection_ij : numpy.ndarray
-            Absolute TOIT differences ``Δy_toit``, shape (N,).
+            Absolute TOIT differences, shape (N,).
         incubation_periods : numpy.ndarray
             Incubation periods for two cases, shape (N, 2).
 
