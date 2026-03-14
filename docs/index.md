@@ -9,7 +9,7 @@ This package estimates probabilities of transmission linkage between cases based
 See Usage for examples and API for reference. The package ships with a CLI:
 
 ```bash
-epilink point -g 2 -t 4 --nsims 10000
+epilink point -g 2 -t 4 --num-simulations 10000
 ```
 
-You can also override infectiousness profile parameters and TOIT support bounds via CLI flags (see `epilink point --help`).
+You can also override infectiousness profile parameters and numerical grid bounds via CLI flags (see `epilink point --help`).

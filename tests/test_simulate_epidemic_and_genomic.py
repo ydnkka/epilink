@@ -1,6 +1,4 @@
-"""
-Comprehensive tests for simulate_epidemic_and_genomic utilities.
-"""
+"""Comprehensive tests for simulation and sequence utilities."""
 
 from __future__ import annotations
 
@@ -8,13 +6,13 @@ import networkx as nx
 import numpy as np
 
 from epilink import (
-    TOIT,
+    InfectiousnessToTransmissionTime,
     MolecularClock,
     PackedGenomicData,
     SequencePacker64,
-    generate_pairwise_data,
-    populate_epidemic_data,
-    simulate_genomic_data,
+    build_pairwise_case_table,
+    simulate_epidemic_dates,
+    simulate_genomic_sequences,
 )
 
 
@@ -39,10 +37,10 @@ def _row_for_pair(df, node_a: str, node_b: str):
 def test_populate_epidemic_data_deterministic_dates_and_sampling():
     tree = nx.DiGraph()
     tree.add_edges_from([("A", "B"), ("A", "C")])
-    toit = TOIT(rng_seed=7)
+    toit = InfectiousnessToTransmissionTime(rng_seed=7)
 
-    out = populate_epidemic_data(
-        toit=toit,
+    out = simulate_epidemic_dates(
+        transmission_profile=toit,
         tree=tree,
         prop_sampled=0.5,
         sampling_scale=0.0,
@@ -50,8 +48,8 @@ def test_populate_epidemic_data_deterministic_dates_and_sampling():
         root_start_range=0,
     )
 
-    latent = toit.params.latent_shape * toit.params.incubation_scale
-    presymp = toit.params.presymptomatic_shape * toit.params.incubation_scale
+    latent = toit.parameters.latent_shape * toit.parameters.incubation_scale
+    presymp = toit.parameters.presymptomatic_shape * toit.parameters.incubation_scale
 
     assert np.isclose(out.nodes["A"]["exposure_date"], 0.0)
     assert np.isclose(out.nodes["A"]["date_infectious"], latent)
@@ -76,13 +74,13 @@ def test_populate_epidemic_data_deterministic_dates_and_sampling():
 
 
 def test_populate_epidemic_data_stochastic_mode():
-    """Test populate_epidemic_data with stochastic sampling (non-zero sampling_scale)."""
+    """Test simulate_epidemic_dates with stochastic sampling (non-zero sampling_scale)."""
     tree = nx.DiGraph()
     tree.add_edges_from([("A", "B"), ("A", "C")])
-    toit = TOIT(rng_seed=42)
+    toit = InfectiousnessToTransmissionTime(rng_seed=42)
 
-    out = populate_epidemic_data(
-        toit=toit,
+    out = simulate_epidemic_dates(
+        transmission_profile=toit,
         tree=tree,
         prop_sampled=1.0,
         sampling_scale=1.0,
@@ -185,8 +183,8 @@ def test_simulate_genomic_data_zero_branch_length():
     tree.nodes["B"]["sample_date"] = 0.0
     tree.nodes["B"]["exposure_date"] = 0.0
 
-    clock = MolecularClock(relax_rate=False, gen_len=64, rng_seed=5)
-    out = simulate_genomic_data(clock=clock, tree=tree, return_raw=True)
+    clock = MolecularClock(use_relaxed_clock=False, genome_length=64, rng_seed=5)
+    out = simulate_genomic_sequences(clock=clock, tree=tree, return_raw=True)
 
     linear_raw = out["raw"]["linear"]
     poisson_raw = out["raw"]["poisson"]
@@ -208,8 +206,10 @@ def test_simulate_genomic_data_with_mutations():
     tree.nodes["B"]["sample_date"] = 10.0
     tree.nodes["B"]["exposure_date"] = 5.0
 
-    clock = MolecularClock(subs_rate=1e-3, relax_rate=False, gen_len=1000, rng_seed=123)
-    out = simulate_genomic_data(clock=clock, tree=tree, return_raw=True)
+    clock = MolecularClock(
+        substitution_rate=1e-3, use_relaxed_clock=False, genome_length=1000, rng_seed=123
+    )
+    out = simulate_genomic_sequences(clock=clock, tree=tree, return_raw=True)
 
     assert "raw" in out
     assert "packed" in out
@@ -227,9 +227,9 @@ def test_simulate_genomic_data_missing_dates_raises():
     tree.nodes["B"]["sample_date"] = 1.0
     # Missing exposure_date for B should trigger ValueError.
 
-    clock = MolecularClock(relax_rate=False, gen_len=16, rng_seed=5)
+    clock = MolecularClock(use_relaxed_clock=False, genome_length=16, rng_seed=5)
     with np.testing.assert_raises(ValueError):
-        simulate_genomic_data(clock=clock, tree=tree, return_raw=False)
+        simulate_genomic_sequences(clock=clock, tree=tree, return_raw=False)
 
 
 def test_generate_pairwise_data_relationships():
@@ -262,7 +262,7 @@ def test_generate_pairwise_data_relationships():
         int8_matrix, original_length=4, node_map=node_map, base_map=base_map
     )
 
-    df = generate_pairwise_data({"linear": packed_linear, "poisson": packed_poisson}, tree)
+    df = build_pairwise_case_table({"linear": packed_linear, "poisson": packed_poisson}, tree)
 
     assert set(df.columns) == {
         "NodeA",
@@ -315,7 +315,7 @@ def test_generate_pairwise_data_skips_missing_nodes():
         int8_matrix, original_length=4, node_map=node_map, base_map=base_map
     )
 
-    df = generate_pairwise_data({"linear": packed_linear, "poisson": packed_poisson}, tree)
+    df = build_pairwise_case_table({"linear": packed_linear, "poisson": packed_poisson}, tree)
 
     assert len(df) == 1
     row_ab = _row_for_pair(df, "A", "B")
