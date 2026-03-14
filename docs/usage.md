@@ -1,40 +1,41 @@
 # Usage
 
 ```python
-from epilink import TOIT, MolecularClock, linkage_probability
+from epilink import InfectiousnessToTransmissionTime, MolecularClock, estimate_linkage_probability
 
-toit = TOIT(rng_seed=123)
-clock = MolecularClock(relax_rate=False, rng_seed=123)
+toit = InfectiousnessToTransmissionTime(rng_seed=123)
+clock = MolecularClock(use_relaxed_clock=False, rng_seed=123)
 
-p = linkage_probability(
-    toit=toit,
+p = estimate_linkage_probability(
+    transmission_profile=toit,
     clock=clock,
     genetic_distance=2,
     temporal_distance=4,
-    intermediate_generations=(0, 1, 2),
-    intermediate_hosts=10,
+    max_intermediate_hosts=10,
     num_simulations=10_000,
 )
 print(p)
 ```
 
 Notes:
-- Reproducibility: set rng_seed in TOIT/MolecularClock if needed.
+- Default behavior uses `included_intermediate_counts=(0,)`, matching the appendix definition of recent transmission.
+- Reproducibility: set rng_seed in InfectiousnessToTransmissionTime/MolecularClock if needed.
 - Performance: increase num_simulations for smoother estimates.
-- TOIT parameters can be customized via InfectiousnessParams.
+- InfectiousnessToTransmissionTime parameters can be customized via NaturalHistoryParameters.
 
 CLI:
 
 ```bash
-epilink point -g 2 -t 4 --nsims 10000
-epilink point -g 2 -t 4 --nsims 200 \
-  --a 0 --b 40 \
+epilink point -g 2 -t 4 --num-simulations 10000
+epilink point -g 2 -t 4 --num-simulations 200 \
+  --grid-min-days 0 --grid-max-days 40 \
   --incubation-shape 5.0 --incubation-scale 1.1 \
   --latent-shape 2.0 --symptomatic-rate 0.4 \
   --symptomatic-shape 1.2 --rel-presymptomatic-infectiousness 2.0
-epilink grid --g-start 0 --g-stop 6 --g-step 1 --t-start 0 --t-stop 15 --t-step 3
+epilink grid --genetic-start 0 --genetic-stop 6 --genetic-step 1 \
+  --temporal-start 0 --temporal-stop 15 --temporal-step 3
 ```
 
 Notes:
 - Infectiousness profile parameters are configurable via CLI flags (see `epilink point --help`).
-- TOIT support bounds are set with `--a` and `--b`.
+- InfectiousnessToTransmissionTime numerical grid bounds are set with `--grid-min-days` and `--grid-max-days`.
