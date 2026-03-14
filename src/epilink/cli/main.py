@@ -1,6 +1,4 @@
-"""
-Command-line interface for epilink.
-"""
+"""Command-line interface for epilink."""
 
 from __future__ import annotations
 
@@ -10,30 +8,34 @@ import sys
 
 import numpy as np
 
-from .infectiousness_profile import TOIT, InfectiousnessParams, MolecularClock
-from .transmission_linkage_model import linkage_probability, linkage_probability_matrix
+from ..inference import estimate_linkage_probability, estimate_linkage_probability_grid
+from ..model import InfectiousnessToTransmissionTime, MolecularClock, NaturalHistoryParameters
 
 
-def _parse_intermediate_generations(value: str) -> tuple[int, ...]:
+def _parse_included_intermediate_counts(value: str) -> tuple[int, ...]:
     parts = [part.strip() for part in value.split(",") if part.strip()]
     if not parts:
-        raise argparse.ArgumentTypeError("intermediate_generations cannot be empty.")
+        raise argparse.ArgumentTypeError("included_intermediate_counts cannot be empty.")
     try:
         return tuple(int(part) for part in parts)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            "intermediate_generations must be comma-separated integers, e.g. '0,1,2'."
+            "included_intermediate_counts must be comma-separated integers, e.g. '0,1,2'."
         ) from exc
 
 
-def _normalize_intermediate_generations(value: tuple[int, ...] | str) -> tuple[int, ...]:
+def _normalize_included_intermediate_counts(
+    value: tuple[int, ...] | str,
+) -> tuple[int, ...]:
     if isinstance(value, tuple):
         return value
-    return _parse_intermediate_generations(value)
+    return _parse_included_intermediate_counts(value)
 
 
-def _build_models(args: argparse.Namespace) -> tuple[TOIT, MolecularClock]:
-    params = InfectiousnessParams(
+def _build_models(
+    args: argparse.Namespace,
+) -> tuple[InfectiousnessToTransmissionTime, MolecularClock]:
+    natural_history_parameters = NaturalHistoryParameters(
         incubation_shape=args.incubation_shape,
         incubation_scale=args.incubation_scale,
         latent_shape=args.latent_shape,
@@ -41,15 +43,20 @@ def _build_models(args: argparse.Namespace) -> tuple[TOIT, MolecularClock]:
         symptomatic_shape=args.symptomatic_shape,
         rel_presymptomatic_infectiousness=args.rel_presymptomatic_infectiousness,
     )
-    toit = TOIT(a=args.a, b=args.b, params=params, rng_seed=args.seed)
-    clock = MolecularClock(
-        subs_rate=args.subs_rate,
-        relax_rate=args.relax_rate,
-        subs_rate_sigma=args.subs_rate_sigma,
-        gen_len=args.gen_len,
+    transmission_profile = InfectiousnessToTransmissionTime(
+        grid_min_days=args.grid_min_days,
+        grid_max_days=args.grid_max_days,
+        parameters=natural_history_parameters,
         rng_seed=args.seed,
     )
-    return toit, clock
+    molecular_clock = MolecularClock(
+        substitution_rate=args.substitution_rate,
+        use_relaxed_clock=args.use_relaxed_clock,
+        relaxed_clock_sigma=args.relaxed_clock_sigma,
+        genome_length=args.genome_length,
+        rng_seed=args.seed,
+    )
+    return transmission_profile, molecular_clock
 
 
 def _write_point_results(
@@ -79,33 +86,38 @@ def _write_grid_results(
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    default_params = InfectiousnessParams()
-    parser.add_argument("--nsims", type=int, default=10000, help="Number of Monte Carlo draws.")
+    default_params = NaturalHistoryParameters()
     parser.add_argument(
-        "--intermediate-hosts",
+        "--num-simulations",
+        type=int,
+        default=10000,
+        help="Number of Monte Carlo draws.",
+    )
+    parser.add_argument(
+        "--max-intermediate-hosts",
         type=int,
         default=10,
         help="Maximum number of intermediate hosts (M).",
     )
     parser.add_argument(
         "-m",
-        "--intermediate-generations",
-        type=_parse_intermediate_generations,
+        "--included-intermediate-counts",
+        type=_parse_included_intermediate_counts,
         default="0",
-        help="Comma-separated intermediate generations to include; default '0'.",
+        help="Comma-separated intermediate-host counts to include; default '0'.",
     )
-    parser.add_argument("--seed", type=int, default=12345, help="Random seed for simulations.")
+    parser.add_argument("--seed", type=int, help="Random seed for simulations.")
     parser.add_argument(
-        "--a",
+        "--grid-min-days",
         type=float,
         default=0.0,
-        help="Lower bound of the TOIT support (days).",
+        help="Lower bound of the InfectiousnessToTransmissionTime numerical grid (days).",
     )
     parser.add_argument(
-        "--b",
+        "--grid-max-days",
         type=float,
         default=60.0,
-        help="Upper bound of the TOIT support (days).",
+        help="Upper bound of the InfectiousnessToTransmissionTime numerical grid (days).",
     )
     parser.add_argument(
         "--incubation-shape",
@@ -144,47 +156,52 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         help="Relative presymptomatic infectiousness.",
     )
     parser.add_argument(
-        "--subs-rate", type=float, default=1e-3, help="Substitution rate per site/year."
+        "--substitution-rate",
+        type=float,
+        default=1e-3,
+        help="Median substitution rate per site per year.",
     )
     parser.add_argument(
-        "--subs-rate-sigma",
+        "--relaxed-clock-sigma",
         type=float,
         default=0.33,
         help="Lognormal dispersion for relaxed clock.",
     )
-    parser.add_argument("--gen-len", type=int, default=29903, help="Genome length in sites.")
+    parser.add_argument("--genome-length", type=int, default=29903, help="Genome length in sites.")
     parser.add_argument(
-        "--strict-rate",
-        dest="relax_rate",
+        "--strict-clock",
+        dest="use_relaxed_clock",
         action="store_false",
         help="Use a strict (constant) molecular clock.",
     )
     parser.add_argument(
-        "--relax-rate",
-        dest="relax_rate",
+        "--relaxed-clock",
+        dest="use_relaxed_clock",
         action="store_true",
         help="Use a relaxed (lognormal) molecular clock (default).",
     )
-    parser.set_defaults(relax_rate=True)
+    parser.set_defaults(use_relaxed_clock=True)
 
 
 def _handle_point(args: argparse.Namespace) -> int:
-    toit, clock = _build_models(args)
-    intermediate_generations = _normalize_intermediate_generations(args.intermediate_generations)
+    transmission_profile, molecular_clock = _build_models(args)
+    included_intermediate_counts = _normalize_included_intermediate_counts(
+        args.included_intermediate_counts
+    )
 
     genetic = np.asarray(args.genetic_distance, dtype=float)
     temporal = np.asarray(args.temporal_distance, dtype=float)
     if genetic.size != temporal.size:
         raise SystemExit("genetic_distance and temporal_distance must have the same length.")
 
-    probs = linkage_probability(
-        toit=toit,
-        clock=clock,
+    probs = estimate_linkage_probability(
+        transmission_profile=transmission_profile,
+        clock=molecular_clock,
         genetic_distance=genetic,
         temporal_distance=temporal,
-        intermediate_generations=intermediate_generations,
-        intermediate_hosts=args.intermediate_hosts,
-        num_simulations=args.nsims,
+        included_intermediate_counts=included_intermediate_counts,
+        max_intermediate_hosts=args.max_intermediate_hosts,
+        num_simulations=args.num_simulations,
         cache_unique_distances=True,
     )
     probs = np.atleast_1d(np.asarray(probs, dtype=float))
@@ -198,25 +215,34 @@ def _handle_point(args: argparse.Namespace) -> int:
 
 
 def _handle_grid(args: argparse.Namespace) -> int:
-    if args.g_step <= 0 or args.t_step <= 0:
-        raise SystemExit("g-step and t-step must be positive.")
+    if args.genetic_step <= 0 or args.temporal_step <= 0:
+        raise SystemExit("genetic-step and temporal-step must be positive.")
 
-    genetic = np.arange(args.g_start, args.g_stop, args.g_step, dtype=float)
-    temporal = np.arange(args.t_start, args.t_stop, args.t_step, dtype=float)
+    genetic = np.arange(args.genetic_start, args.genetic_stop, args.genetic_step, dtype=float)
+    temporal = np.arange(
+        args.temporal_start,
+        args.temporal_stop,
+        args.temporal_step,
+        dtype=float,
+    )
     if genetic.size == 0 or temporal.size == 0:
-        raise SystemExit("g-start/g-stop or t-start/t-stop produce an empty grid.")
+        raise SystemExit(
+            "genetic-start/genetic-stop or temporal-start/temporal-stop produce an empty grid."
+        )
 
-    toit, clock = _build_models(args)
-    intermediate_generations = _normalize_intermediate_generations(args.intermediate_generations)
+    transmission_profile, molecular_clock = _build_models(args)
+    included_intermediate_counts = _normalize_included_intermediate_counts(
+        args.included_intermediate_counts
+    )
 
-    matrix = linkage_probability_matrix(
-        toit=toit,
-        clock=clock,
+    matrix = estimate_linkage_probability_grid(
+        transmission_profile=transmission_profile,
+        clock=molecular_clock,
         genetic_distances=genetic,
         temporal_distances=temporal,
-        intermediate_generations=intermediate_generations,
-        intermediate_hosts=args.intermediate_hosts,
-        num_simulations=args.nsims,
+        included_intermediate_counts=included_intermediate_counts,
+        max_intermediate_hosts=args.max_intermediate_hosts,
+        num_simulations=args.num_simulations,
     )
 
     if args.out:
@@ -251,26 +277,48 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="One or more temporal distances (days).",
     )
-    point.add_argument("--out", help="Optional output CSV path (defaults to stdout).")
+    point.add_argument("--output", dest="out", help="Optional output CSV path.")
     _add_common_args(point)
     point.set_defaults(func=_handle_point)
 
     grid = subparsers.add_parser("grid", help="Estimate linkage probabilities on a grid.")
     grid.add_argument(
-        "--g-start", type=float, required=True, help="Genetic distance start (inclusive)."
+        "--genetic-start",
+        type=float,
+        required=True,
+        help="Genetic distance start (inclusive).",
     )
     grid.add_argument(
-        "--g-stop", type=float, required=True, help="Genetic distance stop (exclusive)."
+        "--genetic-stop",
+        type=float,
+        required=True,
+        help="Genetic distance stop (exclusive).",
     )
-    grid.add_argument("--g-step", type=float, required=True, help="Genetic distance step.")
     grid.add_argument(
-        "--t-start", type=float, required=True, help="Temporal distance start (inclusive)."
+        "--genetic-step",
+        type=float,
+        required=True,
+        help="Genetic distance step.",
     )
     grid.add_argument(
-        "--t-stop", type=float, required=True, help="Temporal distance stop (exclusive)."
+        "--temporal-start",
+        type=float,
+        required=True,
+        help="Temporal distance start (inclusive).",
     )
-    grid.add_argument("--t-step", type=float, required=True, help="Temporal distance step.")
-    grid.add_argument("--out", help="Optional output CSV path (defaults to stdout).")
+    grid.add_argument(
+        "--temporal-stop",
+        type=float,
+        required=True,
+        help="Temporal distance stop (exclusive).",
+    )
+    grid.add_argument(
+        "--temporal-step",
+        type=float,
+        required=True,
+        help="Temporal distance step.",
+    )
+    grid.add_argument("--output", dest="out", help="Optional output CSV path.")
     _add_common_args(grid)
     grid.set_defaults(func=_handle_grid)
 
@@ -283,5 +331,4 @@ def main(argv: list[str] | None = None) -> int:
     return args.func(args)
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+__all__ = ["build_parser", "main"]
