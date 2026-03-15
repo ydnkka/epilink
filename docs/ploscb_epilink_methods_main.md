@@ -1,7 +1,5 @@
 # epilink main-text methods subsection
 
-![Schematic of epilink pairwise linkage inference](assets/epilink_methods_schematic.svg)
-
 *Suggested figure legend.* Overview of `epilink` pairwise linkage inference. Observed temporal distance ($t_{ij}$) and genetic distance ($g_{ij}$) for a candidate case pair are evaluated against a mechanistic temporal model and a molecular clock-based genetic model. The temporal component estimates the compatibility of the observed time gap with sampled incubation periods and generation intervals, while the genetic component estimates compatibility with transmission histories containing different numbers of intermediate hosts. These components are combined into the final linkage estimate. In the default zero-intermediate analysis ($A=\{0\}$), the genetic component includes both direct transmission and co-primary infection from a shared source, while the temporal component assumes co-primary infections occur no more than one generation interval apart.
 
 ## Pairwise linkage inference with epilink
