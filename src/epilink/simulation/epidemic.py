@@ -57,25 +57,25 @@ def simulate_epidemic_dates(
 
     def sample_stage_intervals() -> tuple[float, float, float]:
         if sampling_scale <= 0:
-            latent_period_days = (
+            latent_periods = (
                 transmission_profile.parameters.latent_shape
                 * transmission_profile.parameters.incubation_scale
             )
-            presymptomatic_period_days = (
+            presymptomatic_periods = (
                 transmission_profile.parameters.presymptomatic_shape
                 * transmission_profile.parameters.incubation_scale
             )
-            testing_delay_days = 0.0
+            testing_delays = 0.0
         else:
-            latent_period_days = transmission_profile.sample_latent_periods().item()
-            presymptomatic_period_days = transmission_profile.sample_presymptomatic_periods().item()
-            testing_delay_days = gamma.rvs(
+            latent_periods = transmission_profile.sample_latent_periods().item()
+            presymptomatic_periods = transmission_profile.sample_presymptomatic_periods().item()
+            testing_delays = gamma.rvs(
                 a=sampling_shape,
                 scale=sampling_scale,
                 random_state=rng,
             )
 
-        return latent_period_days, presymptomatic_period_days, testing_delay_days
+        return latent_periods, presymptomatic_periods, testing_delays
 
     roots = [node for node, degree in annotated_tree.in_degree(annotated_tree.nodes) if degree == 0]
 

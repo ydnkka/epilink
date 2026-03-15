@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from numpy.random import Generator, default_rng
 from scipy import stats
+from scipy.integrate import cumulative_trapezoid
 
 from .parameters import NaturalHistoryParameters
 
@@ -30,7 +31,7 @@ class BaseTransmissionProfile:
     rng_seed : int, optional
         Seed used to initialize ``rng`` when no generator is supplied.
     grid_points : int, default=1024
-        Number of grid points used for numerical summaries and sampling.
+        grid points used for numerical summaries and sampling.
     """
 
     def __init__(
@@ -54,19 +55,15 @@ class BaseTransmissionProfile:
         self.grid_points = int(grid_points)
 
         self._sampling_grid: np.ndarray | None = None
-        self._sampling_weights: np.ndarray | None = None
+        self._cdf_grid: np.ndarray | None = None
 
-        parameters = self.parameters
-        self.incubation = stats.gamma(
-            a=parameters.incubation_shape, scale=parameters.incubation_scale
-        )
-        self.latent = stats.gamma(a=parameters.latent_shape, scale=parameters.incubation_scale)
+        param = self.parameters
+        self.incubation = stats.gamma(a=param.incubation_shape, scale=param.incubation_scale)
+        self.latent = stats.gamma(a=param.latent_shape, scale=param.incubation_scale)
         self.presymptomatic = stats.gamma(
-            a=parameters.presymptomatic_shape, scale=parameters.incubation_scale
+            a=param.presymptomatic_shape, scale=param.incubation_scale
         )
-        self.symptomatic = stats.gamma(
-            a=parameters.symptomatic_shape, scale=parameters.symptomatic_scale
-        )
+        self.symptomatic = stats.gamma(a=param.symptomatic_shape, scale=param.symptomatic_scale)
 
     def pdf(self, times_in_days: npt.ArrayLike) -> np.ndarray:
         """Evaluate the probability density function.
@@ -98,31 +95,10 @@ class BaseTransmissionProfile:
             Approximate cumulative probabilities clipped to ``[0, 1]``.
         """
 
-        if _trapz is None:
-            raise ImportError("Neither np.trapezoid nor np.trapz found in NumPy.")
-
         evaluation_points = np.asarray(times_in_days, dtype=float)
-        flat_evaluation_points = evaluation_points.reshape(-1)
-        cumulative_probability = np.zeros_like(flat_evaluation_points)
-
-        for index, time_value in enumerate(flat_evaluation_points):
-            if time_value <= self.grid_min_days:
-                cumulative_probability[index] = 0.0
-            elif time_value >= self.grid_max_days:
-                cumulative_probability[index] = 1.0
-            else:
-                integration_grid = np.linspace(
-                    self.grid_min_days, time_value, num=max(100, self.grid_points)
-                )
-                probability_density = self.pdf(integration_grid)
-                cumulative_probability[index] = _trapz(probability_density, integration_grid)
-
-        cumulative_probability = np.clip(cumulative_probability, 0.0, 1.0).reshape(
-            evaluation_points.shape
-        )
-        if evaluation_points.ndim == 0:
-            return cumulative_probability[()]
-        return cumulative_probability
+        x, cdf = self._ensure_numerical_cdf()
+        values = np.interp(evaluation_points, x, cdf, left=0.0, right=1.0)
+        return values[()] if evaluation_points.ndim == 0 else values
 
     def mean(self) -> float:
         """Estimate the mean on the configured numerical grid.
@@ -237,23 +213,26 @@ class BaseTransmissionProfile:
             size=size,
         )
 
-    def _ensure_sampling_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        if self._sampling_grid is None or self._sampling_weights is None:
-            sampling_grid = np.linspace(
-                self.grid_min_days, self.grid_max_days, num=max(2, self.grid_points)
-            )
-            probability_density = np.clip(self.pdf(sampling_grid), a_min=0.0, a_max=np.inf)
-            weight_sum = float(probability_density.sum())
-            if not np.isfinite(weight_sum) or weight_sum <= 0.0:
-                sampling_weights = np.full_like(
-                    sampling_grid, fill_value=1.0 / sampling_grid.size, dtype=float
-                )
-            else:
-                sampling_weights = probability_density / weight_sum
-            self._sampling_grid = sampling_grid
-            self._sampling_weights = sampling_weights
+    def _ensure_numerical_cdf(self) -> tuple[np.ndarray, np.ndarray]:
+        if self._sampling_grid is None or self._cdf_grid is None:
+            x = np.linspace(self.grid_min_days, self.grid_max_days, num=max(2, self.grid_points))
+            y = np.clip(np.asarray(self.pdf(x), dtype=float), 0.0, np.inf)
 
-        return self._sampling_grid, self._sampling_weights
+            cdf = cumulative_trapezoid(y, x, initial=0)
+            total = float(cdf[-1])
+
+            if not np.isfinite(total) or total <= 0.0:
+                cdf = (x - x[0]) / (x[-1] - x[0])
+            else:
+                cdf /= total
+                cdf = np.maximum.accumulate(cdf)
+                cdf[0] = 0.0
+                cdf[-1] = 1.0
+
+            self._sampling_grid = x
+            self._cdf_grid = cdf
+
+        return self._sampling_grid, self._cdf_grid
 
     def __repr__(self) -> str:
         return (
@@ -265,7 +244,24 @@ class BaseTransmissionProfile:
 
 
 class InfectiousnessToTransmissionTime(BaseTransmissionProfile):
-    """Transmission-time distribution from infectiousness onset.
+    r"""Transmission-time distribution from infectiousness onset.
+
+    Let :math:`T` denote time since infectiousness onset (:math:`y^*` in reference paper). The implemented
+    density is
+
+    .. math::
+
+        f_T(t) =
+        \begin{cases}
+            0, & t < 0, \\
+            C \left[ \alpha \left(1 - F_P(t)\right)
+            + \int_0^t \left(1 - F_I(t-y_P)\right) f_P(y_P) \, d_{y_P} \right], & t \ge 0,
+        \end{cases}
+
+    where :math:`f_P` and :math:`F_P` are the presymptomatic PDF/CDF,
+    :math:`F_I` is the symptomatic CDF, :math:`\alpha` is relative
+    presymptomatic infectiousness, and :math:`C` is the normalisation
+    constant from :class:`NaturalHistoryParameters`.
 
     Parameters
     ----------
@@ -280,9 +276,9 @@ class InfectiousnessToTransmissionTime(BaseTransmissionProfile):
     rng_seed : int, optional
         Seed used to initialize ``rng`` when no generator is supplied.
     integration_grid_points : int, default=2048
-        Number of integration points used inside the PDF evaluation.
+         integration points used inside the PDF evaluation.
     sampling_grid_points : int, default=1024
-        Number of numerical grid points used for sampling from the profile.
+         numerical grid points used for sampling from the profile.
     """
 
     def __init__(
@@ -322,7 +318,19 @@ class InfectiousnessToTransmissionTime(BaseTransmissionProfile):
         return self.sample_latent_periods(size=size) + self.rvs(size=size)
 
     def pdf(self, times_in_days: npt.ArrayLike) -> np.ndarray:
-        """Evaluate the infectiousness-to-transmission density.
+        r"""Evaluate the infectiousness-to-transmission density.
+
+        Implemented form for :math:`t \ge 0`:
+
+        .. math::
+
+            f_T(t) = C \left[ \alpha \left(1 - F_P(t)\right)
+            + \int_0^t \left(1 - F_I(t-y_P)\right) f_P(y_P) \, d_{y_P} \right],
+
+        with :math:`C =` ``self.parameters.infectiousness_normalisation`` and
+        :math:`\alpha =` ``self.parameters.rel_presymptomatic_infectiousness``.
+        The integral is evaluated numerically on ``presymptomatic_grid`` using
+        trapezoidal integration (``_trapz``).
 
         Parameters
         ----------
@@ -348,26 +356,26 @@ class InfectiousnessToTransmissionTime(BaseTransmissionProfile):
                 return probability_density.reshape(evaluation_points.shape)[()]
             return probability_density.reshape(evaluation_points.shape)
 
-        parameters = self.parameters
+        param = self.parameters
         for index in valid_indices:
-            time_value = float(flat_evaluation_points[index])
-            if time_value == 0.0:
+            toit_value = float(flat_evaluation_points[index])
+            if toit_value == 0.0:
                 symptomatic_contribution = 0.0
             else:
                 presymptomatic_grid = np.linspace(
                     0.0,
-                    time_value,
+                    toit_value,
                     num=max(2, self.integration_grid_points),
                 )
                 presymptomatic_density = self.presymptomatic.pdf(presymptomatic_grid)
-                symptomatic_survival = 1.0 - self.symptomatic.cdf(time_value - presymptomatic_grid)
+                symptomatic_survival = 1.0 - self.symptomatic.cdf(toit_value - presymptomatic_grid)
                 symptomatic_contribution = float(
                     _trapz(symptomatic_survival * presymptomatic_density, presymptomatic_grid)
                 )
 
-            probability_density[index] = parameters.infectiousness_normalisation * (
-                parameters.rel_presymptomatic_infectiousness
-                * (1.0 - self.presymptomatic.cdf(time_value))
+            probability_density[index] = param.infectiousness_normalisation * (
+                param.rel_presymptomatic_infectiousness
+                * (1.0 - self.presymptomatic.cdf(toit_value))
                 + symptomatic_contribution
             )
 
@@ -391,12 +399,29 @@ class InfectiousnessToTransmissionTime(BaseTransmissionProfile):
         """
 
         sample_shape = (size,) if isinstance(size, int) else size
-        sampling_grid, sampling_weights = self._ensure_sampling_grid()
-        return self.rng.choice(sampling_grid, size=sample_shape, p=sampling_weights)
+        x, cdf = self._ensure_numerical_cdf()
+        u = self.rng.uniform(0.0, 1.0, size=sample_shape)
+        return np.interp(u, cdf, x)
 
 
 class SymptomOnsetToTransmissionTime(BaseTransmissionProfile):
-    """Transmission-time distribution relative to symptom onset.
+    r"""Transmission-time distribution relative to symptom onset.
+
+    Let :math:`S` denote time from symptom onset to transmission
+    (:math:`x_{tost}` in reference paper). The implemented density is
+
+    .. math::
+
+        f_S(s) =
+        \begin{cases}
+            \alpha C \left(1 - F_P(-s)\right), & s < 0, \\
+            C \left(1 - F_I(s)\right), & s \ge 0,
+        \end{cases}
+
+    where :math:`F_P` is the presymptomatic CDF, :math:`F_I` is the
+    symptomatic CDF, :math:`\alpha` is relative presymptomatic
+    infectiousness, and :math:`C` is the normalisation constant from
+    :class:`NaturalHistoryParameters`.
 
     Parameters
     ----------
@@ -411,7 +436,7 @@ class SymptomOnsetToTransmissionTime(BaseTransmissionProfile):
     rng_seed : int, optional
         Seed used to initialize ``rng`` when no generator is supplied.
     grid_points : int, default=2048
-        Number of numerical grid points used for summaries and sampling.
+        numerical grid points used for summaries and sampling.
     """
 
     def __init__(
@@ -433,7 +458,21 @@ class SymptomOnsetToTransmissionTime(BaseTransmissionProfile):
         )
 
     def pdf(self, times_in_days: npt.ArrayLike) -> np.ndarray:
-        """Evaluate the symptom-onset-to-transmission density.
+        r"""Evaluate the symptom-onset-to-transmission density.
+
+        Implemented form:
+
+        .. math::
+
+            f_S(s) =
+            \begin{cases}
+                \alpha C \left(1 - F_P(-s)\right), & s < 0, \\
+                C \left(1 - F_I(s)\right), & s \ge 0,
+            \end{cases}
+
+        with :math:`C =` ``self.parameters.infectiousness_normalisation`` and
+        :math:`\alpha =` ``self.parameters.rel_presymptomatic_infectiousness``.
+        Output values are clipped to be non-negative.
 
         Parameters
         ----------
@@ -476,13 +515,13 @@ class SymptomOnsetToTransmissionTime(BaseTransmissionProfile):
         """
 
         sample_shape = (size,) if isinstance(size, int) else size
-        sampling_grid, sampling_weights = self._ensure_sampling_grid()
-        return self.rng.choice(sampling_grid, size=sample_shape, p=sampling_weights)
+        x, cdf = self._ensure_numerical_cdf()
+        u = self.rng.uniform(0.0, 1.0, size=sample_shape)
+        return np.interp(u, cdf, x)
 
 
 __all__ = [
     "BaseTransmissionProfile",
     "InfectiousnessToTransmissionTime",
     "SymptomOnsetToTransmissionTime",
-    "_trapz",
 ]

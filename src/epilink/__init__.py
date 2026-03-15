@@ -20,7 +20,7 @@ from .simulation import (
     simulate_genomic_sequences,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "NaturalHistoryParameters",

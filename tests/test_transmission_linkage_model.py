@@ -218,7 +218,7 @@ def test_temporal_linkage_probability_arrays(temporal_dist, seed):
     assert np.all((out >= 0.0) & (out <= 1.0))
 
 
-def test_genetic_linkage_probability_kinds_and_errors():
+def test_genetic_linkage_probability_modes_and_errors():
     toit = InfectiousnessToTransmissionTime(rng_seed=51)
     clock = MolecularClock(use_relaxed_clock=False, rng_seed=52)
 
@@ -235,17 +235,6 @@ def test_genetic_linkage_probability_kinds_and_errors():
     assert np.all(np.isfinite(out_raw))
     assert np.all(out_raw >= 0.0)
 
-    out_relative = estimate_genetic_linkage_probability(
-        transmission_profile=toit,
-        clock=clock,
-        genetic_distance=[0, 1],
-        num_simulations=50,
-        max_intermediate_hosts=2,
-        included_intermediate_counts=(0, 1),
-        output_mode="relative",
-    )
-    assert out_relative.shape == (2,)
-
     out_normalized = estimate_genetic_linkage_probability(
         transmission_profile=toit,
         clock=clock,
@@ -256,6 +245,7 @@ def test_genetic_linkage_probability_kinds_and_errors():
         output_mode="normalized",
     )
     assert out_normalized.shape == (2,)
+    assert np.all((out_normalized >= 0.0) & (out_normalized <= 1.0))
 
     out_all = estimate_genetic_linkage_probability(
         transmission_profile=toit,
@@ -278,6 +268,17 @@ def test_genetic_linkage_probability_kinds_and_errors():
             num_simulations=10,
             max_intermediate_hosts=2,
             included_intermediate_counts=(3,),
+            output_mode="normalized",
+        )
+
+    with pytest.raises(ValueError, match="output_mode must be"):
+        estimate_genetic_linkage_probability(
+            transmission_profile=toit,
+            clock=clock,
+            genetic_distance=[0],
+            num_simulations=10,
+            max_intermediate_hosts=2,
+            included_intermediate_counts=(0,),
             output_mode="relative",
         )
 
@@ -431,8 +432,8 @@ def test_temporal_linkage_probability_scalar_input():
     assert 0.0 <= result_scalar[0] <= 1.0
 
 
-def test_genetic_linkage_probability_all_kinds_with_none():
-    """Test estimate_genetic_linkage_probability with included_intermediate_counts=None for all kinds."""
+def test_genetic_linkage_probability_supported_modes_with_none():
+    """Test estimate_genetic_linkage_probability with included_intermediate_counts=None."""
     genetic_dist = np.array([0, 5, 10])
 
     # Test 'raw' with None
@@ -449,21 +450,6 @@ def test_genetic_linkage_probability_all_kinds_with_none():
     assert np.all(np.isfinite(result_raw))
     assert np.all((result_raw >= 0.0) & (result_raw <= 2.0))
 
-    # Test 'relative' with None
-    result_relative = estimate_genetic_linkage_probability(
-        transmission_profile=InfectiousnessToTransmissionTime(rng_seed=150),
-        clock=MolecularClock(use_relaxed_clock=False, rng_seed=151),
-        genetic_distance=genetic_dist,
-        num_simulations=50,
-        max_intermediate_hosts=2,
-        included_intermediate_counts=None,
-        output_mode="relative",
-    )
-    assert result_relative.shape == (3, 3)
-    assert np.all((result_relative >= 0.0) & (result_relative <= 1.0))
-    expected_row_sums = np.where(result_raw.sum(axis=1) > 0.0, 1.0, 0.0)
-    np.testing.assert_allclose(result_relative.sum(axis=1), expected_row_sums, atol=1e-10)
-
     # Test 'normalized' with None
     result_normalized = estimate_genetic_linkage_probability(
         transmission_profile=InfectiousnessToTransmissionTime(rng_seed=150),
@@ -476,8 +462,8 @@ def test_genetic_linkage_probability_all_kinds_with_none():
     )
     assert result_normalized.shape == (3, 3)
     assert np.all((result_normalized >= 0.0) & (result_normalized <= 1.0))
-    np.testing.assert_allclose(result_relative, result_normalized, atol=1e-10)
     # Each row should sum to ~1.0 when there is support, otherwise remain all zeros.
+    expected_row_sums = np.where(result_raw.sum(axis=1) > 0.0, 1.0, 0.0)
     row_sums = result_normalized.sum(axis=1)
     np.testing.assert_allclose(row_sums, expected_row_sums, atol=1e-10)
 
@@ -586,7 +572,7 @@ def test_genetic_linkage_probability_scalar_distance():
         num_simulations=30,
         max_intermediate_hosts=2,
         included_intermediate_counts=(0, 1),
-        output_mode="relative",
+        output_mode="normalized",
     )
 
     assert result.shape == (1,)
@@ -1149,14 +1135,14 @@ class TestComplexScenarios:
     """Test complex scenarios combining multiple features."""
 
     def test_genetic_linkage_probability_all_kinds_with_selection(self):
-        """Test all kind values with specific included_intermediate_counts."""
+        """Test supported output modes with specific included_intermediate_counts."""
         toit = InfectiousnessToTransmissionTime(rng_seed=4020)
         clock = MolecularClock(use_relaxed_clock=False, rng_seed=4021)
 
         genetic_dist = np.array([5, 10, 15])
 
-        # Test each kind with selected intermediates
-        for kind in ["raw", "relative", "normalized"]:
+        # Test each supported mode with selected intermediates
+        for kind in ["raw", "normalized"]:
             result = estimate_genetic_linkage_probability(
                 transmission_profile=toit,
                 clock=clock,
@@ -1169,7 +1155,7 @@ class TestComplexScenarios:
             assert result.shape == (3,)
             assert np.all(np.isfinite(result))
             assert np.all(result >= 0.0)
-            if kind != "raw":
+            if kind == "normalized":
                 assert np.all(result <= 1.0)
 
     def test_linkage_probability_matrix_with_zeros(self):
@@ -1394,7 +1380,7 @@ class TestErrorConditions:
                 num_simulations=30,
                 max_intermediate_hosts=3,
                 included_intermediate_counts=(5,),  # Exceeds max_intermediate_hosts=3
-                output_mode="relative",
+                output_mode="normalized",
             )
 
         # Test negative value
@@ -1406,7 +1392,7 @@ class TestErrorConditions:
                 num_simulations=30,
                 max_intermediate_hosts=3,
                 included_intermediate_counts=(-2,),
-                output_mode="relative",
+                output_mode="normalized",
             )
 
     def test_genetic_linkage_probability_invalid_kind_with_selection(self):
@@ -1441,15 +1427,15 @@ class TestErrorConditions:
                 output_mode="wrong_kind",
             )
 
-    def test_genetic_linkage_probability_all_kinds_return_correct_types(self):
-        """Test that different kinds return appropriate shapes with None."""
+    def test_genetic_linkage_probability_supported_modes_return_correct_types(self):
+        """Test that supported modes return appropriate shapes with None."""
         toit = InfectiousnessToTransmissionTime(rng_seed=7060)
         clock = MolecularClock(use_relaxed_clock=False, rng_seed=7061)
 
         genetic_dist = [5, 10]
 
-        # Test that each kind with None returns (K, M+1) shape
-        for kind in ["raw", "relative", "normalized"]:
+        # Test that each supported mode with None returns (K, M+1) shape
+        for kind in ["raw", "normalized"]:
             result = estimate_genetic_linkage_probability(
                 transmission_profile=toit,
                 clock=clock,

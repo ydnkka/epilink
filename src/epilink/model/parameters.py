@@ -15,7 +15,7 @@ class NaturalHistoryParameters:
     The model assumes stage durations follow Gamma distributions using the
     shape-scale parameterization.
 
-    Parameters
+    Attributes
     ----------
     incubation_shape : float, default=5.807
         Shape parameter :math:`k_{inc}` of the incubation period distribution.
@@ -31,6 +31,28 @@ class NaturalHistoryParameters:
         Shape parameter :math:`k_I` of the symptomatic infectious (``I``) stage.
     rel_presymptomatic_infectiousness : float, default=2.29
         Relative infectiousness :math:`\alpha` of ``P`` compared with ``I``.
+
+    Notes
+    -----
+    Derived parameters are available as properties.
+
+    presymptomatic_shape : float
+        Derived shape parameter :math:`k_P = k_{inc} - k_E` of the presymptomatic
+        infectious (``P``) stage.
+    symptomatic_scale : float
+        Derived scale :math:`\theta_I = 1 / (k_I \cdot \mu)` of the symptomatic
+        infectious (``I``) stage duration.
+    incubation_rate : float
+        Derived rate :math:`\lambda = 1 / (k_{inc} \cdot \theta_{inc})` of
+        the incubation period distribution.
+    infectiousness_normalisation : float
+        Derived normalisation constant :math:`C` ensuring the infectiousness
+        profile integrates to unity over the infectious period:
+
+        .. math::
+
+            C = \frac{k_{inc} \cdot \lambda \cdot \mu}
+                     {\alpha \cdot k_P \cdot \mu + k_{inc} \cdot \lambda}
     """
 
     incubation_shape: float = 5.807
@@ -102,7 +124,12 @@ def estimate_presymptomatic_transmission_fraction(p: NaturalHistoryParameters) -
     Returns
     -------
     float
-        The presymptomatic transmission fraction :math:`q_P \in [0, 1]`.
+        The presymptomatic transmission fraction :math:`q_P \in [0, 1]`:
+
+        .. math::
+
+            q_P = \frac{\alpha \cdot k_P \cdot \mu}
+                       {\alpha \cdot k_P \cdot \mu + k_{inc} \cdot \lambda}
     """
 
     num = p.rel_presymptomatic_infectiousness * p.presymptomatic_shape * p.symptomatic_rate

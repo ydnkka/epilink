@@ -52,7 +52,7 @@ def genetic_kernel(
 
     K = genetic_distance_ij.shape[0]
     N = clock_rates.shape[0]
-    M = max_intermediate_hosts
+    M = int(max_intermediate_hosts)
 
     out = np.zeros((K, M + 1), dtype=np.float64)
 
