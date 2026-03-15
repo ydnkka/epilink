@@ -467,79 +467,77 @@ def test_toit_sample_generation_intervals():
     assert np.mean(gen_times) > np.mean(toit_samples)
 
 
-def test_toit_grid_fallback_uniform():
-    """Test InfectiousnessToTransmissionTime grid fallback to uniform distribution when PDF is zero."""
-    # Create parameters that result in zero PDF over grid
-    # (using equal grid bounds creates a collapsed sampling grid)
+def test_toit_grid_fallback_uniform(monkeypatch):
+    """Test InfectiousnessToTransmissionTime numerical CDF falls back to a linear grid when PDF is zero."""
     toit = InfectiousnessToTransmissionTime(
-        grid_min_days=5.0,
+        grid_min_days=0.0,
         grid_max_days=5.0,
         integration_grid_points=2,
-        sampling_grid_points=2,
+        sampling_grid_points=5,
     )
-    xs, ps = toit._ensure_sampling_grid()
+    monkeypatch.setattr(toit, "pdf", lambda x: np.zeros_like(np.asarray(x, dtype=float)))
+    xs, cdf = toit._ensure_numerical_cdf()
 
     # Grid should have expected size
-    assert xs.size == 2
+    assert xs.size == 5
 
-    # Probabilities should sum to 1
-    assert np.allclose(ps.sum(), 1.0)
-
-    # All probabilities should be non-negative
-    assert np.all(ps >= 0)
+    # Fallback CDF should be linear on the configured support
+    np.testing.assert_allclose(cdf, np.linspace(0.0, 1.0, num=5))
 
 
 def test_ensure_grid_fallback_uniform():
-    """Test that zero PDFs fall back to a uniform grid."""
+    """Test that zero PDFs fall back to a linear numerical CDF."""
 
     class ZeroPdfProfile(BaseTransmissionProfile):
         def pdf(self, x):
             return np.zeros_like(np.asarray(x, dtype=float))
 
     profile = ZeroPdfProfile(grid_min_days=0.0, grid_max_days=1.0, grid_points=10)
-    xs, ps = profile._ensure_sampling_grid()
+    xs, cdf = profile._ensure_numerical_cdf()
 
-    assert xs.shape == ps.shape
-    assert np.allclose(ps, np.ones_like(ps) / len(ps))
+    assert xs.shape == cdf.shape
+    np.testing.assert_allclose(cdf, np.linspace(0.0, 1.0, num=10))
 
 
 def test_toit_sampling_grid_normalized():
-    """Test InfectiousnessToTransmissionTime internal grid is properly normalized."""
+    """Test InfectiousnessToTransmissionTime internal numerical CDF is properly normalized."""
     toit = InfectiousnessToTransmissionTime(
         grid_min_days=0.0,
         grid_max_days=5.0,
         integration_grid_points=128,
         sampling_grid_points=128,
     )
-    xs, ps = toit._ensure_sampling_grid()
+    xs, cdf = toit._ensure_numerical_cdf()
 
-    # Grid and probabilities should have same shape
-    assert xs.shape == ps.shape
+    # Grid and CDF should have same shape
+    assert xs.shape == cdf.shape
 
-    # All probabilities non-negative
-    assert np.all(ps >= 0.0)
+    # CDF should be bounded and monotonic
+    assert np.all((cdf >= 0.0) & (cdf <= 1.0))
+    assert np.all(np.diff(cdf) >= 0.0)
 
-    # Probabilities should sum to 1
-    assert np.isclose(ps.sum(), 1.0, atol=1e-6)
+    # CDF should span the full probability range
+    assert np.isclose(cdf[0], 0.0, atol=1e-12)
+    assert np.isclose(cdf[-1], 1.0, atol=1e-12)
 
 
 def test_toit_grid_caching():
-    """Test InfectiousnessToTransmissionTime grid caching mechanism."""
+    """Test InfectiousnessToTransmissionTime numerical CDF caching mechanism."""
     toit = InfectiousnessToTransmissionTime()
 
     # Initially, grid should be None
     assert toit._sampling_grid is None
-    assert toit._sampling_weights is None
+    assert toit._cdf_grid is None
 
     # After first call, grid should be cached
-    xs1, ps1 = toit._ensure_sampling_grid()
+    xs1, cdf1 = toit._ensure_numerical_cdf()
     assert toit._sampling_grid is not None
-    assert toit._sampling_weights is not None
+    assert toit._cdf_grid is not None
 
     # Second call should return same cached grid
-    xs2, ps2 = toit._ensure_sampling_grid()
+    xs2, cdf2 = toit._ensure_numerical_cdf()
     assert np.all(xs1 == xs2)
-    assert np.all(ps1 == ps2)
+    assert np.all(cdf1 == cdf2)
 
 
 def test_toit_mean():
@@ -767,8 +765,8 @@ def test_profile_rvs_reproducibility(profile_cls, seed):
     assert np.allclose(profile1.rvs(10), profile2.rvs(10))
 
 
-def test_base_profile_cdf_requires_trapz(monkeypatch):
-    """Test cdf raises ImportError when trapezoid integration is unavailable."""
+def test_base_profile_cdf_does_not_require_trapz(monkeypatch):
+    """Test cdf still works when NumPy trapezoid integration helpers are unavailable."""
     from epilink.model import profiles as ip
 
     class UniformProfile(BaseTransmissionProfile):
@@ -779,8 +777,8 @@ def test_base_profile_cdf_requires_trapz(monkeypatch):
     profile = UniformProfile(grid_min_days=0.0, grid_max_days=1.0)
     monkeypatch.setattr(ip, "_trapz", None)
 
-    with pytest.raises(ImportError, match="Neither np.trapezoid nor np.trapz found in NumPy."):
-        profile.cdf(0.5)
+    cdf = profile.cdf([0.0, 0.5, 1.0])
+    np.testing.assert_allclose(cdf, np.array([0.0, 0.5, 1.0]), atol=1e-3)
 
 
 def test_base_profile_mean_requires_trapz(monkeypatch):

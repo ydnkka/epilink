@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import networkx as nx
 import numpy as np
 
@@ -28,8 +30,8 @@ def _naive_hamming(int8_matrix: np.ndarray) -> np.ndarray:
 
 
 def _row_for_pair(df, node_a: str, node_b: str):
-    mask = ((df["NodeA"] == node_a) & (df["NodeB"] == node_b)) | (
-        (df["NodeA"] == node_b) & (df["NodeB"] == node_a)
+    mask = ((df["CaseA"] == node_a) & (df["CaseB"] == node_b)) | (
+        (df["CaseA"] == node_b) & (df["CaseB"] == node_a)
     )
     return df[mask].iloc[0]
 
@@ -111,7 +113,9 @@ def test_sequence_packer_pyfunc_matches_naive():
     int8_matrix = rng.integers(0, 4, size=(2, 33), dtype=np.int8)
 
     packed = SequencePacker64.pack_u64.py_func(int8_matrix)
-    hamming = SequencePacker64.hamming64.py_func(packed)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        hamming = SequencePacker64.hamming64.py_func(packed)
     expected = _naive_hamming(int8_matrix)
 
     np.testing.assert_allclose(hamming, expected, rtol=0.0, atol=0.0)
@@ -265,32 +269,32 @@ def test_generate_pairwise_data_relationships():
     df = build_pairwise_case_table({"linear": packed_linear, "poisson": packed_poisson}, tree)
 
     assert set(df.columns) == {
-        "NodeA",
-        "NodeB",
-        "Related",
-        "Sampled",
-        "LinearDist",
-        "PoissonDist",
-        "TemporalDist",
+        "CaseA",
+        "CaseB",
+        "IsRelated",
+        "BothSampled",
+        "DeterministicDistance",
+        "StochasticDistance",
+        "SamplingDateDistanceDays",
     }
     assert len(df) == 6
 
     row_bc = _row_for_pair(df, "B", "C")
-    assert bool(row_bc["Related"]) is True
+    assert bool(row_bc["IsRelated"]) is True
 
     row_cd = _row_for_pair(df, "C", "D")
-    assert bool(row_cd["Related"]) is False
+    assert bool(row_cd["IsRelated"]) is False
 
     row_ab = _row_for_pair(df, "A", "B")
-    assert bool(row_ab["Sampled"]) is True
-    assert row_ab["LinearDist"] == 1
-    assert row_ab["PoissonDist"] == 1
+    assert bool(row_ab["BothSampled"]) is True
+    assert row_ab["DeterministicDistance"] == 1
+    assert row_ab["StochasticDistance"] == 1
 
     row_ac = _row_for_pair(df, "A", "C")
-    assert bool(row_ac["Sampled"]) is False
+    assert bool(row_ac["BothSampled"]) is False
 
     row_bd = _row_for_pair(df, "B", "D")
-    assert row_bd["TemporalDist"] == 5
+    assert row_bd["SamplingDateDistanceDays"] == 5
 
 
 def test_generate_pairwise_data_skips_missing_nodes():
@@ -319,4 +323,4 @@ def test_generate_pairwise_data_skips_missing_nodes():
 
     assert len(df) == 1
     row_ab = _row_for_pair(df, "A", "B")
-    assert bool(row_ab["Related"]) is True
+    assert bool(row_ab["IsRelated"]) is True

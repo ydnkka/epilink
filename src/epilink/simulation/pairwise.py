@@ -71,13 +71,13 @@ def build_pairwise_case_table(
 
     return pd.DataFrame(
         {
-            "NodeA": id_array[rows],
-            "NodeB": id_array[cols],
-            "Related": mat_related[rows, cols],
-            "Sampled": sampled_status[rows] & sampled_status[cols],
-            "LinearDist": mat_linear[rows, cols],
-            "PoissonDist": mat_poisson[rows, cols],
-            "TemporalDist": mat_temporal[rows, cols],
+            "CaseA": id_array[rows],
+            "CaseB": id_array[cols],
+            "IsRelated": mat_related[rows, cols],
+            "BothSampled": sampled_status[rows] & sampled_status[cols],
+            "DeterministicDistance": mat_linear[rows, cols],
+            "StochasticDistance": mat_poisson[rows, cols],
+            "SamplingDateDistanceDays": mat_temporal[rows, cols],
         }
     )
 

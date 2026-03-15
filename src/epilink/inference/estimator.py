@@ -65,10 +65,10 @@ def estimate_linkage_probability(
     included_intermediate_counts : tuple of int, default=(0,)
         Intermediate-host counts to include in the final probability.
     max_intermediate_hosts : int, default=10
-        Maximum number of intermediate hosts considered in the Monte Carlo
+        Maximum  intermediate hosts considered in the Monte Carlo
         simulation.
     num_simulations : int, default=10000
-        Number of Monte Carlo draws.
+         Monte Carlo draws.
     cache_unique_distances : bool, default=True
         If ``True``, compute repeated distance pairs only once.
 
@@ -100,7 +100,7 @@ def estimate_linkage_probability(
         simulation_samples = LinkageMonteCarloSamples.run_simulations(
             transmission_profile,
             clock,
-            int(num_simulations),
+            num_simulations,
             max_intermediate_hosts,
         )
         p_temporal_u = LinkageMonteCarloSamples.temporal_kernel(
@@ -127,7 +127,7 @@ def estimate_linkage_probability(
         simulation_samples = LinkageMonteCarloSamples.run_simulations(
             transmission_profile,
             clock,
-            int(num_simulations),
+            num_simulations,
             max_intermediate_hosts,
         )
         p_temporal = LinkageMonteCarloSamples.temporal_kernel(
@@ -181,10 +181,10 @@ def estimate_linkage_probability_grid(
     included_intermediate_counts : tuple of int, default=(0,)
         Intermediate-host counts to include in the final probability.
     max_intermediate_hosts : int, default=10
-        Maximum number of intermediate hosts considered in the Monte Carlo
+        Maximum intermediate hosts considered in the Monte Carlo
         simulation.
     num_simulations : int, default=10000
-        Number of Monte Carlo draws.
+        Monte Carlo draws.
 
     Returns
     -------
@@ -268,14 +268,14 @@ def estimate_genetic_linkage_probability(
     genetic_distance : array_like
         Genetic distances between case pairs.
     num_simulations : int, default=10000
-        Number of Monte Carlo draws.
+        Monte Carlo draws.
     max_intermediate_hosts : int, default=10
-        Maximum number of intermediate hosts considered in the Monte Carlo
+        Maximum intermediate hosts considered in the Monte Carlo
         simulation.
     included_intermediate_counts : tuple of int or None, default=(0,)
         Intermediate-host counts to extract. If ``None``, return all scenario
         columns.
-    output_mode : {"relative", "raw", "normalized"}, default="relative"
+    output_mode : {"raw", "normalized"}, default="normalized"
         Output transformation to apply to the scenario weights.
 
     Returns
@@ -288,7 +288,7 @@ def estimate_genetic_linkage_probability(
     simulation_samples = LinkageMonteCarloSamples.run_simulations(
         transmission_profile,
         clock,
-        int(num_simulations),
+        num_simulations,
         max_intermediate_hosts,
     )
 
@@ -308,27 +308,21 @@ def estimate_genetic_linkage_probability(
     if included_intermediate_counts is not None:
         cols = _coerce_intermediate_counts(included_intermediate_counts, max_intermediate_hosts)
 
-        if output_mode == "relative":
+        if output_mode == "normalized":
             selected = p_posterior[:, cols].sum(axis=1)
         elif output_mode == "raw":
             selected = genetic_scores_by_scenario[:, cols].sum(axis=1)
-        elif output_mode == "normalized":
-            selected = p_posterior[:, cols].sum(axis=1)
         else:
             raise ValueError(
-                "output_mode must be 'relative', 'raw', or 'normalized', " f"got {output_mode!r}.",
+                "output_mode must be 'raw', or 'normalized', " f"got {output_mode!r}.",
             )
         return selected
 
-    if output_mode == "relative":
+    if output_mode == "normalized":
         return p_posterior
     if output_mode == "raw":
         return genetic_scores_by_scenario
-    if output_mode == "normalized":
-        return p_posterior
-    raise ValueError(
-        "output_mode must be 'relative', 'raw', or 'normalized', " f"got {output_mode!r}."
-    )
+    raise ValueError("output_mode must be 'raw', or 'normalized', " f"got {output_mode!r}.")
 
 
 __all__ = [
