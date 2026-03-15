@@ -57,7 +57,7 @@ class SequencePacker64:
         M55 = np.uint64(0x5555555555555555)
         M33 = np.uint64(0x3333333333333333)
         M0F = np.uint64(0x0F0F0F0F0F0F0F0F)
-        M01 = np.uint64(0x0101010101010101)
+        M7F = np.uint64(0x7F)
 
         N, B = packed.shape
         d = np.empty((N, N), dtype=np.int32)
@@ -76,9 +76,13 @@ class SequencePacker64:
                     diff = (x | (x >> 1)) & M55
 
                     c = diff
+                    c = c - ((c >> 1) & M55)
                     c = (c & M33) + ((c >> 2) & M33)
-                    c = (c & M0F) + ((c >> 4) & M0F)
-                    c = (c * M01) >> 56
+                    c = (c + (c >> 4)) & M0F
+                    c = c + (c >> 8)
+                    c = c + (c >> 16)
+                    c = c + (c >> 32)
+                    c = c & M7F
 
                     total += c
 

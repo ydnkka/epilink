@@ -62,9 +62,9 @@ class LinkageMonteCarloSamples:
         molecular_clock : MolecularClock
             Molecular clock used to sample substitution rates.
         num_simulations : int
-            Number of Monte Carlo draws.
+            Monte Carlo draws.
         max_intermediate_hosts : int
-            Maximum number of intermediate hosts to simulate.
+            Maximum intermediate hosts to simulate.
 
         Returns
         -------
