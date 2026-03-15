@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "epilink"
-version = "0.1.1"
+version = "0.1.0"
 description = "Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,7 @@ keywords = [
     "transmission",
     "linkage-inference"
 ]
+
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -36,8 +37,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
-    "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Bio-Informatics"
 ]
 dependencies = [
     "numpy>=2.0,<2.5",
