@@ -143,15 +143,9 @@ class NaturalHistoryParameters:
 
     @property
     def infectiousness_normalisation(self) -> float:
-        numerator = (
-                self.incubation_shape
-                * self.incubation_rate
-                * self.symptomatic_rate
-        )
+        numerator = self.incubation_shape * self.incubation_rate * self.symptomatic_rate
         denominator = (
-            self.transmission_rate_ratio
-            * self.presymptomatic_shape
-            * self.symptomatic_rate
+            self.transmission_rate_ratio * self.presymptomatic_shape * self.symptomatic_rate
             + self.incubation_shape * self.incubation_rate
         )
         return numerator / denominator

@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from epilink.epilink import EpiLink
+from epilink import EpiLink  # noqa: E402
 
 
 class CountingProfile:
@@ -49,6 +49,21 @@ class CountingProfile:
 
 
 class TestEpiLink(unittest.TestCase):
+    @staticmethod
+    def _manual_draws() -> dict[str, dict[str, np.ndarray]]:
+        return {
+            "ad(0)": {
+                "time_draws": np.array([1.0, 2.0, 3.0, 4.0]),
+                "branch_draws": np.array([1.0, 1.0, 1.0, 1.0]),
+                "genetic_draws": np.array([0.0, 1.0, 2.0, 3.0]),
+            },
+            "ca(0,0)": {
+                "time_draws": np.array([2.0, 3.0, 4.0, 5.0]),
+                "branch_draws": np.array([2.0, 2.0, 2.0, 2.0]),
+                "genetic_draws": np.array([1.0, 2.0, 3.0, 4.0]),
+            },
+        }
+
     def test_score_pair_uses_cached_draws(self) -> None:
         profile = CountingProfile()
         model = EpiLink(
@@ -78,18 +93,9 @@ class TestEpiLink(unittest.TestCase):
             mutation_process="deterministic",
         )
 
-        model.draws_by_scenario = {
-            "ad(0)": {
-                "time_draws": np.array([1.0, 2.0, 3.0, 4.0]),
-                "branch_draws": np.array([1.0, 1.0, 1.0, 1.0]),
-                "genetic_draws": np.array([0.0, 1.0, 2.0, 3.0]),
-            },
-            "ca(0,0)": {
-                "time_draws": np.array([3.0, 4.0, 5.0, 6.0]),
-                "branch_draws": np.array([2.0, 2.0, 2.0, 2.0]),
-                "genetic_draws": np.array([4.0, 5.0, 6.0, 7.0]),
-            },
-        }
+        model.draws_by_scenario = self._manual_draws()
+        model.draws_by_scenario["ca(0,0)"]["time_draws"] = np.array([3.0, 4.0, 5.0, 6.0])
+        model.draws_by_scenario["ca(0,0)"]["genetic_draws"] = np.array([4.0, 5.0, 6.0, 7.0])
 
         result = model.score_pair(sample_time_difference=2.5, genetic_distance=1.5)
 
@@ -106,22 +112,11 @@ class TestEpiLink(unittest.TestCase):
             transmission_profile=profile,
             maximum_depth=0,
             mc_samples=4,
-            target=["ad(0)", "ca(0,0)", "ad(0)"],
+            target=["ca(0,0)", "ad(0)", "ad(0)"],
             mutation_process="deterministic",
         )
 
-        model.draws_by_scenario = {
-            "ad(0)": {
-                "time_draws": np.array([1.0, 2.0, 3.0, 4.0]),
-                "branch_draws": np.array([1.0, 1.0, 1.0, 1.0]),
-                "genetic_draws": np.array([0.0, 1.0, 2.0, 3.0]),
-            },
-            "ca(0,0)": {
-                "time_draws": np.array([2.0, 3.0, 4.0, 5.0]),
-                "branch_draws": np.array([2.0, 2.0, 2.0, 2.0]),
-                "genetic_draws": np.array([1.0, 2.0, 3.0, 4.0]),
-            },
-        }
+        model.draws_by_scenario = self._manual_draws()
 
         result = model.score_pair(sample_time_difference=2.5, genetic_distance=1.5)
 
@@ -133,6 +128,56 @@ class TestEpiLink(unittest.TestCase):
         self.assertAlmostEqual(result["scenario_scores"]["ca(0,0)"]["compatibility"], 0.25)
         self.assertAlmostEqual(result["target_compatibility"], 1.25)
         self.assertAlmostEqual(model.score_target(2.5, 1.5), 1.25)
+
+    def test_pairwise_model_accepts_arraylike_inputs_and_returns_broadcast_shape(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            target=["ad(0)", "ca(0,0)"],
+            mutation_process="deterministic",
+        )
+        model.draws_by_scenario = self._manual_draws()
+
+        pairwise_model = model.pairwise_model()
+        sample_time_difference = np.array([[2.5], [4.5]])
+        genetic_distance = np.array([[1.5, 2.5, 3.5]])
+
+        scores = pairwise_model(sample_time_difference, genetic_distance)
+        broadcast_time, broadcast_genetic = np.broadcast_arrays(
+            sample_time_difference,
+            genetic_distance,
+        )
+        expected = np.empty_like(broadcast_time, dtype=float)
+
+        for index in np.ndindex(expected.shape):
+            expected[index] = model.score_pair(
+                sample_time_difference=float(broadcast_time[index]),
+                genetic_distance=float(broadcast_genetic[index]),
+            )["target_compatibility"]
+
+        np.testing.assert_allclose(scores, expected)
+        self.assertEqual(scores.shape, expected.shape)
+        np.testing.assert_allclose(
+            model.score_target(sample_time_difference, genetic_distance),
+            expected,
+        )
+
+    def test_pairwise_model_caches_equivalent_target_subsets(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+
+        first_model = model.pairwise_model(["ca(0,0)", "ad(0)"])
+        second_model = model.pairwise_model(["ad(0)", "ca(0,0)", "ad(0)"])
+
+        self.assertIs(first_model, second_model)
+        self.assertEqual(first_model.target_labels, ("ad(0)", "ca(0,0)"))
 
     def test_stochastic_mutation_process_precomputes_integer_genetic_draws(self) -> None:
         profile = CountingProfile()
@@ -170,6 +215,18 @@ class TestEpiLink(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             model.score_pair(t_ij=2.5, g_ij=1.5)
+
+    def test_score_pair_rejects_arraylike_inputs(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+
+        with self.assertRaises(TypeError):
+            model.score_pair(sample_time_difference=np.array([2.5]), genetic_distance=1.5)
 
     def test_unknown_target_raises_value_error(self) -> None:
         profile = CountingProfile()
