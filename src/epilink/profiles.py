@@ -28,13 +28,16 @@ class BaseTransmissionProfile:
     grid_points : int, default=1024
         grid points used for numerical summaries and sampling.
     """
-    def __init__(self,
-                 grid_min_days: float,
-                 grid_max_days: float,
-                 parameters: NaturalHistoryParameters | None = None,
-                 rng: Generator | None = None,
-                 rng_seed: int | None = None,
-                 grid_points: int = 1024) -> None:
+
+    def __init__(
+        self,
+        grid_min_days: float,
+        grid_max_days: float,
+        parameters: NaturalHistoryParameters | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        grid_points: int = 1024,
+    ) -> None:
 
         if grid_max_days < grid_min_days:
             raise ValueError("grid_max_days must be greater than or equal to grid_min_days.")
@@ -54,7 +57,9 @@ class BaseTransmissionProfile:
         param = self.parameters
         self.incubation = stats.gamma(a=param.incubation_shape, scale=param.incubation_scale)
         self.latent = stats.gamma(a=param.latent_shape, scale=param.incubation_scale)
-        self.presymptomatic = stats.gamma(a=param.presymptomatic_shape, scale=param.incubation_scale)
+        self.presymptomatic = stats.gamma(
+            a=param.presymptomatic_shape, scale=param.incubation_scale
+        )
         self.symptomatic = stats.gamma(a=param.symptomatic_shape, scale=param.symptomatic_scale)
 
     def _ensure_numerical_cdf(self) -> tuple[np.ndarray, np.ndarray]:
@@ -129,7 +134,9 @@ class BaseTransmissionProfile:
         total_mass = float(np.trapezoid(probability_density, integration_grid))
         if not np.isfinite(total_mass) or total_mass <= 0.0:
             return float("nan")
-        return float(np.trapezoid(integration_grid * probability_density, integration_grid) / total_mass)
+        return float(
+            np.trapezoid(integration_grid * probability_density, integration_grid) / total_mass
+        )
 
     def rvs(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         """Sample from the profile on the configured numerical grid.
@@ -257,11 +264,15 @@ class BaseTransmissionProfile:
             Substitution rates in mutations per day.
         """
         per_site_per_year = self.rng.lognormal(
-                np.log(self.parameters.substitution_rate), self.parameters.relaxation, size=size
+            np.log(self.parameters.substitution_rate), self.parameters.relaxation, size=size
         )
         return (per_site_per_year * self.parameters.genome_length) / 365.0
 
-    def expected_mutations(self, times_in_days: np.typing.ArrayLike, size: int | tuple[int, ...] = 1,) -> np.ndarray:
+    def expected_mutations(
+        self,
+        times_in_days: np.typing.ArrayLike,
+        size: int | tuple[int, ...] = 1,
+    ) -> np.ndarray:
         """Compute expected mutation counts for elapsed times.
 
         Parameters
@@ -288,6 +299,7 @@ class BaseTransmissionProfile:
             f"grid_max_days={self.grid_max_days}, "
             f"parameters={self.parameters})"
         )
+
 
 class InfectiousnessToTransmission(BaseTransmissionProfile):
     r"""Distribution of time from the onset of infectiousness to transmission (:math:`t_{toit}`).
@@ -326,14 +338,16 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
          numerical grid points used for sampling from the profile.
     """
 
-    def __init__(self,
-                 grid_min_days: float = 0.0,
-                 grid_max_days: float = 100.0,
-                 parameters: NaturalHistoryParameters | None = None,
-                 rng: Generator | None = None,
-                 rng_seed: int | None = None,
-                 integration_grid_points: int = 2048,
-                 sampling_grid_points: int = 1024) -> None:
+    def __init__(
+        self,
+        grid_min_days: float = 0.0,
+        grid_max_days: float = 100.0,
+        parameters: NaturalHistoryParameters | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        integration_grid_points: int = 2048,
+        sampling_grid_points: int = 1024,
+    ) -> None:
 
         super().__init__(
             grid_min_days=grid_min_days,
@@ -403,8 +417,7 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
                 )
 
             probability_density[index] = param.infectiousness_normalisation * (
-                param.transmission_rate_ratio
-                * (1.0 - self.presymptomatic.cdf(toit_value))
+                param.transmission_rate_ratio * (1.0 - self.presymptomatic.cdf(toit_value))
                 + symptomatic_contribution
             )
 
@@ -431,6 +444,7 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
         x, cdf = self._ensure_numerical_cdf()
         u = self.rng.uniform(0.0, 1.0, size=sample_shape)
         return np.interp(u, cdf, x)
+
 
 class SymptomOnsetToTransmission(BaseTransmissionProfile):
     r"""Distribution of time from the onset symptoms to transmission (:math:`t_{tost}`).
@@ -466,13 +480,15 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
         numerical grid points used for summaries and sampling.
     """
 
-    def __init__(self,
-                 grid_min_days: float = -30.0,
-                 grid_max_days: float = 30.0,
-                 parameters: NaturalHistoryParameters | None = None,
-                 rng: Generator | None = None,
-                 rng_seed: int | None = None,
-                 grid_points: int = 2048) -> None:
+    def __init__(
+        self,
+        grid_min_days: float = -30.0,
+        grid_max_days: float = 30.0,
+        parameters: NaturalHistoryParameters | None = None,
+        rng: Generator | None = None,
+        rng_seed: int | None = None,
+        grid_points: int = 2048,
+    ) -> None:
         super().__init__(
             grid_min_days=grid_min_days,
             grid_max_days=grid_max_days,
@@ -529,6 +545,7 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
         x, cdf = self._ensure_numerical_cdf()
         u = self.rng.uniform(0.0, 1.0, size=sample_shape)
         return np.interp(u, cdf, x)
+
 
 __all__ = [
     "InfectiousnessToTransmission",

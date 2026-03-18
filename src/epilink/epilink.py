@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 from numpy.random import Generator
+from numpy.typing import ArrayLike
 
 from .profiles import InfectiousnessToTransmission
 
@@ -23,6 +24,101 @@ class Scenario:
         if self.kind == "ad":
             return f"ad({self.intermediates})"
         return f"ca({self.branch_to_i},{self.branch_to_j})"
+
+
+class PairwiseCompatibilityModel:
+    """
+    Vectorized pairwise compatibility scorer for a fixed target subset.
+
+    Parameters
+    ----------
+    draws_by_scenario :
+        Cached Monte Carlo draws keyed by scenario label.
+    target_labels :
+        Canonical scenario labels included in the target subset.
+    """
+
+    def __init__(
+        self,
+        draws_by_scenario: dict[str, dict[str, np.ndarray]],
+        target_labels: Iterable[str],
+    ) -> None:
+        self.target_labels = tuple(target_labels)
+        if not self.target_labels:
+            raise ValueError("target_labels must contain at least one scenario.")
+
+        self._sorted_time_draws = tuple(
+            np.sort(np.asarray(draws_by_scenario[label]["time_draws"], dtype=float))
+            for label in self.target_labels
+        )
+        self._sorted_genetic_draws = tuple(
+            np.sort(np.asarray(draws_by_scenario[label]["genetic_draws"], dtype=float))
+            for label in self.target_labels
+        )
+
+    @staticmethod
+    def _broadcast_observations(
+        sample_time_difference: ArrayLike,
+        genetic_distance: ArrayLike,
+    ) -> tuple[np.ndarray, np.ndarray, tuple[int, ...]]:
+        sample_time_values, genetic_values = np.broadcast_arrays(
+            np.asarray(sample_time_difference, dtype=float),
+            np.asarray(genetic_distance, dtype=float),
+        )
+        return (
+            sample_time_values.reshape(-1),
+            genetic_values.reshape(-1),
+            sample_time_values.shape,
+        )
+
+    @staticmethod
+    def _percentile_scores(
+        observed_values: np.ndarray,
+        simulated_sorted_values: np.ndarray,
+    ) -> np.ndarray:
+        return (
+            np.searchsorted(simulated_sorted_values, observed_values, side="right").astype(float)
+            / simulated_sorted_values.size
+        )
+
+    @staticmethod
+    def _compatibility_from_percentiles(percentiles: np.ndarray) -> np.ndarray:
+        return 1.0 - 2.0 * np.abs(percentiles - 0.5)
+
+    def score(
+        self,
+        sample_time_difference: ArrayLike,
+        genetic_distance: ArrayLike,
+    ) -> np.ndarray:
+        """
+        Compute target-subset compatibility for arraylike observations.
+
+        Returns
+        -------
+        numpy.ndarray
+            Compatibility scores with the broadcast shape of the inputs.
+        """
+
+        sample_time_values, genetic_values, output_shape = self._broadcast_observations(
+            sample_time_difference=sample_time_difference,
+            genetic_distance=genetic_distance,
+        )
+        target_scores = np.zeros(sample_time_values.shape, dtype=float)
+
+        for time_draws, genetic_draws in zip(
+            self._sorted_time_draws,
+            self._sorted_genetic_draws,
+            strict=True,
+        ):
+            time_percentiles = self._percentile_scores(sample_time_values, time_draws)
+            genetic_percentiles = self._percentile_scores(genetic_values, genetic_draws)
+            target_scores += self._compatibility_from_percentiles(
+                time_percentiles
+            ) * self._compatibility_from_percentiles(genetic_percentiles)
+
+        return target_scores.reshape(output_shape)
+
+    __call__ = score
 
 
 class EpiLink:
@@ -50,6 +146,12 @@ class EpiLink:
     rng :
         Random number generator used for stochastic mutation-count draws. When
         omitted, the transmission profile generator is reused.
+
+    Notes
+    -----
+    Use :meth:`pairwise_model` to obtain a dedicated cached scorer for a
+    target subset. The resulting model accepts scalar or arraylike inputs and
+    returns compatibility scores with the broadcast shape of the observations.
     """
 
     def __init__(
@@ -76,15 +178,23 @@ class EpiLink:
         self.scenarios_by_label = {scenario.label(): scenario for scenario in self.scenarios}
         self.target_labels = self._resolve_target_labels(target)
         self.target_label = self.target_labels[0] if len(self.target_labels) == 1 else None
+        self._pairwise_models_by_target: dict[tuple[str, ...], PairwiseCompatibilityModel] = {}
         self.draws_by_scenario = self._precompute_draws()
+
+    @property
+    def draws_by_scenario(self) -> dict[str, dict[str, np.ndarray]]:
+        return self._draws_by_scenario
+
+    @draws_by_scenario.setter
+    def draws_by_scenario(self, draws_by_scenario: dict[str, dict[str, np.ndarray]]) -> None:
+        self._draws_by_scenario = draws_by_scenario
+        self._pairwise_models_by_target.clear()
 
     @staticmethod
     def _validate_mutation_process(mutation_process: str) -> str:
         normalized_process = mutation_process.strip().lower()
         if normalized_process not in {"deterministic", "stochastic"}:
-            raise ValueError(
-                "mutation_process must be either 'deterministic' or 'stochastic'."
-            )
+            raise ValueError("mutation_process must be either 'deterministic' or 'stochastic'.")
         return normalized_process
 
     @staticmethod
@@ -95,6 +205,7 @@ class EpiLink:
         self,
         target: str | Scenario | Iterable[str | Scenario],
     ) -> tuple[str, ...]:
+        raw_targets: tuple[str | Scenario, ...]
         if isinstance(target, (str, Scenario)):
             raw_targets = (target,)
         else:
@@ -104,20 +215,21 @@ class EpiLink:
             raise ValueError("target must contain at least one scenario.")
 
         available_labels = ", ".join(self.scenarios_by_label)
-        resolved_labels: list[str] = []
+        resolved_labels: set[str] = set()
 
         for raw_target in raw_targets:
-            target_label = raw_target.label() if isinstance(raw_target, Scenario) else str(raw_target)
+            target_label = (
+                raw_target.label() if isinstance(raw_target, Scenario) else str(raw_target)
+            )
             normalized_label = self._normalize_target_label(target_label)
 
             if normalized_label not in self.scenarios_by_label:
                 raise ValueError(
                     f"Unknown target scenario '{target_label}'. Available scenarios: {available_labels}."
                 )
-            if normalized_label not in resolved_labels:
-                resolved_labels.append(normalized_label)
+            resolved_labels.add(normalized_label)
 
-        return tuple(resolved_labels)
+        return tuple(label for label in self.scenarios_by_label if label in resolved_labels)
 
     def _enumerate_scenarios(self) -> list[Scenario]:
         scenarios: list[Scenario] = []
@@ -168,8 +280,10 @@ class EpiLink:
         testing_delay_j = self.profile.sample_testing_delays(sample_count)
 
         if scenario.kind == "ad":
+            if scenario.intermediates is None:
+                raise ValueError("Ancestor-descendant scenarios require intermediates.")
             elapsed_generations = self._sum_generation_intervals(
-                generations_per_path=int(scenario.intermediates) + 1,
+                generations_per_path=scenario.intermediates + 1,
                 sample_count=sample_count,
             )
             time_draws = (
@@ -181,12 +295,14 @@ class EpiLink:
             )
             branch_draws = time_draws
         elif scenario.kind == "ca":
+            if scenario.branch_to_i is None or scenario.branch_to_j is None:
+                raise ValueError("Common-ancestor scenarios require both branch depths.")
             path_to_i = self._sum_generation_intervals(
-                generations_per_path=int(scenario.branch_to_i) + 1,
+                generations_per_path=scenario.branch_to_i + 1,
                 sample_count=sample_count,
             )
             path_to_j = self._sum_generation_intervals(
-                generations_per_path=int(scenario.branch_to_j) + 1,
+                generations_per_path=scenario.branch_to_j + 1,
                 sample_count=sample_count,
             )
             time_draws = (
@@ -261,6 +377,39 @@ class EpiLink:
         compatibility = cls.compatibility_from_percentile(percentile)
         return percentile, compatibility
 
+    @staticmethod
+    def _validate_scalar_observation(observed_value: ArrayLike, name: str) -> float:
+        scalar_value = np.asarray(observed_value, dtype=float)
+        if scalar_value.ndim != 0:
+            raise TypeError(
+                f"score_pair() requires scalar {name}; use pairwise_model() or score_target() "
+                "for arraylike inputs."
+            )
+        return float(scalar_value)
+
+    def pairwise_model(
+        self,
+        target: str | Scenario | Iterable[str | Scenario] | None = None,
+    ) -> PairwiseCompatibilityModel:
+        """
+        Return a cached vectorized scorer for a target subset.
+
+        Parameters
+        ----------
+        target :
+            Optional target subset. When omitted, the scorer uses the subset
+            configured at construction time.
+        """
+
+        target_labels = (
+            self.target_labels if target is None else self._resolve_target_labels(target)
+        )
+        pairwise_model = self._pairwise_models_by_target.get(target_labels)
+        if pairwise_model is None:
+            pairwise_model = PairwiseCompatibilityModel(self.draws_by_scenario, target_labels)
+            self._pairwise_models_by_target[target_labels] = pairwise_model
+        return pairwise_model
+
     def score_pair(
         self,
         sample_time_difference: float | None = None,
@@ -287,6 +436,14 @@ class EpiLink:
             raise TypeError(
                 "score_pair() requires both sample_time_difference and genetic_distance."
             )
+        sample_time_difference = self._validate_scalar_observation(
+            sample_time_difference,
+            "sample_time_difference",
+        )
+        genetic_distance = self._validate_scalar_observation(
+            genetic_distance,
+            "genetic_distance",
+        )
 
         scenario_scores = {}
 
@@ -308,11 +465,13 @@ class EpiLink:
             }
 
         target_compatibility = float(
-            sum(scenario_scores[label]["compatibility"] for label in self.target_labels)
+            self.pairwise_model()(sample_time_difference, genetic_distance)
         )
 
         return {
-            "target": self.target_labels[0] if self.target_label is not None else list(self.target_labels),
+            "target": (
+                self.target_labels[0] if self.target_label is not None else list(self.target_labels)
+            ),
             "target_labels": list(self.target_labels),
             "target_compatibility": target_compatibility,
             "scenario_scores": scenario_scores,
@@ -320,16 +479,22 @@ class EpiLink:
 
     def score_target(
         self,
-        sample_time_difference: float,
-        genetic_distance: float,
-    ) -> float:
-        """Return only the summed compatibility of the configured target subset."""
+        sample_time_difference: ArrayLike,
+        genetic_distance: ArrayLike,
+        target: str | Scenario | Iterable[str | Scenario] | None = None,
+    ) -> float | np.ndarray:
+        """
+        Return the summed compatibility of a target subset.
 
-        result = self.score_pair(
+        Scalar inputs return a scalar ``float``. Arraylike inputs return a
+        ``numpy.ndarray`` with the broadcast shape of the observations.
+        """
+
+        result = self.pairwise_model(target).score(
             sample_time_difference=sample_time_difference,
             genetic_distance=genetic_distance,
         )
-        return float(result["target_compatibility"])
+        return float(result) if result.ndim == 0 else result
 
 
-__all__ = ["EpiLink", "Scenario"]
+__all__ = ["EpiLink", "PairwiseCompatibilityModel", "Scenario"]

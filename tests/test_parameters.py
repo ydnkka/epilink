@@ -10,7 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from epilink.parameters import NaturalHistoryParameters
+from epilink import NaturalHistoryParameters  # noqa: E402
 
 
 class TestNaturalHistoryParameters(unittest.TestCase):
@@ -40,9 +40,7 @@ class TestNaturalHistoryParameters(unittest.TestCase):
             p.transmission_rate_ratio * p.presymptomatic_shape * p.symptomatic_rate
             + p.incubation_shape * p.incubation_rate
         )
-        expected_normalisation = (
-            p.incubation_shape * p.incubation_rate * p.symptomatic_rate
-        ) / (
+        expected_normalisation = (p.incubation_shape * p.incubation_rate * p.symptomatic_rate) / (
             p.transmission_rate_ratio * p.presymptomatic_shape * p.symptomatic_rate
             + p.incubation_shape * p.incubation_rate
         )
