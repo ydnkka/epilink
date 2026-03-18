@@ -4,6 +4,10 @@ from .epilink import EpiLink, PairwiseCompatibilityModel, Scenario
 from .parameters import NaturalHistoryParameters
 from .profiles import InfectiousnessToTransmission, SymptomOnsetToTransmission
 
+
+__version__ = "0.1.2"
+
+
 __all__ = [
     "EpiLink",
     "PairwiseCompatibilityModel",

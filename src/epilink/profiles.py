@@ -546,25 +546,6 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
         u = self.rng.uniform(0.0, 1.0, size=sample_shape)
         return np.interp(u, cdf, x)
 
-    def sample_generation_intervals(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
-        """Sample generation intervals.
-
-        Parameters
-        ----------
-        size : int or tuple of int, default=1
-            Output shape.
-
-        Returns
-        -------
-        numpy.ndarray
-            Generation intervals in days.
-        """
-
-        return np.clip(
-            self.sample_incubation_periods(size=size) + self.rvs(size=size),
-            a_min=0.0, a_max=self.grid_max_days
-        )
-
 
 __all__ = [
     "InfectiousnessToTransmission",

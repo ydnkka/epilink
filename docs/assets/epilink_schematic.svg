@@ -149,140 +149,122 @@
 
   <g>
     <rect x="70" y="130" width="410" height="220" rx="26" ry="26" class="card neutral" filter="url(#cardShadow)"/>
-    <rect x="70" y="130" width="410" height="18" rx="26" ry="26" class="band-neutral"/>
-    <rect x="100" y="164" width="54" height="28" rx="14" ry="14" class="tag-neutral"/>
-    <text x="127" y="183" text-anchor="middle" class="tag-text tag-text-light">STEP 1</text>
-    <text x="100" y="225" class="card-title">Observed pairwise data</text>
-    <text x="100" y="265" class="copy">Testing dates: t<tspan baseline-shift="sub" font-size="75%">test,i</tspan>, t<tspan baseline-shift="sub" font-size="75%">test,j</tspan></text>
-    <text x="100" y="300" class="copy">Testing-time gap: t<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
-    <text x="100" y="335" class="copy">Consensus genetic distance: g<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
+    <rect x="70" y="130" width="410" height="54" rx="26" ry="26" class="band-neutral"/>
+    <text x="100" y="168" class="card-title">Observed pairwise data</text>
+    <text x="100" y="226" class="copy">Testing dates: t<tspan baseline-shift="sub" font-size="75%">test,i</tspan>, t<tspan baseline-shift="sub" font-size="75%">test,j</tspan></text>
+    <text x="100" y="261" class="copy">Testing-time gap: t<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
+    <text x="100" y="296" class="copy">Consensus genetic distance: g<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
   </g>
 
   <g>
     <rect x="515" y="130" width="420" height="220" rx="26" ry="26" class="card blue" filter="url(#cardShadow)"/>
-    <rect x="515" y="130" width="420" height="18" rx="26" ry="26" class="band-blue"/>
-    <rect x="545" y="164" width="54" height="28" rx="14" ry="14" class="tag-blue"/>
-    <text x="572" y="183" text-anchor="middle" class="tag-text tag-text-light">STEP 2</text>
-    <text x="545" y="225" class="card-title">Temporal model</text>
-    <text x="545" y="265" class="copy">Incubation period: τ<tspan baseline-shift="sub" font-size="75%">inc</tspan></text>
-    <text x="545" y="300" class="copy">Testing delay: x<tspan baseline-shift="sub" font-size="75%">test</tspan></text>
-    <text x="545" y="335" class="copy">Generation time: τ<tspan baseline-shift="sub" font-size="75%">gen</tspan></text>
+    <rect x="515" y="130" width="420" height="54" rx="26" ry="26" class="band-blue"/>
+    <text x="545" y="168" class="card-title">Temporal model</text>
+    <text x="545" y="226" class="copy">Incubation period: τ<tspan baseline-shift="sub" font-size="75%">inc</tspan></text>
+    <text x="545" y="261" class="copy">Testing delay: x<tspan baseline-shift="sub" font-size="75%">test</tspan></text>
+    <text x="545" y="296" class="copy">Generation time: τ<tspan baseline-shift="sub" font-size="75%">gen</tspan></text>
   </g>
 
   <g>
     <rect x="970" y="130" width="710" height="220" rx="26" ry="26" class="card violet" filter="url(#cardShadow)"/>
-    <rect x="970" y="130" width="710" height="18" rx="26" ry="26" class="band-violet"/>
-    <rect x="1000" y="164" width="54" height="28" rx="14" ry="14" class="tag-violet"/>
-    <text x="1027" y="183" text-anchor="middle" class="tag-text tag-text-light">STEP 3</text>
-    <text x="1000" y="225" class="card-title">Candidate latent transmission scenarios</text>
-    <text x="1000" y="265" class="copy">Ancestor-descendant: H<tspan baseline-shift="sub" font-size="75%">AD</tspan>(m)</text>
-    <text x="1000" y="300" class="copy">Common ancestor: H<tspan baseline-shift="sub" font-size="75%">CA</tspan>(m<tspan baseline-shift="sub" font-size="70%">i</tspan>, m<tspan baseline-shift="sub" font-size="70%">j</tspan>)</text>
-    <text x="1000" y="335" class="detail">m, m<tspan baseline-shift="sub" font-size="75%">i</tspan>, and m<tspan baseline-shift="sub" font-size="75%">j</tspan> denote hidden intermediates.</text>
+    <rect x="970" y="130" width="710" height="54" rx="26" ry="26" class="band-violet"/>
+    <text x="1000" y="168" class="card-title">Candidate latent transmission scenarios</text>
+    <text x="1000" y="226" class="copy">Ancestor-descendant: H<tspan baseline-shift="sub" font-size="75%">AD</tspan>(m)</text>
+    <text x="1000" y="261" class="copy">Common ancestor: H<tspan baseline-shift="sub" font-size="75%">CA</tspan>(m<tspan baseline-shift="sub" font-size="70%">i</tspan>, m<tspan baseline-shift="sub" font-size="70%">j</tspan>)</text>
+    <text x="1000" y="296" class="detail">m, m<tspan baseline-shift="sub" font-size="75%">i</tspan>, and m<tspan baseline-shift="sub" font-size="75%">j</tspan> denote hidden intermediates.</text>
 
-    <circle cx="1345" cy="266" r="13" class="node"/>
-    <circle cx="1415" cy="266" r="13" class="node"/>
-    <circle cx="1485" cy="266" r="13" class="node"/>
-    <line x1="1358" y1="266" x2="1402" y2="266" class="node-arrow"/>
-    <line x1="1428" y1="266" x2="1472" y2="266" class="node-arrow"/>
-    <text x="1520" y="272" class="detail">H<tspan baseline-shift="sub" font-size="75%">AD</tspan></text>
+    <circle cx="1345" cy="228" r="13" class="node"/>
+    <circle cx="1415" cy="228" r="13" class="node"/>
+    <circle cx="1485" cy="228" r="13" class="node"/>
+    <line x1="1358" y1="228" x2="1402" y2="228" class="node-arrow"/>
+    <line x1="1428" y1="228" x2="1472" y2="228" class="node-arrow"/>
+    <text x="1520" y="234" class="detail">H<tspan baseline-shift="sub" font-size="75%">AD</tspan></text>
 
-    <circle cx="1415" cy="296" r="13" class="node"/>
-    <circle cx="1368" cy="332" r="13" class="node"/>
-    <circle cx="1462" cy="332" r="13" class="node"/>
-    <line x1="1407" y1="306" x2="1376" y2="322" class="node-arrow"/>
-    <line x1="1423" y1="306" x2="1454" y2="322" class="node-arrow"/>
-    <text x="1520" y="338" class="detail">H<tspan baseline-shift="sub" font-size="75%">CA</tspan></text>
+    <circle cx="1415" cy="268" r="13" class="node"/>
+    <circle cx="1368" cy="304" r="13" class="node"/>
+    <circle cx="1462" cy="304" r="13" class="node"/>
+    <line x1="1407" y1="278" x2="1376" y2="294" class="node-arrow"/>
+    <line x1="1423" y1="278" x2="1454" y2="294" class="node-arrow"/>
+    <text x="1520" y="310" class="detail">H<tspan baseline-shift="sub" font-size="75%">CA</tspan></text>
   </g>
 
   <g>
     <rect x="110" y="490" width="560" height="270" rx="26" ry="26" class="card blue" filter="url(#cardShadow)"/>
-    <rect x="110" y="490" width="560" height="18" rx="26" ry="26" class="band-blue"/>
-    <rect x="140" y="524" width="54" height="28" rx="14" ry="14" class="tag-blue"/>
-    <text x="167" y="543" text-anchor="middle" class="tag-text tag-text-light">STEP 4</text>
-    <text x="140" y="585" class="card-title">Monte Carlo temporal draws</text>
-    <text x="140" y="625" class="copy">For each scenario s, sample latent timings.</text>
-    <text x="140" y="680" class="eq-tight">T<tspan baseline-shift="sub" font-size="75%">s</tspan> = A<tspan baseline-shift="sub" font-size="75%">j</tspan>(s) − A<tspan baseline-shift="sub" font-size="75%">i</tspan>(s) + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan> − τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> − x<tspan baseline-shift="sub" font-size="75%">test,i</tspan></text>
-    <text x="140" y="720" class="detail">Store draws T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, ..., T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan>.</text>
+    <rect x="110" y="490" width="560" height="54" rx="26" ry="26" class="band-blue"/>
+    <text x="140" y="528" class="card-title">Monte Carlo temporal draws</text>
+    <text x="140" y="590" class="copy">For each scenario s, sample latent timings.</text>
+    <text x="140" y="648" class="eq-tight">T<tspan baseline-shift="sub" font-size="75%">s</tspan> = A<tspan baseline-shift="sub" font-size="75%">j</tspan>(s) − A<tspan baseline-shift="sub" font-size="75%">i</tspan>(s) + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan> − τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> − x<tspan baseline-shift="sub" font-size="75%">test,i</tspan></text>
+    <text x="140" y="688" class="detail">Store draws T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, ..., T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan>.</text>
   </g>
 
   <g>
     <rect x="710" y="490" width="540" height="270" rx="26" ry="26" class="card green" filter="url(#cardShadow)"/>
-    <rect x="710" y="490" width="540" height="18" rx="26" ry="26" class="band-green"/>
-    <rect x="740" y="524" width="54" height="28" rx="14" ry="14" class="tag-green"/>
-    <text x="767" y="543" text-anchor="middle" class="tag-text tag-text-light">STEP 5</text>
-    <text x="740" y="585" class="card-title">Monte Carlo branch-length draws</text>
-    <text x="740" y="625" class="copy">For each scenario s, compute branch-length draws.</text>
-    <text x="740" y="670" class="eq-tight">AD: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan> − (τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan>)</text>
-    <text x="740" y="705" class="eq-tight">CA: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(i)</tspan> + Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(j)</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan></text>
-    <text x="740" y="735" class="detail">Store draws B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, ..., B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan>.</text>
+    <rect x="710" y="490" width="540" height="54" rx="26" ry="26" class="band-green"/>
+    <text x="740" y="528" class="card-title">Monte Carlo branch-length draws</text>
+    <text x="740" y="590" class="copy">For each scenario s, compute branch-length draws.</text>
+    <text x="740" y="645" class="eq-tight">AD: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan> − (τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan>)</text>
+    <text x="740" y="680" class="eq-tight">CA: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(i)</tspan> + Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(j)</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan></text>
+    <text x="740" y="718" class="detail">Store draws B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, ..., B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan>.</text>
   </g>
 
   <g>
     <rect x="1290" y="490" width="410" height="270" rx="26" ry="26" class="card amber" filter="url(#cardShadow)"/>
-    <rect x="1290" y="490" width="410" height="18" rx="26" ry="26" class="band-amber"/>
-    <rect x="1320" y="524" width="54" height="28" rx="14" ry="14" class="tag-amber"/>
-    <text x="1347" y="543" text-anchor="middle" class="tag-text tag-text-light">STEP 6</text>
-    <text x="1320" y="585" class="card-title">Mutation model</text>
-    <text x="1320" y="625" class="copy">Strict clock: λ = rL / 365</text>
-    <text x="1320" y="660" class="copy">Relaxed clock: λ<tspan baseline-shift="super" font-size="70%">(n)</tspan> from UCLN draws</text>
-    <text x="1320" y="700" class="eq-small">G<tspan baseline-shift="sub" font-size="75%">s</tspan> = λB<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-    <text x="1320" y="730" class="detail">or Poisson(λB<tspan baseline-shift="sub" font-size="75%">s</tspan>) for stochastic mutation counts.</text>
+    <rect x="1290" y="490" width="410" height="54" rx="26" ry="26" class="band-amber"/>
+    <text x="1320" y="528" class="card-title">Mutation model</text>
+    <text x="1320" y="590" class="copy">Strict clock: λ = rL / 365</text>
+    <text x="1320" y="625" class="copy">Relaxed clock: λ<tspan baseline-shift="super" font-size="70%">(n)</tspan> from UCLN draws</text>
+    <text x="1320" y="668" class="eq-small">G<tspan baseline-shift="sub" font-size="75%">s</tspan> = λB<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
+    <text x="1320" y="705" class="detail">or Poisson(λB<tspan baseline-shift="sub" font-size="75%">s</tspan>) for stochastic mutation counts.</text>
   </g>
 
   <g>
     <rect x="90" y="820" width="500" height="300" rx="26" ry="26" class="card neutral" filter="url(#cardShadow)"/>
-    <rect x="90" y="820" width="500" height="18" rx="26" ry="26" class="band-neutral"/>
-    <rect x="120" y="854" width="54" height="28" rx="14" ry="14" class="tag-neutral"/>
-    <text x="147" y="873" text-anchor="middle" class="tag-text tag-text-light">STEP 7</text>
-    <text x="120" y="915" class="card-title">Temporal compatibility</text>
-    <text x="120" y="955" class="copy">Compare observed t<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated T<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
-    <text x="120" y="1000" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = Pr(T<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ t<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
-    <text x="120" y="1040" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> − 0.5|</text>
-    <text x="120" y="1080" class="detail">Highest when the observed value lies near the centre</text>
-    <text x="120" y="1108" class="detail">of the scenario-specific temporal distribution.</text>
+    <rect x="90" y="820" width="500" height="54" rx="26" ry="26" class="band-neutral"/>
+    <text x="120" y="858" class="card-title">Temporal compatibility</text>
+    <text x="120" y="918" class="copy">Compare observed t<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated T<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
+    <text x="120" y="963" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = Pr(T<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ t<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
+    <text x="120" y="1003" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> − 0.5|</text>
+    <text x="120" y="1043" class="detail">Highest when the observed value lies near the centre</text>
+    <text x="120" y="1071" class="detail">of the scenario-specific temporal distribution.</text>
   </g>
 
   <g>
-    <rect x="650" y="820" width="500" height="300" rx="26" ry="26" class="card neutral" filter="url(#cardShadow)"/>
-    <rect x="650" y="820" width="500" height="18" rx="26" ry="26" class="band-neutral"/>
-    <rect x="680" y="854" width="54" height="28" rx="14" ry="14" class="tag-neutral"/>
-    <text x="707" y="873" text-anchor="middle" class="tag-text tag-text-light">STEP 8</text>
-    <text x="680" y="915" class="card-title">Genetic compatibility</text>
-    <text x="680" y="955" class="copy">Compare observed g<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated G<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
-    <text x="680" y="1000" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = Pr(G<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ g<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
-    <text x="680" y="1040" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> − 0.5|</text>
-    <text x="680" y="1080" class="detail">Highest when the observed value lies near the centre</text>
-    <text x="680" y="1108" class="detail">of the scenario-specific genetic distribution.</text>
+    <rect x="1190" y="820" width="500" height="300" rx="26" ry="26" class="card neutral" filter="url(#cardShadow)"/>
+    <rect x="1190" y="820" width="500" height="54" rx="26" ry="26" class="band-neutral"/>
+    <text x="1220" y="858" class="card-title">Genetic compatibility</text>
+    <text x="1220" y="918" class="copy">Compare observed g<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated G<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
+    <text x="1220" y="963" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = Pr(G<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ g<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
+    <text x="1220" y="1003" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> − 0.5|</text>
+    <text x="1220" y="1043" class="detail">Highest when the observed value lies near the centre</text>
+    <text x="1220" y="1071" class="detail">of the scenario-specific genetic distribution.</text>
   </g>
 
   <g>
-    <rect x="1210" y="820" width="520" height="300" rx="26" ry="26" class="card violet" filter="url(#cardShadow)"/>
-    <rect x="1210" y="820" width="520" height="18" rx="26" ry="26" class="band-violet"/>
-    <rect x="1240" y="854" width="54" height="28" rx="14" ry="14" class="tag-violet"/>
-    <text x="1267" y="873" text-anchor="middle" class="tag-text tag-text-light">STEP 9</text>
-    <text x="1240" y="915" class="card-title">Scenario and target scores</text>
-    <text x="1240" y="960" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j) = C<tspan baseline-shift="sub" font-size="75%">T,s</tspan>(i,j) × C<tspan baseline-shift="sub" font-size="75%">G,s</tspan>(i,j)</text>
-    <text x="1240" y="1000" class="copy">Compute this for every scenario s ∈ S<tspan baseline-shift="sub" font-size="75%">M</tspan>.</text>
-    <text x="1240" y="1043" class="eq-small">score<tspan baseline-shift="sub" font-size="75%">S*</tspan>(i,j) = Σ C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j), s ∈ S*</text>
-    <text x="1240" y="1080" class="detail">A user-selected subset S* can represent one focal scenario</text>
-    <text x="1240" y="1108" class="detail">or a broader family of scenarios.</text>
+    <rect x="640" y="820" width="500" height="300" rx="26" ry="26" class="card violet" filter="url(#cardShadow)"/>
+    <rect x="640" y="820" width="500" height="54" rx="26" ry="26" class="band-violet"/>
+    <text x="670" y="858" class="card-title">Scenario and target scores</text>
+    <text x="670" y="918" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j) = C<tspan baseline-shift="sub" font-size="75%">T,s</tspan>(i,j) × C<tspan baseline-shift="sub" font-size="75%">G,s</tspan>(i,j)</text>
+    <text x="670" y="958" class="copy">Compute this for every scenario s ∈ S<tspan baseline-shift="sub" font-size="75%">M</tspan>.</text>
+    <text x="670" y="998" class="eq-small">score<tspan baseline-shift="sub" font-size="75%">S*</tspan>(i,j) = Σ C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j), s ∈ S*</text>
+    <text x="670" y="1043" class="detail">A user-selected subset S* can represent one focal scenario</text>
+    <text x="670" y="1071" class="detail">or a broader family of scenarios.</text>
   </g>
 
-  <path d="M210,350 C140,400 100,445 80,490 L80,965 L90,965" class="arrow dashed"/>
-  <path d="M360,350 C470,390 580,430 690,490 L690,900 C690,930 660,950 610,965 L650,965" class="arrow dashed"/>
+  <path d="M210,350 C140,398 95,448 80,520 L80,965 L90,965" class="arrow dashed"/>
+  <path d="M350,350 C760,350 1360,330 1720,500 L1720,735 C1720,780 1665,805 1590,820" class="arrow dashed"/>
 
-  <path d="M640,350 C610,392 590,430 560,490" class="arrow dashed"/>
-  <path d="M810,350 C828,392 835,430 840,490" class="arrow dashed"/>
-  <path d="M1130,350 C940,388 730,430 280,490" class="arrow dashed"/>
-  <path d="M1260,350 C1220,392 1178,430 1120,490" class="arrow dashed"/>
+  <path d="M620,350 C575,392 500,435 390,490" class="arrow dashed"/>
+  <path d="M830,350 C850,395 865,440 880,490" class="arrow dashed"/>
+  <path d="M1110,350 C955,390 750,435 560,490" class="arrow dashed"/>
+  <path d="M1270,350 C1200,392 1125,438 1020,490" class="arrow dashed"/>
 
   <path d="M1250,625 L1290,625" class="arrow"/>
 
   <path d="M350,760 L290,820" class="arrow"/>
-  <path d="M1450,760 C1340,792 1185,805 1040,820" class="arrow"/>
+  <path d="M1495,760 C1490,790 1475,808 1460,820" class="arrow"/>
 
-  <path d="M590,1045 C770,1110 1015,1110 1210,1045" class="arrow"/>
-  <path d="M1150,970 L1210,970" class="arrow"/>
+  <path d="M590,970 L640,970" class="arrow"/>
+  <path d="M1190,970 L1140,970" class="arrow"/>
 
   <text x="900" y="1168" text-anchor="middle" class="footer">Observed pair → profile and latent scenarios → Monte Carlo timing and genetics → scenario compatibilities → target score</text>
 </svg>

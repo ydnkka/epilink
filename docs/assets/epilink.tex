@@ -35,7 +35,7 @@
 \onehalfspacing
 % \linenumbers
 
-\title{Derivation of epilink compatibility score}
+\title{Derivation of EpiLink compatibility score}
 \author{}
 \date{}
 
@@ -43,7 +43,7 @@
 
 \maketitle
 
-For a sampled pair $(i,j)$, let $t_{ij}$ denote the testing-time difference and $g_{ij}$ the observed consensus-level genetic distance. \texttt{Epilink} compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
+For a sampled pair $(i,j)$, let $t_{ij}$ denote the testing-time difference and $g_{ij}$ the observed consensus-level genetic distance. EpiLink compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
 
 \subsection*{Observed quantities and timing model}
 
@@ -237,13 +237,13 @@ C_s(i,j) = C_{T,s}(i,j)\,C_{G,s}(i,j).
 
 \subsection*{Target subset and computation}
 
-Let $\mathcal{S}_\star \subseteq \mathcal{S}_M$ denote a user-specified target subset chosen when the \texttt{epilink} object is constructed. The reported target score is
+Let $\mathcal{S}_\star \subseteq \mathcal{S}_M$ denote a user-specified target subset chosen when the \texttt{EpiLink} object is constructed. The reported target score is
 \begin{align}
 \mathrm{score}_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j).
 \end{align}
 When $\mathcal{S}_\star$ contains a single element, this reduces to the original single-scenario score. The implementation also returns $C_s(i,j)$ for every $s \in \mathcal{S}_M$.
 
-For each scenario $s \in \mathcal{S}_M$, \texttt{epilink} precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
+For each scenario $s \in \mathcal{S}_M$, EpiLink precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
