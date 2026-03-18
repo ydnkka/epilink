@@ -35,7 +35,7 @@
 \onehalfspacing
 % \linenumbers
 
-\title{Derivation of the epilink compatibility score}
+\title{Derivation of epilink compatibility score}
 \author{}
 \date{}
 
@@ -43,63 +43,22 @@
 
 \maketitle
 
-For a sampled pair $(i,j)$, let $t_{ij}$ denote the sampling-time difference and $g_{ij}$ the observed consensus-level genetic distance. The \texttt{epilink} framework compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
+For a sampled pair $(i,j)$, let $t_{ij}$ denote the testing-time difference and $g_{ij}$ the observed consensus-level genetic distance. \texttt{Epilink} compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
 
 \subsection*{Observed quantities and timing model}
 
-Let $t_{\mathrm{samp},i}$ and $t_{\mathrm{samp},j}$ denote the sampling dates, measured in days on a common time scale, and define
+Let $t_{\mathrm{test},i}$ and $t_{\mathrm{test},j}$ denote the testing dates, measured in days on a common time scale, and define
 \begin{align}
-t_{ij} = t_{\mathrm{samp},j} - t_{\mathrm{samp},i}.
+t_{ij} = t_{\mathrm{test},j} - t_{\mathrm{test},i}.
 \end{align}
 Let $g_{ij}$ denote the observed consensus-level genetic distance, measured in nucleotide differences.
 
-The natural-history model follows the variable infectiousness $E/P/I$ framework of \citet{Hart2021}, in which infection is partitioned into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages with durations $y_E$, $y_P$, and $y_I$. We additionally introduce a sampling delay $y_S$, defined as the time from symptom onset to sample collection, and write $t_{\mathrm{toit}}$ for the time from infectiousness onset to transmission. The incubation period and generation time are
+We implement the variable infectiousness $E/P/I$ model of \citet{Hart2021}. Infection is partitioned into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages with Gamma-distributed durations $y_E$, $y_P$, and $y_I$, and we extend this temporal model with a Gamma-distributed testing delay $x_{\mathrm{test}}$ from symptom onset to testing. Writing $x_{\mathrm{tost}}$ for the time from symptom onset to transmission, the incubation period and generation interval are
 \begin{align}
 \tau_{\mathrm{inc}} &= y_E + y_P,\\
-\tau_{\mathrm{gen}} &= y_E + t_{\mathrm{toit}},
+\tau_{\mathrm{gen}} &= \tau_{\mathrm{inc}} + x_{\mathrm{tost}},
 \end{align}
-so that the total time from infection to sampling is $\tau_{\mathrm{inc}} + y_S$.
-
-Following~\cite{Hart2021}, the stage durations are modelled as independent Gamma random variables, with $E$ and $P$ sharing a common scale:
-\begin{align}
-y_E &\sim \mathrm{Gamma}(k_E,\theta_{\mathrm{inc}}),\\
-y_P &\sim \mathrm{Gamma}(k_P,\theta_{\mathrm{inc}}),\\
-y_I &\sim \mathrm{Gamma}(k_I,\theta_I),
-\end{align}
-where
-\begin{align}
-k_P = k_{\mathrm{inc}} - k_E,
-\qquad
-\tau_{\mathrm{inc}} \sim \mathrm{Gamma}(k_{\mathrm{inc}},\theta_{\mathrm{inc}}).
-\end{align}
-Using the parameterisation of Hart et al.,
-\begin{align}
-k_{\mathrm{inc}} &= 5.807, &
-\theta_{\mathrm{inc}} &= 0.948, &
-k_I &= 1,\\
-k_E &= 3.38, &
-\mu &= 0.37, &
-\alpha &= \frac{\beta_P}{\beta_I} = 2.29,
-\end{align}
-with $\theta_I = 1/\mu$.
-
-Transmission timing is induced by the infectiousness profile rather than specified independently. Writing $f_P$ and $F_P$ for the density and cumulative distribution functions of the presymptomatic period, the induced density of $t_{\mathrm{toit}}$ is
-\begin{equation}
-\label{eq:toit_density}
-f_{\mathrm{toit}}(t_{\mathrm{toit}})
-=
-C\!\left[
-\alpha \bigl(1-F_P(t_{\mathrm{toit}})\bigr)
-+
-\int_{0}^{t_{\mathrm{toit}}}
-\bigl(1-F_P(t_{\mathrm{toit}}-y_P)\bigr)f_P(y_P)\,dy_P
-\right],
-\end{equation}
-where $C$ is a normalising constant. To connect this model to observed sampling dates, \texttt{epilink} adds a sampling delay
-\begin{align}
-y_S \sim \mathrm{Gamma}(k_S,\theta_S).
-\end{align}
-All timing quantities are treated as latent random variables and integrated over by Monte Carlo.
+so that the total time from infection to testing is $\tau_{\mathrm{inc}} + x_{\mathrm{test}}$. The temporal model therefore provides latent random variables such as incubation periods, generation intervals, and testing delays, which are integrated over by Monte Carlo.
 
 \subsection*{Latent transmission scenarios}
 
@@ -121,19 +80,19 @@ Here, $H_{\mathrm{AD}}(m)$ denotes an ancestor--descendant scenario in which cas
 
 For a given scenario $s \in \mathcal{S}_M$, let $t_x$ denote the infection time of the latent reference point: the infection time of case $i$ under an ancestor--descendant scenario, or the infection time of the shared unsampled source under a common-ancestor scenario. Let $A_k(s)$ denote the elapsed time from this reference point to infection of sampled case $k \in \{i,j\}$. Then
 \begin{align}
-t_{\mathrm{samp},k}
+t_{\mathrm{test},k}
 =
-t_x + A_k(s) + \tau_{\mathrm{inc},k} + y_{S,k},
+t_x + A_k(s) + \tau_{\mathrm{inc},k} + x_{\mathrm{test},k},
 \end{align}
-so the model-implied sampling-time difference is
+so the model-implied testing-time difference is
 \begin{align}
 T_s
 =
 A_j(s) - A_i(s)
 +
-\tau_{\mathrm{inc},j} + y_{S,j}
+\tau_{\mathrm{inc},j} + x_{\mathrm{test},j}
 -
-\tau_{\mathrm{inc},i} - y_{S,i}.
+\tau_{\mathrm{inc},i} - x_{\mathrm{test},i}.
 \label{eq:tij_master}
 \end{align}
 
@@ -148,9 +107,9 @@ T_{ij}\!\left(H_{\mathrm{AD}}(m)\right)
 =
 \sum_{r=0}^{m}\tau_{\mathrm{gen},r}
 +
-\tau_{\mathrm{inc},j} + y_{S,j}
+\tau_{\mathrm{inc},j} + x_{\mathrm{test},j}
 -
-\tau_{\mathrm{inc},i} - y_{S,i}.
+\tau_{\mathrm{inc},i} - x_{\mathrm{test},i}.
 \label{eq:T_AD}
 \end{align}
 
@@ -171,9 +130,9 @@ T_{ij}\!\left(H_{\mathrm{CA}}(m_i,m_j)\right)
 -
 \sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
 +
-\tau_{\mathrm{inc},j} + y_{S,j}
+\tau_{\mathrm{inc},j} + x_{\mathrm{test},j}
 -
-\tau_{\mathrm{inc},i} - y_{S,i}.
+\tau_{\mathrm{inc},i} - x_{\mathrm{test},i}.
 \label{eq:T_CA}
 \end{align}
 For each scenario $s$, Monte Carlo simulation yields draws $T_s^{(1)},\ldots,T_s^{(N)}$ from the induced temporal distribution.
@@ -188,9 +147,9 @@ B_{H_{\mathrm{AD}}(m)}
 =
 \sum_{r=0}^{m}\tau_{\mathrm{gen},r}
 +
-\tau_{\mathrm{inc},j} + y_{S,j}
+\tau_{\mathrm{inc},j} + x_{\mathrm{test},j}
 -
-\left(\tau_{\mathrm{inc},i} + y_{S,i}\right).
+\left(\tau_{\mathrm{inc},i} + x_{\mathrm{test},i}\right).
 \label{eq:B_AD}
 \end{align}
 For common-ancestor scenarios,
@@ -201,9 +160,9 @@ B_{H_{\mathrm{CA}}(m_i,m_j)}
 +
 \sum_{s=1}^{m_j+1}\tau_{\mathrm{gen},s}^{(j)}
 +
-\tau_{\mathrm{inc},i} + y_{S,i}
+\tau_{\mathrm{inc},i} + x_{\mathrm{test},i}
 +
-\tau_{\mathrm{inc},j} + y_{S,j}.
+\tau_{\mathrm{inc},j} + x_{\mathrm{test},j}.
 \label{eq:B_CA}
 \end{align}
 For each scenario $s$, Monte Carlo simulation yields draws $B_s^{(1)},\ldots,B_s^{(N)}$.

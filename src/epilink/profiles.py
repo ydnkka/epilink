@@ -560,7 +560,10 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
             Generation intervals in days.
         """
 
-        return self.sample_incubation_periods(size=size) + self.rvs(size=size)
+        return np.clip(
+            self.sample_incubation_periods(size=size) + self.rvs(size=size),
+            a_min=0.0, a_max=self.grid_max_days
+        )
 
 
 __all__ = [

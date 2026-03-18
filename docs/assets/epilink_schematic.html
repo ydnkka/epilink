@@ -1,125 +1,114 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>EpiLink schematic</title></head>
-<body style="margin:0;background:#ffffff;"><svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">
-  <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L12,6 L0,12 z" fill="#2f3e46"/>
-    </marker>
-    <style>
-      .title { font: 700 34px Arial, sans-serif; fill: #102a43; }
-      .subtitle { font: 500 18px Arial, sans-serif; fill: #486581; }
-      .box { fill: #f7fafc; stroke: #334e68; stroke-width: 2.2; rx: 20; ry: 20; }
-      .box2 { fill: #eef6ff; stroke: #1f5f8b; stroke-width: 2.2; rx: 20; ry: 20; }
-      .box3 { fill: #f3f0ff; stroke: #5a3e9a; stroke-width: 2.2; rx: 20; ry: 20; }
-      .box4 { fill: #eefbf3; stroke: #2f855a; stroke-width: 2.2; rx: 20; ry: 20; }
-      .box5 { fill: #fff7ed; stroke: #c05621; stroke-width: 2.2; rx: 20; ry: 20; }
-      .head { font: 700 24px Arial, sans-serif; fill: #102a43; }
-      .text { font: 500 18px Arial, sans-serif; fill: #243b53; }
-      .small { font: 500 16px Arial, sans-serif; fill: #334e68; }
-      .tiny { font: 500 15px Arial, sans-serif; fill: #486581; }
-      .eq { font: italic 17px 'Times New Roman', serif; fill: #243b53; }
-      .arrow { stroke: #2f3e46; stroke-width: 3.2; fill: none; marker-end: url(#arrow); }
-      .dashed { stroke-dasharray: 10 7; }
-    </style>
-  </defs>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EpiLink schematic</title>
+  <style>
+    :root {
+      --ink: #16324f;
+      --muted: #5b6f84;
+      --panel: rgba(255, 255, 255, 0.82);
+      --border: rgba(47, 80, 110, 0.18);
+      --bg-a: #f7fbff;
+      --bg-b: #f4efe7;
+      --bg-c: #eef4f8;
+    }
 
-  <text x="900" y="58" text-anchor="middle" class="title">EpiLink schematic</text>
-  <text x="900" y="90" text-anchor="middle" class="subtitle">Compatibility scoring for sampled case pairs using timing and genetic distance</text>
+    * {
+      box-sizing: border-box;
+    }
 
-  <rect x="80" y="140" width="380" height="190" class="box"/>
-  <text x="110" y="180" class="head">1. Observed pairwise inputs</text>
-  <text x="110" y="220" class="text">• Sampling dates: t<tspan baseline-shift="sub" font-size="75%">samp,i</tspan>, t<tspan baseline-shift="sub" font-size="75%">samp,j</tspan></text>
-  <text x="110" y="255" class="text">• Sampling-time difference: t<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
-  <text x="110" y="290" class="text">• Consensus genetic distance: g<tspan baseline-shift="sub" font-size="75%">ij</tspan></text>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(108, 81, 179, 0.10), transparent 26rem),
+        radial-gradient(circle at bottom left, rgba(45, 114, 168, 0.10), transparent 28rem),
+        linear-gradient(135deg, var(--bg-a), var(--bg-b) 52%, var(--bg-c));
+    }
 
-  <rect x="520" y="140" width="380" height="190" class="box2"/>
-  <text x="550" y="180" class="head">2. Natural-history timing model</text>
-  <text x="550" y="220" class="text">Latent stages: E → P → I</text>
-  <text x="550" y="255" class="text">Sampling delay: y<tspan baseline-shift="sub" font-size="75%">S</tspan></text>
-  <text x="550" y="290" class="small">Gamma-distributed durations induce τ<tspan baseline-shift="sub" font-size="75%">inc</tspan> and τ<tspan baseline-shift="sub" font-size="75%">gen</tspan></text>
+    main {
+      max-width: 1660px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }
 
-  <rect x="960" y="140" width="760" height="190" class="box3"/>
-  <text x="990" y="180" class="head">3. Candidate latent transmission scenarios</text>
-  <text x="990" y="220" class="text">Ancestor–descendant: HAD(m)</text>
-  <text x="990" y="255" class="text">Common ancestor: HCA(m<tspan baseline-shift="sub" font-size="75%">i</tspan>, m<tspan baseline-shift="sub" font-size="75%">j</tspan>)</text>
-  <text x="990" y="290" class="small">m, m<tspan baseline-shift="sub" font-size="75%">i</tspan>, m<tspan baseline-shift="sub" font-size="75%">j</tspan> represent hidden unsampled intermediates</text>
+    .hero {
+      margin-bottom: 18px;
+      padding: 0 4px;
+    }
 
-  <circle cx="1320" cy="230" r="12" fill="#5a3e9a"/>
-  <circle cx="1390" cy="230" r="12" fill="#5a3e9a"/>
-  <circle cx="1460" cy="230" r="12" fill="#5a3e9a"/>
-  <line x1="1332" y1="230" x2="1378" y2="230" stroke="#5a3e9a" stroke-width="3"/>
-  <line x1="1402" y1="230" x2="1448" y2="230" stroke="#5a3e9a" stroke-width="3"/>
-  <text x="1490" y="236" class="tiny">HAD</text>
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 2.8vw, 3rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
 
-  <circle cx="1320" cy="285" r="12" fill="#5a3e9a"/>
-  <circle cx="1390" cy="325" r="12" fill="#5a3e9a"/>
-  <circle cx="1460" cy="325" r="12" fill="#5a3e9a"/>
-  <line x1="1328" y1="294" x2="1382" y2="316" stroke="#5a3e9a" stroke-width="3"/>
-  <line x1="1332" y1="294" x2="1448" y2="316" stroke="#5a3e9a" stroke-width="3"/>
-  <text x="1490" y="331" class="tiny">HCA</text>
+    .hero p {
+      margin: 0;
+      max-width: 68rem;
+      font-size: 1.02rem;
+      line-height: 1.55;
+      color: var(--muted);
+    }
 
-  <rect x="160" y="430" width="520" height="220" class="box2"/>
-  <text x="190" y="470" class="head">4. Monte Carlo temporal draws</text>
-  <text x="190" y="510" class="text">For each scenario s, simulate latent timings</text>
-  <text x="190" y="545" class="eq">T<tspan baseline-shift="sub" font-size="75%">s</tspan> = A<tspan baseline-shift="sub" font-size="75%">j</tspan>(s) − A<tspan baseline-shift="sub" font-size="75%">i</tspan>(s) + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + y<tspan baseline-shift="sub" font-size="75%">S,j</tspan> − τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> − y<tspan baseline-shift="sub" font-size="75%">S,i</tspan></text>
-  <text x="190" y="590" class="small">Generate draws T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, …, T<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan></text>
+    .figure-shell {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      box-shadow: 0 24px 70px rgba(22, 50, 79, 0.12);
+      backdrop-filter: blur(10px);
+      padding: 18px;
+    }
 
-  <rect x="760" y="430" width="520" height="220" class="box4"/>
-  <text x="790" y="470" class="head">5. Branch-length draws</text>
-  <text x="790" y="510" class="text">Convert scenario timings into effective</text>
-  <text x="790" y="542" class="text">transmission-related branch lengths B<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-  <text x="790" y="585" class="small">Generate draws B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, …, B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan></text>
+    .figure-scroll {
+      overflow: auto;
+      border-radius: 24px;
+      background: #ffffff;
+      border: 1px solid rgba(47, 80, 110, 0.10);
+    }
 
-  <rect x="1360" y="430" width="300" height="220" class="box5"/>
-  <text x="1390" y="470" class="head">6. Mutation model</text>
-  <text x="1390" y="510" class="text">Clock rate λ from</text>
-  <text x="1390" y="542" class="text">fixed rate or UCLN</text>
-  <text x="1390" y="584" class="small">Genetic draws G<tspan baseline-shift="sub" font-size="75%">s</tspan> = λB<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-  <text x="1390" y="616" class="small">or Poisson(λB<tspan baseline-shift="sub" font-size="75%">s</tspan>)</text>
+    .figure-scroll img {
+      display: block;
+      width: 100%;
+      min-width: 1200px;
+      height: auto;
+    }
 
-  <rect x="120" y="760" width="500" height="250" class="box"/>
-  <text x="150" y="800" class="head">7. Temporal compatibility</text>
-  <text x="150" y="840" class="text">Compare observed t<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated T<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-  <text x="150" y="882" class="eq">p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = Pr(T<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ t<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
-  <text x="150" y="924" class="eq">C<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> − 0.5|</text>
-  <text x="150" y="968" class="small">Highest when the observation lies near the centre</text>
-  <text x="150" y="998" class="small">of the scenario-specific simulated distribution</text>
+    .caption {
+      margin: 14px 6px 4px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--muted);
+    }
 
-  <rect x="650" y="760" width="500" height="250" class="box"/>
-  <text x="680" y="800" class="head">8. Genetic compatibility</text>
-  <text x="680" y="840" class="text">Compare observed g<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated G<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-  <text x="680" y="882" class="eq">p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = Pr(G<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ g<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
-  <text x="680" y="924" class="eq">C<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> − 0.5|</text>
-  <text x="680" y="968" class="small">Penalises genetic distances that are too small</text>
-  <text x="680" y="998" class="small">or too large under the scenario</text>
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.95em;
+      color: var(--ink);
+    }
+  </style>
+</head>
+<body>
+  <main>
+<!--    <section class="hero">-->
+<!--      <h1>EpiLink schematic</h1>-->
+<!--      <p>Responsive preview page for the updated workflow diagram, now aligned with the testing-delay notation in the derivation and the two supported transmission-profile parameterisations.</p>-->
+<!--    </section>-->
 
-  <rect x="1180" y="760" width="500" height="250" class="box3"/>
-  <text x="1210" y="800" class="head">9. Scenario and target scores</text>
-  <text x="1210" y="842" class="eq">C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j) = C<tspan baseline-shift="sub" font-size="75%">T,s</tspan>(i,j) × C<tspan baseline-shift="sub" font-size="75%">G,s</tspan>(i,j)</text>
-  <text x="1210" y="886" class="text">Compute for every scenario s ∈ S<tspan baseline-shift="sub" font-size="75%">M</tspan></text>
-  <text x="1210" y="926" class="eq">score<tspan baseline-shift="sub" font-size="75%">S*</tspan>(i,j) = Σ C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j),   s ∈ S*</text>
-  <text x="1210" y="970" class="small">User chooses target subset S*</text>
-  <text x="1210" y="1000" class="small">A single-scenario target returns the original EpiLink score</text>
-
-  <path d="M460,235 L520,235" class="arrow"/>
-  <path d="M900,235 L960,235" class="arrow"/>
-  <path d="M1220,330 L420,430" class="arrow dashed"/>
-  <path d="M1220,330 L1020,430" class="arrow dashed"/>
-  <path d="M1220,330 L1510,430" class="arrow dashed"/>
-
-  <path d="M680,540 L760,540" class="arrow"/>
-  <path d="M1280,540 L1360,540" class="arrow"/>
-
-  <path d="M420,650 L370,760" class="arrow"/>
-  <path d="M1020,650 L900,760" class="arrow"/>
-  <path d="M1510,650 L1430,760" class="arrow"/>
-
-  <path d="M620,885 L650,885" class="arrow"/>
-  <path d="M1150,885 L1180,885" class="arrow"/>
-
-  <text x="900" y="1125" text-anchor="middle" class="subtitle">
-    Workflow based on the uploaded EpiLink derivation: observed pair → latent scenarios → Monte Carlo timing/genetics → compatibility score
-  </text>
-</svg></body>
+    <section class="figure-shell" aria-label="EpiLink workflow figure">
+      <div class="figure-scroll">
+        <img
+          src="epilink_schematic.svg"
+          alt="EpiLink workflow diagram showing observed testing dates and genetic distance, timing profiles, latent transmission scenarios, Monte Carlo temporal and genetic draws, and compatibility scoring."
+        >
+      </div>
+<!--      <p class="caption">The HTML preview now uses <code>epilink_schematic.svg</code> as the single source of truth, which keeps the page and the vector artwork in sync while preserving horizontal scrolling on smaller screens.</p>-->
+    </section>
+  </main>
+</body>
 </html>
