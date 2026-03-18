@@ -8,7 +8,7 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
 
-from .profiles import InfectiousnessToTransmission, SymptomOnsetToTransmission
+from .profiles import InfectiousnessToTransmission
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,8 +128,7 @@ class EpiLink:
     Parameters
     ----------
     transmission_profile :
-        Instance of ``InfectiousnessToTransmission`` or
-        ``SymptomOnsetToTransmission`` providing generation-interval,
+        Instance of ``InfectiousnessToTransmission`` providing generation-interval,
         testing-delay, and per-day substitution-rate samples.
     maximum_depth :
         Maximum hidden-depth parameter.
@@ -157,7 +156,7 @@ class EpiLink:
 
     def __init__(
         self,
-        transmission_profile: InfectiousnessToTransmission | SymptomOnsetToTransmission,
+        transmission_profile: InfectiousnessToTransmission,
         maximum_depth: int = 2,
         mc_samples: int = 10000,
         target: str | Scenario | Iterable[str | Scenario] = "ad(0)",
