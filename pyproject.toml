@@ -5,25 +5,24 @@ build-backend = "hatchling.build"
 [project]
 name = "epilink"
 version = "0.1.2"
-description = "Epidemiological Linkage Inference from Temporal and Genetic Data with a Variable Infectiousness (E/P/I) Model for SARS-CoV-2."
-readme = "README.md"
+description = "Epidemiological linkage inference from temporal and genetic data with an E/P/I infectiousness model."
+readme = { text = "EpiLink provides epidemiological linkage scoring from temporal and genetic observations using a variable infectiousness E/P/I model.", content-type = "text/plain" }
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = { text = "MIT" }
 authors = [
-    { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }
+    { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" },
 ]
 maintainers = [
-    { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" }
+    { name = "Dominic Arthur", email = "arthurdominic04@gmail.com" },
 ]
 keywords = [
     "epidemiology",
-    "SARS-CoV-2",
     "infectious-disease",
     "genomics",
+    "sars-cov-2",
     "transmission",
-    "linkage-inference"
+    "linkage-inference",
 ]
-
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -37,46 +36,30 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
-    "Topic :: Scientific/Engineering :: Bio-Informatics"
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
     "numpy>=2.0",
     "scipy>=1.14",
-    "numba>=0.64",
-    "llvmlite>=0.46",
-    "networkx>=3.0",
-    "pandas>=2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.3",
-    "pytest-mock>=3.10",
     "pytest-cov>=4.0",
     "mypy>=1.4",
     "ruff>=0.5",
     "black>=24.1",
     "pre-commit>=3.3",
 ]
-docs = [
-    "mkdocs>=1.5",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.24",
-]
-all = [
-    "epilink[dev,docs]",
-]
 
 [project.urls]
 Homepage = "https://github.com/ydnkka/epilink"
 Issues = "https://github.com/ydnkka/epilink/issues"
-Documentation = "https://github.com/ydnkka/epilink#readme"
+Documentation = "https://github.com/ydnkka/epilink"
 Repository = "https://github.com/ydnkka/epilink"
 "Bug Tracker" = "https://github.com/ydnkka/epilink/issues"
 "Release Notes" = "https://github.com/ydnkka/epilink/releases"
-
-[project.scripts]
-epilink = "epilink.cli:main"
 
 [tool.hatchling.build.targets.wheel]
 packages = ["src/epilink"]
@@ -86,22 +69,18 @@ include = [
     "/src",
     "/tests",
     "/docs",
-    "/examples",
-    "README.md",
-    "LICENSE",
-    "CITATION.cff",
-    "PUBLISHING_GUIDE.md",
-    "VERSION_MANAGEMENT.md",
 ]
-
+exclude = [
+    "/src/**/__pycache__",
+    "/src/**/*.py[cod]",
+    "/tests/**/__pycache__",
+    "/tests/**/*.py[cod]",
+]
 
 [tool.coverage.run]
 branch = true
 source = ["epilink"]
-omit = [
-    "src/epilink/__main__.py",
-    "*/site-packages/*",
-]
+omit = ["*/site-packages/*"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -117,7 +96,6 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-omit = ["src/epilink/__main__.py"]
 precision = 2
 show_missing = true
 
@@ -128,15 +106,15 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E",     # pycodestyle errors
-    "W",     # pycodestyle warnings
-    "F",     # pyflakes
-    "I",     # isort
-    "UP",    # pyupgrade
-    "B",     # flake8-bugbear
+    "E",
+    "W",
+    "F",
+    "I",
+    "UP",
+    "B",
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
+    "E501",
 ]
 
 [tool.ruff.lint.isort]
@@ -148,7 +126,6 @@ target-version = ["py310", "py311", "py312", "py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
   \.eggs
   | \.git
   | \.hg
@@ -173,7 +150,7 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 minversion = "7.3"
 testpaths = ["tests"]
-addopts = "-v --cov=epilink --cov-report=html --cov-report=term-missing"
+addopts = "-v --cov=epilink --cov-report=term-missing"
 filterwarnings = [
     "error::DeprecationWarning:epilink",
     "ignore::DeprecationWarning",

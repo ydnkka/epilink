@@ -1,0 +1,292 @@
+\documentclass[10pt,a4paper]{article}
+
+% Layout and language
+\usepackage[margin=1in]{geometry}
+\usepackage[british]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+
+% Spacing and front matter
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{lineno}
+
+% Mathematics
+\usepackage{mathtools,amssymb}
+\usepackage{siunitx}
+
+% Tables and figures
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{adjustbox}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+
+% References and links
+\usepackage{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+% Sensible defaults
+\sisetup{detect-all}
+\onehalfspacing
+% \linenumbers
+
+\title{Derivation of the epilink compatibility score}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+For a sampled pair $(i,j)$, let $t_{ij}$ denote the sampling-time difference and $g_{ij}$ the observed consensus-level genetic distance. The \texttt{epilink} framework compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
+
+\subsection*{Observed quantities and timing model}
+
+Let $t_{\mathrm{samp},i}$ and $t_{\mathrm{samp},j}$ denote the sampling dates, measured in days on a common time scale, and define
+\begin{align}
+t_{ij} = t_{\mathrm{samp},j} - t_{\mathrm{samp},i}.
+\end{align}
+Let $g_{ij}$ denote the observed consensus-level genetic distance, measured in nucleotide differences.
+
+The natural-history model follows the variable infectiousness $E/P/I$ framework of \citet{Hart2021}, in which infection is partitioned into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages with durations $y_E$, $y_P$, and $y_I$. We additionally introduce a sampling delay $y_S$, defined as the time from symptom onset to sample collection, and write $t_{\mathrm{toit}}$ for the time from infectiousness onset to transmission. The incubation period and generation time are
+\begin{align}
+\tau_{\mathrm{inc}} &= y_E + y_P,\\
+\tau_{\mathrm{gen}} &= y_E + t_{\mathrm{toit}},
+\end{align}
+so that the total time from infection to sampling is $\tau_{\mathrm{inc}} + y_S$.
+
+Following~\cite{Hart2021}, the stage durations are modelled as independent Gamma random variables, with $E$ and $P$ sharing a common scale:
+\begin{align}
+y_E &\sim \mathrm{Gamma}(k_E,\theta_{\mathrm{inc}}),\\
+y_P &\sim \mathrm{Gamma}(k_P,\theta_{\mathrm{inc}}),\\
+y_I &\sim \mathrm{Gamma}(k_I,\theta_I),
+\end{align}
+where
+\begin{align}
+k_P = k_{\mathrm{inc}} - k_E,
+\qquad
+\tau_{\mathrm{inc}} \sim \mathrm{Gamma}(k_{\mathrm{inc}},\theta_{\mathrm{inc}}).
+\end{align}
+Using the parameterisation of Hart et al.,
+\begin{align}
+k_{\mathrm{inc}} &= 5.807, &
+\theta_{\mathrm{inc}} &= 0.948, &
+k_I &= 1,\\
+k_E &= 3.38, &
+\mu &= 0.37, &
+\alpha &= \frac{\beta_P}{\beta_I} = 2.29,
+\end{align}
+with $\theta_I = 1/\mu$.
+
+Transmission timing is induced by the infectiousness profile rather than specified independently. Writing $f_P$ and $F_P$ for the density and cumulative distribution functions of the presymptomatic period, the induced density of $t_{\mathrm{toit}}$ is
+\begin{equation}
+\label{eq:toit_density}
+f_{\mathrm{toit}}(t_{\mathrm{toit}})
+=
+C\!\left[
+\alpha \bigl(1-F_P(t_{\mathrm{toit}})\bigr)
++
+\int_{0}^{t_{\mathrm{toit}}}
+\bigl(1-F_P(t_{\mathrm{toit}}-y_P)\bigr)f_P(y_P)\,dy_P
+\right],
+\end{equation}
+where $C$ is a normalising constant. To connect this model to observed sampling dates, \texttt{epilink} adds a sampling delay
+\begin{align}
+y_S \sim \mathrm{Gamma}(k_S,\theta_S).
+\end{align}
+All timing quantities are treated as latent random variables and integrated over by Monte Carlo.
+
+\subsection*{Latent transmission scenarios}
+
+Let $M$ denote the maximum hidden depth allowed in the latent relationship between cases $i$ and $j$. The candidate set is
+\begin{align}
+\mathcal{S}_M
+=
+\left\{
+H_{\mathrm{AD}}(m): m=0,\ldots,M
+\right\}
+\cup
+\left\{
+H_{\mathrm{CA}}(m_i,m_j): m_i,m_j \ge 0,\ m_i+m_j \le M
+\right\}.
+\end{align}
+Here, $H_{\mathrm{AD}}(m)$ denotes an ancestor--descendant scenario in which case $j$ descends from case $i$ through $m$ unsampled intermediates, whereas $H_{\mathrm{CA}}(m_i,m_j)$ denotes a common-ancestor scenario in which both sampled cases descend from an unsampled source with branch depths $m_i$ and $m_j$. The cases $H_{\mathrm{AD}}(0)$ and $H_{\mathrm{CA}}(0,0)$ correspond to direct transmission and co-primary infection, respectively.
+
+\subsection*{Temporal draws}
+
+For a given scenario $s \in \mathcal{S}_M$, let $t_x$ denote the infection time of the latent reference point: the infection time of case $i$ under an ancestor--descendant scenario, or the infection time of the shared unsampled source under a common-ancestor scenario. Let $A_k(s)$ denote the elapsed time from this reference point to infection of sampled case $k \in \{i,j\}$. Then
+\begin{align}
+t_{\mathrm{samp},k}
+=
+t_x + A_k(s) + \tau_{\mathrm{inc},k} + y_{S,k},
+\end{align}
+so the model-implied sampling-time difference is
+\begin{align}
+T_s
+=
+A_j(s) - A_i(s)
++
+\tau_{\mathrm{inc},j} + y_{S,j}
+-
+\tau_{\mathrm{inc},i} - y_{S,i}.
+\label{eq:tij_master}
+\end{align}
+
+Under $H_{\mathrm{AD}}(m)$,
+\begin{align}
+A_i\!\left(H_{\mathrm{AD}}(m)\right) &= 0,\\
+A_j\!\left(H_{\mathrm{AD}}(m)\right) &= \sum_{r=0}^{m}\tau_{\mathrm{gen},r},
+\end{align}
+and therefore
+\begin{align}
+T_{ij}\!\left(H_{\mathrm{AD}}(m)\right)
+=
+\sum_{r=0}^{m}\tau_{\mathrm{gen},r}
++
+\tau_{\mathrm{inc},j} + y_{S,j}
+-
+\tau_{\mathrm{inc},i} - y_{S,i}.
+\label{eq:T_AD}
+\end{align}
+
+Under $H_{\mathrm{CA}}(m_i,m_j)$,
+\begin{align}
+A_i\!\left(H_{\mathrm{CA}}(m_i,m_j)\right)
+&=
+\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)},\\
+A_j\!\left(H_{\mathrm{CA}}(m_i,m_j)\right)
+&=
+\sum_{s=1}^{m_j+1}\tau_{\mathrm{gen},s}^{(j)},
+\end{align}
+so that
+\begin{align}
+T_{ij}\!\left(H_{\mathrm{CA}}(m_i,m_j)\right)
+=
+\sum_{s=1}^{m_j+1}\tau_{\mathrm{gen},s}^{(j)}
+-
+\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
++
+\tau_{\mathrm{inc},j} + y_{S,j}
+-
+\tau_{\mathrm{inc},i} - y_{S,i}.
+\label{eq:T_CA}
+\end{align}
+For each scenario $s$, Monte Carlo simulation yields draws $T_s^{(1)},\ldots,T_s^{(N)}$ from the induced temporal distribution.
+
+\subsection*{Genetic draws}
+
+The genetic component assumes that within-host divergence is negligible on the timescales of interest and that consensus divergence accumulates along transmission-linked lineages. Under scenario $s$, let $B_s$ denote the effective transmission-related branch length, in days, separating the sampled genomes.
+
+For ancestor--descendant scenarios,
+\begin{align}
+B_{H_{\mathrm{AD}}(m)}
+=
+\sum_{r=0}^{m}\tau_{\mathrm{gen},r}
++
+\tau_{\mathrm{inc},j} + y_{S,j}
+-
+\left(\tau_{\mathrm{inc},i} + y_{S,i}\right).
+\label{eq:B_AD}
+\end{align}
+For common-ancestor scenarios,
+\begin{align}
+B_{H_{\mathrm{CA}}(m_i,m_j)}
+=
+\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
++
+\sum_{s=1}^{m_j+1}\tau_{\mathrm{gen},s}^{(j)}
++
+\tau_{\mathrm{inc},i} + y_{S,i}
++
+\tau_{\mathrm{inc},j} + y_{S,j}.
+\label{eq:B_CA}
+\end{align}
+For each scenario $s$, Monte Carlo simulation yields draws $B_s^{(1)},\ldots,B_s^{(N)}$.
+
+Let $r$ denote the median substitution rate per site per year and $L$ the genome length in sites. The corresponding per-genome daily substitution rate is
+\begin{align}
+\lambda = \frac{rL}{365}.
+\label{eq:lambda_strict}
+\end{align}
+Under a relaxed uncorrelated log-normal clock (UCLN), one instead samples
+\begin{align}
+r^{(n)} \sim \mathrm{LogNormal}(\mu_r,\sigma_r^2),
+\end{align}
+with $\mu_r$ chosen so that the median equals the specified substitution rate $r$, and sets
+\begin{align}
+\lambda^{(n)} = \frac{r^{(n)}L}{365}.
+\label{eq:lambda_relaxed}
+\end{align}
+
+Given branch-length draw $B_s^{(n)}$ and clock-rate draw $\lambda^{(n)}$, the genetic draw used for scoring is
+\begin{align}
+G_s^{(n)} =
+\lambda^{(n)} B_s^{(n)}
+\end{align}
+under a deterministic mutational process, and
+\begin{align}
+G_s^{(n)} \mid B_s^{(n)}, \lambda^{(n)}
+\sim
+\mathrm{Poisson}\!\left(\lambda^{(n)} B_s^{(n)}\right)
+\end{align}
+under a stochastic mutational process.
+
+\subsection*{Compatibility scores}
+
+For any observed quantity $x_{\mathrm{obs}}$ and scenario $s$ with Monte Carlo draws $x_1^{(s)},\ldots,x_{n_s}^{(s)}$, define the percentile score
+\begin{align}
+p_s(x_{\mathrm{obs}})
+=
+\frac{\#\left\{i : x_i^{(s)} \le x_{\mathrm{obs}}\right\}}{n_s},
+\end{align}
+and the corresponding compatibility score
+\begin{align}
+C_s(x_{\mathrm{obs}})
+=
+1 - 2\left|p_s(x_{\mathrm{obs}}) - 0.5\right|.
+\end{align}
+Applying this definition to the temporal draws gives
+\begin{align}
+p_{T,s}(i,j)
+=
+\frac{\#\left\{n : T_s^{(n)} \le t_{ij}\right\}}{N},
+\qquad
+C_{T,s}(i,j)
+=
+1 - 2\left|p_{T,s}(i,j) - 0.5\right|,
+\end{align}
+and applying it to the genetic draws gives
+\begin{align}
+p_{G,s}(i,j)
+=
+\frac{\#\left\{n : G_s^{(n)} \le g_{ij}\right\}}{N},
+\qquad
+C_{G,s}(i,j)
+=
+1 - 2\left|p_{G,s}(i,j) - 0.5\right|.
+\end{align}
+The overall compatibility assigned to scenario $s$ is the product of the temporal and genetic compatibilities,
+\begin{align}
+C_s(i,j) = C_{T,s}(i,j)\,C_{G,s}(i,j).
+\label{eq:scenario_compatibility}
+\end{align}
+
+\subsection*{Target subset and computation}
+
+Let $\mathcal{S}_\star \subseteq \mathcal{S}_M$ denote a user-specified target subset chosen when the \texttt{epilink} object is constructed. The reported target score is
+\begin{align}
+\mathrm{score}_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j).
+\end{align}
+When $\mathcal{S}_\star$ contains a single element, this reduces to the original single-scenario score. The implementation also returns $C_s(i,j)$ for every $s \in \mathcal{S}_M$.
+
+For each scenario $s \in \mathcal{S}_M$, \texttt{epilink} precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
