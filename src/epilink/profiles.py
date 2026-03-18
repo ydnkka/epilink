@@ -302,17 +302,17 @@ class BaseTransmissionProfile:
 
 
 class InfectiousnessToTransmission(BaseTransmissionProfile):
-    r"""Distribution of time from the onset of infectiousness to transmission (:math:`t_{toit}`).
+    r"""Distribution of time from the onset of infectiousness to transmission (:math:`y^*`).
 
     Density of the distribution is given by:
 
     .. math::
 
-        f_{toit}(_{toit}) =
+        f^*(y^*) =
         \begin{cases}
-            0, & t < 0, \\
-            C \left[ \alpha \left(1 - F_P(t_{toit})\right)
-            + \int_0^t_{toit} \left(1 - F_I(t_{toit}-y_P)\right) f_P(y_P) \, d_{y_P} \right], & t_{toit} \ge 0,
+            0, & y^* < 0, \\
+            C \left[ \alpha \left(1 - F_P(y^*)\right)
+            + \int_0^{y^*} \left(1 - F_I(y^*-y_P)\right) f_P(y_P) \, d_{y_P} \right], & y^* \ge 0,
         \end{cases}
 
     where :math:`f_P` and :math:`F_P` are the presymptomatic PDF/CDF,
@@ -447,16 +447,16 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
 
 
 class SymptomOnsetToTransmission(BaseTransmissionProfile):
-    r"""Distribution of time from the onset symptoms to transmission (:math:`t_{tost}`).
+    r"""Distribution of time from the onset symptoms to transmission (:math:`x_{tost}`).
 
     Density of the distribution is given by:
 
     .. math::
 
-        f_{tost}(t_{tost}) =
+        f_{tost}(x_{tost}) =
         \begin{cases}
-            \alpha C \left(1 - F_P(-t_{tost})\right), & t_{tost} < 0, \\
-            C \left(1 - F_I(t_{tost})\right), & t_{tost} \ge 0,
+            \alpha C \left(1 - F_P(-x_{tost})\right), & x_{tost} < 0, \\
+            C \left(1 - F_I(x_{tost})\right), & x_{tost} \ge 0,
         \end{cases}
 
     where :math:`F_P` is the presymptomatic CDF, :math:`F_I` is the
@@ -545,6 +545,22 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
         x, cdf = self._ensure_numerical_cdf()
         u = self.rng.uniform(0.0, 1.0, size=sample_shape)
         return np.interp(u, cdf, x)
+
+    def sample_generation_intervals(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+        """Sample generation intervals.
+
+        Parameters
+        ----------
+        size : int or tuple of int, default=1
+            Output shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Generation intervals in days.
+        """
+
+        return self.sample_incubation_periods(size=size) + self.rvs(size=size)
 
 
 __all__ = [
