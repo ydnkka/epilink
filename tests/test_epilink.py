@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from epilink import EpiLink  # noqa: E402
+from epilink import EpiLink, Scenario  # noqa: E402
 
 
 class CountingProfile:
@@ -179,6 +179,77 @@ class TestEpiLink(unittest.TestCase):
         self.assertIs(first_model, second_model)
         self.assertEqual(first_model.target_labels, ("ad(0)", "ca(0,0)"))
 
+    def test_draws_by_scenario_setter_invalidates_cached_pairwise_models(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+
+        first_model = model.pairwise_model(["ad(0)"])
+        replacement_draws = {
+            label: {name: values.copy() for name, values in payload.items()}
+            for label, payload in self._manual_draws().items()
+        }
+
+        model.draws_by_scenario = replacement_draws
+        second_model = model.pairwise_model(["ad(0)"])
+
+        self.assertIsNot(first_model, second_model)
+
+    def test_target_accepts_scenario_objects_and_preserves_canonical_order(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            target=[
+                Scenario(kind="ca", branch_to_i=0, branch_to_j=0),
+                Scenario(kind="ad", intermediates=0),
+            ],
+            mutation_process="deterministic",
+        )
+
+        self.assertEqual(model.target_labels, ("ad(0)", "ca(0,0)"))
+        self.assertIsNone(model.target_label)
+
+    def test_score_target_returns_scalar_float_for_scalar_inputs(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+        model.draws_by_scenario = self._manual_draws()
+
+        score = model.score_target(2.5, 1.5, target="ad(0)")
+
+        self.assertIsInstance(score, float)
+        self.assertAlmostEqual(score, 1.0)
+
+    def test_deterministic_mutation_process_uses_expected_mutation_counts(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+
+        draws = model.draws_by_scenario["ad(0)"]
+        expected_branch_draws = np.array([2.0, 2.2, 2.4, 2.6])
+        expected_clock_rate_draws = np.array([0.2, 0.21, 0.22, 0.23])
+
+        np.testing.assert_allclose(draws["branch_draws"], expected_branch_draws)
+        np.testing.assert_allclose(
+            draws["genetic_draws"],
+            expected_branch_draws * expected_clock_rate_draws,
+        )
+        self.assertTrue(np.issubdtype(draws["genetic_draws"].dtype, np.floating))
+
     def test_stochastic_mutation_process_precomputes_integer_genetic_draws(self) -> None:
         profile = CountingProfile()
         model = EpiLink(
@@ -191,6 +262,23 @@ class TestEpiLink(unittest.TestCase):
         genetic_draws = model.draws_by_scenario["ad(0)"]["genetic_draws"]
 
         self.assertTrue(np.issubdtype(genetic_draws.dtype, np.integer))
+
+    def test_simulate_common_ancestor_draws_match_manual_expectation(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=1,
+            mc_samples=3,
+            mutation_process="deterministic",
+        )
+
+        time_draws, branch_draws = model.simulate_scenario_draws(
+            Scenario(kind="ca", branch_to_i=0, branch_to_j=1),
+            sample_count=3,
+        )
+
+        np.testing.assert_allclose(time_draws, np.array([2.6, 2.8, 3.0]))
+        np.testing.assert_allclose(branch_draws, np.array([9.6, 10.5, 11.4]))
 
     def test_legacy_target_labels_raise_value_error(self) -> None:
         profile = CountingProfile()
@@ -216,6 +304,36 @@ class TestEpiLink(unittest.TestCase):
         with self.assertRaises(TypeError):
             model.score_pair(t_ij=2.5, g_ij=1.5)
 
+    def test_invalid_configuration_raises_value_error(self) -> None:
+        profile = CountingProfile()
+
+        with self.subTest(parameter="maximum_depth"):
+            with self.assertRaises(ValueError):
+                EpiLink(
+                    transmission_profile=profile,
+                    maximum_depth=-1,
+                    mc_samples=4,
+                    mutation_process="deterministic",
+                )
+
+        with self.subTest(parameter="mc_samples"):
+            with self.assertRaises(ValueError):
+                EpiLink(
+                    transmission_profile=profile,
+                    maximum_depth=0,
+                    mc_samples=0,
+                    mutation_process="deterministic",
+                )
+
+        with self.subTest(parameter="mutation_process"):
+            with self.assertRaises(ValueError):
+                EpiLink(
+                    transmission_profile=profile,
+                    maximum_depth=0,
+                    mc_samples=4,
+                    mutation_process="not-a-process",
+                )
+
     def test_score_pair_rejects_arraylike_inputs(self) -> None:
         profile = CountingProfile()
         model = EpiLink(
@@ -227,6 +345,21 @@ class TestEpiLink(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             model.score_pair(sample_time_difference=np.array([2.5]), genetic_distance=1.5)
+
+    def test_score_pair_requires_both_observations(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            mutation_process="deterministic",
+        )
+
+        with self.assertRaises(TypeError):
+            model.score_pair(sample_time_difference=2.5)
+
+        with self.assertRaises(TypeError):
+            model.score_pair(genetic_distance=1.5)
 
     def test_unknown_target_raises_value_error(self) -> None:
         profile = CountingProfile()

@@ -201,7 +201,7 @@
     <rect x="710" y="490" width="540" height="270" rx="26" ry="26" class="card green" filter="url(#cardShadow)"/>
     <rect x="710" y="490" width="540" height="54" rx="26" ry="26" class="band-green"/>
     <text x="740" y="528" class="card-title">Monte Carlo branch-length draws</text>
-    <text x="740" y="590" class="copy">For each scenario s, compute branch-length draws.</text>
+    <text x="740" y="590" class="copy">For each scenario s, sample branch lengths.</text>
     <text x="740" y="645" class="eq-tight">AD: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan> − (τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan>)</text>
     <text x="740" y="680" class="eq-tight">CA: B<tspan baseline-shift="sub" font-size="75%">s</tspan> = Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(i)</tspan> + Στ<tspan baseline-shift="sub" font-size="75%">gen</tspan><tspan baseline-shift="super" font-size="70%">(j)</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,i</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,i</tspan> + τ<tspan baseline-shift="sub" font-size="75%">inc,j</tspan> + x<tspan baseline-shift="sub" font-size="75%">test,j</tspan></text>
     <text x="740" y="718" class="detail">Store draws B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(1)</tspan>, ..., B<tspan baseline-shift="sub" font-size="75%">s</tspan><tspan baseline-shift="super" font-size="70%">(N)</tspan>.</text>
