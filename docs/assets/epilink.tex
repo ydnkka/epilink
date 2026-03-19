@@ -35,7 +35,7 @@
 \onehalfspacing
 % \linenumbers
 
-\title{Derivation of EpiLink compatibility score}
+\title{Derivation of \texttt{EpiLink} compatibility score}
 \author{}
 \date{}
 
@@ -43,21 +43,22 @@
 
 \maketitle
 
-For a sampled pair $(i,j)$, let $t_{ij}$ denote the testing-time difference and $g_{ij}$ the observed consensus-level genetic distance. EpiLink compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
+For a sampled pair $(i,j)$, let $t_{ij}$ denote the testing-time difference and $g_{ij}$ the observed consensus-level genetic distance. \texttt{EpiLink} compares a finite set of recent latent transmission scenarios linking the pair, computes a compatibility score for each scenario, and reports the compatibility of a user-specified target scenario.
 
 \subsection*{Observed quantities and timing model}
 
 Let $t_{\mathrm{test},i}$ and $t_{\mathrm{test},j}$ denote the testing dates, measured in days on a common time scale, and define
 \begin{align}
-t_{ij} = t_{\mathrm{test},j} - t_{\mathrm{test},i}.
+    t_{ij} = t_{\mathrm{test},j} - t_{\mathrm{test},i}.
 \end{align}
 Let $g_{ij}$ denote the observed consensus-level genetic distance, measured in nucleotide differences.
 
-We implement the variable infectiousness $E/P/I$ model of \citet{Hart2021}. Infection is partitioned into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages with Gamma-distributed durations $y_E$, $y_P$, and $y_I$, and we extend this temporal model with a Gamma-distributed testing delay $x_{\mathrm{test}}$ from symptom onset to testing. Writing $x_{\mathrm{tost}}$ for the time from symptom onset to transmission, the incubation period and generation interval are
+We implement the variable infectiousness $E/P/I$ model of \citet{Hart2021}. Infection is partitioned into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages with Gamma-distributed durations $y_E$, $y_P$, and $y_I$, and we extend this temporal model with a Gamma-distributed testing delay $x_{\mathrm{test}}$ from symptom onset to testing. Writing $y_\mathrm{toit}$ ($y^*$ in \citet{Hart2021}) for the time from onset of infectiousness to transmission, the incubation period and generation interval are
 \begin{align}
-\tau_{\mathrm{inc}} &= y_E + y_P,\\
-\tau_{\mathrm{gen}} &= \tau_{\mathrm{inc}} + x_{\mathrm{tost}},
+    \tau_{\mathrm{inc}} &= y_E + y_P,\\
+    \tau_{\mathrm{gen}} &= \tau_{\mathrm{inc}} + y_\mathrm{toit},
 \end{align}
+
 so that the total time from infection to testing is $\tau_{\mathrm{inc}} + x_{\mathrm{test}}$. The temporal model therefore provides latent random variables such as incubation periods, generation intervals, and testing delays, which are integrated over by Monte Carlo.
 
 \subsection*{Latent transmission scenarios}
@@ -243,7 +244,7 @@ Let $\mathcal{S}_\star \subseteq \mathcal{S}_M$ denote a user-specified target s
 \end{align}
 When $\mathcal{S}_\star$ contains a single element, this reduces to the original single-scenario score. The implementation also returns $C_s(i,j)$ for every $s \in \mathcal{S}_M$.
 
-For each scenario $s \in \mathcal{S}_M$, EpiLink precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
+For each scenario $s \in \mathcal{S}_M$, \texttt{EpiLink} precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
