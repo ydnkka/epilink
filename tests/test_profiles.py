@@ -14,11 +14,11 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from epilink import (  # noqa: E402
+    BaseTransmissionProfile,
     InfectiousnessToTransmission,
     NaturalHistoryParameters,
     SymptomOnsetToTransmission,
 )
-from epilink import BaseTransmissionProfile  # noqa: E402
 
 
 class ConstantDensityProfile(BaseTransmissionProfile):

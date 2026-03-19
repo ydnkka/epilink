@@ -13,14 +13,11 @@ class BaseTransmissionProfile:
 
     Parameters
     ----------
-    grid_min_days : float
-        Lower bound of the numerical grid used for sampling and numerical
-        summaries.
-    grid_max_days : float
-        Upper bound of the numerical grid used for sampling and numerical
-        summaries.
     parameters : NaturalHistoryParameters, optional
         Stage-duration and infectiousness parameters for the E/P/I model.
+    grid_min_days : float, default=0.0
+        Lower bound of the numerical sampling grid in days.
+    grid_max_days : float, default=60.0
     rng : Generator, optional
         Random number generator to use for sampling.
     rng_seed : int, optional
@@ -31,9 +28,9 @@ class BaseTransmissionProfile:
 
     def __init__(
         self,
-        grid_min_days: float,
-        grid_max_days: float,
         parameters: NaturalHistoryParameters | None = None,
+        grid_min_days: float = 0.0,
+        grid_max_days: float = 100.0,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         grid_points: int = 1024,
@@ -321,12 +318,12 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
 
     Parameters
     ----------
+    parameters : NaturalHistoryParameters, optional
+        Stage-duration and infectiousness parameters for the E/P/I model.
     grid_min_days : float, default=0.0
         Lower bound of the numerical sampling grid in days.
     grid_max_days : float, default=60.0
         Upper bound of the numerical sampling grid in days.
-    parameters : NaturalHistoryParameters, optional
-        Stage-duration and infectiousness parameters for the E/P/I model.
     rng : Generator, optional
         Random number generator to use for sampling.
     rng_seed : int, optional
@@ -339,9 +336,9 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
 
     def __init__(
         self,
+        parameters: NaturalHistoryParameters | None = None,
         grid_min_days: float = 0.0,
         grid_max_days: float = 100.0,
-        parameters: NaturalHistoryParameters | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         integration_grid_points: int = 2048,
@@ -465,12 +462,12 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
 
     Parameters
     ----------
+    parameters : NaturalHistoryParameters, optional
+        Stage-duration and infectiousness parameters for the E/P/I model.
     grid_min_days : float, default=-30.0
         Lower bound of the numerical sampling grid in days.
     grid_max_days : float, default=30.0
         Upper bound of the numerical sampling grid in days.
-    parameters : NaturalHistoryParameters, optional
-        Stage-duration and infectiousness parameters for the E/P/I model.
     rng : Generator, optional
         Random number generator to use for sampling.
     rng_seed : int, optional
@@ -481,9 +478,9 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
 
     def __init__(
         self,
+        parameters: NaturalHistoryParameters | None = None,
         grid_min_days: float = -30.0,
         grid_max_days: float = 30.0,
-        parameters: NaturalHistoryParameters | None = None,
         rng: Generator | None = None,
         rng_seed: int | None = None,
         grid_points: int = 2048,
@@ -547,6 +544,7 @@ class SymptomOnsetToTransmission(BaseTransmissionProfile):
 
 
 __all__ = [
+    "BaseTransmissionProfile",
     "InfectiousnessToTransmission",
     "SymptomOnsetToTransmission",
 ]

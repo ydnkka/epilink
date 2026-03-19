@@ -1,13 +1,14 @@
-# EpiLink
+# EpiLink: Epidemiological Linkage from Temporal and Genetic Data
 
-EpiLink is a Python package for epidemiological linkage inference from paired temporal and genetic observations. It scores recent latent transmission scenarios using the variable-infectiousness E/P/I model of Hart, Maini, and Thompson (2021) and returns compatibility values for individual scenarios or user-defined target subsets.
+EpiLink is a Python package for epidemiological linkage inference from paired temporal and genetic observations. 
+It scores recent latent transmission scenarios using a variable-infectiousness model [1] and returns compatibility values for individual scenarios or user-defined target subsets.
 
 ## Highlights
 
 - Scores observed pairs using testing-time difference and consensus-level genetic distance.
 - Supports both deterministic and stochastic mutation models.
 - Works with single observations or vectorized grids through cached pairwise scorers.
-- Includes a usage notebook in [docs/epilink_usage_notebook.ipynb](docs/epilink_usage_notebook.ipynb).
+- Includes a usage notebook in [docs/epilink_usage_notebook.ipynb](examples/characteristics.ipynb).
 
 ## Installation
 
@@ -36,9 +37,6 @@ EpiLink enumerates latent scenarios such as:
 
 You can score a single scenario or sum compatibility across a subset of scenarios by passing a list to `target`.
 
-The underlying temporal model follows:
-
-- Hart WS, Maini PK, Thompson RN. High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. *eLife*. 2021;10:e65534. <http://dx.doi.org/10.7554/eLife.65534>
 
 ## Workflow schematic
 
@@ -108,7 +106,7 @@ The stochastic option is useful when you want mutation-count variability to be p
 
 ## Documentation
 
-- Usage notebook: [docs/epilink_usage_notebook.ipynb](docs/epilink_usage_notebook.ipynb)
+- Usage notebook: [docs/epilink_usage_notebook.ipynb](examples/characteristics.ipynb)
 - Derivation manuscript: [docs/assets/epilink.pdf](docs/assets/epilink.pdf)
 - Summary figure script: [docs/epilink_summary_figure.py](docs/epilink_summary_figure.py)
 
@@ -136,3 +134,8 @@ If you use EpiLink in research, please cite both the software metadata in [CITAT
 ## License
 
 This project is distributed under the MIT License. See [LICENSE](LICENSE).
+
+## References
+
+1. Hart WS, Maini PK, Thompson RN. High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. *eLife*. 2021;10:e65534. <http://dx.doi.org/10.7554/eLife.65534>
+
