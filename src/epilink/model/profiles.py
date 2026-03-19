@@ -5,7 +5,7 @@ from numpy.random import Generator, default_rng
 from scipy import stats
 from scipy.integrate import cumulative_trapezoid
 
-from .parameters import NaturalHistoryParameters
+from ..model.parameters import NaturalHistoryParameters
 
 
 class BaseTransmissionProfile:
@@ -271,7 +271,6 @@ class BaseTransmissionProfile:
     def expected_mutations(
         self,
         times_in_days: np.typing.ArrayLike,
-        size: int | tuple[int, ...] = 1,
     ) -> np.ndarray:
         """Compute expected mutation counts for elapsed times.
 

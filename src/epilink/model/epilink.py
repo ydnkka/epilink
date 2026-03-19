@@ -8,7 +8,7 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
 
-from .profiles import InfectiousnessToTransmission
+from epilink.model.profiles import InfectiousnessToTransmission
 
 
 @dataclass(frozen=True, slots=True)
