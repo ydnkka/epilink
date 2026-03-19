@@ -82,9 +82,9 @@ class NaturalHistoryParameters:
 
     References
     ----------
-    .. [1] William S HartPhilip K MainiRobin N Thompson (2021)
+    .. [1] Hart, William S., Philip K. Maini, and Robin N. Thompson (2021)
         High infectiousness immediately before COVID-19 symptom onset
-        highlights the importance of continued contact tracing eLife 10:e65534.
+        highlights the importance of continued contact tracing. eLife 10:e65534.
     """
 
     incubation_shape: float = 5.807

@@ -14,6 +14,39 @@ from epilink import NaturalHistoryParameters  # noqa: E402
 
 
 class TestNaturalHistoryParameters(unittest.TestCase):
+    def test_custom_parameters_update_derived_properties(self) -> None:
+        p = NaturalHistoryParameters(
+            incubation_shape=6.0,
+            incubation_scale=0.75,
+            latent_shape=2.5,
+            symptomatic_rate=0.5,
+            symptomatic_shape=2.0,
+            transmission_rate_ratio=1.8,
+        )
+
+        self.assertTrue(math.isclose(p.presymptomatic_shape, 3.5))
+        self.assertTrue(math.isclose(p.symptomatic_scale, 1.0))
+        self.assertTrue(math.isclose(p.incubation_rate, 1.0 / 4.5))
+
+    def test_to_dict_round_trips_through_constructor(self) -> None:
+        original = NaturalHistoryParameters(
+            incubation_shape=6.2,
+            incubation_scale=0.8,
+            latent_shape=2.0,
+            symptomatic_rate=0.4,
+            symptomatic_shape=1.3,
+            transmission_rate_ratio=1.9,
+            testing_delay_shape=2.5,
+            testing_delay_scale=1.2,
+            substitution_rate=1.2e-3,
+            relaxation=0.15,
+            genome_length=12345,
+        )
+
+        reconstructed = NaturalHistoryParameters(**original.to_dict())
+
+        self.assertEqual(reconstructed, original)
+
     def test_default_derived_properties(self) -> None:
         p = NaturalHistoryParameters()
 
@@ -79,6 +112,9 @@ class TestNaturalHistoryParameters(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             NaturalHistoryParameters(incubation_shape="5.807")
+
+        with self.assertRaises(TypeError):
+            NaturalHistoryParameters(relaxation=True)
 
     def test_non_positive_values_raise_value_error(self) -> None:
         non_positive_cases = (
