@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -42,7 +42,7 @@ def simulate_epidemic_dates(
     num_nodes = tree.number_of_nodes()
     num_sampled = int(round(fraction_sampled * num_nodes))
     sampled_node_ids = set(rng.choice(list(tree.nodes()), size=num_sampled, replace=False))
-    nx.set_node_attributes(tree,{node: (node in sampled_node_ids) for node in tree},"sampled")
+    nx.set_node_attributes(tree, {node: (node in sampled_node_ids) for node in tree}, "sampled")
 
     def sample_stage_intervals() -> tuple[float, float, float]:
         latent = transmission_profile.sample_latent_periods().item()
@@ -57,13 +57,17 @@ def simulate_epidemic_dates(
         exposure_date = int(rng.choice(range(30)))
         latent_period, presymptomatic_period, testing_delay = sample_stage_intervals()
 
-        tree.nodes[root].update({
-            "exposure_date": exposure_date,
-            "date_infectious": exposure_date + latent_period,
-            "date_symptom_onset": (exposure_date + latent_period + presymptomatic_period),
-            "sample_date": (exposure_date + latent_period + presymptomatic_period + testing_delay),
-            "seed": True
-        })
+        tree.nodes[root].update(
+            {
+                "exposure_date": exposure_date,
+                "date_infectious": exposure_date + latent_period,
+                "date_symptom_onset": (exposure_date + latent_period + presymptomatic_period),
+                "sample_date": (
+                    exposure_date + latent_period + presymptomatic_period + testing_delay
+                ),
+                "seed": True,
+            }
+        )
 
         for parent, child in nx.dfs_edges(tree, source=root):
             transmission_time = transmission_profile.rvs().item()
@@ -75,15 +79,18 @@ def simulate_epidemic_dates(
             child_symptom_onset_date = child_infectious_date + presymptomatic_period
             child_sample_date = child_symptom_onset_date + testing_delay
 
-            tree.nodes[child].update({
-                "exposure_date": child_exposure_date,
-                "date_infectious": child_infectious_date,
-                "date_symptom_onset": child_symptom_onset_date,
-                "sample_date": child_sample_date,
-                "seed": False
-            })
+            tree.nodes[child].update(
+                {
+                    "exposure_date": child_exposure_date,
+                    "date_infectious": child_infectious_date,
+                    "date_symptom_onset": child_symptom_onset_date,
+                    "sample_date": child_sample_date,
+                    "seed": False,
+                }
+            )
 
     return tree
+
 
 def simulate_genomic_sequences(
     transmission_profile: InfectiousnessToTransmission,
@@ -118,7 +125,7 @@ def simulate_genomic_sequences(
     node_to_index = {node: index for index, node in enumerate(nodes)}
     num_nodes = len(nodes)
 
-    rng = transmission_profile.parameters.rng
+    rng = transmission_profile.rng
 
     linear_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
     poisson_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
@@ -133,9 +140,7 @@ def simulate_genomic_sequences(
             return sequence.copy()
 
         mutated_sequence = sequence.copy()
-        mutation_sites = np.array(
-            rng.choice(genome_length, size=num_mutations, replace=False)
-        )
+        mutation_sites = np.array(rng.choice(genome_length, size=num_mutations, replace=False))
         for site_index in mutation_sites:
             current_base = mutated_sequence[site_index]
             mutated_sequence[site_index] = rng.choice(bases[bases != current_base])
@@ -162,9 +167,8 @@ def simulate_genomic_sequences(
             except KeyError as error:
                 raise ValueError("Missing dates in tree. Run epidemic simulation first.") from error
 
-            branch_length_days = (
-                    abs(parent_sample_date - transmission_date)
-                    + abs(child_sample_date - transmission_date)
+            branch_length_days = abs(parent_sample_date - transmission_date) + abs(
+                child_sample_date - transmission_date
             )
 
             expected_mutations = transmission_profile.expected_mutations(branch_length_days)
@@ -198,6 +202,7 @@ def simulate_genomic_sequences(
     raw_sequences = {"linear": linear_sequences, "poisson": poisson_sequences}
 
     return {"packed": packed_sequences, "raw": raw_sequences if return_raw else None}
+
 
 def build_pairwise_case_table(
     packed_genomic_data: Mapping[str, PackedGenomicData], tree: nx.DiGraph
@@ -268,9 +273,4 @@ def build_pairwise_case_table(
     )
 
 
-
-__all__ = [
-    "simulate_genomic_sequences",
-    "build_pairwise_case_table",
-    "simulate_epidemic_dates"
-]
+__all__ = ["simulate_genomic_sequences", "build_pairwise_case_table", "simulate_epidemic_dates"]
