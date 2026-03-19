@@ -18,7 +18,7 @@ from epilink import (  # noqa: E402
     NaturalHistoryParameters,
     SymptomOnsetToTransmission,
 )
-from epilink.profiles import BaseTransmissionProfile  # noqa: E402
+from epilink import BaseTransmissionProfile  # noqa: E402
 
 
 class ConstantDensityProfile(BaseTransmissionProfile):
