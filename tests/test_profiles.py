@@ -196,8 +196,7 @@ class TestSymptomOnsetToTransmission(unittest.TestCase):
             parameters.transmission_rate_ratio
             * parameters.infectiousness_normalisation
             * (1.0 - profile.presymptomatic.cdf(-points)),
-            parameters.infectiousness_normalisation
-            * (1.0 - profile.symptomatic.cdf(points)),
+            parameters.infectiousness_normalisation * (1.0 - profile.symptomatic.cdf(points)),
         )
 
         np.testing.assert_allclose(profile.pdf(points), expected)
