@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.21)  19 MAR 2026 00:18
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.21)  19 MAR 2026 10:47
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -784,11 +784,11 @@ Package rerunfilecheck Info: File `epilink.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 23065 strings out of 473190
- 445464 string characters out of 5715800
+ 23069 strings out of 473190
+ 445496 string characters out of 5715800
  876061 words of memory out of 5000000
  45955 multiletter control sequences out of 15000+600000
- 568508 words of font info for 86 fonts, out of 8000000 for 9000
+ 568617 words of font info for 88 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  73i,11n,117p,1004b,1067s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb
@@ -796,22 +796,21 @@ Here is how much of TeX's memory you used:
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></
 usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></us
 r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/
-local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/loc
-al/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/
-texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/t
-exlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/tex
-live/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texli
-ve/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive
-/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2
-025/texmf-dist/fonts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/202
-5/texmf-dist/fonts/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/2025/
-texmf-dist/fonts/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025/te
-xmf-dist/fonts/type1/public/cm-super/sftt1728.pfb>
+local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/loc
+al/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/loca
+l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/
+texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/te
+xlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texl
+ive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texliv
+e/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1728.pfb></usr/local/texlive/
+2025/texmf-dist/fonts/type1/public/cm-super/sfti1000.pfb></usr/local/texlive/20
+25/texmf-dist/fonts/type1/public/cm-super/sftt1000.pfb></usr/local/texlive/2025
+/texmf-dist/fonts/type1/public/cm-super/sftt1728.pfb>
 Output written on "/Users/ydnkka/Desktop/Phd Project/projects/epilink/docs/asse
-ts/epilink.pdf" (4 pages, 235083 bytes).
+ts/epilink.pdf" (4 pages, 227838 bytes).
 PDF statistics:
- 152 PDF objects out of 1000 (max. 8388607)
- 112 compressed objects within 2 object streams
+ 149 PDF objects out of 1000 (max. 8388607)
+ 111 compressed objects within 2 object streams
  38 named destinations out of 1000 (max. 500000)
  21505 words of extra memory for PDF output out of 24883 (max. 10000000)
 

@@ -144,7 +144,7 @@ The genetic component assumes that within-host divergence is negligible on the t
 
 For ancestor--descendant scenarios,
 \begin{align}
-B_{H_{\mathrm{AD}}(m)}
+B_{ij}\!\left(H_{\mathrm{AD}}(m)\right)
 =
 \sum_{r=0}^{m}\tau_{\mathrm{gen},r}
 +
@@ -155,7 +155,7 @@ B_{H_{\mathrm{AD}}(m)}
 \end{align}
 For common-ancestor scenarios,
 \begin{align}
-B_{H_{\mathrm{CA}}(m_i,m_j)}
+B_{ij}\!\left(H_{\mathrm{CA}}(m_i,m_j)\right)
 =
 \sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
 +
@@ -243,6 +243,7 @@ Let $\mathcal{S}_\star \subseteq \mathcal{S}_M$ denote a user-specified target s
 \mathrm{score}_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j).
 \end{align}
 When $\mathcal{S}_\star$ contains a single element, this reduces to the original single-scenario score. The implementation also returns $C_s(i,j)$ for every $s \in \mathcal{S}_M$.
+For common-ancestor scenarios, the labels are ordered: $H_{\mathrm{CA}}(m_i,m_j)$ denotes a scenario in which case $i$ is $m_i$ generations and case $j$ is $m_j$ generations from their most recent common ancestor. Because temporal compatibility depends on the signed testing-time difference $t_{ij} = t_{\mathrm{test},j} - t_{\mathrm{test},i}$, the scenarios $H_{\mathrm{CA}}(m_i,m_j)$ and $H_{\mathrm{CA}}(m_j,m_i)$ are generally not equivalent and may receive different compatibilities. If an unordered interpretation is desired for a mirrored common-ancestor relationship, the user can include both orderings in $\mathcal{S}_\star$.
 
 For each scenario $s \in \mathcal{S}_M$, \texttt{EpiLink} precomputes and stores $N$ draws of $T_s$ and $B_s$ at construction time. It then converts the cached branch-length draws into cached mutation draws $G_s^{(n)}$ using the chosen mutational process. Each pairwise evaluation therefore only requires percentile calculations against the cached draws, which is well suited to large datasets.
 
