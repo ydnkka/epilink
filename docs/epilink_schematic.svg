@@ -250,8 +250,8 @@
     <text x="670" y="1071" class="detail">or a broader family of scenarios.</text>
   </g>
 
-  <path d="M210,350 C140,398 95,448 80,520 L80,965 L90,965" class="arrow dashed"/>
-  <path d="M350,350 C760,350 1360,330 1720,500 L1720,735 C1720,780 1665,805 1590,820" class="arrow dashed"/>
+  <path d="M210,350 C140,398 100,450 95,520 L95,770 C95,800 140,820 230,820" class="arrow dashed"/>
+  <path d="M350,350 C760,350 1360,330 1720,500 L1720,735 C1720,790 1650,820 1540,820" class="arrow dashed"/>
 
   <path d="M620,350 C575,392 500,435 390,490" class="arrow dashed"/>
   <path d="M830,350 C850,395 865,440 880,490" class="arrow dashed"/>
