@@ -1,67 +1,67 @@
-# EpiLink: Epidemiological Linkage from Temporal and Genetic Data
+# EpiLink
 
-EpiLink is a Python package for epidemiological linkage inference from paired temporal and genetic observations. 
-It scores recent latent transmission scenarios using a variable-infectiousness model [1] and returns compatibility values for individual scenarios or user-defined target subsets.
+EpiLink scores how compatible a pair of samples is with recent transmission scenarios using sampling-time differences and consensus genetic distance.
 
-## Highlights
+It is useful when you have:
 
-- Scores observed pairs using testing-time difference and consensus-level genetic distance.
-- Supports both deterministic and stochastic mutation models.
-- Works with single observations or vectorized grids through cached pairwise scorers.
-- Includes a usage notebook in [docs/epilink_usage_notebook.ipynb](examples/characteristics.ipynb).
+- a sampling-time difference in days
+- a consensus genetic distance in mutations
+- a question like "is this pair more compatible with direct transmission or a recent shared ancestor?"
+
+EpiLink returns per-scenario compatibility scores and can also sum scores across a user-defined target subset such as `["ad(0)", "ca(0,0)"]`.
 
 ## Installation
 
-Install from source with:
+Clone the repository first if you are starting from GitHub:
+
+```bash
+git clone https://github.com/ydnkka/epilink.git
+cd epilink
+```
+
+The repository environment is the easiest way to get everything needed for the package, examples, and simulation helpers:
+
+```bash
+conda env create -f environment.yml
+conda activate epilink
+```
+
+If you prefer `pip`:
 
 ```bash
 python -m pip install -e .
+python -m pip install networkx pandas
 ```
 
-For development tools as well:
+EpiLink requires Python 3.10 or newer.
 
-```bash
-python -m pip install -e ".[dev]"
-```
+## Scenario labels
 
-EpiLink requires Python 3.10 or newer and depends on `numpy` and `scipy`.
+- `ad(0)`: direct ancestor-descendant transmission
+- `ad(1)`: ancestor-descendant transmission with one hidden intermediate
+- `ca(0,0)`: a recent shared common ancestor with one branch to each sampled case
+- `ca(m_i,m_j)`: a common-ancestor scenario with `m_i` and `m_j` hidden generations on each branch
 
-## Core concepts
+`maximum_depth` controls how many of these latent scenarios are generated.
 
-EpiLink enumerates latent scenarios such as:
+## Which method to use
 
-- `ad(0)`: direct ancestor-descendant transmission with no hidden intermediate.
-- `ad(1)`: ancestor-descendant transmission with one hidden intermediate.
-- `ca(0,0)`: a shared recent common ancestor with one branch to each sampled case.
-- `ca(m_i,m_j)`: a common-ancestor scenario with `m_i` and `m_j` hidden generations on each branch.
+- `score_pair(...)`: one observed pair, plus a full per-scenario breakdown
+- `score_target(...)`: only the target score, for scalar or array inputs
+- `pairwise_model(...)`: a cached scorer for repeatedly evaluating the same target subset
 
-You can score a single scenario or sum compatibility across a subset of scenarios by passing a list to `target`.
-
-
-## Workflow schematic
-
-The schematic below summarizes how EpiLink turns one observed pair into scenario-level and target-level compatibility scores.
-
-- Start with the observed testing-time difference and consensus genetic distance for a pair of samples.
-- Combine these observations with the E/P/I temporal model and a set of latent transmission scenarios.
-- Use Monte Carlo draws to generate scenario-specific temporal and branch-length distributions, then map branch lengths to expected or stochastic mutation counts.
-- Convert both the temporal and genetic observations into compatibility scores and combine them into a final scenario score or a user-defined target-subset score.
-
-![EpiLink schematic showing the compatibility workflow from observed pairwise data through temporal and mutation models to temporal, genetic, scenario, and target scores.](docs/assets/epilink_schematic.svg)
-
-*Figure: EpiLink compatibility workflow. Observed pairwise data are compared with Monte Carlo timing and genetic draws under candidate latent transmission scenarios. Temporal and genetic compatibilities are combined into scenario scores, which can then be summed over a user-selected target subset.*
+Each individual scenario compatibility lies in `[0, 1]`. If `target` contains multiple scenarios, `target_compatibility` is the sum across that subset, so it can be greater than `1`.
 
 ## Quick start
 
 ```python
-from epilink import EpiLink, InfectiousnessToTransmission, NaturalHistoryParameters
+from epilink import EpiLink, InfectiousnessToTransmission
 
-parameters = NaturalHistoryParameters()
-profile = InfectiousnessToTransmission(parameters=parameters, rng_seed=2026)
+profile = InfectiousnessToTransmission(rng_seed=2026)
 
 model = EpiLink(
     transmission_profile=profile,
-    maximum_depth=10,
+    maximum_depth=2,
     mc_samples=20000,
     target=["ad(0)", "ca(0,0)"],
     mutation_process="stochastic",
@@ -74,68 +74,102 @@ result = model.score_pair(
 
 print(result["target_labels"])
 print(result["target_compatibility"])
+print(result["scenario_scores"]["ad(0)"]["compatibility"])
 ```
 
-For vectorized scoring over a grid:
+## More examples
+
+### Score only a target subset
+
+Use `score_target` when you only care about the combined score:
+
+```python
+score = model.score_target(
+    sample_time_difference=3.0,
+    genetic_distance=2.0,
+    target=["ad(0)", "ad(1)", "ca(0,0)"],
+)
+
+print(score)
+```
+
+### Use `Scenario` objects instead of strings
+
+```python
+from epilink import Scenario
+
+score = model.score_target(
+    sample_time_difference=3.0,
+    genetic_distance=2.0,
+    target=[
+        Scenario(kind="ad", intermediates=0),
+        Scenario(kind="ca", branch_to_i=0, branch_to_j=0),
+    ],
+)
+```
+
+### Score many pairs at once
+
+`score_target` and `pairwise_model` broadcast NumPy inputs, so you can score a whole grid or batch efficiently:
 
 ```python
 import numpy as np
 
 pairwise = model.pairwise_model(target=["ad(0)", "ca(0,0)"])
-time_grid = np.linspace(-10, 10, 101)
-genetic_grid = np.arange(0, 8)
-compatibility = pairwise(time_grid[None, :], genetic_grid[:, None])
+
+time_differences = np.array([[0.0], [2.0], [4.0]])
+genetic_distances = np.array([[0.0, 1.0, 2.0, 3.0]])
+
+scores = pairwise(time_differences, genetic_distances)
+print(scores.shape)  # (3, 4)
 ```
 
-## Performance
+### Build a toy simulated pair table
 
-EpiLink is designed to support fast vectorized compatibility scoring. In local benchmarking on a single core of a MacBook M1:
+The simulation helpers are useful for generating synthetic examples and benchmarking downstream workflows:
 
-```text
-Compatibility calculation for 100,000,000 pairs
-CPU times: user 1.06 s, sys: 2.58 s, total: 3.65 s
-Wall time: 5.17 s
+```python
+import networkx as nx
+
+from epilink import (
+    build_pairwise_case_table,
+    simulate_epidemic_dates,
+    simulate_genomic_sequences,
+)
+
+tree = nx.DiGraph(
+    [
+        ("case-0", "case-1"),
+        ("case-0", "case-2"),
+    ]
+)
+
+dated_tree = simulate_epidemic_dates(profile, tree, fraction_sampled=1.0)
+simulated = simulate_genomic_sequences(profile, dated_tree, genome_length=500)
+pair_table = build_pairwise_case_table(simulated["packed"], dated_tree)
+
+print(pair_table.head())
 ```
 
 ## Mutation models
 
-- `mutation_process="deterministic"` compares observations with expected mutation counts.
-- `mutation_process="stochastic"` compares observations with Poisson mutation-count draws.
+- `mutation_process="deterministic"` compares the observation with expected mutation counts
+- `mutation_process="stochastic"` compares the observation with Poisson mutation-count draws
 
-The stochastic option is useful when you want mutation-count variability to be part of the compatibility calculation.
+The stochastic option is usually the better choice when you want mutation-count variability to be part of the score.
 
-## Documentation
-
-- Usage notebook: [docs/epilink_usage_notebook.ipynb](examples/characteristics.ipynb)
-- Derivation manuscript: [docs/assets/epilink.pdf](docs/assets/epilink.pdf)
-- Summary figure script: [docs/epilink_summary_figure.py](docs/epilink_summary_figure.py)
-
-## Development
-
-Run the main checks with:
-
-```bash
-ruff check .
-pytest
-```
-
-If you use the conda environment in this repository, activate it first:
-
-```bash
-conda activate epilink
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for a short development guide.
+## Background and model characteristics
+- Manuscript: [docs/assets/epilink.pdf](docs/assets/epilink.pdf)
+- Latent histories: [docs/assets/epilink_scenarios.svg](docs/assets/epilink_scenarios.svg)
+- Workflow figure: [docs/assets/epilink_schematic.svg](docs/assets/epilink_schematic.svg)
+- Notebook: [docs/epilink_characterisation.ipynb](docs/epilink_characterisation.ipynb)
 
 ## Citation
 
-If you use EpiLink in research, please cite both the software metadata in [CITATION.cff](CITATION.cff) and the underlying E/P/I infectiousness model reference above when it is methodologically relevant.
-
-## License
-
-This project is distributed under the MIT License. See [LICENSE](LICENSE).
-
-## References
+If you use EpiLink in research, please cite the software metadata in [CITATION.cff](CITATION.cff). The underlying infectiousness model is:
 
 1. Hart WS, Maini PK, Thompson RN. High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing. *eLife*. 2021;10:e65534. <http://dx.doi.org/10.7554/eLife.65534>
 
+## License
+
+MIT. See [LICENSE](LICENSE).
