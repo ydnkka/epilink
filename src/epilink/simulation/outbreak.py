@@ -119,8 +119,8 @@ def simulate_genomic_sequences(
         Dictionary with packed genomic data and, optionally, raw sequences.
     """
 
-    bases = np.array([0, 1, 2, 3], dtype=np.int8)
     base_lookup = {0: "A", 1: "C", 2: "G", 3: "T"}
+    num_bases = len(base_lookup)
     nodes = list(tree.nodes())
     node_to_index = {node: index for index, node in enumerate(nodes)}
     num_nodes = len(nodes)
@@ -129,7 +129,7 @@ def simulate_genomic_sequences(
 
     linear_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
     poisson_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
-    reference_sequence = rng.choice(bases, size=genome_length)
+    reference_sequence = rng.integers(0, num_bases, size=genome_length, dtype=np.int8)
 
     def mutate_sequence(
         sequence: npt.NDArray[np.int8],
@@ -140,10 +140,14 @@ def simulate_genomic_sequences(
             return sequence.copy()
 
         mutated_sequence = sequence.copy()
-        mutation_sites = np.array(rng.choice(genome_length, size=num_mutations, replace=False))
-        for site_index in mutation_sites:
-            current_base = mutated_sequence[site_index]
-            mutated_sequence[site_index] = rng.choice(bases[bases != current_base])
+        mutation_sites = np.asarray(
+            rng.choice(genome_length, size=num_mutations, replace=False),
+            dtype=np.intp,
+        )
+        mutation_offsets = rng.integers(1, num_bases, size=num_mutations, dtype=np.int8)
+        mutated_sequence[mutation_sites] = (
+            mutated_sequence[mutation_sites] + mutation_offsets
+        ) % num_bases
         return mutated_sequence
 
     roots = [node for node, degree in tree.in_degree(tree.nodes) if degree == 0]
@@ -179,7 +183,7 @@ def simulate_genomic_sequences(
                 num_linear_mutations,
             )
 
-            num_poisson_mutations = rng.poisson(expected_mutations)
+            num_poisson_mutations = int(rng.poisson(expected_mutations))
             poisson_sequences[child_index] = mutate_sequence(
                 poisson_sequences[parent_index],
                 num_poisson_mutations,

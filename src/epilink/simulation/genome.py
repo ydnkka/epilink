@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import textwrap
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -10,6 +10,14 @@ NDArrayInt8: TypeAlias = npt.NDArray[np.int8]
 NDArrayUInt64: TypeAlias = npt.NDArray[np.uint64]
 NDArrayInt32: TypeAlias = npt.NDArray[np.int32]
 
+_PACK_SHIFTS = np.arange(62, -2, -2, dtype=np.uint64)
+_UINT64_BYTES = np.dtype(np.uint64).itemsize
+_DEFAULT_HAMMING_WORKING_SET_BYTES = 32 * 1024 * 1024
+_XOR_BYTE_TO_HAMMING = np.array(
+    [bin((byte | (byte >> 1)) & 0x55).count("1") for byte in range(256)],
+    dtype=np.uint8,
+)
+
 
 class SequencePacker64:
     """
@@ -17,83 +25,90 @@ class SequencePacker64:
     """
 
     @staticmethod
+    def _resolve_block_size(
+        num_sequences: int,
+        bytes_per_sequence: int,
+        block_size: int | None,
+    ) -> int:
+        if block_size is not None:
+            return max(1, min(num_sequences, int(block_size)))
+        if num_sequences <= 1 or bytes_per_sequence == 0:
+            return max(1, num_sequences)
+
+        max_pairs = max(
+            1,
+            _DEFAULT_HAMMING_WORKING_SET_BYTES // max(1, 2 * bytes_per_sequence),
+        )
+        return max(1, min(num_sequences, int(np.sqrt(max_pairs))))
+
+    @staticmethod
     def pack_u64(arr: NDArrayInt8) -> NDArrayUInt64:
         """
         Pack 2-bit nucleotide arrays into 64-bit blocks.
         """
 
-        N, L = arr.shape
-        B = (L + 31) // 32
-        out = np.zeros((N, B), dtype=np.uint64)
+        n_sequences, sequence_length = arr.shape
+        n_blocks = (sequence_length + 31) // 32
+        out = np.zeros((n_sequences, n_blocks), dtype=np.uint64)
 
-        for i in range(N):
-            for b in range(B):
-                start = b * 32
-                end = min(start + 32, L)
-                word = np.uint64(0)
-                shift = 62
+        if n_blocks == 0:
+            return out
 
-                for k in range(start, end):
-                    word |= np.uint64(arr[i, k]) << np.uint64(shift)
-                    shift -= 2
+        padded = np.zeros((n_sequences, n_blocks * 32), dtype=np.uint8)
+        padded[:, :sequence_length] = arr
+        grouped = padded.reshape(n_sequences, n_blocks, 32)
 
-                out[i, b] = word
+        for position, shift in enumerate(_PACK_SHIFTS):
+            out |= grouped[:, :, position].astype(np.uint64) << shift
 
         return out
 
     @staticmethod
-    def hamming64(packed: NDArrayUInt64) -> NDArrayInt32:
+    def hamming64(
+        packed: NDArrayUInt64,
+        block_size: int | None = None,
+    ) -> NDArrayInt32:
         """
         Compute pairwise Hamming distances for packed sequences.
+
+        Parameters
+        ----------
+        packed : numpy.ndarray
+            Packed 64-bit representation of the sequences.
+        block_size : int, optional
+            Number of sequences to compare per row/column chunk. Smaller values
+            reduce peak memory for large pairwise calculations.
         """
 
-        M55 = np.uint64(0x5555555555555555)
-        M33 = np.uint64(0x3333333333333333)
-        M0F = np.uint64(0x0F0F0F0F0F0F0F0F)
-        M7F = np.uint64(0x7F)
+        packed = np.ascontiguousarray(packed, dtype=np.uint64)
+        n_sequences, n_blocks = packed.shape
+        distances = np.zeros((n_sequences, n_sequences), dtype=np.int32)
 
-        N, B = packed.shape
-        d = np.empty((N, N), dtype=np.int32)
+        if n_sequences == 0 or n_blocks == 0:
+            return distances
 
-        for i in range(N):
-            d[i, i] = 0
+        packed_bytes = packed.view(np.uint8).reshape(n_sequences, n_blocks * _UINT64_BYTES)
+        step = SequencePacker64._resolve_block_size(
+            n_sequences,
+            packed_bytes.shape[1],
+            block_size,
+        )
 
-        for i in range(N):
-            pi = packed[i]
-            for j in range(i + 1, N):
-                pj = packed[j]
-                total = 0
+        for row_start in range(0, n_sequences, step):
+            row_stop = min(row_start + step, n_sequences)
+            left = packed_bytes[row_start:row_stop]
 
-                for k in range(B):
-                    x = pi[k] ^ pj[k]
-                    diff = (x | (x >> 1)) & M55
+            for col_start in range(row_start, n_sequences, step):
+                col_stop = min(col_start + step, n_sequences)
+                right = packed_bytes[col_start:col_stop]
+                xor_bytes = np.bitwise_xor(left[:, np.newaxis, :], right[np.newaxis, :, :])
+                block = _XOR_BYTE_TO_HAMMING[xor_bytes].sum(axis=2, dtype=np.int32)
 
-                    c = diff
-                    c = c - ((c >> 1) & M55)
-                    c = (c & M33) + ((c >> 2) & M33)
-                    c = (c + (c >> 4)) & M0F
-                    c = c + (c >> 8)
-                    c = c + (c >> 16)
-                    c = c + (c >> 32)
-                    c = c & M7F
+                distances[row_start:row_stop, col_start:col_stop] = block
+                if col_start != row_start:
+                    distances[col_start:col_stop, row_start:row_stop] = block.T
 
-                    total += c
-
-                d[i, j] = np.int64(total)
-                d[j, i] = np.int64(total)
-
-        return d
-
-
-def _ensure_pyfunc(func: Any) -> None:
-    """Ensure a .py_func attribute for non-numba callables."""
-
-    if not hasattr(func, "py_func"):
-        func.py_func = func
-
-
-_ensure_pyfunc(SequencePacker64.pack_u64)
-_ensure_pyfunc(SequencePacker64.hamming64)
+        return distances
 
 
 class PackedGenomicData:
@@ -132,9 +147,18 @@ class PackedGenomicData:
         self.bases_map = base_map
         self.packed_u64 = SequencePacker64.pack_u64(int8_matrix)
 
-    def compute_hamming_distances(self) -> NDArrayInt32:
+    def compute_hamming_distances(
+        self,
+        block_size: int | None = None,
+    ) -> NDArrayInt32:
         """
         Compute the pairwise Hamming distance matrix.
+
+        Parameters
+        ----------
+        block_size : int, optional
+            Number of sequences to compare per row/column chunk. Smaller values
+            reduce peak memory for large pairwise calculations.
         """
 
         packed = (
@@ -142,27 +166,26 @@ class PackedGenomicData:
             if self.packed_u64.flags["C_CONTIGUOUS"]
             else np.ascontiguousarray(self.packed_u64)
         )
-        return SequencePacker64.hamming64(packed)
+        return SequencePacker64.hamming64(packed, block_size=block_size)
 
     def write_fasta(self, filepath: str) -> None:
         """
         Write unpacked sequences to a FASTA file.
         """
 
+        base_lookup = np.array([self.bases_map[idx] for idx in range(4)], dtype="<U1")
+
         with open(filepath, "w") as f:
             for i in range(self.n_seqs):
                 blocks = self.packed_u64[i]
                 L = self.original_length
-                unpacked = np.zeros(len(blocks) * 32, dtype=np.int8)
+                unpacked = np.empty((len(blocks), 32), dtype=np.int8)
 
-                idx = 0
-                for w in blocks:
-                    for shift in range(62, -1, -2):
-                        unpacked[idx] = (w >> np.uint64(shift)) & np.uint64(3)
-                        idx += 1
+                for position, shift in enumerate(_PACK_SHIFTS):
+                    unpacked[:, position] = ((blocks >> shift) & np.uint64(3)).astype(np.int8)
 
-                seq = unpacked[:L]
-                seq_str = "".join(self.bases_map[int(b)] for b in seq)
+                seq = unpacked.reshape(len(blocks) * 32)[:L]
+                seq_str = "".join(base_lookup[seq])
 
                 header = f">{self.idx_to_node[i]}"
                 body = textwrap.fill(seq_str, width=100)
