@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 
 import networkx as nx
@@ -7,9 +8,11 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from ..model import InfectiousnessToTransmission
+from ..model import ConfigurationError, InfectiousnessToTransmission, SimulationError
 from .genome import PackedGenomicData
 from .results import SimulationResult, SimulationSequenceSet
+
+logger = logging.getLogger(__name__)
 
 
 def simulate_epidemic_dates(
@@ -36,11 +39,12 @@ def simulate_epidemic_dates(
         Copy of ``tree`` with simulated epidemic annotations.
     """
 
+    logger.info("Simulating epidemic dates for tree with %d nodes.", tree.number_of_nodes())
     tree = tree.copy()
     rng = transmission_profile.rng
 
     if not 0.0 <= fraction_sampled <= 1.0:
-        raise ValueError("fraction_sampled must lie in the inclusive interval [0, 1].")
+        raise ConfigurationError("fraction_sampled must lie in the inclusive interval [0, 1].")
 
     num_nodes = tree.number_of_nodes()
     num_sampled = int(round(fraction_sampled * num_nodes))
@@ -123,8 +127,9 @@ def simulate_genomic_sequences(
     """
 
     if genome_length <= 0:
-        raise ValueError("genome_length must be a positive integer.")
+        raise ConfigurationError("genome_length must be a positive integer.")
 
+    logger.info("Simulating genomic sequences of length %d.", genome_length)
     base_lookup = {0: "A", 1: "C", 2: "G", 3: "T"}
     num_bases = len(base_lookup)
     nodes = list(tree.nodes())
@@ -175,7 +180,9 @@ def simulate_genomic_sequences(
                 parent_sample_date = tree.nodes[parent]["sample_date"]
                 child_sample_date = tree.nodes[child]["sample_date"]
             except KeyError as error:
-                raise ValueError("Missing dates in tree. Run epidemic simulation first.") from error
+                raise SimulationError(
+                    "Missing dates in tree. Run epidemic simulation first."
+                ) from error
 
             branch_length_days = abs(parent_sample_date - transmission_date) + abs(
                 child_sample_date - transmission_date

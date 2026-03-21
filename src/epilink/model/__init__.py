@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 from .epilink import EpiLink, PairwiseCompatibilityModel, Scenario
+from .exceptions import (
+    ConfigurationError,
+    EpiLinkError,
+    ScenarioError,
+    SimulationError,
+)
 from .parameters import NaturalHistoryParameters
 from .profiles import (
     BaseTransmissionProfile,
@@ -19,4 +25,8 @@ __all__ = [
     "BaseTransmissionProfile",
     "InfectiousnessToTransmission",
     "SymptomOnsetToTransmission",
+    "EpiLinkError",
+    "ScenarioError",
+    "ConfigurationError",
+    "SimulationError",
 ]
