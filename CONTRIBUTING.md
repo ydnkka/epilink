@@ -35,6 +35,7 @@ python -m pip install -e ".[dev]"
 - Add focused unit tests when changing scenario scoring, natural-history parameters, or transmission profiles.
 - Prefer deterministic fixtures for logic-heavy tests.
 - Keep Monte Carlo-heavy examples in docs or notebooks unless they validate a concrete behavior.
+- When randomness matters, use fixed RNG seeds and assert against stable contracts rather than incidental draws.
 
 ## Documentation
 
@@ -43,6 +44,8 @@ If you change user-facing behavior, update the relevant documentation:
 - `README.md` for installation or high-level API usage
 - `docs/epilink_usage_notebook.ipynb` for worked examples and figures
 - `docs/assets/epilink.pdf` or source assets when the mathematical description changes
+- Document public return types and input guarantees whenever the API contract changes.
+- Update `docs/performance.md` when changing caching, vectorization, or benchmark guidance.
 
 ## Style
 

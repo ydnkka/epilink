@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -10,6 +9,7 @@ import pandas as pd
 
 from ..model import InfectiousnessToTransmission
 from .genome import PackedGenomicData
+from .results import SimulationResult, SimulationSequenceSet
 
 
 def simulate_epidemic_dates(
@@ -38,6 +38,9 @@ def simulate_epidemic_dates(
 
     tree = tree.copy()
     rng = transmission_profile.rng
+
+    if not 0.0 <= fraction_sampled <= 1.0:
+        raise ValueError("fraction_sampled must lie in the inclusive interval [0, 1].")
 
     num_nodes = tree.number_of_nodes()
     num_sampled = int(round(fraction_sampled * num_nodes))
@@ -97,7 +100,7 @@ def simulate_genomic_sequences(
     tree: nx.DiGraph,
     genome_length: int = 1000,
     return_raw: bool = False,
-) -> dict[str, Any]:
+) -> SimulationResult:
     """Simulate genomic evolution along a transmission tree.
 
     Parameters
@@ -118,6 +121,9 @@ def simulate_genomic_sequences(
     dict
         Dictionary with packed genomic data and, optionally, raw sequences.
     """
+
+    if genome_length <= 0:
+        raise ValueError("genome_length must be a positive integer.")
 
     base_lookup = {0: "A", 1: "C", 2: "G", 3: "T"}
     num_bases = len(base_lookup)
@@ -189,27 +195,28 @@ def simulate_genomic_sequences(
                 num_poisson_mutations,
             )
 
-    packed_sequences = {
-        "linear": PackedGenomicData(
+    packed_sequences = SimulationSequenceSet(
+        linear=PackedGenomicData(
             linear_sequences,
             genome_length,
             node_to_index,
             base_lookup,
         ),
-        "poisson": PackedGenomicData(
+        poisson=PackedGenomicData(
             poisson_sequences,
             genome_length,
             node_to_index,
             base_lookup,
         ),
-    }
-    raw_sequences = {"linear": linear_sequences, "poisson": poisson_sequences}
+    )
+    raw_sequences = SimulationSequenceSet(linear=linear_sequences, poisson=poisson_sequences)
 
-    return {"packed": packed_sequences, "raw": raw_sequences if return_raw else None}
+    return SimulationResult(packed=packed_sequences, raw=raw_sequences if return_raw else None)
 
 
 def build_pairwise_case_table(
-    packed_genomic_data: Mapping[str, PackedGenomicData], tree: nx.DiGraph
+    packed_genomic_data: Mapping[str, PackedGenomicData] | SimulationSequenceSet[PackedGenomicData],
+    tree: nx.DiGraph,
 ) -> pd.DataFrame:
     """Generate a long-format pairwise distance table.
 

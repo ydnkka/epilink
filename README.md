@@ -8,7 +8,7 @@ It is useful when you have:
 - a consensus genetic distance in mutations
 - a question like "is this pair more compatible with direct transmission or a recent shared ancestor?"
 
-EpiLink returns per-scenario compatibility scores and can also sum scores across a user-defined target subset such as `["ad(0)", "ca(0,0)"]`.
+EpiLink returns typed score results with per-scenario compatibility summaries and can also sum scores across a user-defined target subset such as `["ad(0)", "ca(0,0)"]`.
 
 ## Installation
 
@@ -52,6 +52,26 @@ EpiLink requires Python 3.10 or newer.
 
 Each individual scenario compatibility lies in `[0, 1]`. If `target` contains multiple scenarios, `target_compatibility` is the sum across that subset, so it can be greater than `1`.
 
+## API guarantees
+
+- `score_pair(...)` returns a `PairCompatibilityResult` object with attribute access such as `result.target_labels` and `result.scenario_scores["ad(0)"].compatibility`.
+- `simulate_genomic_sequences(...)` returns a `SimulationResult` object with `packed` and optional `raw` sequence sets, each exposing `linear` and `poisson` members.
+- `score_target(...)` returns a scalar `float` for scalar inputs and a NumPy array for broadcastable array inputs.
+- Result objects retain lightweight dictionary-style access for common keys to ease migration from earlier releases.
+
+## Reproducibility
+
+- Randomness is controlled by the transmission profile RNG, or by the explicit `rng=` argument passed to `EpiLink`.
+- For reproducible scores and simulations, construct profiles with a fixed `rng_seed` and reuse the resulting model instance.
+- `score_pair(...)` and `pairwise_model(...)` use cached Monte Carlo draws, so repeated evaluations on the same model are stable unless you replace `draws_by_scenario`.
+
+## Performance and caching
+
+- `EpiLink(...)` precomputes scenario draws up front, so model construction is the main fixed cost.
+- Reuse one model instance for repeated scoring instead of rebuilding it inside loops.
+- Use `pairwise_model(...)` when scoring many observations against the same target subset.
+- For benchmarking and a fuller discussion, see [docs/performance.md](docs/performance.md) and run `python -m docs.benchmark_api`.
+
 ## Quick start
 
 ```python
@@ -72,9 +92,9 @@ result = model.score_pair(
     genetic_distance=2.0,
 )
 
-print(result["target_labels"])
-print(result["target_compatibility"])
-print(result["scenario_scores"]["ad(0)"]["compatibility"])
+print(result.target_labels)
+print(result.target_compatibility)
+print(result.scenario_scores["ad(0)"].compatibility)
 ```
 
 ## More examples
@@ -102,8 +122,8 @@ score = model.score_target(
     sample_time_difference=3.0,
     genetic_distance=2.0,
     target=[
-        Scenario(kind="ad", intermediates=0),
-        Scenario(kind="ca", branch_to_i=0, branch_to_j=0),
+        Scenario.ancestor_descendant(0),
+        Scenario.common_ancestor(0, 0),
     ],
 )
 ```
@@ -146,7 +166,7 @@ tree = nx.DiGraph(
 
 dated_tree = simulate_epidemic_dates(profile, tree, fraction_sampled=1.0)
 simulated = simulate_genomic_sequences(profile, dated_tree, genome_length=500)
-pair_table = build_pairwise_case_table(simulated["packed"], dated_tree)
+pair_table = build_pairwise_case_table(simulated.packed, dated_tree)
 
 print(pair_table.head())
 ```
@@ -158,11 +178,12 @@ print(pair_table.head())
 
 The stochastic option is usually the better choice when you want mutation-count variability to be part of the score.
 
-## Background and model characteristics
+## Background
 - Manuscript: [docs/epilink.md](docs/epilink.md)
 - Latent histories: [docs/epilink_scenarios.svg](docs/epilink_scenarios.svg)
 - Workflow figure: [docs/epilink_schematic.svg](docs/epilink_schematic.svg)
 - Notebook: [docs/epilink_characterisation.ipynb](docs/epilink_characterisation.ipynb)
+- Performance guide: [docs/performance.md](docs/performance.md)
 
 ## Citation
 
