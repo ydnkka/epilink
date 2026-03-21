@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
 
-from epilink.model.profiles import InfectiousnessToTransmission
+from .profiles import InfectiousnessToTransmission
+from .results import PairCompatibilityResult, ScenarioScore
+
+_AD_SCENARIO_PATTERN = re.compile(r"ad\((\d+)\)")
+_CA_SCENARIO_PATTERN = re.compile(r"ca\((\d+),(\d+)\)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,10 +24,64 @@ class Scenario:
     branch_to_i: int | None = None
     branch_to_j: int | None = None
 
+    def __post_init__(self) -> None:
+        normalized_kind = self.kind.strip().lower()
+        object.__setattr__(self, "kind", normalized_kind)
+
+        if normalized_kind == "ad":
+            if self.intermediates is None:
+                raise ValueError("Ancestor-descendant scenarios require intermediates.")
+            if self.intermediates < 0:
+                raise ValueError("Scenario depths must be non-negative.")
+            if self.branch_to_i is not None or self.branch_to_j is not None:
+                raise ValueError("Ancestor-descendant scenarios do not accept branch depths.")
+            return
+
+        if normalized_kind == "ca":
+            if self.branch_to_i is None or self.branch_to_j is None:
+                raise ValueError("Common-ancestor scenarios require both branch depths.")
+            if self.branch_to_i < 0 or self.branch_to_j < 0:
+                raise ValueError("Scenario depths must be non-negative.")
+            if self.intermediates is not None:
+                raise ValueError("Common-ancestor scenarios do not accept intermediates.")
+            return
+
+        raise ValueError("Scenario kind must be either 'ad' or 'ca'.")
+
+    @classmethod
+    def ancestor_descendant(cls, intermediates: int) -> Scenario:
+        return cls(kind="ad", intermediates=intermediates)
+
+    @classmethod
+    def common_ancestor(cls, branch_to_i: int, branch_to_j: int) -> Scenario:
+        return cls(kind="ca", branch_to_i=branch_to_i, branch_to_j=branch_to_j)
+
+    @classmethod
+    def parse(cls, value: str | Scenario) -> Scenario:
+        if isinstance(value, cls):
+            return value
+
+        normalized = str(value).strip().lower()
+        ad_match = _AD_SCENARIO_PATTERN.fullmatch(normalized)
+        if ad_match is not None:
+            return cls.ancestor_descendant(intermediates=int(ad_match.group(1)))
+
+        ca_match = _CA_SCENARIO_PATTERN.fullmatch(normalized)
+        if ca_match is not None:
+            return cls.common_ancestor(
+                branch_to_i=int(ca_match.group(1)),
+                branch_to_j=int(ca_match.group(2)),
+            )
+
+        raise ValueError(f"Invalid scenario label '{value}'.")
+
     def label(self) -> str:
         if self.kind == "ad":
             return f"ad({self.intermediates})"
         return f"ca({self.branch_to_i},{self.branch_to_j})"
+
+    def __str__(self) -> str:
+        return self.label()
 
 
 class PairwiseCompatibilityModel:
@@ -197,10 +255,6 @@ class EpiLink:
             raise ValueError("mutation_process must be either 'deterministic' or 'stochastic'.")
         return normalized_process
 
-    @staticmethod
-    def _normalize_target_label(target_label: str) -> str:
-        return target_label.strip().lower()
-
     def _resolve_target_labels(
         self,
         target: str | Scenario | Iterable[str | Scenario],
@@ -218,14 +272,16 @@ class EpiLink:
         resolved_labels: set[str] = set()
 
         for raw_target in raw_targets:
-            target_label = (
-                raw_target.label() if isinstance(raw_target, Scenario) else str(raw_target)
-            )
-            normalized_label = self._normalize_target_label(target_label)
+            try:
+                normalized_label = Scenario.parse(raw_target).label()
+            except ValueError as error:
+                raise ValueError(
+                    f"Unknown target scenario '{raw_target}'. Available scenarios: {available_labels}."
+                ) from error
 
             if normalized_label not in self.scenarios_by_label:
                 raise ValueError(
-                    f"Unknown target scenario '{target_label}'. Available scenarios: {available_labels}."
+                    f"Unknown target scenario '{raw_target}'. Available scenarios: {available_labels}."
                 )
             resolved_labels.add(normalized_label)
 
@@ -235,13 +291,11 @@ class EpiLink:
         scenarios: list[Scenario] = []
 
         for intermediates in range(self.maximum_depth + 1):
-            scenarios.append(Scenario(kind="ad", intermediates=intermediates))
+            scenarios.append(Scenario.ancestor_descendant(intermediates=intermediates))
 
         for branch_to_i in range(self.maximum_depth + 1):
             for branch_to_j in range(self.maximum_depth + 1 - branch_to_i):
-                scenarios.append(
-                    Scenario(kind="ca", branch_to_i=branch_to_i, branch_to_j=branch_to_j)
-                )
+                scenarios.append(Scenario.common_ancestor(branch_to_i, branch_to_j))
 
         return scenarios
 
@@ -414,7 +468,7 @@ class EpiLink:
         self,
         sample_time_difference: float | None = None,
         genetic_distance: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> PairCompatibilityResult:
         """
         Compute compatibility scores for all scenarios for one sampled pair.
 
@@ -445,7 +499,7 @@ class EpiLink:
             "genetic_distance",
         )
 
-        scenario_scores = {}
+        scenario_scores: dict[str, ScenarioScore] = {}
 
         for label, draws in self.draws_by_scenario.items():
             time_percentile, time_compatibility = self.compatibility_score(
@@ -456,26 +510,24 @@ class EpiLink:
                 observed_value=genetic_distance,
                 simulated_values=draws["genetic_draws"],
             )
-            scenario_scores[label] = {
-                "time_percentile": time_percentile,
-                "time_compatibility": time_compatibility,
-                "genetic_percentile": genetic_percentile,
-                "genetic_compatibility": genetic_compatibility,
-                "compatibility": time_compatibility * genetic_compatibility,
-            }
+            scenario_scores[label] = ScenarioScore(
+                time_percentile=time_percentile,
+                time_compatibility=time_compatibility,
+                genetic_percentile=genetic_percentile,
+                genetic_compatibility=genetic_compatibility,
+                compatibility=time_compatibility * genetic_compatibility,
+            )
 
         target_compatibility = float(
             self.pairwise_model()(sample_time_difference, genetic_distance)
         )
 
-        return {
-            "target": (
-                self.target_labels[0] if self.target_label is not None else list(self.target_labels)
-            ),
-            "target_labels": list(self.target_labels),
-            "target_compatibility": target_compatibility,
-            "scenario_scores": scenario_scores,
-        }
+        return PairCompatibilityResult(
+            target=self.target_labels[0] if self.target_label is not None else self.target_labels,
+            target_labels=self.target_labels,
+            target_compatibility=target_compatibility,
+            scenario_scores=scenario_scores,
+        )
 
     def score_target(
         self,
@@ -497,4 +549,10 @@ class EpiLink:
         return float(result) if result.ndim == 0 else result
 
 
-__all__ = ["EpiLink", "PairwiseCompatibilityModel", "Scenario"]
+__all__ = [
+    "EpiLink",
+    "PairCompatibilityResult",
+    "PairwiseCompatibilityModel",
+    "Scenario",
+    "ScenarioScore",
+]

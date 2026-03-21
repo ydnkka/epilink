@@ -5,7 +5,7 @@ from numpy.random import Generator, default_rng
 from scipy import stats
 from scipy.integrate import cumulative_trapezoid
 
-from ..model.parameters import NaturalHistoryParameters
+from .parameters import NaturalHistoryParameters
 
 
 class BaseTransmissionProfile:

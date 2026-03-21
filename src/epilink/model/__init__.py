@@ -7,11 +7,14 @@ from .profiles import (
     InfectiousnessToTransmission,
     SymptomOnsetToTransmission,
 )
+from .results import PairCompatibilityResult, ScenarioScore
 
 __all__ = [
     "EpiLink",
+    "PairCompatibilityResult",
     "PairwiseCompatibilityModel",
     "Scenario",
+    "ScenarioScore",
     "NaturalHistoryParameters",
     "BaseTransmissionProfile",
     "InfectiousnessToTransmission",

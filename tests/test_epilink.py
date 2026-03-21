@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from epilink import EpiLink, Scenario  # noqa: E402
+from epilink import EpiLink, PairCompatibilityResult, Scenario, ScenarioScore  # noqa: E402
 
 
 class CountingProfile:
@@ -105,6 +105,10 @@ class TestEpiLink(unittest.TestCase):
         self.assertAlmostEqual(result["scenario_scores"]["ca(0,0)"]["compatibility"], 0.0)
         self.assertAlmostEqual(result["target_compatibility"], 1.0)
         self.assertAlmostEqual(model.score_target(2.5, 1.5), 1.0)
+        self.assertIsInstance(result, PairCompatibilityResult)
+        self.assertIsInstance(result.scenario_scores["ad(0)"], ScenarioScore)
+        self.assertEqual(result.target_labels, ("ad(0)",))
+        self.assertAlmostEqual(result.scenario_scores["ad(0)"].compatibility, 1.0)
 
     def test_score_pair_sums_compatibility_across_target_subset(self) -> None:
         profile = CountingProfile()
@@ -215,6 +219,26 @@ class TestEpiLink(unittest.TestCase):
         self.assertEqual(model.target_labels, ("ad(0)", "ca(0,0)"))
         self.assertIsNone(model.target_label)
 
+    def test_scenario_parse_normalizes_and_round_trips_labels(self) -> None:
+        parsed = Scenario.parse("  CA(1,2) ")
+
+        self.assertEqual(parsed, Scenario.common_ancestor(1, 2))
+        self.assertEqual(parsed.label(), "ca(1,2)")
+        self.assertEqual(str(Scenario.parse("ad(3)")), "ad(3)")
+
+    def test_invalid_scenario_combinations_raise_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            Scenario(kind="ad", branch_to_i=0, branch_to_j=0)
+
+        with self.assertRaises(ValueError):
+            Scenario(kind="ca", intermediates=0, branch_to_i=0, branch_to_j=0)
+
+        with self.assertRaises(ValueError):
+            Scenario.parse("ca(1)")
+
+        with self.assertRaises(ValueError):
+            Scenario.parse("weird(0)")
+
     def test_score_target_returns_scalar_float_for_scalar_inputs(self) -> None:
         profile = CountingProfile()
         model = EpiLink(
@@ -229,6 +253,22 @@ class TestEpiLink(unittest.TestCase):
 
         self.assertIsInstance(score, float)
         self.assertAlmostEqual(score, 1.0)
+
+    def test_score_target_broadcasts_scalar_against_vector_inputs(self) -> None:
+        profile = CountingProfile()
+        model = EpiLink(
+            transmission_profile=profile,
+            maximum_depth=0,
+            mc_samples=4,
+            target="ad(0)",
+            mutation_process="deterministic",
+        )
+        model.draws_by_scenario = self._manual_draws()
+
+        scores = model.score_target(2.5, np.array([0.5, 1.5, 2.5]))
+
+        self.assertIsInstance(scores, np.ndarray)
+        self.assertEqual(scores.shape, (3,))
 
     def test_deterministic_mutation_process_uses_expected_mutation_counts(self) -> None:
         profile = CountingProfile()

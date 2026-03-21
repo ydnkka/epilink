@@ -16,6 +16,8 @@ if str(SRC) not in sys.path:
 from epilink import (  # noqa: E402
     PackedGenomicData,
     SequencePacker64,
+    SimulationResult,
+    SimulationSequenceSet,
     build_pairwise_case_table,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
@@ -197,6 +199,16 @@ class TestSimulationHelpers(unittest.TestCase):
         self.assertEqual(child["date_symptom_onset"] - child["date_infectious"], 3.0)
         self.assertEqual(child["sample_date"] - child["date_symptom_onset"], 4.0)
 
+    def test_simulate_epidemic_dates_rejects_invalid_sampling_fraction(self) -> None:
+        tree = nx.DiGraph([("root", "child")])
+
+        with self.assertRaises(ValueError):
+            simulate_epidemic_dates(
+                DeterministicSimulationProfile(),
+                tree,
+                fraction_sampled=1.5,
+            )
+
     def test_simulate_genomic_sequences_requires_epidemic_dates(self) -> None:
         tree = nx.DiGraph([("root", "child")])
 
@@ -219,8 +231,11 @@ class TestSimulationHelpers(unittest.TestCase):
             return_raw=True,
         )
 
+        self.assertIsInstance(result, SimulationResult)
+        self.assertIsInstance(result.packed, SimulationSequenceSet)
         self.assertEqual(set(result["packed"]), {"linear", "poisson"})
         self.assertEqual(set(result["raw"]), {"linear", "poisson"})
+        self.assertEqual(result.packed.linear.node_to_idx, {"root": 0, "child": 1})
         self.assertEqual(result["packed"]["linear"].node_to_idx, {"root": 0, "child": 1})
         self.assertEqual(result["packed"]["linear"].original_length, 12)
         self.assertEqual(result["raw"]["linear"].shape, (2, 12))
@@ -239,6 +254,18 @@ class TestSimulationHelpers(unittest.TestCase):
             return_raw=False,
         )
         self.assertIsNone(without_raw["raw"])
+
+    def test_simulate_genomic_sequences_rejects_non_positive_genome_length(self) -> None:
+        tree = nx.DiGraph([("root", "child")])
+        tree.nodes["root"].update(exposure_date=0.0, sample_date=6.0)
+        tree.nodes["child"].update(exposure_date=2.0, sample_date=8.0)
+
+        with self.assertRaises(ValueError):
+            simulate_genomic_sequences(
+                DeterministicSimulationProfile(expected_mutation_scale=0.0, rng_seed=9),
+                tree,
+                genome_length=0,
+            )
 
     def test_simulate_genomic_sequences_linear_model_mutates_selected_sites(self) -> None:
         tree = nx.DiGraph([("root", "child")])
