@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -8,8 +9,11 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import ArrayLike
 
+from .exceptions import ConfigurationError, ScenarioError, SimulationError
 from .profiles import InfectiousnessToTransmission
 from .results import PairCompatibilityResult, ScenarioScore
+
+logger = logging.getLogger(__name__)
 
 _AD_SCENARIO_PATTERN = re.compile(r"ad\((\d+)\)")
 _CA_SCENARIO_PATTERN = re.compile(r"ca\((\d+),(\d+)\)")
@@ -30,23 +34,23 @@ class Scenario:
 
         if normalized_kind == "ad":
             if self.intermediates is None:
-                raise ValueError("Ancestor-descendant scenarios require intermediates.")
+                raise ScenarioError("Ancestor-descendant scenarios require intermediates.")
             if self.intermediates < 0:
-                raise ValueError("Scenario depths must be non-negative.")
+                raise ScenarioError("Scenario depths must be non-negative.")
             if self.branch_to_i is not None or self.branch_to_j is not None:
-                raise ValueError("Ancestor-descendant scenarios do not accept branch depths.")
+                raise ScenarioError("Ancestor-descendant scenarios do not accept branch depths.")
             return
 
         if normalized_kind == "ca":
             if self.branch_to_i is None or self.branch_to_j is None:
-                raise ValueError("Common-ancestor scenarios require both branch depths.")
+                raise ScenarioError("Common-ancestor scenarios require both branch depths.")
             if self.branch_to_i < 0 or self.branch_to_j < 0:
-                raise ValueError("Scenario depths must be non-negative.")
+                raise ScenarioError("Scenario depths must be non-negative.")
             if self.intermediates is not None:
-                raise ValueError("Common-ancestor scenarios do not accept intermediates.")
+                raise ScenarioError("Common-ancestor scenarios do not accept intermediates.")
             return
 
-        raise ValueError("Scenario kind must be either 'ad' or 'ca'.")
+        raise ScenarioError(f"Invalid scenario kind: '{self.kind}'. Must be 'ad' or 'ca'.")
 
     @classmethod
     def ancestor_descendant(cls, intermediates: int) -> Scenario:
@@ -73,7 +77,7 @@ class Scenario:
                 branch_to_j=int(ca_match.group(2)),
             )
 
-        raise ValueError(f"Invalid scenario label '{value}'.")
+        raise ScenarioError(f"Invalid scenario label '{value}'.")
 
     def label(self) -> str:
         if self.kind == "ad":
@@ -103,7 +107,7 @@ class PairwiseCompatibilityModel:
     ) -> None:
         self.target_labels = tuple(target_labels)
         if not self.target_labels:
-            raise ValueError("target_labels must contain at least one scenario.")
+            raise ConfigurationError("target_labels must contain at least one scenario.")
 
         self._sorted_time_draws = tuple(
             np.sort(np.asarray(draws_by_scenario[label]["time_draws"], dtype=float))
@@ -222,9 +226,9 @@ class EpiLink:
         rng: Generator | None = None,
     ) -> None:
         if maximum_depth < 0:
-            raise ValueError("maximum_depth must be >= 0.")
+            raise ConfigurationError("maximum_depth must be >= 0.")
         if mc_samples <= 0:
-            raise ValueError("mc_samples must be > 0.")
+            raise ConfigurationError("mc_samples must be > 0.")
 
         self.profile = transmission_profile
         self.maximum_depth = int(maximum_depth)
@@ -252,7 +256,9 @@ class EpiLink:
     def _validate_mutation_process(mutation_process: str) -> str:
         normalized_process = mutation_process.strip().lower()
         if normalized_process not in {"deterministic", "stochastic"}:
-            raise ValueError("mutation_process must be either 'deterministic' or 'stochastic'.")
+            raise ConfigurationError(
+                "mutation_process must be either 'deterministic' or 'stochastic'."
+            )
         return normalized_process
 
     def _resolve_target_labels(
@@ -266,7 +272,7 @@ class EpiLink:
             raw_targets = tuple(target)
 
         if not raw_targets:
-            raise ValueError("target must contain at least one scenario.")
+            raise ConfigurationError("target must contain at least one scenario.")
 
         available_labels = ", ".join(self.scenarios_by_label)
         resolved_labels: set[str] = set()
@@ -274,13 +280,13 @@ class EpiLink:
         for raw_target in raw_targets:
             try:
                 normalized_label = Scenario.parse(raw_target).label()
-            except ValueError as error:
-                raise ValueError(
+            except ScenarioError as error:
+                raise ScenarioError(
                     f"Unknown target scenario '{raw_target}'. Available scenarios: {available_labels}."
                 ) from error
 
             if normalized_label not in self.scenarios_by_label:
-                raise ValueError(
+                raise ScenarioError(
                     f"Unknown target scenario '{raw_target}'. Available scenarios: {available_labels}."
                 )
             resolved_labels.add(normalized_label)
@@ -335,7 +341,7 @@ class EpiLink:
 
         if scenario.kind == "ad":
             if scenario.intermediates is None:
-                raise ValueError("Ancestor-descendant scenarios require intermediates.")
+                raise ScenarioError("Ancestor-descendant scenarios require intermediates.")
             elapsed_generations = self._sum_generation_intervals(
                 generations_per_path=scenario.intermediates + 1,
                 sample_count=sample_count,
@@ -350,7 +356,7 @@ class EpiLink:
             branch_draws = time_draws
         elif scenario.kind == "ca":
             if scenario.branch_to_i is None or scenario.branch_to_j is None:
-                raise ValueError("Common-ancestor scenarios require both branch depths.")
+                raise ScenarioError("Common-ancestor scenarios require both branch depths.")
             path_to_i = self._sum_generation_intervals(
                 generations_per_path=scenario.branch_to_i + 1,
                 sample_count=sample_count,
@@ -376,7 +382,7 @@ class EpiLink:
                 + testing_delay_j
             )
         else:
-            raise ValueError(f"Unknown scenario kind: {scenario.kind}")
+            raise ScenarioError(f"Unknown scenario kind: {scenario.kind}")
 
         return np.asarray(time_draws, dtype=float), np.clip(
             np.asarray(branch_draws, dtype=float),
@@ -397,12 +403,22 @@ class EpiLink:
         return self.random_generator.poisson(expected_mutation_draws)
 
     def _precompute_draws(self) -> dict[str, dict[str, np.ndarray]]:
+        logger.info(
+            "Precomputing %d draws for %d scenarios.",
+            self.sample_count,
+            len(self.scenarios),
+        )
         draws_by_scenario: dict[str, dict[str, np.ndarray]] = {}
 
         for scenario in self.scenarios:
             label = scenario.label()
-            time_draws, branch_draws = self.simulate_scenario_draws(scenario)
-            genetic_draws = self._simulate_genetic_draws(branch_draws)
+            try:
+                time_draws, branch_draws = self.simulate_scenario_draws(scenario)
+                genetic_draws = self._simulate_genetic_draws(branch_draws)
+            except Exception as error:
+                raise SimulationError(
+                    f"Failed to precompute draws for scenario '{label}'."
+                ) from error
 
             draws_by_scenario[label] = {
                 "time_draws": time_draws,
@@ -460,6 +476,7 @@ class EpiLink:
         )
         pairwise_model = self._pairwise_models_by_target.get(target_labels)
         if pairwise_model is None:
+            logger.debug("Creating new PairwiseCompatibilityModel for target: %s", target_labels)
             pairwise_model = PairwiseCompatibilityModel(self.draws_by_scenario, target_labels)
             self._pairwise_models_by_target[target_labels] = pairwise_model
         return pairwise_model
