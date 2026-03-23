@@ -464,7 +464,9 @@ class TestEpiLink(unittest.TestCase):
                 maximum_depth=0,
                 mc_samples=4,
             )
-        self.assertTrue(any("Precomputing 4 draws for 2 scenarios." in output for output in cm.output))
+        self.assertTrue(
+            any("Precomputing 4 draws for 2 scenarios." in output for output in cm.output)
+        )
 
 
 if __name__ == "__main__":

@@ -34,10 +34,17 @@ class TestCLI(unittest.TestCase):
 
         output = mock_stdout.getvalue()
         self.assertIn("epilink_score", output)
-        self.assertEqual(len(output.strip().split("\n")), 3) # header + 2 rows
+        self.assertEqual(len(output.strip().split("\n")), 3)  # header + 2 rows
 
     def test_cli_output_file(self) -> None:
-        test_args = ["epilink", str(self.input_path), "--output", str(self.output_path), "--mc-samples", "10"]
+        test_args = [
+            "epilink",
+            str(self.input_path),
+            "--output",
+            str(self.output_path),
+            "--mc-samples",
+            "10",
+        ]
         with patch.object(sys, "argv", test_args):
             main()
 
@@ -50,11 +57,16 @@ class TestCLI(unittest.TestCase):
 
     def test_cli_custom_nh_parameters(self) -> None:
         test_args = [
-            "epilink", str(self.input_path),
-            "--output", str(self.output_path),
-            "--mc-samples", "10",
-            "--incubation-shape", "6.0",
-            "--substitution-rate", "0.002"
+            "epilink",
+            str(self.input_path),
+            "--output",
+            str(self.output_path),
+            "--mc-samples",
+            "10",
+            "--incubation-shape",
+            "6.0",
+            "--substitution-rate",
+            "0.002",
         ]
         with patch.object(sys, "argv", test_args):
             main()
@@ -89,6 +101,7 @@ class TestCLI(unittest.TestCase):
         test_args = ["epilink", str(self.input_path), "--verbose", "--mc-samples", "10"]
         with patch.object(sys, "argv", test_args):
             main()
+
 
 if __name__ == "__main__":
     unittest.main()
