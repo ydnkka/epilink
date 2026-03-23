@@ -11,7 +11,15 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from epilink import EpiLink, PairCompatibilityResult, Scenario, ScenarioScore  # noqa: E402
+from epilink import (  # noqa: E402
+    ConfigurationError,
+    EpiLink,
+    PairCompatibilityResult,
+    Scenario,
+    ScenarioError,
+    ScenarioScore,
+    SimulationError,
+)
 
 
 class CountingProfile:
@@ -226,18 +234,25 @@ class TestEpiLink(unittest.TestCase):
         self.assertEqual(parsed.label(), "ca(1,2)")
         self.assertEqual(str(Scenario.parse("ad(3)")), "ad(3)")
 
-    def test_invalid_scenario_combinations_raise_value_error(self) -> None:
-        with self.assertRaises(ValueError):
+    def test_scenario_parse_accepts_scenario_object(self) -> None:
+        scenario = Scenario.ancestor_descendant(1)
+        self.assertIs(Scenario.parse(scenario), scenario)
+
+    def test_invalid_scenario_combinations_raise_scenario_error(self) -> None:
+        with self.assertRaises(ScenarioError):
             Scenario(kind="ad", branch_to_i=0, branch_to_j=0)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ScenarioError):
             Scenario(kind="ca", intermediates=0, branch_to_i=0, branch_to_j=0)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ScenarioError):
             Scenario.parse("ca(1)")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ScenarioError):
             Scenario.parse("weird(0)")
+
+        with self.assertRaises(ScenarioError):
+            Scenario(kind="unknown")
 
     def test_score_target_returns_scalar_float_for_scalar_inputs(self) -> None:
         profile = CountingProfile()
@@ -320,10 +335,10 @@ class TestEpiLink(unittest.TestCase):
         np.testing.assert_allclose(time_draws, np.array([2.6, 2.8, 3.0]))
         np.testing.assert_allclose(branch_draws, np.array([9.6, 10.5, 11.4]))
 
-    def test_legacy_target_labels_raise_value_error(self) -> None:
+    def test_legacy_target_labels_raise_scenario_error(self) -> None:
         profile = CountingProfile()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ScenarioError):
             EpiLink(
                 transmission_profile=profile,
                 maximum_depth=0,
@@ -344,11 +359,11 @@ class TestEpiLink(unittest.TestCase):
         with self.assertRaises(TypeError):
             model.score_pair(t_ij=2.5, g_ij=1.5)
 
-    def test_invalid_configuration_raises_value_error(self) -> None:
+    def test_invalid_configuration_raises_configuration_error(self) -> None:
         profile = CountingProfile()
 
         with self.subTest(parameter="maximum_depth"):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ConfigurationError):
                 EpiLink(
                     transmission_profile=profile,
                     maximum_depth=-1,
@@ -357,7 +372,7 @@ class TestEpiLink(unittest.TestCase):
                 )
 
         with self.subTest(parameter="mc_samples"):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ConfigurationError):
                 EpiLink(
                     transmission_profile=profile,
                     maximum_depth=0,
@@ -366,7 +381,7 @@ class TestEpiLink(unittest.TestCase):
                 )
 
         with self.subTest(parameter="mutation_process"):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ConfigurationError):
                 EpiLink(
                     transmission_profile=profile,
                     maximum_depth=0,
@@ -401,10 +416,10 @@ class TestEpiLink(unittest.TestCase):
         with self.assertRaises(TypeError):
             model.score_pair(genetic_distance=1.5)
 
-    def test_unknown_target_raises_value_error(self) -> None:
+    def test_unknown_target_raises_scenario_error(self) -> None:
         profile = CountingProfile()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ScenarioError):
             EpiLink(
                 transmission_profile=profile,
                 maximum_depth=0,
@@ -412,16 +427,38 @@ class TestEpiLink(unittest.TestCase):
                 target="ad(3)",
             )
 
-    def test_empty_target_subset_raises_value_error(self) -> None:
+    def test_empty_target_subset_raises_configuration_error(self) -> None:
         profile = CountingProfile()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ConfigurationError):
             EpiLink(
                 transmission_profile=profile,
                 maximum_depth=0,
                 mc_samples=4,
                 target=[],
             )
+
+    def test_simulation_error_on_precompute_failure(self) -> None:
+        class FailingProfile(CountingProfile):
+            def sample_incubation_periods(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
+                raise RuntimeError("Failed to sample")
+
+        with self.assertRaises(SimulationError):
+            EpiLink(
+                transmission_profile=FailingProfile(),
+                maximum_depth=0,
+                mc_samples=4,
+            )
+
+    def test_logging_output_at_info_level(self) -> None:
+        profile = CountingProfile()
+        with self.assertLogs("epilink.model.epilink", level="INFO") as cm:
+            EpiLink(
+                transmission_profile=profile,
+                maximum_depth=0,
+                mc_samples=4,
+            )
+        self.assertTrue(any("Precomputing 4 draws for 2 scenarios." in output for output in cm.output))
 
 
 if __name__ == "__main__":

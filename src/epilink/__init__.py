@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from .model import (
     BaseTransmissionProfile,
+    ConfigurationError,
     EpiLink,
+    EpiLinkError,
     InfectiousnessToTransmission,
     NaturalHistoryParameters,
     PairCompatibilityResult,
     PairwiseCompatibilityModel,
     Scenario,
+    ScenarioError,
     ScenarioScore,
+    SimulationError,
     SymptomOnsetToTransmission,
 )
 from .simulation import (
@@ -21,7 +25,7 @@ from .simulation import (
     simulate_genomic_sequences,
 )
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 __all__ = [
     "EpiLink",
@@ -33,6 +37,10 @@ __all__ = [
     "BaseTransmissionProfile",
     "InfectiousnessToTransmission",
     "SymptomOnsetToTransmission",
+    "EpiLinkError",
+    "ScenarioError",
+    "ConfigurationError",
+    "SimulationError",
     "SequencePacker64",
     "PackedGenomicData",
     "SimulationResult",

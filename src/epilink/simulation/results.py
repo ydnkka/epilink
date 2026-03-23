@@ -16,25 +16,25 @@ NDArrayInt8 = npt.NDArray[np.int8]
 class SimulationSequenceSet(Generic[T]):
     """Paired deterministic and stochastic simulation outputs."""
 
-    linear: T
-    poisson: T
+    deterministic: T
+    stochastic: T
 
     def __getitem__(self, key: str) -> T:
-        if key not in {"linear", "poisson"}:
+        if key not in {"deterministic", "stochastic"}:
             raise KeyError(key)
         return getattr(self, key)
 
     def __iter__(self):
-        return iter(("linear", "poisson"))
+        return iter(("deterministic", "stochastic"))
 
     def __len__(self) -> int:
         return 2
 
     def __contains__(self, key: object) -> bool:
-        return key in {"linear", "poisson"}
+        return key in {"deterministic", "stochastic"}
 
     def to_dict(self) -> dict[str, T]:
-        return {"linear": self.linear, "poisson": self.poisson}
+        return {"deterministic": self.deterministic, "stochastic": self.stochastic}
 
 
 @dataclass(frozen=True, slots=True)

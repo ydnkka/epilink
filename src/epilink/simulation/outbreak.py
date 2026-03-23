@@ -138,8 +138,8 @@ def simulate_genomic_sequences(
 
     rng = transmission_profile.rng
 
-    linear_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
-    poisson_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
+    deterministic_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
+    stochastic_sequences = np.zeros((num_nodes, genome_length), dtype=np.int8)
     reference_sequence = rng.integers(0, num_bases, size=genome_length, dtype=np.int8)
 
     def mutate_sequence(
@@ -167,8 +167,8 @@ def simulate_genomic_sequences(
         max_root_drift = min(35, genome_length + 1)
         root_drift_mutations = int(rng.integers(1, max_root_drift))
         root_sequence = mutate_sequence(reference_sequence, root_drift_mutations)
-        linear_sequences[root_index] = root_sequence
-        poisson_sequences[root_index] = root_sequence
+        deterministic_sequences[root_index] = root_sequence
+        stochastic_sequences[root_index] = root_sequence
 
     for root in roots:
         for parent, child in nx.dfs_edges(tree, source=root):
@@ -190,33 +190,35 @@ def simulate_genomic_sequences(
 
             expected_mutations = transmission_profile.expected_mutations(branch_length_days)
 
-            num_linear_mutations = int(round(expected_mutations.item()))
-            linear_sequences[child_index] = mutate_sequence(
-                linear_sequences[parent_index],
-                num_linear_mutations,
+            num_deterministic_mutations = int(round(expected_mutations.item()))
+            deterministic_sequences[child_index] = mutate_sequence(
+                deterministic_sequences[parent_index],
+                num_deterministic_mutations,
             )
 
-            num_poisson_mutations = int(rng.poisson(expected_mutations))
-            poisson_sequences[child_index] = mutate_sequence(
-                poisson_sequences[parent_index],
-                num_poisson_mutations,
+            num_stochastic_mutations = int(rng.poisson(expected_mutations))
+            stochastic_sequences[child_index] = mutate_sequence(
+                stochastic_sequences[parent_index],
+                num_stochastic_mutations,
             )
 
     packed_sequences = SimulationSequenceSet(
-        linear=PackedGenomicData(
-            linear_sequences,
+        deterministic=PackedGenomicData(
+            deterministic_sequences,
             genome_length,
             node_to_index,
             base_lookup,
         ),
-        poisson=PackedGenomicData(
-            poisson_sequences,
+        stochastic=PackedGenomicData(
+            stochastic_sequences,
             genome_length,
             node_to_index,
             base_lookup,
         ),
     )
-    raw_sequences = SimulationSequenceSet(linear=linear_sequences, poisson=poisson_sequences)
+    raw_sequences = SimulationSequenceSet(
+        deterministic=deterministic_sequences, stochastic=stochastic_sequences
+    )
 
     return SimulationResult(packed=packed_sequences, raw=raw_sequences if return_raw else None)
 
@@ -230,8 +232,8 @@ def build_pairwise_case_table(
     Parameters
     ----------
     packed_genomic_data : mapping
-        Mapping containing packed genomic data for the ``"linear"`` and
-        ``"poisson"`` simulation outputs.
+        Mapping containing packed genomic data for the ``"deterministic"`` and
+        ``"stochastic"`` simulation outputs.
     tree : networkx.DiGraph
         Directed transmission tree with epidemic annotations.
 
@@ -242,14 +244,14 @@ def build_pairwise_case_table(
         topological relationships.
     """
 
-    packed_linear = packed_genomic_data["linear"]
-    packed_poisson = packed_genomic_data["poisson"]
-    node_map = packed_linear.node_to_idx
-    n_nodes = packed_linear.n_seqs
+    packed_deterministic = packed_genomic_data["deterministic"]
+    packed_stochastic = packed_genomic_data["stochastic"]
+    node_map = packed_deterministic.node_to_idx
+    n_nodes = packed_deterministic.n_seqs
     idx_to_node = {v: k for k, v in node_map.items()}
 
-    mat_linear = packed_linear.compute_hamming_distances()
-    mat_poisson = packed_poisson.compute_hamming_distances()
+    mat_deterministic = packed_deterministic.compute_hamming_distances()
+    mat_stochastic = packed_stochastic.compute_hamming_distances()
 
     sample_dates = np.zeros(n_nodes)
     for node, idx in node_map.items():
@@ -284,8 +286,8 @@ def build_pairwise_case_table(
             "CaseB": id_array[cols],
             "IsRelated": mat_related[rows, cols],
             "BothSampled": sampled_status[rows] & sampled_status[cols],
-            "DeterministicDistance": mat_linear[rows, cols],
-            "StochasticDistance": mat_poisson[rows, cols],
+            "DeterministicDistance": mat_deterministic[rows, cols],
+            "StochasticDistance": mat_stochastic[rows, cols],
             "SamplingDateDistanceDays": mat_temporal[rows, cols],
         }
     )
