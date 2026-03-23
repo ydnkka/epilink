@@ -34,7 +34,7 @@ class NaturalHistoryParameters:
         Ratio of transmission rates in presymptomatic (``P``) and symptomatic
         infectious (``I``) stages, :math:`\alpha` for ``P`` compared with ``I``.
         Must be a positive real number (dimensionless).
-    testing_delay_shape : float, default=2.0
+    testing_delay_shape : float, default=1.0
         Shape parameter for the Gamma-distributed testing delay.
         Must be a positive real number (dimensionless).
     testing_delay_scale : float, default=1.0

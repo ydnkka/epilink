@@ -14,8 +14,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from epilink import (  # noqa: E402
+    ConfigurationError,
     PackedGenomicData,
     SequencePacker64,
+    SimulationError,
     SimulationResult,
     SimulationSequenceSet,
     build_pairwise_case_table,
@@ -202,7 +204,7 @@ class TestSimulationHelpers(unittest.TestCase):
     def test_simulate_epidemic_dates_rejects_invalid_sampling_fraction(self) -> None:
         tree = nx.DiGraph([("root", "child")])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ConfigurationError):
             simulate_epidemic_dates(
                 DeterministicSimulationProfile(),
                 tree,
@@ -212,7 +214,7 @@ class TestSimulationHelpers(unittest.TestCase):
     def test_simulate_genomic_sequences_requires_epidemic_dates(self) -> None:
         tree = nx.DiGraph([("root", "child")])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SimulationError):
             simulate_genomic_sequences(
                 DeterministicSimulationProfile(),
                 tree,
@@ -233,17 +235,17 @@ class TestSimulationHelpers(unittest.TestCase):
 
         self.assertIsInstance(result, SimulationResult)
         self.assertIsInstance(result.packed, SimulationSequenceSet)
-        self.assertEqual(set(result["packed"]), {"linear", "poisson"})
-        self.assertEqual(set(result["raw"]), {"linear", "poisson"})
-        self.assertEqual(result.packed.linear.node_to_idx, {"root": 0, "child": 1})
-        self.assertEqual(result["packed"]["linear"].node_to_idx, {"root": 0, "child": 1})
-        self.assertEqual(result["packed"]["linear"].original_length, 12)
-        self.assertEqual(result["raw"]["linear"].shape, (2, 12))
-        self.assertTrue(np.all((result["raw"]["linear"] >= 0) & (result["raw"]["linear"] <= 3)))
-        np.testing.assert_array_equal(result["raw"]["linear"][0], result["raw"]["linear"][1])
-        np.testing.assert_array_equal(result["raw"]["poisson"][0], result["raw"]["poisson"][1])
+        self.assertEqual(set(result["packed"]), {"deterministic", "stochastic"})
+        self.assertEqual(set(result["raw"]), {"deterministic", "stochastic"})
+        self.assertEqual(result.packed.deterministic.node_to_idx, {"root": 0, "child": 1})
+        self.assertEqual(result["packed"]["deterministic"].node_to_idx, {"root": 0, "child": 1})
+        self.assertEqual(result["packed"]["deterministic"].original_length, 12)
+        self.assertEqual(result["raw"]["deterministic"].shape, (2, 12))
+        self.assertTrue(np.all((result["raw"]["deterministic"] >= 0) & (result["raw"]["deterministic"] <= 3)))
+        np.testing.assert_array_equal(result["raw"]["deterministic"][0], result["raw"]["deterministic"][1])
+        np.testing.assert_array_equal(result["raw"]["stochastic"][0], result["raw"]["stochastic"][1])
         np.testing.assert_array_equal(
-            result["packed"]["linear"].compute_hamming_distances(),
+            result["packed"]["deterministic"].compute_hamming_distances(),
             np.zeros((2, 2), dtype=np.int32),
         )
 
@@ -260,14 +262,14 @@ class TestSimulationHelpers(unittest.TestCase):
         tree.nodes["root"].update(exposure_date=0.0, sample_date=6.0)
         tree.nodes["child"].update(exposure_date=2.0, sample_date=8.0)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ConfigurationError):
             simulate_genomic_sequences(
                 DeterministicSimulationProfile(expected_mutation_scale=0.0, rng_seed=9),
                 tree,
                 genome_length=0,
             )
 
-    def test_simulate_genomic_sequences_linear_model_mutates_selected_sites(self) -> None:
+    def test_simulate_genomic_sequences_deterministic_model_mutates_selected_sites(self) -> None:
         tree = nx.DiGraph([("root", "child")])
         tree.nodes["root"].update(exposure_date=0.0, sample_date=6.0)
         tree.nodes["child"].update(exposure_date=2.0, sample_date=8.0)
@@ -279,9 +281,9 @@ class TestSimulationHelpers(unittest.TestCase):
             return_raw=True,
         )
 
-        linear_sequences = result["raw"]["linear"]
-        self.assertEqual(np.count_nonzero(linear_sequences[0] != linear_sequences[1]), 4)
-        self.assertTrue(np.all((linear_sequences >= 0) & (linear_sequences <= 3)))
+        deterministic_sequences = result["raw"]["deterministic"]
+        self.assertEqual(np.count_nonzero(deterministic_sequences[0] != deterministic_sequences[1]), 4)
+        self.assertTrue(np.all((deterministic_sequences >= 0) & (deterministic_sequences <= 3)))
 
     def test_build_pairwise_case_table_reports_relationships_sampling_and_distances(self) -> None:
         tree = nx.DiGraph([("A", "B"), ("A", "C")])
@@ -297,7 +299,7 @@ class TestSimulationHelpers(unittest.TestCase):
         )
 
         packed = {
-            "linear": PackedGenomicData(
+            "deterministic": PackedGenomicData(
                 np.array(
                     [
                         [0, 0, 0, 0],
@@ -311,7 +313,7 @@ class TestSimulationHelpers(unittest.TestCase):
                 node_map={"A": 0, "B": 1, "C": 2, "D": 3},
                 base_map=BASE_MAP,
             ),
-            "poisson": PackedGenomicData(
+            "stochastic": PackedGenomicData(
                 np.array(
                     [
                         [0, 0, 0, 0],

@@ -6,7 +6,7 @@ authors:
   - family-names: Arthur
     given-names: Dominic
     email: arthurdominic04@gmail.com
-version: 0.1.2
+version: 0.1.4
 license: MIT
 repository-code: https://github.com/ydnkka/epilink
 url: https://github.com/ydnkka/epilink

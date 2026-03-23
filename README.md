@@ -1,5 +1,7 @@
 # EpiLink
 
+[![codecov](https://codecov.io/gh/ydnkka/epilink/branch/master/graph/badge.svg)](https://codecov.io/gh/ydnkka/epilink)
+
 EpiLink scores how compatible a pair of samples is with recent transmission scenarios using sampling-time differences and consensus genetic distance.
 
 It is useful when you have:
@@ -11,6 +13,12 @@ It is useful when you have:
 EpiLink returns typed score results with per-scenario compatibility summaries and can also sum scores across a user-defined target subset such as `["ad(0)", "ca(0,0)"]`.
 
 ## Installation
+
+From PyPI:
+
+```bash
+pip install epilink
+```
 
 Clone the repository first if you are starting from GitHub:
 
@@ -55,7 +63,7 @@ Each individual scenario compatibility lies in `[0, 1]`. If `target` contains mu
 ## API guarantees
 
 - `score_pair(...)` returns a `PairCompatibilityResult` object with attribute access such as `result.target_labels` and `result.scenario_scores["ad(0)"].compatibility`.
-- `simulate_genomic_sequences(...)` returns a `SimulationResult` object with `packed` and optional `raw` sequence sets, each exposing `linear` and `poisson` members.
+- `simulate_genomic_sequences(...)` returns a `SimulationResult` object with `packed` and optional `raw` sequence sets, each exposing `deterministic` and `stochastic` members.
 - `score_target(...)` returns a scalar `float` for scalar inputs and a NumPy array for broadcastable array inputs.
 - Result objects retain lightweight dictionary-style access for common keys to ease migration from earlier releases.
 
@@ -178,11 +186,11 @@ print(pair_table.head())
 
 The stochastic option is usually the better choice when you want mutation-count variability to be part of the score.
 
-## Background
+## Background and usage guide
 - Manuscript: [docs/epilink.md](docs/epilink.md)
+- Usage guide: [docs/usage_guide.ipynb](docs/usage_guide.ipynb)
 - Latent histories: [docs/epilink_scenarios.svg](docs/epilink_scenarios.svg)
 - Workflow figure: [docs/epilink_schematic.svg](docs/epilink_schematic.svg)
-- Notebook: [docs/epilink_characterisation.ipynb](docs/epilink_characterisation.ipynb)
 - Performance guide: [docs/performance.md](docs/performance.md)
 
 ## Citation

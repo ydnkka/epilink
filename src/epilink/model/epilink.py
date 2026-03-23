@@ -391,11 +391,7 @@ class EpiLink:
         )
 
     def _simulate_genetic_draws(self, branch_draws: np.ndarray) -> np.ndarray:
-        clock_rate_draws = np.asarray(
-            self.profile.sample_clock_rate(size=branch_draws.shape),
-            dtype=float,
-        )
-        expected_mutation_draws = np.clip(branch_draws * clock_rate_draws, a_min=0.0, a_max=np.inf)
+        expected_mutation_draws = self.profile.expected_mutations(branch_draws)
 
         if self.mutation_process == "deterministic":
             return expected_mutation_draws
