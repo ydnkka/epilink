@@ -8,7 +8,7 @@ import numpy.typing as npt
 
 from .genome import PackedGenomicData
 
-T = TypeVar("T")
+T = TypeVar("T", covariant=True)
 NDArrayInt8 = npt.NDArray[np.int8]
 
 
