@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-import pandas as pd
 import os
+import sys
+from unittest.mock import patch
+
+import pandas as pd
+
+from epilink.cli import main
 
 # Create a sample CSV
 df = pd.DataFrame({
@@ -9,11 +14,6 @@ df = pd.DataFrame({
     "genetic_distance": [0, 1, 2]
 })
 df.to_csv("test_input.csv", index=False)
-
-# Run the CLI logic via python
-from epilink.cli import main
-import sys
-from unittest.mock import patch
 
 test_args = ["epilink", "test_input.csv", "--output", "test_output.csv", "--mc-samples", "100"]
 with patch.object(sys, "argv", test_args):

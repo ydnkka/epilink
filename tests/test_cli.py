@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from epilink.cli import main
 
+
 class TestCLI(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = TemporaryDirectory()
@@ -41,7 +42,7 @@ class TestCLI(unittest.TestCase):
             main()
 
         self.assertTrue(self.output_path.exists())
-        with open(self.output_path, "r") as f:
+        with open(self.output_path) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             self.assertEqual(len(rows), 2)
