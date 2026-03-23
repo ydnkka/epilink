@@ -31,5 +31,6 @@ class TestExceptions(unittest.TestCase):
             raise SimulationError("Simulation failed")
         self.assertEqual(str(cm.exception), "Simulation failed")
 
+
 if __name__ == "__main__":
     unittest.main()

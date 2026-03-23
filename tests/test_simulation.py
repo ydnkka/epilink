@@ -241,9 +241,15 @@ class TestSimulationHelpers(unittest.TestCase):
         self.assertEqual(result["packed"]["deterministic"].node_to_idx, {"root": 0, "child": 1})
         self.assertEqual(result["packed"]["deterministic"].original_length, 12)
         self.assertEqual(result["raw"]["deterministic"].shape, (2, 12))
-        self.assertTrue(np.all((result["raw"]["deterministic"] >= 0) & (result["raw"]["deterministic"] <= 3)))
-        np.testing.assert_array_equal(result["raw"]["deterministic"][0], result["raw"]["deterministic"][1])
-        np.testing.assert_array_equal(result["raw"]["stochastic"][0], result["raw"]["stochastic"][1])
+        self.assertTrue(
+            np.all((result["raw"]["deterministic"] >= 0) & (result["raw"]["deterministic"] <= 3))
+        )
+        np.testing.assert_array_equal(
+            result["raw"]["deterministic"][0], result["raw"]["deterministic"][1]
+        )
+        np.testing.assert_array_equal(
+            result["raw"]["stochastic"][0], result["raw"]["stochastic"][1]
+        )
         np.testing.assert_array_equal(
             result["packed"]["deterministic"].compute_hamming_distances(),
             np.zeros((2, 2), dtype=np.int32),
@@ -282,7 +288,9 @@ class TestSimulationHelpers(unittest.TestCase):
         )
 
         deterministic_sequences = result["raw"]["deterministic"]
-        self.assertEqual(np.count_nonzero(deterministic_sequences[0] != deterministic_sequences[1]), 4)
+        self.assertEqual(
+            np.count_nonzero(deterministic_sequences[0] != deterministic_sequences[1]), 4
+        )
         self.assertTrue(np.all((deterministic_sequences >= 0) & (deterministic_sequences <= 3)))
 
     def test_build_pairwise_case_table_reports_relationships_sampling_and_distances(self) -> None:
