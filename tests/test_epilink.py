@@ -30,6 +30,7 @@ class CountingProfile:
             "sample_testing_delays": 0,
             "sample_generation_intervals": 0,
             "sample_clock_rate": 0,
+            "expected_mutations": 0,
         }
 
     @staticmethod
@@ -54,6 +55,11 @@ class CountingProfile:
     def sample_clock_rate(self, size: int | tuple[int, ...] = 1) -> np.ndarray:
         self.call_counts["sample_clock_rate"] += 1
         return self._sequence(size, start=0.2, step=0.01)
+
+    def expected_mutations(self, branch_length_days: float | np.ndarray) -> np.ndarray:
+        self.call_counts["expected_mutations"] += 1
+        branch_lengths = np.asarray(branch_length_days, dtype=float)
+        return branch_lengths * self.sample_clock_rate(size=branch_lengths.shape)
 
 
 class TestEpiLink(unittest.TestCase):
