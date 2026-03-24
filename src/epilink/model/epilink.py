@@ -221,7 +221,7 @@ class EpiLink:
         transmission_profile: InfectiousnessToTransmission,
         maximum_depth: int = 2,
         mc_samples: int = 10000,
-        target: str | Scenario | Iterable[str | Scenario] = "ad(0)",
+        target: str | Scenario | Iterable[str | Scenario] = ("ad(0)", "ca(0,0)"),
         mutation_process: str = "stochastic",
         rng: Generator | None = None,
     ) -> None:
