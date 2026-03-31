@@ -25,20 +25,20 @@
         letter-spacing: -0.02em;
       }
       .subtitle {
-        font-size: 19px;
+        font-size: 25px;
         font-weight: 500;
         fill: #59708a;
       }
       .card-title {
-        font-size: 22px;
+        font-size: 25px;
         font-weight: 700;
       }
       .copy {
-        font-size: 18px;
+        font-size: 22px;
         font-weight: 520;
       }
       .detail {
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 520;
         fill: #5c7085;
       }
@@ -50,29 +50,29 @@
       }
       .eq-small {
         font-family: "Iowan Old Style", "Georgia", "Times New Roman", serif;
-        font-size: 18px;
+        font-size: 20px;
         font-style: italic;
         fill: #24384b;
       }
       .eq-compact {
         font-family: "Iowan Old Style", "Georgia", "Times New Roman", serif;
-        font-size: 16px;
+        font-size: 20px;
         font-style: italic;
         fill: #24384b;
       }
       .eq-tight {
         font-family: "Iowan Old Style", "Georgia", "Times New Roman", serif;
-        font-size: 14px;
+        font-size: 20px;
         font-style: italic;
         fill: #24384b;
       }
       .tag-text {
-        font-size: 14px;
+        font-size: 20px;
         font-weight: 700;
         letter-spacing: 0.12em;
       }
       .footer {
-        font-size: 18px;
+        font-size: 25px;
         font-weight: 500;
         fill: #5a6f85;
       }
@@ -173,19 +173,19 @@
     <text x="1000" y="261" class="copy">Common ancestor: H<tspan baseline-shift="sub" font-size="75%">CA</tspan>(m<tspan baseline-shift="sub" font-size="70%">i</tspan>, m<tspan baseline-shift="sub" font-size="70%">j</tspan>)</text>
     <text x="1000" y="296" class="detail">m, m<tspan baseline-shift="sub" font-size="75%">i</tspan>, and m<tspan baseline-shift="sub" font-size="75%">j</tspan> denote hidden intermediates.</text>
 
-    <circle cx="1345" cy="228" r="13" class="node"/>
-    <circle cx="1415" cy="228" r="13" class="node"/>
-    <circle cx="1485" cy="228" r="13" class="node"/>
-    <line x1="1358" y1="228" x2="1402" y2="228" class="node-arrow"/>
-    <line x1="1428" y1="228" x2="1472" y2="228" class="node-arrow"/>
-    <text x="1520" y="234" class="detail">H<tspan baseline-shift="sub" font-size="75%">AD</tspan></text>
+    <circle cx="1400" cy="228" r="13" class="node"/>
+    <circle cx="1500" cy="228" r="13" class="node"/>
+    <circle cx="1600" cy="228" r="13" class="node"/>
+    <line x1="1400" y1="228" x2="1485" y2="228" class="node-arrow"/>
+    <line x1="1500" y1="228" x2="1585" y2="228" class="node-arrow"/>
+    <text x="1620" y="234" class="detail">H<tspan baseline-shift="sub" font-size="75%">AD</tspan></text>
 
-    <circle cx="1415" cy="268" r="13" class="node"/>
-    <circle cx="1368" cy="304" r="13" class="node"/>
-    <circle cx="1462" cy="304" r="13" class="node"/>
-    <line x1="1407" y1="278" x2="1376" y2="294" class="node-arrow"/>
-    <line x1="1423" y1="278" x2="1454" y2="294" class="node-arrow"/>
-    <text x="1520" y="310" class="detail">H<tspan baseline-shift="sub" font-size="75%">CA</tspan></text>
+    <circle cx="1500" cy="268" r="13" class="node"/>
+    <circle cx="1420" cy="320" r="13" class="node"/>
+    <circle cx="1580" cy="320" r="13" class="node"/>
+    <line x1="1500" y1="270" x2="1435" y2="310" class="node-arrow"/>
+    <line x1="1500" y1="270" x2="1565" y2="310" class="node-arrow"/>
+    <text x="1620" y="310" class="detail">H<tspan baseline-shift="sub" font-size="75%">CA</tspan></text>
   </g>
 
   <g>
@@ -214,7 +214,8 @@
     <text x="1320" y="590" class="copy">Strict clock: λ = rL / 365</text>
     <text x="1320" y="625" class="copy">Relaxed clock: λ<tspan baseline-shift="super" font-size="70%">(n)</tspan> from UCLN draws</text>
     <text x="1320" y="668" class="eq-small">G<tspan baseline-shift="sub" font-size="75%">s</tspan> = λB<tspan baseline-shift="sub" font-size="75%">s</tspan></text>
-    <text x="1320" y="705" class="detail">or Poisson(λB<tspan baseline-shift="sub" font-size="75%">s</tspan>) for stochastic mutation counts.</text>
+    <text x="1320" y="705" class="detail">or Poisson(λB<tspan baseline-shift="sub" font-size="75%">s</tspan>) for stochastic</text>
+    <text x="1320" y="730" class="detail">mutation counts.</text>
   </g>
 
   <g>
@@ -224,8 +225,9 @@
     <text x="120" y="918" class="copy">Compare observed t<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated T<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
     <text x="120" y="963" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = Pr(T<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ t<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
     <text x="120" y="1003" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">T,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">T,s</tspan> − 0.5|</text>
-    <text x="120" y="1043" class="detail">Highest when the observed value lies near the centre</text>
-    <text x="120" y="1071" class="detail">of the scenario-specific temporal distribution.</text>
+    <text x="120" y="1045" class="detail">Highest when the observed value lies</text>
+    <text x="120" y="1070" class="detail">near the centre of the</text>
+    <text x="120" y="1095" class="detail">scenario-specific temporal distribution.</text>
   </g>
 
   <g>
@@ -235,8 +237,9 @@
     <text x="1220" y="918" class="copy">Compare observed g<tspan baseline-shift="sub" font-size="75%">ij</tspan> with simulated G<tspan baseline-shift="sub" font-size="75%">s</tspan>.</text>
     <text x="1220" y="963" class="eq-small">p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = Pr(G<tspan baseline-shift="sub" font-size="75%">s</tspan> ≤ g<tspan baseline-shift="sub" font-size="75%">ij</tspan>)</text>
     <text x="1220" y="1003" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">G,s</tspan> = 1 − 2|p<tspan baseline-shift="sub" font-size="75%">G,s</tspan> − 0.5|</text>
-    <text x="1220" y="1043" class="detail">Highest when the observed value lies near the centre</text>
-    <text x="1220" y="1071" class="detail">of the scenario-specific genetic distribution.</text>
+    <text x="1220" y="1045" class="detail">Highest when the observed value lies</text>
+    <text x="1220" y="1070" class="detail">near the centre of the </text>
+    <text x="1220" y="1095" class="detail">scenario-specific genetic distribution.</text>
   </g>
 
   <g>
@@ -246,8 +249,9 @@
     <text x="670" y="918" class="eq-small">C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j) = C<tspan baseline-shift="sub" font-size="75%">T,s</tspan>(i,j) × C<tspan baseline-shift="sub" font-size="75%">G,s</tspan>(i,j)</text>
     <text x="670" y="958" class="copy">Compute this for every scenario s ∈ S<tspan baseline-shift="sub" font-size="75%">M</tspan>.</text>
     <text x="670" y="998" class="eq-small">score<tspan baseline-shift="sub" font-size="75%">S*</tspan>(i,j) = Σ C<tspan baseline-shift="sub" font-size="75%">s</tspan>(i,j), s ∈ S*</text>
-    <text x="670" y="1043" class="detail">A user-selected subset S* can represent one focal scenario</text>
-    <text x="670" y="1071" class="detail">or a broader family of scenarios.</text>
+    <text x="670" y="1045" class="detail">A user-selected subset S*</text>
+    <text x="670" y="1070" class="detail">can represent one focal scenario</text>
+    <text x="670" y="1095" class="detail">or a broader family of scenarios.</text>
   </g>
 
   <path d="M210,350 C140,398 100,450 95,520 L95,770 C95,800 140,820 230,820" class="arrow dashed"/>
@@ -260,8 +264,8 @@
 
   <path d="M1250,625 L1290,625" class="arrow"/>
 
-  <path d="M350,760 L290,820" class="arrow"/>
-  <path d="M1495,760 C1490,790 1475,808 1460,820" class="arrow"/>
+  <path d="M290,760 L290,820" class="arrow"/>
+  <path d="M1490,760 L1490,820" class="arrow"/>
 
   <path d="M590,970 L640,970" class="arrow"/>
   <path d="M1190,970 L1140,970" class="arrow"/>
