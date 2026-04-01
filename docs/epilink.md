@@ -35,7 +35,7 @@ The common-ancestor labels are ordered. Thus, $H_{\mathrm{CA}}(m_i,m_j)$ and $H_
 
 Subtracting Eq. (S2) for case $i$ from Eq. (S2) for case $j$ gives the model-implied testing-time difference under scenario $s$:
 $$
-T_s = A_j(s) - A_i(s) + \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \tau_{\mathrm{inc},i} - x_{\mathrm{test},i}. \tag{4}
+T_s = A_j(s) - A_i(s) + \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \left(\tau_{\mathrm{inc},i} + x_{\mathrm{test},i}\right). \tag{4}
 $$
 This variable combines three sources of variation: transmission structure through $A_j(s)-A_i(s)$, biological variability through the incubation periods, and surveillance variability through the testing delays.
 
@@ -44,7 +44,7 @@ $$
 A_i\!\left(H_{\mathrm{AD}}(m)\right)=0, \qquad A_j\!\left(H_{\mathrm{AD}}(m)\right)=\sum_{r=0}^{m}\tau_{\mathrm{gen},r}, \tag{5}
 $$
 so that
-$$T_{ij}\!\left(H_{\mathrm{AD}}(m)\right) = \sum_{r=0}^{m}\tau_{\mathrm{gen},r} +  \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \tau_{\mathrm{inc},i} - x_{\mathrm{test},i}. \tag{6}
+$$T_{ij}\!\left(H_{\mathrm{AD}}(m)\right) = \sum_{r=0}^{m}\tau_{\mathrm{gen},r} + \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \left(\tau_{\mathrm{inc},i} + x_{\mathrm{test},i}\right). \tag{6}
 $$
 
 For common-ancestor scenarios,
@@ -55,7 +55,7 @@ $$
 which gives
 $$
 T_{ij}\!\left(H_{\mathrm{CA}}(m_i,m_j)\right) = \sum_{s=1}^{m_j+1}\tau_{\mathrm{gen},s}^{(j)} -
-\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)} + \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \tau_{\mathrm{inc},i} - x_{\mathrm{test},i}. \tag{8}
+\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)} + \tau_{\mathrm{inc},j} + x_{\mathrm{test},j} - \left(\tau_{\mathrm{inc},i} + x_{\mathrm{test},i}\right). \tag{8}
 $$
 For each scenario $s$, Monte Carlo simulation yields draws $T_s^{(1)},\ldots,T_s^{(N)}$ from the induced temporal distribution.
 
@@ -121,7 +121,7 @@ $$
 
 To represent broader scientific hypotheses, compatibilities may be summed across a user-defined target subset $\mathcal{S}_\star \subseteq \mathcal{S}_M$:
 $$
-\mathrm{score}_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j). \tag{17}
+C_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j). \tag{17}
 $$
 When $\mathcal{S}_\star$ contains a single scenario, this reduces to the corresponding single-scenario compatibility. When multiple scenarios are aggregated, the summed target score can exceed 1 because it accumulates compatibility across scenarios.
 
