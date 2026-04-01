@@ -187,10 +187,9 @@ print(pair_table.head())
 The stochastic option is usually the better choice when you want mutation-count variability to be part of the score.
 
 ## Background and usage guide
-- Manuscript: [docs/epilink.md](docs/epilink.md)
+- Model derivation: [docs/epilink.md](docs/epilink.md)
 - Usage guide: [docs/usage_guide.ipynb](docs/usage_guide.ipynb)
-- Latent histories: [docs/epilink_scenarios.svg](docs/epilink_scenarios.svg)
-- Workflow figure: [docs/epilink_schematic.svg](docs/epilink_schematic.svg)
+- Workflow figure: [docs/epilink_schematic.pdf](docs/epilink_schematic.pdf) (source: [docs/epilink_schematic.tex](docs/epilink_schematic.tex))
 - Performance guide: [docs/performance.md](docs/performance.md)
 
 ## Citation
