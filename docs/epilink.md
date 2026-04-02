@@ -2,11 +2,7 @@
 
 ## Overview
 
-`EpiLink` evaluates whether an observed pair of sampled cases is compatible with a candidate transmission scenario by combining epidemiological timing and genomic divergence. For each sampled pair $(i,j)$, the observed data are the testing-time difference
-$$
-t_{ij} = t_{\mathrm{test},j} - t_{\mathrm{test},i},
-$$
-and the observed consensus-level genetic distance $g_{ij}$. Each candidate scenario $s$ induces a latent distribution over expected testing-time differences and transmission-related branch lengths, which in turn defines an expected distribution of genetic distances. Compatibility is quantified by comparing the observed pair with these scenario-specific Monte Carlo distributions.
+`EpiLink` evaluates whether an observed pair of sampled cases is compatible with a candidate transmission scenario by combining epidemiological timing and genomic divergence. For each sampled pair $(i,j)$, the observed data are the testing-time difference $t_{ij}$ and the observed consensus-level genetic distance $g_{ij}$. Each candidate scenario $s$ induces a latent distribution over expected testing-time differences and transmission-related branch lengths, which in turn defines an expected distribution of genetic distances. Compatibility is quantified by comparing the observed pair with these scenario-specific Monte Carlo distributions.
 
 ## Natural-history model and observed times
 
