@@ -24,3 +24,4 @@ site/
 .DS_Store
 docs/epilink_schematic.aux
 docs/epilink_schematic.log
+docs/epilink_schematic.tex
