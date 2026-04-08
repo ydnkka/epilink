@@ -10,9 +10,7 @@ import igraph as ig
 import networkx as nx
 import numpy as np
 from epilink import (
-    EpiLink,
     InfectiousnessToTransmission,
-    NaturalHistoryParameters,
     build_pairwise_case_table,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
@@ -32,7 +30,7 @@ try:
         DEFAULT_SPARSIFICATION,
         EPILINK_SPECS,
         LOGIT_SPECS,
-        MODEL_KEYS as SHARED_MODEL_KEYS,
+        MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,
         PAIRWISE_CASE_A_COLUMN,
         PAIRWISE_CASE_B_COLUMN,
@@ -40,7 +38,7 @@ try:
         PAIRWISE_RELATED_COLUMN,
         PAIRWISE_STOCHASTIC_DISTANCE_COLUMN,
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-        SCORE_METADATA as SHARED_SCORE_METADATA,
+        SCORE_METADATA,
     )
 except ImportError:
     from leiden import build_weighted_graph, run_leiden_partition
@@ -50,7 +48,7 @@ except ImportError:
         DEFAULT_SPARSIFICATION,
         EPILINK_SPECS,
         LOGIT_SPECS,
-        MODEL_KEYS as SHARED_MODEL_KEYS,
+        MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,
         PAIRWISE_CASE_A_COLUMN,
         PAIRWISE_CASE_B_COLUMN,
@@ -58,7 +56,7 @@ except ImportError:
         PAIRWISE_RELATED_COLUMN,
         PAIRWISE_STOCHASTIC_DISTANCE_COLUMN,
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-        SCORE_METADATA as SHARED_SCORE_METADATA,
+        SCORE_METADATA,
     )
 
 
@@ -66,17 +64,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Result types
 # ---------------------------------------------------------------------------
-
-MODEL_KEYS = SHARED_MODEL_KEYS
-"""Canonical model abbreviations.
-
-EDD — EpiLink, deterministic inference, deterministic data
-EDS — EpiLink, deterministic inference, stochastic data
-ESD — EpiLink, stochastic inference,   deterministic data
-ESS — EpiLink, stochastic inference,   stochastic data
-LD  — Logistic regression on deterministic distances
-LS  — Logistic regression on stochastic distances
-"""
 
 _DEFAULT_SPARSIFICATION = DEFAULT_SPARSIFICATION
 
@@ -101,7 +88,7 @@ class ScenarioResult:
 
 _EPILINK_SPECS = EPILINK_SPECS
 _LOGIT_SPECS = LOGIT_SPECS
-_SCORE_METADATA = SHARED_SCORE_METADATA
+_SCORE_METADATA = SCORE_METADATA
 
 
 # ---------------------------------------------------------------------------

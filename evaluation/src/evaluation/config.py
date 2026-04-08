@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -24,6 +24,7 @@ except ImportError:
 
 
 _CONFIG_DIR_KEY = "__config_dir__"
+_MISSING = object()
 
 
 @dataclass
@@ -63,12 +64,12 @@ def resolve_path(path_like: str | Path, *, root: Path | None = None) -> Path:
 
     path = Path(path_like).expanduser()
     if path.is_absolute():
-        return path
+        return path.resolve()
 
     candidate_roots = []
     if root is not None:
         candidate_roots.append(Path(root).resolve())
-    candidate_roots.extend((source_root(), project_root(), Path.cwd().resolve()))
+    candidate_roots.extend((Path.cwd().resolve(), project_root(), source_root()))
 
     seen: set[Path] = set()
     for base in candidate_roots:
@@ -79,7 +80,8 @@ def resolve_path(path_like: str | Path, *, root: Path | None = None) -> Path:
         if resolved.exists():
             return resolved
 
-    return (source_root() / path).resolve()
+    fallback_root = candidate_roots[0] if candidate_roots else project_root()
+    return (fallback_root / path).resolve()
 
 
 def load_config(path_like: str | Path = "config.yaml") -> dict[str, Any]:
@@ -117,8 +119,63 @@ def resolve_config_path(config: dict[str, Any], path_like: str | Path) -> Path:
 
     path = Path(path_like).expanduser()
     if path.is_absolute():
-        return path
+        return path.resolve()
     return (_config_base_dir(config) / path).resolve()
+
+
+def get_config_value(
+    config: Mapping[str, Any],
+    dotted_path: str,
+    *,
+    default: Any = _MISSING,
+) -> Any:
+    """Return a nested config value addressed by dotted keys."""
+
+    current: Any = config
+    for part in dotted_path.split("."):
+        if not isinstance(current, Mapping) or part not in current:
+            if default is _MISSING:
+                raise KeyError(f"Missing config value: {dotted_path}")
+            return default
+        current = current[part]
+    return current
+
+
+def resolve_configured_path(
+    config: dict[str, Any],
+    dotted_path: str,
+    *,
+    default: Any = _MISSING,
+) -> Path:
+    """Resolve a configured path relative to the config file location."""
+
+    return resolve_config_path(config, get_config_value(config, dotted_path, default=default))
+
+
+def outputs_root(config: dict[str, Any]) -> Path:
+    """Return the configured root directory for generated evaluation artifacts."""
+
+    return resolve_configured_path(config, "outputs.directory")
+
+
+def resolve_output_path(config: dict[str, Any], path_like: str | Path) -> Path:
+    """Resolve an output path relative to the configured outputs root."""
+
+    path = Path(path_like).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    return (outputs_root(config) / path).resolve()
+
+
+def resolve_configured_output_path(
+    config: dict[str, Any],
+    dotted_path: str,
+    *,
+    default: Any = _MISSING,
+) -> Path:
+    """Resolve a configured output path relative to the configured outputs root."""
+
+    return resolve_output_path(config, get_config_value(config, dotted_path, default=default))
 
 
 def gamma_mean_cv_to_shape_scale(mean: float, cv: float) -> dict[str, float]:

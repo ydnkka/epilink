@@ -18,17 +18,19 @@ from epilink import (
 
 try:
     from .config import (
+        get_config_value,
         load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
-        project_root,
-        resolve_script_path,
     )
     from .leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
     from .metrics import predict_logistic_scores
     from .models import build_linkage_models, build_natural_history_parameters
     from .specs import (
         EPILINK_SPECS,
+        DEFAULT_SEED,
         LOGIT_SPECS,
         MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,
@@ -40,17 +42,19 @@ try:
     )
 except ImportError:
     from config import (
+        get_config_value,
         load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
-        project_root,
-        resolve_script_path
     )
     from leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
     from metrics import predict_logistic_scores
     from models import build_linkage_models, build_natural_history_parameters
     from specs import (
         EPILINK_SPECS,
+        DEFAULT_SEED,
         LOGIT_SPECS,
         MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,
@@ -60,18 +64,6 @@ except ImportError:
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
         score_metadata,
     )
-
-
-_EPILINK_SPECS = EPILINK_SPECS
-_LOGIT_SPECS = LOGIT_SPECS
-
-TREE_PATH = "data/processed/scovmod/scovmod_tree.gml"
-RESULTS_DIR = "results/sparsification"
-TRAINING_FRACTION = 0.1
-RNG_SEED = 12345
-RESOLUTION = 0.5
-SPARSIFICATION = [0.0, 0.0001, 0.001, 0.01, 0.1]
-MIN_WEIGHT_RETENTION = 0.995
 
 
 def timed(function, *args, **kwargs):
@@ -194,7 +186,7 @@ def build_logit_surface(
     snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
     predict_features = np.column_stack((day_grid.ravel(), snp_grid.ravel()))
     surfaces: list[pd.DataFrame] = []
-    for spec in _LOGIT_SPECS:
+    for spec in LOGIT_SPECS:
         feature_matrix = pairwise_frame[
             [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
         ].to_numpy(copy=False)
@@ -262,7 +254,7 @@ def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.
         "logit_deterministic",
         "logit_stochastic",
     ):
-        if column not in merged:
+        if column not in merged.columns:
             merged[column] = np.nan
 
     column_order = [
@@ -285,18 +277,24 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # args = build_parser(config_path).parse_args()
 
     config = load_config(config_path)
+    workflow = get_config_value(config, "workflows.sparsification", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
     inference_parameters = resolve_inference_baseline_parameters(config)
+    training_fraction = float(workflow.get("training_fraction"))
+    rng_seed = int(get_config_value(config, "rng_seed", default=DEFAULT_SEED))
+    resolution = float(workflow.get("resolution"))
+    sparsification_thresholds = [float(value) for value in workflow.get("thresholds")]
+    min_weight_retention = float(workflow.get("min_weight_retention"))
 
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build scored pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_script_path(TREE_PATH))
+    tree_path = str(resolve_configured_path(config, "paths.tree_path"))
     tree = nx.read_gml(tree_path)
 
     data_profile = InfectiousnessToTransmission(
         parameters=build_natural_history_parameters(generation_parameters),
-        rng_seed=RNG_SEED,
+        rng_seed=rng_seed,
     )
     populated_tree = simulate_epidemic_dates(
         transmission_profile=data_profile,
@@ -316,9 +314,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 2. Build EpiLink scorers and score pairs
     # ------------------------------------------------------------------
-    linkage_models = build_linkage_models(inference_parameters, rng_seed=RNG_SEED)
+    linkage_models = build_linkage_models(inference_parameters, rng_seed=rng_seed)
 
-    for spec in _EPILINK_SPECS:
+    for spec in EPILINK_SPECS:
         pairs[spec["key"]] = np.asarray(
             linkage_models[spec["mutation_process"]].score_target(
                 sample_time_difference=sampling_dates,
@@ -327,22 +325,22 @@ def main(config_path: str | Path = "config.yaml") -> None:
             dtype=float,
         )
 
-    for spec in _LOGIT_SPECS:
+    for spec in LOGIT_SPECS:
         feature_matrix = pairs[
             [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
         ].to_numpy(copy=False)
         pairs[spec["key"]], _ = predict_logistic_scores(
             feature_matrix,
             is_related,
-            training_fraction=TRAINING_FRACTION,
-            rng_seed=RNG_SEED,
+            training_fraction=training_fraction,
+            rng_seed=rng_seed,
             return_classifier=False,
         )
 
     # ------------------------------------------------------------------
     # 3. Sparsification analysis
     # ------------------------------------------------------------------
-    results_dir = resolve_script_path(RESULTS_DIR)
+    results_dir = resolve_configured_output_path(config, "outputs.sparsification.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     snps = build_surface_axis(15, 0.1)
@@ -360,8 +358,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
         is_related=is_related,
         snps=snps,
         days=days,
-        training_fraction=TRAINING_FRACTION,
-        rng_seed=RNG_SEED,
+        training_fraction=training_fraction,
+        rng_seed=rng_seed,
     )
     merged_surface = merge_score_surfaces(compatibility_surface, logit_surface)
     merged_surface.to_parquet(results_dir / "score_surfaces.parquet", index=False)
@@ -377,9 +375,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
         reference_weight = total_edge_weight(pairs, weight_column=weight_column)
         reference_edge_count = len(pairs)
-        metadata = score_metadata(weight_column, logistic_training_fraction=TRAINING_FRACTION)
+        metadata = score_metadata(weight_column, logistic_training_fraction=training_fraction)
 
-        for threshold in SPARSIFICATION:
+        for threshold in sparsification_thresholds:
             filtered, sparsify_seconds = timed(sparsify_edges, pairs, threshold, weight_column)
             retained_weight = total_edge_weight(filtered, weight_column=weight_column)
             retained_edges = len(filtered)
@@ -388,8 +386,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
                 filtered,
                 weight_column=weight_column,
                 vertex_ids=reference_nodes,
-                resolution=RESOLUTION,
-                rng_seed=RNG_SEED,
+                resolution=resolution,
+                rng_seed=rng_seed,
             )
             retention_rows.append({
                 "weight_column": weight_column,
@@ -411,7 +409,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     retention_frame.to_parquet(results_dir / "sparsify_edge_retention.parquet", index=False)
 
-    optimal_thresholds = determine_optimal_thresholds(retention_frame, MIN_WEIGHT_RETENTION)
+    optimal_thresholds = determine_optimal_thresholds(retention_frame, min_weight_retention)
     (results_dir / "optimal_thresholds.json").write_text(json.dumps(optimal_thresholds, indent=2))
 
 
