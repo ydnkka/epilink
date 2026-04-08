@@ -6,10 +6,9 @@ from typing import Any, Mapping, MutableMapping
 BASELINE_SCENARIO_NAME = "baseline"
 
 DEFAULT_TARGET = ("ad(0)", "ca(0,0)")
+DEFAULT_SEED = 12345
 DEFAULT_MAXIMUM_DEPTH = 0
 DEFAULT_NUM_SIMULATIONS = 10_000
-DEFAULT_TRAINING_FRACTION = 0.1
-DEFAULT_SPARSIFICATION = 0.0001
 
 PAIRWISE_BOTH_SAMPLED_COLUMN = "BothSampled"
 PAIRWISE_RELATED_COLUMN = "IsRelated"
@@ -175,7 +174,7 @@ def parameter_columns(parameters: Mapping[str, Any], *, prefix: str) -> dict[str
 def score_metadata(
     model_key: str,
     *,
-    logistic_training_fraction: float = DEFAULT_TRAINING_FRACTION,
+    logistic_training_fraction: float,
 ) -> dict[str, str | float]:
     metadata = SCORE_METADATA.get(model_key, UNKNOWN_SCORE_METADATA)
     training_fraction = (

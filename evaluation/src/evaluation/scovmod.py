@@ -15,19 +15,23 @@ import pandas as pd
 from networkx.algorithms.tree.branchings import maximum_spanning_arborescence
 
 try:
-    from .config import project_root, resolve_path
+    from .config import (
+        get_config_value,
+        load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
+    )
+    from .specs import DEFAULT_SEED
     from .heterogeneity import heterogeneity
 except ImportError:
-    from config import project_root, resolve_path
+    from config import (
+        get_config_value,
+        load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
+    )
+    from specs import DEFAULT_SEED
     from heterogeneity import heterogeneity
-
-
-INFECTION_PATH = "data/raw/scovmod/InfectedIndividuals.1.csv"
-TRANSMISSION_PATH = "data/raw/scovmod/TransmissionEvents.1.csv"
-PROCESSED_DIR = "data/processed/scovmod"
-RESULTS_DIR = "results/scovmod"
-TARGET_COMPONENT_SIZE = 5000
-RNG_SEED = 12345
 
 
 # -----------------------------
@@ -283,26 +287,32 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
 # -----------------------------
 
 
-def main() -> None:
-    infection_path = resolve_path(INFECTION_PATH)
-    transmission_path = resolve_path(TRANSMISSION_PATH)
+def main(config_path: str | Path = "config.yaml") -> None:
+    config = load_config(config_path)
+    workflow = get_config_value(config, "workflows.scovmod", default={})
+    infection_path = resolve_configured_path(config, "paths.scovmod.infection_path")
+    transmission_path = resolve_configured_path(config, "paths.scovmod.transmission_path")
+    target_component_size = int(workflow.get("target_component_size"))
+    rng_seed = int(get_config_value(config, "rng_seed", default=DEFAULT_SEED))
 
     if not infection_path.exists():
         raise FileNotFoundError(f"Missing infection history file: {infection_path}")
     if not transmission_path.exists():
         raise FileNotFoundError(f"Missing transmission events file: {transmission_path}")
 
-    processed_dir = resolve_path(PROCESSED_DIR)
-    out_dir = resolve_path(RESULTS_DIR)
-    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = resolve_configured_output_path(config, "outputs.scovmod.directory")
+    tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
+    heterogeneity_path = resolve_configured_output_path(config, "outputs.scovmod.heterogeneity_path")
     out_dir.mkdir(parents=True, exist_ok=True)
+    tree_path.parent.mkdir(parents=True, exist_ok=True)
+    heterogeneity_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Parse
     infect_df = parse_scovmod_outputs(infection_path)
     trans_df = parse_scovmod_outputs(transmission_path)
 
     # Build raw network
-    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=RNG_SEED)
+    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
 
     # Raw network diagnostics
     raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
@@ -317,7 +327,7 @@ def main() -> None:
     # Select target component
     comp_G = select_target_component(
         clean_G,
-        target_size=TARGET_COMPONENT_SIZE,
+        target_size=target_component_size,
     )
 
     degree_rows: list[dict[str, object]] = []
@@ -330,12 +340,10 @@ def main() -> None:
     tree_G = build_msa_tree(comp_G)
 
     # Save graph
-    gml_path = processed_dir / "scovmod_tree.gml"
-    nx.write_gml(tree_G, gml_path)
+    nx.write_gml(tree_G, tree_path)
 
     offspring_counts = np.array(list(dict(clean_G.out_degree(clean_G.nodes)).values()))
     results = heterogeneity(offspring_counts)
-    heterogeneity_path = processed_dir / "tree_heterogeneity.json"
     heterogeneity_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     # Save summary stats
@@ -347,9 +355,8 @@ def main() -> None:
     ]
 
     summary_df = pd.DataFrame(summaries)
-    summary_parquet = out_dir / "tree_summary.parquet"
-    summary_df.to_parquet(summary_parquet, index=False)
 
+    summary_df.to_parquet(out_dir / "tree_summary.parquet", index=False)
     raw_component_df.to_parquet(out_dir / "component_sizes.parquet", index=False)
     degree_df.to_parquet(out_dir / "degree_distributions.parquet", index=False)
 

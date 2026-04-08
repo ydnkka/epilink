@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any
+from pathlib import Path
+import json
 
 import pandas as pd
 
 try:
-    from .config import build_run_specs
+    from .config import build_run_specs, load_config, resolve_configured_output_path
     from .evaluate import ScenarioResult, evaluate_scenario
     from .specs import BASELINE_SCENARIO_NAME, parameter_columns
 except ImportError:
-    from config import build_run_specs
+    from config import build_run_specs, load_config, resolve_configured_output_path
     from evaluate import ScenarioResult, evaluate_scenario
     from specs import BASELINE_SCENARIO_NAME, parameter_columns
 
@@ -80,6 +84,13 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     classifier_cache: dict[str, dict[str, Any]] = {}
     baseline_performance_cache: dict[str, dict[str, float]] = {}
 
+    optimal_thresholds: dict[str, float] = {}
+    thresholds_path = resolve_configured_output_path(config, "outputs.sparsification.optimal_thresholds_path")
+    if thresholds_path.exists():
+        optimal_thresholds = json.loads(thresholds_path.read_text())
+
+    evaluate_kwargs["sparsification"] = optimal_thresholds
+
     results_rows = []
 
     def _is_loss_reference(run: Any) -> bool:
@@ -135,3 +146,13 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
                     results_rows.append(_make_row(run, scenario_result, model_key, model_result))
 
     return pd.DataFrame(results_rows)
+
+def main(config_path: str | Path = "config.yaml") -> None:
+    config = load_config(config_path)
+    out_dir = resolve_configured_output_path(config, "outputs.synthetic.directory")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results = run_experiment(config)
+    results.to_parquet(out_dir / "results.parquet", index=False)
+
+if __name__ == "__main__":
+    main()

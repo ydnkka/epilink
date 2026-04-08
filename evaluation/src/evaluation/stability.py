@@ -17,17 +17,18 @@ from epilink import (
 
 try:
     from .config import (
+        get_config_value,
         load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
-        project_root,
-        resolve_path,
     )
     from .leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
     from .metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
     from .models import build_linkage_models, build_natural_history_parameters
     from .specs import (
-        DEFAULT_SPARSIFICATION,
+        DEFAULT_SEED,
         EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
@@ -37,17 +38,18 @@ try:
     )
 except ImportError:
     from config import (
+        get_config_value,
         load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
-        project_root,
-        resolve_path,
     )
     from leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
     from metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
     from models import build_linkage_models, build_natural_history_parameters
     from specs import (
-        DEFAULT_SPARSIFICATION,
+        DEFAULT_SEED,
         EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
@@ -55,20 +57,6 @@ except ImportError:
         PAIRWISE_RELATED_COLUMN,
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
     )
-
-_DEFAULT_SPARSIFICATION = DEFAULT_SPARSIFICATION
-_EPILINK_SPECS = EPILINK_SPECS
-_LOGIT_SPECS = LOGIT_SPECS
-
-TREE_PATH = "data/processed/scovmod/scovmod_tree.gml"
-RESULTS_DIR = "results/stability"
-THRESHOLDS_PATH = "results/sparsification/optimal_thresholds.json"
-STEP_DAYS = 7
-TRAIN_MAX_TIME_INDEX = 2
-N_RESTARTS = 10
-TRAINING_FRACTION = 0.1
-RNG_SEED = 12345
-RESOLUTION_GRID = np.arange(0.1, 1.1, 0.1)
 
 
 # ---------------------------------------------------------------------------
@@ -163,23 +151,30 @@ def cumulative_stability(
 
 def main(config_path: str | Path = "config.yaml") -> None:
     config = load_config(config_path)
+    workflow = get_config_value(config, "workflows.stability", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
     inference_parameters = resolve_inference_baseline_parameters(config)
+    step_days = int(workflow.get("step_days"))
+    train_max_time_index = int(workflow.get("train_max_time_index"))
+    n_restarts = int(workflow.get("n_restarts"))
+    training_fraction = float(workflow.get("training_fraction"))
+    rng_seed = int(get_config_value(config, "rng_seed", default=DEFAULT_SEED))
+    resolution_grid = np.asarray(workflow.get("resolution_grid"), dtype=float)
 
     optimal_thresholds: dict[str, float] = {}
-    thresholds_path = resolve_path(THRESHOLDS_PATH)
+    thresholds_path = resolve_configured_output_path(config, "outputs.sparsification.optimal_thresholds_path")
     if thresholds_path.exists():
         optimal_thresholds = json.loads(thresholds_path.read_text())
 
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_path(TREE_PATH))
+    tree_path = str(resolve_configured_path(config, "paths.tree_path"))
     tree = nx.read_gml(tree_path)
 
     data_profile = InfectiousnessToTransmission(
         parameters=build_natural_history_parameters(generation_parameters),
-        rng_seed=RNG_SEED,
+        rng_seed=rng_seed,
     )
     populated_tree = simulate_epidemic_dates(
         transmission_profile=data_profile,
@@ -193,14 +188,14 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
     pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
-    case_meta = sampling_times(populated_tree, step_days=STEP_DAYS)
+    case_meta = sampling_times(populated_tree, step_days=step_days)
 
     # ------------------------------------------------------------------
     # 2. Score pairs
     # ------------------------------------------------------------------
-    linkage_models = build_linkage_models(inference_parameters, rng_seed=RNG_SEED)
+    linkage_models = build_linkage_models(inference_parameters, rng_seed=rng_seed)
     sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
-    for spec in _EPILINK_SPECS:
+    for spec in EPILINK_SPECS:
         pairs[spec["key"]] = np.asarray(
             linkage_models[spec["mutation_process"]].score_target(
                 sample_time_difference=sampling_dates,
@@ -210,10 +205,10 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     # Train logistic classifiers on early cases only, predict over all pairs.
-    initial_nodes = set(case_meta.loc[case_meta["available_time"] <= TRAIN_MAX_TIME_INDEX, "node"])
+    initial_nodes = set(case_meta.loc[case_meta["available_time"] <= train_max_time_index, "node"])
     initial_pairs = subset_pairs_for_nodes(pairs, initial_nodes)
     y_train = initial_pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
-    for spec in _LOGIT_SPECS:
+    for spec in LOGIT_SPECS:
         train_features = initial_pairs[
             [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
         ].to_numpy(copy=False)
@@ -223,8 +218,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
         pairs[spec["key"]], _ = predict_logistic_scores(
             train_features,
             y_train,
-            training_fraction=TRAINING_FRACTION,
-            rng_seed=RNG_SEED,
+            training_fraction=training_fraction,
+            rng_seed=rng_seed,
             predict_feature_matrix=predict_features,
         )
 
@@ -236,20 +231,20 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
     metric_rows = []
     for key in MODEL_KEYS:
-        minimum_weight = optimal_thresholds.get(key, _DEFAULT_SPARSIFICATION)
+        minimum_weight = optimal_thresholds.get(key, 0.0001)
         graph = build_weighted_graph(
             pairwise_frame=initial_pairs,
             weight_column=key,
             minimum_weight=minimum_weight,
             vertex_ids=sorted(initial_nodes),
         )
-        for resolution in RESOLUTION_GRID:
+        for resolution in resolution_grid:
             partition, _ = run_leiden_partition(
                 graph,
                 weight_column=key,
                 resolution=float(resolution),
-                num_restarts=N_RESTARTS,
-                rng_seed=RNG_SEED,
+                num_restarts=n_restarts,
+                rng_seed=rng_seed,
             )
             predicted = {
                 int(case_id): {int(cluster_id)}
@@ -268,7 +263,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 4. Cumulative stability
     # ------------------------------------------------------------------
-    results_dir = resolve_path(RESULTS_DIR)
+    results_dir = resolve_configured_output_path(config, "outputs.stability.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     case_counts = (
@@ -278,9 +273,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     case_counts.to_parquet(results_dir / "case_counts_over_time.parquet", index=False)
 
-    mid_resolution = float(RESOLUTION_GRID[len(RESOLUTION_GRID) // 2])
+    mid_resolution = float(resolution_grid[len(resolution_grid) // 2])
     for key in MODEL_KEYS:
-        minimum_weight = optimal_thresholds.get(key, _DEFAULT_SPARSIFICATION)
+        minimum_weight = optimal_thresholds.get(key, 0.0001)
         resolution = float(model_resolution_map.get(key, mid_resolution))
 
         stability_frame = cumulative_stability(
@@ -289,8 +284,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
             weight_column=key,
             minimum_weight=minimum_weight,
             resolution=resolution,
-            num_restarts=N_RESTARTS,
-            rng_seed=RNG_SEED,
+            num_restarts=n_restarts,
+            rng_seed=rng_seed,
         )
         if stability_frame.empty:
             continue

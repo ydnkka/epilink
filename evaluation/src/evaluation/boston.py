@@ -8,31 +8,29 @@ import numpy as np
 import pandas as pd
 
 try:
-    from .config import load_config, project_root, resolve_inference_baseline_parameters, resolve_path
+    from .config import (
+        get_config_value,
+        load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
+        resolve_inference_baseline_parameters,
+    )
+    from .specs import DEFAULT_SEED
     from .leiden import run_leiden_partition
     from .metrics import analyse_partition_composition
     from .models import build_linkage_model
 except ImportError:
-    from config import load_config, project_root, resolve_inference_baseline_parameters, resolve_path
+    from config import (
+        get_config_value,
+        load_config,
+        resolve_configured_output_path,
+        resolve_configured_path,
+        resolve_inference_baseline_parameters,
+    )
+    from specs import DEFAULT_SEED
     from leiden import run_leiden_partition
     from metrics import analyse_partition_composition
     from models import build_linkage_model
-
-METADATA_PATH = "data/processed/boston/boston_metadata.parquet"
-PAIRWISE_PATH = "data/processed/boston/boston_pairwise_distances.parquet"
-RESULTS_DIR = "results/boston"
-ID_COL_1 = "SeqID1"
-ID_COL_2 = "SeqID2"
-DATE_COL = "Date"
-EXPOSURE_COL = "Exposure"
-TEMPORAL_COL = "Temporal_Distance"
-GENETIC_COL = "SNP_Distance"
-MIN_EDGE_WEIGHT = 0.0001
-RESOLUTION = 0.3
-MIN_CLUSTER_SIZE = 2
-FOCUS_EXPOSURES = ("Conference", "SNF")
-N_RESTARTS = 10
-RNG_SEED = 12345
 
 
 # ---------------------------------------------------------------------------
@@ -42,12 +40,13 @@ RNG_SEED = 12345
 def add_temporal_distance(
         pairwise_df: pd.DataFrame,
         metadata_df: pd.DataFrame,
+        metadata_id_col: str,
         id_col_1: str,
         id_col_2: str,
         date_col: str,
         out_col: str,
 ) -> pd.DataFrame:
-    date_map = metadata_df.set_index("SeqID")[date_col]
+    date_map = metadata_df.set_index(metadata_id_col)[date_col]
     d1 = pd.to_datetime(pairwise_df[id_col_1].map(date_map))
     d2 = pd.to_datetime(pairwise_df[id_col_2].map(date_map))
     pairwise_df[out_col] = (d1 - d2).abs().dt.days.astype(int)
@@ -57,28 +56,32 @@ def add_temporal_distance(
 def build_graph(
         pairwise_df: pd.DataFrame,
         metadata_df: pd.DataFrame,
+        metadata_id_col: str,
+        metadata_date_col: str,
+        metadata_clade_col: str,
         id_col_1: str,
         id_col_2: str,
         exposure_col: str,
+        weight_column: str,
         minimum_weight: float = 0.0001,
-        weight_column: str = "EpiLinkStochasticScore",
+        edge_attribute_columns: tuple[str, ...] = (),
 ) -> ig.Graph:
     """Build an igraph Graph with vertex metadata and weighted edges."""
     all_ids = pd.unique(pairwise_df[[id_col_1, id_col_2]].values.ravel())
     id_to_index = {seq_id: i for i, seq_id in enumerate(all_ids)}
-    metadata_dict = metadata_df.set_index("SeqID").to_dict(orient="index")
+    metadata_dict = metadata_df.set_index(metadata_id_col).to_dict(orient="index")
 
     g = ig.Graph(n=len(all_ids))
-    g.vs["SeqID"] = all_ids.tolist()
-    g.vs["Date"] = [metadata_dict.get(sid, {}).get("Date") for sid in all_ids]
-    g.vs["Clade"] = [metadata_dict.get(sid, {}).get("Clade") for sid in all_ids]
+    g.vs[metadata_id_col] = all_ids.tolist()
+    g.vs[metadata_date_col] = [metadata_dict.get(sid, {}).get(metadata_date_col) for sid in all_ids]
+    g.vs[metadata_clade_col] = [metadata_dict.get(sid, {}).get(metadata_clade_col) for sid in all_ids]
     g.vs[exposure_col] = [metadata_dict.get(sid, {}).get(exposure_col) for sid in all_ids]
 
     filtered = pairwise_df[pairwise_df[weight_column] >= minimum_weight]
     edges = list(zip(filtered[id_col_1].map(id_to_index), filtered[id_col_2].map(id_to_index)))
     g.add_edges(edges)
 
-    for col in ["TN93_Distance", "SNP_Distance", "Temporal_Distance", weight_column]:
+    for col in (*edge_attribute_columns, weight_column):
         if col in filtered.columns:
             g.es[col] = filtered[col].tolist()
 
@@ -101,8 +104,27 @@ def summarise_cluster_sizes(cluster_results: pd.DataFrame, focus_cluster_ids: se
 
 def main(config_path: str | Path = "config.yaml") -> None:
     config = load_config(config_path)
-    metadata_path = resolve_path(METADATA_PATH)
-    pairwise_path = resolve_path(PAIRWISE_PATH)
+    workflow = get_config_value(config, "workflows.boston", default={})
+    schema = get_config_value(config, "workflows.boston.schema", default={})
+    metadata_path = resolve_configured_path(config, "paths.boston.metadata_path")
+    pairwise_path = resolve_configured_path(config, "paths.boston.pairwise_path")
+    metadata_id_col = str(schema.get("metadata_id_col"))
+    metadata_date_col = str(schema.get("metadata_date_col"))
+    metadata_clade_col = str(schema.get("metadata_clade_col"))
+    exposure_col = str(schema.get("exposure_col"))
+    pairwise_id_col_1 = str(schema.get("pairwise_id_col_1"))
+    pairwise_id_col_2 = str(schema.get("pairwise_id_col_2"))
+    temporal_col = str(schema.get("temporal_col"))
+    genetic_col = str(schema.get("genetic_col"))
+    tn93_col = str(schema.get("tn93_col"))
+    weight_column = str(schema.get("weight_column"))
+    min_edge_weight = float(workflow.get("minimum_edge_weight"))
+    resolution = float(workflow.get("resolution"))
+    min_cluster_size = int(workflow.get("min_cluster_size"))
+    focus_exposures_raw = workflow.get("focus_exposures")
+    focus_exposures = tuple(str(value) for value in focus_exposures_raw)
+    n_restarts = int(workflow.get("n_restarts"))
+    rng_seed = int(get_config_value(config, "rng_seed", default=DEFAULT_SEED))
 
     if not metadata_path.exists():
         raise FileNotFoundError(f"Boston metadata file not found: {metadata_path}")
@@ -112,30 +134,34 @@ def main(config_path: str | Path = "config.yaml") -> None:
     metadata = pd.read_parquet(metadata_path)
     pair_data = pd.read_parquet(pairwise_path)
 
-    missing = {ID_COL_1, ID_COL_2, GENETIC_COL} - set(pair_data.columns)
-    if missing:
-        raise ValueError(f"Missing required columns in pairwise file: {missing}")
+    missing_pairwise = {pairwise_id_col_1, pairwise_id_col_2, genetic_col} - set(pair_data.columns)
+    if missing_pairwise:
+        raise ValueError(f"Missing required columns in pairwise file: {missing_pairwise}")
+
+    missing_metadata = {metadata_id_col, metadata_date_col, exposure_col} - set(metadata.columns)
+    if missing_metadata:
+        raise ValueError(f"Missing required columns in metadata file: {missing_metadata}")
 
     pair_data = add_temporal_distance(
         pairwise_df=pair_data,
         metadata_df=metadata,
-        id_col_1=ID_COL_1,
-        id_col_2=ID_COL_2,
-        date_col=DATE_COL,
-        out_col=TEMPORAL_COL,
+        metadata_id_col=metadata_id_col,
+        id_col_1=pairwise_id_col_1,
+        id_col_2=pairwise_id_col_2,
+        date_col=metadata_date_col,
+        out_col=temporal_col,
     )
 
-    weight_column = "EpiLinkStochasticScore"
     inference_parameters = resolve_inference_baseline_parameters(config)
     stochastic_model = build_linkage_model(
         inference_parameters,
         mutation_process="stochastic",
-        rng_seed=RNG_SEED,
+        rng_seed=rng_seed,
     )
     pair_data[weight_column] = np.asarray(
         stochastic_model.score_target(
-            sample_time_difference=pair_data[TEMPORAL_COL].values,
-            genetic_distance=pair_data[GENETIC_COL].values,
+            sample_time_difference=pair_data[temporal_col].values,
+            genetic_distance=pair_data[genetic_col].values,
         ),
         dtype=float,
     )
@@ -143,32 +169,36 @@ def main(config_path: str | Path = "config.yaml") -> None:
     g = build_graph(
         pairwise_df=pair_data,
         metadata_df=metadata,
-        id_col_1=ID_COL_1,
-        id_col_2=ID_COL_2,
-        exposure_col=EXPOSURE_COL,
-        minimum_weight=MIN_EDGE_WEIGHT,
+        metadata_id_col=metadata_id_col,
+        metadata_date_col=metadata_date_col,
+        metadata_clade_col=metadata_clade_col,
+        id_col_1=pairwise_id_col_1,
+        id_col_2=pairwise_id_col_2,
+        exposure_col=exposure_col,
+        minimum_weight=min_edge_weight,
+        edge_attribute_columns=(tn93_col, genetic_col, temporal_col),
         weight_column=weight_column,
     )
 
     partition, _ = run_leiden_partition(
         g,
         weight_column=weight_column,
-        resolution=RESOLUTION,
-        num_restarts=N_RESTARTS,
-        rng_seed=RNG_SEED,
+        resolution=resolution,
+        num_restarts=n_restarts,
+        rng_seed=rng_seed,
     )
 
     cluster_results = analyse_partition_composition(
         partition,
-        node_attribute=EXPOSURE_COL,
-        edge_attributes=[GENETIC_COL, TEMPORAL_COL],
-        min_cluster_size=MIN_CLUSTER_SIZE,
+        node_attribute=exposure_col,
+        edge_attributes=[genetic_col, temporal_col],
+        min_cluster_size=min_cluster_size,
     )
 
-    if FOCUS_EXPOSURES:
-        focus_cols = [f"count::{label}" for label in FOCUS_EXPOSURES if f"count::{label}" in cluster_results.columns]
+    if focus_exposures:
+        focus_cols = [f"count::{label}" for label in focus_exposures if f"count::{label}" in cluster_results.columns]
         if not focus_cols:
-            raise ValueError(f"Focus exposures not found in cluster summary: {FOCUS_EXPOSURES}")
+            raise ValueError(f"Focus exposures not found in cluster summary: {focus_exposures}")
         focus_results = cluster_results[cluster_results[focus_cols].sum(axis=1) > 0]
     else:
         focus_results = cluster_results
@@ -176,25 +206,25 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary = focus_results[[
         "cluster_id",
         "size",
-        f"intra_mean_{GENETIC_COL}",
-        f"intra_max_{GENETIC_COL}",
-        f"intra_mean_{TEMPORAL_COL}",
-        f"intra_max_{TEMPORAL_COL}",
-        f"inter_mean_{GENETIC_COL}",
+        f"intra_mean_{genetic_col}",
+        f"intra_max_{genetic_col}",
+        f"intra_mean_{temporal_col}",
+        f"intra_max_{temporal_col}",
+        f"inter_mean_{genetic_col}",
     ]].copy()
     summary.rename(columns={
         "cluster_id": "Cluster ID",
         "size": "Size",
-        f"intra_mean_{GENETIC_COL}": "Intra-SNP (Mean)",
-        f"intra_max_{GENETIC_COL}": "Intra-SNP (Max)",
-        f"intra_mean_{TEMPORAL_COL}": "Intra-Time (Mean)",
-        f"intra_max_{TEMPORAL_COL}": "Intra-Time (Max)",
-        f"inter_mean_{GENETIC_COL}": "Inter-SNP (Mean)",
+        f"intra_mean_{genetic_col}": "Intra-SNP (Mean)",
+        f"intra_max_{genetic_col}": "Intra-SNP (Max)",
+        f"intra_mean_{temporal_col}": "Intra-Time (Mean)",
+        f"intra_max_{temporal_col}": "Intra-Time (Max)",
+        f"inter_mean_{genetic_col}": "Inter-SNP (Mean)",
     }, inplace=True)
 
     cluster_sizes = summarise_cluster_sizes(cluster_results, set(focus_results["cluster_id"].astype(int)))
 
-    results_dir = resolve_path(RESULTS_DIR)
+    results_dir = resolve_configured_output_path(config, "outputs.boston.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     summary.to_parquet(results_dir / "cluster_summary.parquet", index=False)
