@@ -1,9 +1,7 @@
 """Evaluate partition stability as cases accrue over time."""
 from __future__ import annotations
 
-import argparse
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,40 +9,66 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from epilink import (
-    EpiLink,
     InfectiousnessToTransmission,
-    NaturalHistoryParameters,
     build_pairwise_case_table,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
 )
 
 try:
-    from .config import gamma_mean_cv_to_shape_scale, load_config, resolve_path
-    from .evaluate import MODEL_KEYS
+    from .config import (
+        load_config,
+        resolve_generation_baseline_parameters,
+        resolve_inference_baseline_parameters,
+        project_root,
+        resolve_path,
+    )
     from .leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
     from .metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
+    from .models import build_linkage_models, build_natural_history_parameters
+    from .specs import (
+        DEFAULT_SPARSIFICATION,
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+    )
 except ImportError:
-    from config import gamma_mean_cv_to_shape_scale, load_config, resolve_path
-    from evaluate import MODEL_KEYS
+    from config import (
+        load_config,
+        resolve_generation_baseline_parameters,
+        resolve_inference_baseline_parameters,
+        project_root,
+        resolve_path,
+    )
     from leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
     from metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
+    from models import build_linkage_models, build_natural_history_parameters
+    from specs import (
+        DEFAULT_SPARSIFICATION,
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+    )
 
-logger = logging.getLogger(__name__)
+_DEFAULT_SPARSIFICATION = DEFAULT_SPARSIFICATION
+_EPILINK_SPECS = EPILINK_SPECS
+_LOGIT_SPECS = LOGIT_SPECS
 
-_DEFAULT_SPARSIFICATION = 0.0001
-
-_EPILINK_SPECS: list[dict[str, str]] = [
-    {"key": "EDD", "mutation_process": "deterministic", "distance_col": "DeterministicDistance"},
-    {"key": "EDS", "mutation_process": "deterministic", "distance_col": "StochasticDistance"},
-    {"key": "ESD", "mutation_process": "stochastic",    "distance_col": "DeterministicDistance"},
-    {"key": "ESS", "mutation_process": "stochastic",    "distance_col": "StochasticDistance"},
-]
-
-_LOGIT_SPECS: list[dict[str, str]] = [
-    {"key": "LD", "distance_col": "DeterministicDistance"},
-    {"key": "LS", "distance_col": "StochasticDistance"},
-]
+TREE_PATH = "data/processed/scovmod/scovmod_tree.gml"
+RESULTS_DIR = "results/stability"
+THRESHOLDS_PATH = "results/sparsification/optimal_thresholds.json"
+STEP_DAYS = 7
+TRAIN_MAX_TIME_INDEX = 2
+N_RESTARTS = 10
+TRAINING_FRACTION = 0.1
+RNG_SEED = 12345
+RESOLUTION_GRID = np.arange(0.1, 1.1, 0.1)
 
 
 # ---------------------------------------------------------------------------
@@ -69,14 +93,13 @@ def sampling_times(tree: nx.Graph, step_days: int) -> pd.DataFrame:
 
 
 def run_partition_for_nodes(
-    pairwise_frame: pd.DataFrame,
-    *,
-    nodes_present: set,
-    weight_column: str,
-    minimum_weight: float,
-    resolution: float,
-    num_restarts: int,
-    rng_seed: int,
+        pairwise_frame: pd.DataFrame,
+        nodes_present: set,
+        weight_column: str,
+        minimum_weight: float,
+        resolution: float,
+        num_restarts: int,
+        rng_seed: int,
 ) -> dict[Any, int]:
     """Infer a single Leiden partition for the available cases at one time point."""
     subgraph_pairs = subset_pairs_for_nodes(pairwise_frame, nodes_present)
@@ -97,14 +120,13 @@ def run_partition_for_nodes(
 
 
 def cumulative_stability(
-    pairwise_frame: pd.DataFrame,
-    case_meta: pd.DataFrame,
-    *,
-    weight_column: str,
-    resolution: float,
-    minimum_weight: float,
-    num_restarts: int,
-    rng_seed: int,
+        pairwise_frame: pd.DataFrame,
+        case_meta: pd.DataFrame,
+        weight_column: str,
+        resolution: float,
+        minimum_weight: float,
+        num_restarts: int,
+        rng_seed: int,
 ) -> pd.DataFrame:
     """Run cumulative clustering and compare consecutive time-step partitions."""
     transitions = []
@@ -138,87 +160,46 @@ def cumulative_stability(
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main(config_path: str | Path = "config.yaml") -> None:
-    parser = argparse.ArgumentParser(description="Temporal partition stability analysis.")
-    parser.add_argument("--config", default=config_path, help="Path to YAML configuration.")
-    parser.add_argument("--step-days", type=int, default=7, help="Time-bin width in days.")
-    parser.add_argument(
-        "--train-max-time-index", type=int, default=2,
-        help="Latest available_time index used to train logistic classifiers.",
-    )
-    parser.add_argument(
-        "--thresholds", default=None,
-        help="Path to optimal_thresholds.json from sparsification analysis (optional).",
-    )
-    args = parser.parse_args()
 
-    config = load_config(args.config)
-    fixed = config["fixed_parameters"]
-    rng_seed = int(config.get("experiment", {}).get("seed", 12345))
-    n_restarts = int(config["execution"]["evaluate_kwargs"].get("n_restarts", 10))
-    training_fraction = float(config["execution"]["evaluate_kwargs"].get("training_fraction", 0.1))
-    resolution_grid = np.arange(0.1, 1.1, 0.1)
+def main(config_path: str | Path = "config.yaml") -> None:
+    config = load_config(config_path)
+    generation_parameters = resolve_generation_baseline_parameters(config)
+    inference_parameters = resolve_inference_baseline_parameters(config)
 
     optimal_thresholds: dict[str, float] = {}
-    if args.thresholds is not None:
-        thresholds_path = resolve_path(args.thresholds)
-        if thresholds_path.exists():
-            optimal_thresholds = json.loads(thresholds_path.read_text())
+    thresholds_path = resolve_path(THRESHOLDS_PATH)
+    if thresholds_path.exists():
+        optimal_thresholds = json.loads(thresholds_path.read_text())
 
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_path(config["paths"]["tree_path"]))
+    tree_path = str(resolve_path(TREE_PATH))
     tree = nx.read_gml(tree_path)
 
-    def _nhp(baseline: dict[str, Any]) -> NaturalHistoryParameters:
-        inc = gamma_mean_cv_to_shape_scale(float(baseline["incubation"]["mean"]), float(baseline["incubation"]["cv"]))
-        td = gamma_mean_cv_to_shape_scale(float(baseline["testing_delay"]["mean"]), float(baseline["testing_delay"]["cv"]))
-        return NaturalHistoryParameters(
-            incubation_shape=float(inc["shape"]),
-            incubation_scale=float(inc["scale"]),
-            latent_shape=float(fixed.get("latent_shape", 3.38)),
-            symptomatic_rate=float(fixed.get("symptomatic_rate", 0.37)),
-            symptomatic_shape=float(fixed.get("symptomatic_shape", 1.0)),
-            transmission_rate_ratio=float(fixed.get("transmission_rate_ratio", 2.29)),
-            testing_delay_shape=float(td["shape"]),
-            testing_delay_scale=float(td["scale"]),
-            substitution_rate=float(baseline.get("substitution_rate", 1e-3)),
-            relaxation=float(baseline.get("relaxation", 0.33)),
-            genome_length=int(fixed.get("genome_length", 29903)),
-        )
-
-    data_profile = InfectiousnessToTransmission(parameters=_nhp(config["generation_baseline"]), rng_seed=rng_seed)
+    data_profile = InfectiousnessToTransmission(
+        parameters=build_natural_history_parameters(generation_parameters),
+        rng_seed=RNG_SEED,
+    )
     populated_tree = simulate_epidemic_dates(
         transmission_profile=data_profile,
         tree=tree,
-        fraction_sampled=float(fixed.get("fraction_sampled", 1.0)),
+        fraction_sampled=float(generation_parameters.get("fraction_sampled", 1.0)),
     )
     genomic_outputs = simulate_genomic_sequences(
         transmission_profile=data_profile,
         tree=populated_tree,
-        genome_length=int(fixed.get("synthetic_genome_length", 5_000)),
+        genome_length=int(generation_parameters.get("synthetic_genome_length", 5_000)),
     )
     pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
-    pairs = pairwise.loc[pairwise["BothSampled"]].copy()
-    case_meta = sampling_times(populated_tree, step_days=args.step_days)
+    pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
+    case_meta = sampling_times(populated_tree, step_days=STEP_DAYS)
 
     # ------------------------------------------------------------------
     # 2. Score pairs
     # ------------------------------------------------------------------
-    infer_profile = InfectiousnessToTransmission(parameters=_nhp(config["inference_baseline"]), rng_seed=rng_seed)
-    target_labels = tuple(str(v) for v in fixed.get("target", ("ad(0)", "ca(0,0)")))
-    linkage_models = {
-        mp: EpiLink(
-            mutation_process=mp,
-            transmission_profile=infer_profile,
-            maximum_depth=int(fixed.get("maximum_depth", 0)),
-            mc_samples=int(fixed.get("num_simulations", 10_000)),
-            target=target_labels,
-        )
-        for mp in ("deterministic", "stochastic")
-    }
-    sampling_dates = pairs["SamplingDateDistanceDays"].to_numpy(copy=False)
+    linkage_models = build_linkage_models(inference_parameters, rng_seed=RNG_SEED)
+    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
     for spec in _EPILINK_SPECS:
         pairs[spec["key"]] = np.asarray(
             linkage_models[spec["mutation_process"]].score_target(
@@ -229,17 +210,21 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     # Train logistic classifiers on early cases only, predict over all pairs.
-    initial_nodes = set(case_meta.loc[case_meta["available_time"] <= args.train_max_time_index, "node"])
+    initial_nodes = set(case_meta.loc[case_meta["available_time"] <= TRAIN_MAX_TIME_INDEX, "node"])
     initial_pairs = subset_pairs_for_nodes(pairs, initial_nodes)
-    y_train = initial_pairs["IsRelated"].astype(int).values
+    y_train = initial_pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
     for spec in _LOGIT_SPECS:
-        train_features = initial_pairs[["SamplingDateDistanceDays", spec["distance_col"]]].to_numpy(copy=False)
-        predict_features = pairs[["SamplingDateDistanceDays", spec["distance_col"]]].to_numpy(copy=False)
+        train_features = initial_pairs[
+            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
+        ].to_numpy(copy=False)
+        predict_features = pairs[
+            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
+        ].to_numpy(copy=False)
         pairs[spec["key"]], _ = predict_logistic_scores(
             train_features,
             y_train,
-            training_fraction=training_fraction,
-            rng_seed=rng_seed,
+            training_fraction=TRAINING_FRACTION,
+            rng_seed=RNG_SEED,
             predict_feature_matrix=predict_features,
         )
 
@@ -258,13 +243,13 @@ def main(config_path: str | Path = "config.yaml") -> None:
             minimum_weight=minimum_weight,
             vertex_ids=sorted(initial_nodes),
         )
-        for resolution in resolution_grid:
+        for resolution in RESOLUTION_GRID:
             partition, _ = run_leiden_partition(
                 graph,
                 weight_column=key,
                 resolution=float(resolution),
-                num_restarts=n_restarts,
-                rng_seed=rng_seed,
+                num_restarts=N_RESTARTS,
+                rng_seed=RNG_SEED,
             )
             predicted = {
                 int(case_id): {int(cluster_id)}
@@ -283,7 +268,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 4. Cumulative stability
     # ------------------------------------------------------------------
-    results_dir = resolve_path(config["outputs"]["directory"])
+    results_dir = resolve_path(RESULTS_DIR)
     results_dir.mkdir(parents=True, exist_ok=True)
 
     case_counts = (
@@ -293,11 +278,10 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     case_counts.to_parquet(results_dir / "case_counts_over_time.parquet", index=False)
 
-    mid_resolution = float(resolution_grid[len(resolution_grid) // 2])
+    mid_resolution = float(RESOLUTION_GRID[len(RESOLUTION_GRID) // 2])
     for key in MODEL_KEYS:
         minimum_weight = optimal_thresholds.get(key, _DEFAULT_SPARSIFICATION)
         resolution = float(model_resolution_map.get(key, mid_resolution))
-        logger.info("Computing temporal stability: %s (resolution=%.2f)", key, resolution)
 
         stability_frame = cumulative_stability(
             pairs,
@@ -305,8 +289,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
             weight_column=key,
             minimum_weight=minimum_weight,
             resolution=resolution,
-            num_restarts=n_restarts,
-            rng_seed=rng_seed,
+            num_restarts=N_RESTARTS,
+            rng_seed=RNG_SEED,
         )
         if stability_frame.empty:
             continue

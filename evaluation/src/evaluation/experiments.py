@@ -1,22 +1,25 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
 try:
     from .config import build_run_specs
     from .evaluate import ScenarioResult, evaluate_scenario
+    from .specs import BASELINE_SCENARIO_NAME, parameter_columns
 except ImportError:
     from config import build_run_specs
     from evaluate import ScenarioResult, evaluate_scenario
+    from specs import BASELINE_SCENARIO_NAME, parameter_columns
+
 
 
 def _evaluate_run(
         run: Any,
-        evaluate_kwargs: Dict[str, Any],
-        baseline_performance: Optional[Dict[str, Dict[str, float]]],
-        logistic_classifier: Optional[Dict[str, Any]],
+        evaluate_kwargs: dict[str, Any],
+        baseline_performance: dict[str, dict[str, float]] | None,
+        logistic_classifier: dict[str, Any] | None,
 ) -> tuple:
     """Worker: evaluate a single run. Must be module-level for ProcessPoolExecutor pickling."""
     scenario_result, classifiers = evaluate_scenario(
@@ -31,7 +34,12 @@ def _evaluate_run(
     return run, scenario_result
 
 
-def _make_row(run: Any, scenario_result: ScenarioResult, model_key: str, model_result: Any) -> Dict[str, Any]:
+def _make_row(
+        run: Any,
+        scenario_result: ScenarioResult,
+        model_key: str,
+        model_result: Any,
+) -> dict[str, Any]:
     return {
         "condition": run.condition,
         "scenario": run.scenario_name,
@@ -46,27 +54,17 @@ def _make_row(run: Any, scenario_result: ScenarioResult, model_key: str, model_r
         "f1_loss": model_result.f1_loss,
         "mean_stability": model_result.mean_stability,
         "std_stability": model_result.std_stability,
-        "generation_incubation_shape": run.generation_parameters["incubation_shape"],
-        "generation_incubation_scale": run.generation_parameters["incubation_scale"],
-        "generation_testing_delay_shape": run.generation_parameters["testing_delay_shape"],
-        "generation_testing_delay_scale": run.generation_parameters["testing_delay_scale"],
-        "generation_substitution_rate": run.generation_parameters["substitution_rate"],
-        "generation_relaxation": run.generation_parameters["relaxation"],
-        "inference_incubation_shape": run.inference_parameters["incubation_shape"],
-        "inference_incubation_scale": run.inference_parameters["incubation_scale"],
-        "inference_testing_delay_shape": run.inference_parameters["testing_delay_shape"],
-        "inference_testing_delay_scale": run.inference_parameters["testing_delay_scale"],
-        "inference_substitution_rate": run.inference_parameters["substitution_rate"],
-        "inference_relaxation": run.inference_parameters["relaxation"],
+        **parameter_columns(run.generation_parameters, prefix="generation"),
+        **parameter_columns(run.inference_parameters, prefix="inference"),
     }
 
 
-def run_experiment(config: Dict[str, Any]) -> pd.DataFrame:
+def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     """Run all configured scenarios and return a tidy results table.
 
-    The baseline run (matched condition + loss_reference scenario) executes first so that its
-    classifier and performance metrics are available to all subsequent runs. All other runs are
-    then dispatched in parallel via ProcessPoolExecutor.
+    The loss-reference run executes first so that its classifier and performance metrics are
+    available to all subsequent runs. All other runs are then dispatched in parallel via
+    ProcessPoolExecutor.
 
     Set ``execution.max_workers`` in the config to cap the process-pool size (default: one
     worker per CPU core). On platforms that require a ``if __name__ == '__main__'`` guard
@@ -76,19 +74,21 @@ def run_experiment(config: Dict[str, Any]) -> pd.DataFrame:
     evaluate_kwargs = deepcopy(config["execution"].get("evaluate_kwargs", {}))
     max_workers = config["execution"].get("max_workers", None)
 
-    baseline_reference = config["design"]["loss_reference"]["scenario"]
-    classifier_cache: Dict[str, Dict[str, Any]] = {}
-    baseline_performance_cache: Dict[str, Dict[str, float]] = {}
+    loss_reference = config["design"]["loss_reference"]
+    loss_reference_condition = loss_reference["condition"]
+    loss_reference_scenario = loss_reference["scenario"]
+    classifier_cache: dict[str, dict[str, Any]] = {}
+    baseline_performance_cache: dict[str, dict[str, float]] = {}
 
     results_rows = []
 
-    def _is_baseline(r: Any) -> bool:
-        return r.condition == "matched" and r.scenario_name == baseline_reference
+    def _is_loss_reference(run: Any) -> bool:
+        return run.condition == loss_reference_condition and run.scenario_name == loss_reference_scenario
 
-    baseline_runs = [r for r in runs if _is_baseline(r)]
-    other_runs = [r for r in runs if not _is_baseline(r)]
+    baseline_runs = [run for run in runs if _is_loss_reference(run)]
+    other_runs = [run for run in runs if not _is_loss_reference(run)]
 
-    # Phase 1: baseline runs are sequential — their outputs seed the parallel phase.
+    # Phase 1: the loss-reference runs are sequential — their outputs seed the parallel phase.
     for run in baseline_runs:
         scenario_result, classifiers = evaluate_scenario(
             tree_path=run.tree_path,
@@ -101,7 +101,7 @@ def run_experiment(config: Dict[str, Any]) -> pd.DataFrame:
         )
 
         if classifiers is not None:
-            classifier_cache["baseline"] = classifiers
+            classifier_cache["loss_reference"] = classifiers
 
         baseline_performance_cache = {
             key: {"ap": model_result.ap, "best_f1": model_result.best_f1}
@@ -120,7 +120,11 @@ def run_experiment(config: Dict[str, Any]) -> pd.DataFrame:
                     run,
                     evaluate_kwargs,
                     baseline_performance_cache or None,
-                    classifier_cache.get("baseline") if run.condition == "generation_varied_inference_fixed" else None,
+                    (
+                        classifier_cache.get("loss_reference")
+                        if run.logit_training_source == BASELINE_SCENARIO_NAME
+                        else None
+                    ),
                 ): run
                 for run in other_runs
             }

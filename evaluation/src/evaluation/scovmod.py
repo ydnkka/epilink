@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import ast
 import csv
 import json
@@ -14,9 +15,19 @@ import pandas as pd
 from networkx.algorithms.tree.branchings import maximum_spanning_arborescence
 
 try:
+    from .config import project_root, resolve_path
     from .heterogeneity import heterogeneity
 except ImportError:
+    from config import project_root, resolve_path
     from heterogeneity import heterogeneity
+
+
+INFECTION_PATH = "data/raw/scovmod/InfectedIndividuals.1.csv"
+TRANSMISSION_PATH = "data/raw/scovmod/TransmissionEvents.1.csv"
+PROCESSED_DIR = "data/processed/scovmod"
+RESULTS_DIR = "results/scovmod"
+TARGET_COMPONENT_SIZE = 5000
+RNG_SEED = 12345
 
 
 # -----------------------------
@@ -65,9 +76,9 @@ def parse_scovmod_outputs(filepath: Path) -> pd.DataFrame:
 
 
 def build_transmission_network(
-    trans_events_df: pd.DataFrame,
-    infect_hist_df: pd.DataFrame,
-    rng_seed: int = 12345,
+        trans_events_df: pd.DataFrame,
+        infect_hist_df: pd.DataFrame,
+        rng_seed: int = 12345,
 ) -> nx.DiGraph:
     """
     Build a directed transmission network from event and history tables.
@@ -271,17 +282,18 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
 # Main execution
 # -----------------------------
 
-def main(target_component_size: int = 5000, rng_seed: int = 12345) -> None:
-    infection_path = Path("../../data/raw/scovmod/InfectedIndividuals.1.csv")
-    transmission_path = Path("../../data/raw/scovmod/TransmissionEvents.1.csv")
+
+def main() -> None:
+    infection_path = resolve_path(INFECTION_PATH)
+    transmission_path = resolve_path(TRANSMISSION_PATH)
 
     if not infection_path.exists():
         raise FileNotFoundError(f"Missing infection history file: {infection_path}")
     if not transmission_path.exists():
         raise FileNotFoundError(f"Missing transmission events file: {transmission_path}")
 
-    processed_dir = Path("../../data/processed/scovmod")
-    out_dir = Path("../../results") / "scovmod"
+    processed_dir = resolve_path(PROCESSED_DIR)
+    out_dir = resolve_path(RESULTS_DIR)
     processed_dir.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -290,7 +302,7 @@ def main(target_component_size: int = 5000, rng_seed: int = 12345) -> None:
     trans_df = parse_scovmod_outputs(transmission_path)
 
     # Build raw network
-    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
+    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=RNG_SEED)
 
     # Raw network diagnostics
     raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
@@ -305,7 +317,7 @@ def main(target_component_size: int = 5000, rng_seed: int = 12345) -> None:
     # Select target component
     comp_G = select_target_component(
         clean_G,
-        target_size=target_component_size
+        target_size=TARGET_COMPONENT_SIZE,
     )
 
     degree_rows: list[dict[str, object]] = []
