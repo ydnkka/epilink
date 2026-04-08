@@ -12,7 +12,11 @@ SOURCE_ROOT = WORKFLOW_ROOT / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
-from evaluation.config import load_config, resolve_configured_output_path, resolve_configured_path
+from evaluation.config import (
+    load_config,
+    resolve_configured_output_path,
+    resolve_configured_path,
+)
 
 
 CONFIG_PATH = Path(config.get("evaluation_config", WORKFLOW_ROOT / "config.yaml")).expanduser()
@@ -21,7 +25,7 @@ if not CONFIG_PATH.is_absolute():
 
 EVALUATION_CONFIG = load_config(CONFIG_PATH)
 CONFIG_INPUT = str(CONFIG_PATH)
-TREE_INPUT = str(resolve_configured_path(EVALUATION_CONFIG, "paths.tree_path"))
+TREE_INPUT = str(resolve_configured_output_path(EVALUATION_CONFIG, "outputs.scovmod.tree_path"))
 
 SCOVMOD_DIR = resolve_configured_output_path(EVALUATION_CONFIG, "outputs.scovmod.directory")
 SPARSIFICATION_DIR = resolve_configured_output_path(

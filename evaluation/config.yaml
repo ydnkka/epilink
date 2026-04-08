@@ -8,7 +8,6 @@ experiment:
     Gamma mean and CV, then translated to Gamma shape and scale during parsing.
 
 paths:
-  tree_path: "data/processed/scovmod/scovmod_tree.gml"
   boston:
     metadata_path: "data/processed/boston/boston_metadata.parquet"
     pairwise_path: "data/processed/boston/boston_pairwise_distances.parquet"

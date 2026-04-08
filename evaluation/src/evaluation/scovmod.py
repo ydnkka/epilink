@@ -4,6 +4,7 @@ import argparse
 import ast
 import csv
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from networkx.algorithms.tree.branchings import maximum_spanning_arborescence
 
 try:
     from .config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
@@ -25,6 +27,7 @@ try:
     from .heterogeneity import heterogeneity
 except ImportError:
     from config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
@@ -32,6 +35,9 @@ except ImportError:
     )
     from specs import DEFAULT_SEED
     from heterogeneity import heterogeneity
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 # -----------------------------
@@ -288,6 +294,8 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
+    configure_logging()
+    LOGGER.info("scovmod: starting")
     config = load_config(config_path)
     workflow = get_config_value(config, "workflows.scovmod", default={})
     infection_path = resolve_configured_path(config, "paths.scovmod.infection_path")
@@ -304,25 +312,28 @@ def main(config_path: str | Path = "config.yaml") -> None:
     tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
     heterogeneity_path = resolve_configured_output_path(config, "outputs.scovmod.heterogeneity_path")
     out_dir.mkdir(parents=True, exist_ok=True)
-    tree_path.parent.mkdir(parents=True, exist_ok=True)
-    heterogeneity_path.parent.mkdir(parents=True, exist_ok=True)
 
+    LOGGER.info("scovmod: parsing inputs")
     # Parse
     infect_df = parse_scovmod_outputs(infection_path)
     trans_df = parse_scovmod_outputs(transmission_path)
 
+    LOGGER.info("scovmod: building tree")
     # Build raw network
     raw_G = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
 
     # Raw network diagnostics
     raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
-    raw_component_df = pd.DataFrame({
-        "graph": "raw",
-        "component_size": np.array(raw_components, dtype=int),
-    })
 
     # Clean multiple parents
     clean_G = remove_reinfections(raw_G)
+    clean_components = [len(c) for c in nx.weakly_connected_components(clean_G)]
+
+    component_sizes = pd.DataFrame({
+        "kind": ["raw"] * len(raw_components) + ["cleaned"] * len(clean_components),
+        "value": raw_components + clean_components
+    })
+
 
     # Select target component
     comp_G = select_target_component(
@@ -357,8 +368,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary_df = pd.DataFrame(summaries)
 
     summary_df.to_parquet(out_dir / "tree_summary.parquet", index=False)
-    raw_component_df.to_parquet(out_dir / "component_sizes.parquet", index=False)
+    component_sizes.to_parquet(out_dir / "component_sizes.parquet", index=False)
     degree_df.to_parquet(out_dir / "degree_distributions.parquet", index=False)
+    LOGGER.info("scovmod: done")
 
 if __name__ == "__main__":
     main()

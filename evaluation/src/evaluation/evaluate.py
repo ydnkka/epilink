@@ -27,7 +27,6 @@ try:
         nhp_from_baseline,
     )
     from .specs import (
-        DEFAULT_SPARSIFICATION,
         EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
@@ -45,7 +44,6 @@ except ImportError:
     from metrics import bcubed_scores, predict_logistic_scores
     from models import build_linkage_models, build_natural_history_parameters, nhp_from_baseline
     from specs import (
-        DEFAULT_SPARSIFICATION,
         EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
@@ -64,8 +62,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Result types
 # ---------------------------------------------------------------------------
-
-_DEFAULT_SPARSIFICATION = DEFAULT_SPARSIFICATION
 
 
 @dataclass(frozen=True)
@@ -309,7 +305,7 @@ def evaluate_scenario(
     result = ScenarioResult(scenario_name=scenario_name, n_pairs=n_pairs, prevalence=prevalence)
     has_both_classes = len(np.unique(is_related)) == 2
     for key in MODEL_KEYS:
-        threshold = float(sparsification.get(key, _DEFAULT_SPARSIFICATION))
+        threshold = float(sparsification.get(key, 0.0001))
         ap = float(average_precision_score(is_related, scores[key])) if has_both_classes else float("nan")
         best_f1, stability_mean, stability_std = _clustering(
             case_a,
