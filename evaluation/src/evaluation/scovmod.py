@@ -1,14 +1,8 @@
-#!/usr/bin/env python3
-"""Generate a rooted SCoVMod-derived transmission tree for downstream workflows."""
-
 from __future__ import annotations
 
-import argparse
 import ast
 import csv
 import json
-import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,40 +13,10 @@ import pandas as pd
 
 from networkx.algorithms.tree.branchings import maximum_spanning_arborescence
 
-from epilink_evaluation.execution import StageContext
-from epilink_evaluation.heterogeneity import heterogeneity
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class TreeConfig:
-    rng_seed: int
-    infection_history_file: str
-    transmission_events_file: str
-    target_component_size: int
-
-
-def parse_tree_config(ctx: StageContext) -> TreeConfig:
-    """Extract tree-building parameters from configuration."""
-    return TreeConfig(
-        rng_seed=int(ctx.config_value(["project", "rng_seed"], 12345)),
-        infection_history_file=str(
-            ctx.config_value(
-                ["transmission_tree", "infection_history_file"],
-                "InfectedIndividuals.1.csv",
-            )
-        ),
-        transmission_events_file=str(
-            ctx.config_value(
-                ["transmission_tree", "transmission_events_file"],
-                "TransmissionEvents.1.csv",
-            )
-        ),
-        target_component_size=int(
-            ctx.config_value(["transmission_tree", "target_component_size"], 5000)
-        ),
-    )
+try:
+    from .heterogeneity import heterogeneity
+except ImportError:
+    from heterogeneity import heterogeneity
 
 
 # -----------------------------
@@ -307,116 +271,75 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
 # Main execution
 # -----------------------------
 
-def main(config_path: str | Path = "configs/config.yaml") -> None:
-    """Run the command-line workflow to reconstruct and save the tree."""
+def main(target_component_size: int = 5000, rng_seed: int = 12345) -> None:
+    infection_path = Path("../../data/raw/scovmod/InfectedIndividuals.1.csv")
+    transmission_path = Path("../../data/raw/scovmod/TransmissionEvents.1.csv")
 
-    parser = argparse.ArgumentParser(description="Generate a transmission tree from SCoVMod outputs.")
-    parser.add_argument("--config", default=config_path, help="Path to the YAML configuration.")
-    parser.add_argument(
-        "--out-prefix",
-        type=str,
-        default=None,
-        help="Prefix used for saved outputs (GML, summaries, figures).",
+    if not infection_path.exists():
+        raise FileNotFoundError(f"Missing infection history file: {infection_path}")
+    if not transmission_path.exists():
+        raise FileNotFoundError(f"Missing transmission events file: {transmission_path}")
+
+    processed_dir = Path("../../data/processed/scovmod")
+    out_dir = Path("../../results") / "scovmod"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Parse
+    infect_df = parse_scovmod_outputs(infection_path)
+    trans_df = parse_scovmod_outputs(transmission_path)
+
+    # Build raw network
+    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
+
+    # Raw network diagnostics
+    raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
+    raw_component_df = pd.DataFrame({
+        "graph": "raw",
+        "component_size": np.array(raw_components, dtype=int),
+    })
+
+    # Clean multiple parents
+    clean_G = remove_reinfections(raw_G)
+
+    # Select target component
+    comp_G = select_target_component(
+        clean_G,
+        target_size=target_component_size
     )
-    args = parser.parse_args()
 
-    with StageContext("scovmod", args.config) as ctx:
-        tree_cfg = parse_tree_config(ctx)
-        output_prefix = args.out_prefix or str(ctx.config_value(["output_prefix"], "scovmod_tree"))
+    degree_rows: list[dict[str, object]] = []
+    degree_rows.extend(_degree_rows(raw_G, "raw"))
+    degree_rows.extend(_degree_rows(clean_G, "cleaned"))
+    degree_rows.extend(_degree_rows(comp_G, "selected_component"))
+    degree_df = pd.DataFrame(degree_rows)
 
-        scovmod_dir = ctx.data_dir("scovmod", processed=False)
-        processed_dir = ctx.data_dir("synthetic", processed=True) / "scovmod"
-        processed_dir.mkdir(parents=True, exist_ok=True)
-        tables_out_dir = ctx.results_dir()
+    # Build tree (MSA)
+    tree_G = build_msa_tree(comp_G)
 
-        # Inputs (SCoVMod output dir + file names from config)
-        infection_path = scovmod_dir / tree_cfg.infection_history_file
-        transmission_path = scovmod_dir / tree_cfg.transmission_events_file
+    # Save graph
+    gml_path = processed_dir / "scovmod_tree.gml"
+    nx.write_gml(tree_G, gml_path)
 
-        if not infection_path.exists():
-            raise FileNotFoundError(f"Missing infection history file: {infection_path}")
-        if not transmission_path.exists():
-            raise FileNotFoundError(f"Missing transmission events file: {transmission_path}")
+    offspring_counts = np.array(list(dict(clean_G.out_degree(clean_G.nodes)).values()))
+    results = heterogeneity(offspring_counts)
+    heterogeneity_path = processed_dir / "tree_heterogeneity.json"
+    heterogeneity_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-        # Parse
-        infect_df = parse_scovmod_outputs(infection_path)
-        trans_df = parse_scovmod_outputs(transmission_path)
+    # Save summary stats
+    summaries = [
+        summarise_graph(raw_G, "raw"),
+        summarise_graph(clean_G, "cleaned"),
+        summarise_graph(comp_G, "selected_component"),
+        summarise_graph(tree_G, "final_tree"),
+    ]
 
-        # Build raw network
-        raw_G = build_transmission_network(trans_df, infect_df, rng_seed=tree_cfg.rng_seed)
+    summary_df = pd.DataFrame(summaries)
+    summary_parquet = out_dir / "tree_summary.parquet"
+    summary_df.to_parquet(summary_parquet, index=False)
 
-        # Raw network diagnostics
-        raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
-        raw_component_df = pd.DataFrame({
-            "graph": "raw",
-            "component_size": np.array(raw_components, dtype=int),
-        })
-
-        # Clean multiple parents
-        clean_G = remove_reinfections(raw_G)
-
-        # Select target component
-        comp_G = select_target_component(
-            clean_G,
-            target_size=tree_cfg.target_component_size
-        )
-
-        degree_rows: list[dict[str, object]] = []
-        degree_rows.extend(_degree_rows(raw_G, "raw"))
-        degree_rows.extend(_degree_rows(clean_G, "cleaned"))
-        degree_rows.extend(_degree_rows(comp_G, "selected_component"))
-        degree_df = pd.DataFrame(degree_rows)
-
-        # Build tree (MSA)
-        tree_G = build_msa_tree(comp_G)
-
-        # Save graph
-        gml_path = processed_dir / f"{output_prefix}.gml"
-        nx.write_gml(tree_G, gml_path)
-        logger.info("Saved tree to: %s", gml_path)
-
-        offspring_counts = np.array(list(dict(clean_G.out_degree(clean_G.nodes)).values()))
-        results = heterogeneity(offspring_counts)
-        heterogeneity_path = processed_dir / f"{output_prefix}_tree_heterogeneity.json"
-        heterogeneity_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-
-        # Save summary stats
-        summaries = [
-            summarise_graph(raw_G, "raw"),
-            summarise_graph(clean_G, "cleaned"),
-            summarise_graph(comp_G, "selected_component"),
-            summarise_graph(tree_G, "final_tree"),
-        ]
-
-        summary_df = pd.DataFrame(summaries)
-        summary_parquet = tables_out_dir / f"{output_prefix}_summary.parquet"
-        summary_df.to_parquet(summary_parquet, index=False)
-
-        raw_component_df.to_parquet(tables_out_dir / f"{output_prefix}_component_sizes.parquet", index=False)
-        degree_df.to_parquet(tables_out_dir / f"{output_prefix}_degree_distributions.parquet", index=False)
-
-        ctx.finish(
-            inputs={
-                "config": ctx.config_path,
-                "infection_history_path": infection_path,
-                "transmission_events_path": transmission_path,
-            },
-            outputs={
-                "tree_path": gml_path,
-                "summary_path": summary_parquet,
-                "heterogeneity_path": heterogeneity_path,
-                "results_dir": tables_out_dir,
-            },
-            summary={
-                "output_prefix": output_prefix,
-                "target_component_size": tree_cfg.target_component_size,
-                "raw_nodes": raw_G.number_of_nodes(),
-                "raw_edges": raw_G.number_of_edges(),
-                "final_nodes": tree_G.number_of_nodes(),
-                "final_edges": tree_G.number_of_edges(),
-            },
-        )
-
+    raw_component_df.to_parquet(out_dir / "component_sizes.parquet", index=False)
+    degree_df.to_parquet(out_dir / "degree_distributions.parquet", index=False)
 
 if __name__ == "__main__":
     main()

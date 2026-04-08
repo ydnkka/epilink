@@ -34,7 +34,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 MODEL_KEYS = ("EDD", "EDS", "ESD", "ESS", "LD", "LS")
-
 """Canonical model abbreviations.
 
 EDD — EpiLink, deterministic inference, deterministic data
@@ -141,15 +140,15 @@ def _partition_to_memberships(graph: ig.Graph, partition: ig.VertexClustering) -
 
 
 def _clustering(
-    case_a: np.ndarray,
-    case_b: np.ndarray,
-    vertex_ids: list[Any],
-    scores: np.ndarray,
-    sparsification_threshold: float,
-    resolution_grid: np.ndarray,
-    reference: dict[Any, set[int]],
-    n_restarts: int,
-    rng_seed: int,
+        case_a: np.ndarray,
+        case_b: np.ndarray,
+        vertex_ids: list[Any],
+        scores: np.ndarray,
+        sparsification_threshold: float,
+        resolution_grid: np.ndarray,
+        reference: dict[Any, set[int]],
+        n_restarts: int,
+        rng_seed: int,
 ) -> tuple[float, float, float]:
     graph = build_weighted_graph(
         source_ids=case_a,
@@ -226,7 +225,6 @@ def evaluate_scenario(
         scenario_name: str,
         generation_parameters: dict[str, Any],
         inference_parameters: dict[str, Any],
-        *,
         logistic_classifier: dict[str, LogisticRegression] = None,
         baseline_performance: dict[str, dict[str, float]] = None,
         sparsification: dict[str, float] = None,
