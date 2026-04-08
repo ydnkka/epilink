@@ -1,7 +1,6 @@
 """Quantify retention and runtime effects of edge sparsification, then determine optimal thresholds."""
 from __future__ import annotations
 
-import argparse
 import json
 import time
 from pathlib import Path
@@ -11,70 +10,68 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from epilink import (
-    EpiLink,
     InfectiousnessToTransmission,
-    NaturalHistoryParameters,
     build_pairwise_case_table,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
 )
 
 try:
-    from .config import gamma_mean_cv_to_shape_scale, load_config, resolve_path
-    from .evaluate import MODEL_KEYS
+    from .config import (
+        load_config,
+        resolve_generation_baseline_parameters,
+        resolve_inference_baseline_parameters,
+        project_root,
+        resolve_script_path,
+    )
     from .leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
     from .metrics import predict_logistic_scores
+    from .models import build_linkage_models, build_natural_history_parameters
+    from .specs import (
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_CASE_A_COLUMN,
+        PAIRWISE_CASE_B_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+        score_metadata,
+    )
 except ImportError:
-    from config import gamma_mean_cv_to_shape_scale, load_config, resolve_path
-    from evaluate import MODEL_KEYS
+    from config import (
+        load_config,
+        resolve_generation_baseline_parameters,
+        resolve_inference_baseline_parameters,
+        project_root,
+        resolve_script_path
+    )
     from leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
     from metrics import predict_logistic_scores
-
-
-_EPILINK_SPECS: list[dict[str, str]] = [
-    {"key": "EDD", "mutation_process": "deterministic", "distance_col": "DeterministicDistance"},
-    {"key": "EDS", "mutation_process": "deterministic", "distance_col": "StochasticDistance"},
-    {"key": "ESD", "mutation_process": "stochastic",    "distance_col": "DeterministicDistance"},
-    {"key": "ESS", "mutation_process": "stochastic",    "distance_col": "StochasticDistance"},
-]
-
-_LOGIT_SPECS: list[dict[str, str]] = [
-    {"key": "LD", "distance_col": "DeterministicDistance"},
-    {"key": "LS", "distance_col": "StochasticDistance"},
-]
-
-# Maps MODEL_KEYS abbreviations to descriptive column metadata.
-_SCORE_METADATA: dict[str, dict[str, str]] = {
-    "EDD": {"score_family": "epilink_score",     "inference_process": "deterministic", "data_process": "deterministic"},
-    "EDS": {"score_family": "epilink_score",     "inference_process": "deterministic", "data_process": "stochastic"},
-    "ESD": {"score_family": "epilink_score",     "inference_process": "stochastic",    "data_process": "deterministic"},
-    "ESS": {"score_family": "epilink_score",     "inference_process": "stochastic",    "data_process": "stochastic"},
-    "LD":  {"score_family": "logit_probability", "inference_process": "not_applicable", "data_process": "deterministic"},
-    "LS":  {"score_family": "logit_probability", "inference_process": "not_applicable", "data_process": "stochastic"},
-}
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _nhp_from_baseline(baseline: dict[str, Any], fixed: dict[str, Any]) -> NaturalHistoryParameters:
-    """Build NaturalHistoryParameters from a nested config baseline section."""
-    inc = gamma_mean_cv_to_shape_scale(float(baseline["incubation"]["mean"]), float(baseline["incubation"]["cv"]))
-    td = gamma_mean_cv_to_shape_scale(float(baseline["testing_delay"]["mean"]), float(baseline["testing_delay"]["cv"]))
-    return NaturalHistoryParameters(
-        incubation_shape=float(inc["shape"]),
-        incubation_scale=float(inc["scale"]),
-        latent_shape=float(fixed.get("latent_shape", 3.38)),
-        symptomatic_rate=float(fixed.get("symptomatic_rate", 0.37)),
-        symptomatic_shape=float(fixed.get("symptomatic_shape", 1.0)),
-        transmission_rate_ratio=float(fixed.get("transmission_rate_ratio", 2.29)),
-        testing_delay_shape=float(td["shape"]),
-        testing_delay_scale=float(td["scale"]),
-        substitution_rate=float(baseline.get("substitution_rate", 1e-3)),
-        relaxation=float(baseline.get("relaxation", 0.33)),
-        genome_length=int(fixed.get("genome_length", 29903)),
+    from models import build_linkage_models, build_natural_history_parameters
+    from specs import (
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_CASE_A_COLUMN,
+        PAIRWISE_CASE_B_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+        score_metadata,
     )
+
+
+_EPILINK_SPECS = EPILINK_SPECS
+_LOGIT_SPECS = LOGIT_SPECS
+
+TREE_PATH = "data/processed/scovmod/scovmod_tree.gml"
+RESULTS_DIR = "results/sparsification"
+TRAINING_FRACTION = 0.1
+RNG_SEED = 12345
+RESOLUTION = 0.5
+SPARSIFICATION = [0.0, 0.0001, 0.001, 0.01, 0.1]
+MIN_WEIGHT_RETENTION = 0.995
 
 
 def timed(function, *args, **kwargs):
@@ -91,23 +88,12 @@ def sparsify_edges(pairwise_frame: pd.DataFrame, min_edge_weight: float, weight_
     return pairwise_frame.loc[pairwise_frame[weight_column] >= min_edge_weight]
 
 
-def score_metadata(weight_column: str) -> dict[str, str | float]:
-    """Return metadata for a score column — family, inference process, data process."""
-    meta = _SCORE_METADATA.get(weight_column, {
-        "score_family": "other",
-        "inference_process": "unknown",
-        "data_process": "unknown",
-    })
-    training_fraction = 0.1 if meta["score_family"] == "logit_probability" else float("nan")
-    return {**meta, "training_fraction": training_fraction}
-
-
 def timed_igraph_and_leiden(
-    pairwise_frame: pd.DataFrame,
-    weight_column: str,
-    vertex_ids: pd.Index,
-    resolution: float,
-    rng_seed: int = 12345,
+        pairwise_frame: pd.DataFrame,
+        weight_column: str,
+        vertex_ids: pd.Index,
+        resolution: float,
+        rng_seed: int = 12345,
 ) -> tuple[float, float]:
     """Measure graph construction and Leiden runtime for a sparsified edge set."""
     graph, build_seconds = timed(
@@ -128,10 +114,7 @@ def timed_igraph_and_leiden(
     return float(build_seconds), float(leiden_seconds)
 
 
-def determine_optimal_thresholds(
-    retention_frame: pd.DataFrame,
-    min_weight_retention: float,
-) -> dict[str, float]:
+def determine_optimal_thresholds(retention_frame: pd.DataFrame, min_weight_retention: float) -> dict[str, float]:
     """Select the lowest positive threshold that preserves at least min_weight_retention fraction."""
 
     def _rank_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
@@ -159,66 +142,181 @@ def determine_optimal_thresholds(
     return optimal_thresholds
 
 
+def build_surface_axis(max_value: float, step: float) -> np.ndarray:
+    """Build an inclusive non-negative axis for score-surface evaluation."""
+    step = float(step)
+    if step <= 0:
+        raise ValueError(f"surface step must be > 0, got {step}")
+
+    upper = step * np.ceil(max(0.0, float(max_value)) / step)
+    return np.arange(0.0, upper + step, step, dtype=float)
+
+
+def build_compatibility_surface(
+        linkage_models: dict[str, Any],
+        snps: np.ndarray,
+        days: np.ndarray,
+        mutation_processes: tuple[str, ...],
+) -> pd.DataFrame:
+    """Evaluate target-compatibility surfaces over a SNP-by-time grid."""
+    snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
+    surfaces: list[pd.DataFrame] = []
+    for mutation_process in mutation_processes:
+        compatibilities = np.asarray(
+            linkage_models[mutation_process].score_target(
+                sample_time_difference=day_grid.ravel(),
+                genetic_distance=snp_grid.ravel(),
+            ),
+            dtype=float,
+        ).reshape(snp_grid.shape)
+        surfaces.append(
+            pd.DataFrame(
+                {
+                    "snp": snp_grid.ravel().astype(float),
+                    "days": day_grid.ravel().astype(float),
+                    "mutation_process": mutation_process,
+                    "compatibility": compatibilities.ravel().astype(float),
+                }
+            )
+        )
+    return pd.concat(surfaces, ignore_index=True)
+
+
+def build_logit_surface(
+        pairwise_frame: pd.DataFrame,
+        is_related: np.ndarray,
+        snps: np.ndarray,
+        days: np.ndarray,
+        training_fraction: float,
+        rng_seed: int,
+) -> pd.DataFrame:
+    """Train logistic surfaces on deterministic and stochastic distance features."""
+    snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
+    predict_features = np.column_stack((day_grid.ravel(), snp_grid.ravel()))
+    surfaces: list[pd.DataFrame] = []
+    for spec in _LOGIT_SPECS:
+        feature_matrix = pairwise_frame[
+            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
+        ].to_numpy(copy=False)
+        probabilities, _ = predict_logistic_scores(
+            feature_matrix,
+            is_related,
+            training_fraction=training_fraction,
+            rng_seed=rng_seed,
+            predict_feature_matrix=predict_features,
+            return_classifier=False,
+        )
+        surfaces.append(
+            pd.DataFrame(
+                {
+                    "snp": snp_grid.ravel().astype(float),
+                    "days": day_grid.ravel().astype(float),
+                    "weight_column": spec["key"],
+                    "distance_col": spec["distance_col"],
+                    **score_metadata(
+                        spec["key"],
+                        logistic_training_fraction=training_fraction,
+                    ),
+                    "logit_probability": np.asarray(probabilities, dtype=float),
+                }
+            )
+        )
+    return pd.concat(surfaces, ignore_index=True)
+
+
+def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.DataFrame,) -> pd.DataFrame:
+    """Combine compatibility and logit surfaces into one wide table."""
+    compatibility_frame = (
+        compatibility_surface
+        .pivot(index=["snp", "days"], columns="mutation_process", values="compatibility")
+        .rename(
+            columns={
+                "deterministic": "compatibility_deterministic",
+                "stochastic": "compatibility_stochastic",
+            }
+        )
+        .reset_index()
+    )
+    logit_frame = (
+        logit_surface
+        .pivot(index=["snp", "days"], columns="weight_column", values="logit_probability")
+        .rename(
+            columns={
+                "LD": "logit_deterministic",
+                "LS": "logit_stochastic",
+            }
+        )
+        .reset_index()
+    )
+    training_fraction = pd.Series(logit_surface["training_fraction"]).dropna().unique()
+    logit_training_fraction = (
+        float(training_fraction[0]) if len(training_fraction) > 0 else float("nan")
+    )
+
+    merged = compatibility_frame.merge(logit_frame, on=["snp", "days"], how="outer")
+    merged["logit_training_fraction"] = logit_training_fraction
+
+    for column in (
+        "compatibility_deterministic",
+        "compatibility_stochastic",
+        "logit_deterministic",
+        "logit_stochastic",
+    ):
+        if column not in merged:
+            merged[column] = np.nan
+
+    column_order = [
+        "snp",
+        "days",
+        "compatibility_deterministic",
+        "compatibility_stochastic",
+        "logit_deterministic",
+        "logit_stochastic",
+    ]
+    return merged.loc[:, column_order].sort_values(["days", "snp"]).reset_index(drop=True)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main(config_path: str | Path = "config.yaml") -> None:
-    parser = argparse.ArgumentParser(description="Edge sparsification analysis.")
-    parser.add_argument("--config", default=config_path, help="Path to YAML configuration.")
-    parser.add_argument(
-        "--weight-columns", nargs="+", default=list(MODEL_KEYS),
-        help="Score columns to analyse (default: all MODEL_KEYS).",
-    )
-    parser.add_argument("--gamma", type=float, default=0.5, help="Leiden resolution for timing diagnostics.")
-    parser.add_argument("--min-weight-retention", type=float, default=0.995)
-    args = parser.parse_args()
 
-    config = load_config(args.config)
-    fixed = config["fixed_parameters"]
-    rng_seed = int(config.get("experiment", {}).get("seed", 12345))
-    training_fraction = float(config["execution"]["evaluate_kwargs"].get("training_fraction", 0.1))
-    min_edge_weights = [0.0, 0.0001, 0.001, 0.01, 0.1]
+def main(config_path: str | Path = "config.yaml") -> None:
+    # args = build_parser(config_path).parse_args()
+
+    config = load_config(config_path)
+    generation_parameters = resolve_generation_baseline_parameters(config)
+    inference_parameters = resolve_inference_baseline_parameters(config)
 
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build scored pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_path(config["paths"]["tree_path"]))
+    tree_path = str(resolve_script_path(TREE_PATH))
     tree = nx.read_gml(tree_path)
 
-    data_nhp = _nhp_from_baseline(config["generation_baseline"], fixed)
-    data_profile = InfectiousnessToTransmission(parameters=data_nhp, rng_seed=rng_seed)
+    data_profile = InfectiousnessToTransmission(
+        parameters=build_natural_history_parameters(generation_parameters),
+        rng_seed=RNG_SEED,
+    )
     populated_tree = simulate_epidemic_dates(
         transmission_profile=data_profile,
         tree=tree,
-        fraction_sampled=float(fixed.get("fraction_sampled", 1.0)),
+        fraction_sampled=float(generation_parameters.get("fraction_sampled", 1.0)),
     )
     genomic_outputs = simulate_genomic_sequences(
         transmission_profile=data_profile,
         tree=populated_tree,
-        genome_length=int(fixed.get("synthetic_genome_length", 5_000)),
+        genome_length=int(generation_parameters.get("synthetic_genome_length", 5_000)),
     )
     pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
-    pairs = pairwise.loc[pairwise["BothSampled"]].copy()
-    is_related = pairs["IsRelated"].astype(int).values
-    sampling_dates = pairs["SamplingDateDistanceDays"].to_numpy(copy=False)
+    pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
+    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
+    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
 
     # ------------------------------------------------------------------
     # 2. Build EpiLink scorers and score pairs
     # ------------------------------------------------------------------
-    infer_nhp = _nhp_from_baseline(config["inference_baseline"], fixed)
-    infer_profile = InfectiousnessToTransmission(parameters=infer_nhp, rng_seed=rng_seed)
-    target_labels = tuple(str(v) for v in fixed.get("target", ("ad(0)", "ca(0,0)")))
-    linkage_models = {
-        mp: EpiLink(
-            mutation_process=mp,
-            transmission_profile=infer_profile,
-            maximum_depth=int(fixed.get("maximum_depth", 0)),
-            mc_samples=int(fixed.get("num_simulations", 10_000)),
-            target=target_labels,
-        )
-        for mp in ("deterministic", "stochastic")
-    }
+    linkage_models = build_linkage_models(inference_parameters, rng_seed=RNG_SEED)
 
     for spec in _EPILINK_SPECS:
         pairs[spec["key"]] = np.asarray(
@@ -230,33 +328,58 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     for spec in _LOGIT_SPECS:
-        feature_matrix = pairs[["SamplingDateDistanceDays", spec["distance_col"]]].to_numpy(copy=False)
+        feature_matrix = pairs[
+            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
+        ].to_numpy(copy=False)
         pairs[spec["key"]], _ = predict_logistic_scores(
             feature_matrix,
             is_related,
-            training_fraction=training_fraction,
-            rng_seed=rng_seed,
+            training_fraction=TRAINING_FRACTION,
+            rng_seed=RNG_SEED,
             return_classifier=False,
         )
 
     # ------------------------------------------------------------------
     # 3. Sparsification analysis
     # ------------------------------------------------------------------
-    results_dir = resolve_path(config["outputs"]["directory"])
+    results_dir = resolve_script_path(RESULTS_DIR)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    reference_nodes = pd.Index(pd.unique(pairs[["CaseA", "CaseB"]].values.ravel())).astype(str)
+    snps = build_surface_axis(15, 0.1)
+    days = build_surface_axis(20, 0.1)
+
+    compatibility_surface = build_compatibility_surface(
+        linkage_models,
+        snps=snps,
+        days=days,
+        mutation_processes=tuple(linkage_models),
+    )
+
+    logit_surface = build_logit_surface(
+        pairs,
+        is_related=is_related,
+        snps=snps,
+        days=days,
+        training_fraction=TRAINING_FRACTION,
+        rng_seed=RNG_SEED,
+    )
+    merged_surface = merge_score_surfaces(compatibility_surface, logit_surface)
+    merged_surface.to_parquet(results_dir / "score_surfaces.parquet", index=False)
+
+    reference_nodes = pd.Index(
+        pd.unique(pairs[[PAIRWISE_CASE_A_COLUMN, PAIRWISE_CASE_B_COLUMN]].values.ravel())
+    ).astype(str)
 
     retention_rows: list[dict[str, object]] = []
-    for weight_column in args.weight_columns:
+    for weight_column in MODEL_KEYS:
         if weight_column not in pairs.columns:
             continue
 
         reference_weight = total_edge_weight(pairs, weight_column=weight_column)
         reference_edge_count = len(pairs)
-        metadata = score_metadata(weight_column)
+        metadata = score_metadata(weight_column, logistic_training_fraction=TRAINING_FRACTION)
 
-        for threshold in min_edge_weights:
+        for threshold in SPARSIFICATION:
             filtered, sparsify_seconds = timed(sparsify_edges, pairs, threshold, weight_column)
             retained_weight = total_edge_weight(filtered, weight_column=weight_column)
             retained_edges = len(filtered)
@@ -265,8 +388,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
                 filtered,
                 weight_column=weight_column,
                 vertex_ids=reference_nodes,
-                resolution=args.gamma,
-                rng_seed=rng_seed,
+                resolution=RESOLUTION,
+                rng_seed=RNG_SEED,
             )
             retention_rows.append({
                 "weight_column": weight_column,
@@ -288,7 +411,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     retention_frame.to_parquet(results_dir / "sparsify_edge_retention.parquet", index=False)
 
-    optimal_thresholds = determine_optimal_thresholds(retention_frame, args.min_weight_retention)
+    optimal_thresholds = determine_optimal_thresholds(retention_frame, MIN_WEIGHT_RETENTION)
     (results_dir / "optimal_thresholds.json").write_text(json.dumps(optimal_thresholds, indent=2))
 
 

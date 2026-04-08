@@ -23,9 +23,43 @@ from sklearn.metrics import average_precision_score
 try:
     from .leiden import build_weighted_graph, run_leiden_partition
     from .metrics import bcubed_scores, predict_logistic_scores
+    from .models import (
+        build_linkage_models,
+        build_natural_history_parameters,
+        nhp_from_baseline,
+    )
+    from .specs import (
+        DEFAULT_SPARSIFICATION,
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS as SHARED_MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_CASE_A_COLUMN,
+        PAIRWISE_CASE_B_COLUMN,
+        PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_STOCHASTIC_DISTANCE_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+        SCORE_METADATA as SHARED_SCORE_METADATA,
+    )
 except ImportError:
     from leiden import build_weighted_graph, run_leiden_partition
     from metrics import bcubed_scores, predict_logistic_scores
+    from models import build_linkage_models, build_natural_history_parameters, nhp_from_baseline
+    from specs import (
+        DEFAULT_SPARSIFICATION,
+        EPILINK_SPECS,
+        LOGIT_SPECS,
+        MODEL_KEYS as SHARED_MODEL_KEYS,
+        PAIRWISE_BOTH_SAMPLED_COLUMN,
+        PAIRWISE_CASE_A_COLUMN,
+        PAIRWISE_CASE_B_COLUMN,
+        PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN,
+        PAIRWISE_RELATED_COLUMN,
+        PAIRWISE_STOCHASTIC_DISTANCE_COLUMN,
+        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+        SCORE_METADATA as SHARED_SCORE_METADATA,
+    )
 
 
 
@@ -33,7 +67,7 @@ except ImportError:
 # Result types
 # ---------------------------------------------------------------------------
 
-MODEL_KEYS = ("EDD", "EDS", "ESD", "ESS", "LD", "LS")
+MODEL_KEYS = SHARED_MODEL_KEYS
 """Canonical model abbreviations.
 
 EDD — EpiLink, deterministic inference, deterministic data
@@ -44,7 +78,7 @@ LD  — Logistic regression on deterministic distances
 LS  — Logistic regression on stochastic distances
 """
 
-_DEFAULT_SPARSIFICATION = 0.0001
+_DEFAULT_SPARSIFICATION = DEFAULT_SPARSIFICATION
 
 
 @dataclass(frozen=True)
@@ -65,48 +99,14 @@ class ScenarioResult:
     models: dict[str, ModelResult] = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# Internal scoring specs
-# ---------------------------------------------------------------------------
-
-_EPILINK_SPECS: list[dict[str, str]] = [
-    {"key": "EDD", "mutation_process": "deterministic", "distance_col": "DeterministicDistance"},
-    {"key": "EDS", "mutation_process": "deterministic", "distance_col": "StochasticDistance"},
-    {"key": "ESD", "mutation_process": "stochastic",    "distance_col": "DeterministicDistance"},
-    {"key": "ESS", "mutation_process": "stochastic",    "distance_col": "StochasticDistance"},
-]
-
-_LOGIT_SPECS: list[dict[str, str]] = [
-    {"key": "LD", "distance_col": "DeterministicDistance"},
-    {"key": "LS", "distance_col": "StochasticDistance"},
-]
+_EPILINK_SPECS = EPILINK_SPECS
+_LOGIT_SPECS = LOGIT_SPECS
+_SCORE_METADATA = SHARED_SCORE_METADATA
 
 
 # ---------------------------------------------------------------------------
 # Private helpers — simulation
 # ---------------------------------------------------------------------------
-
-def _build_nhp(params: dict[str, Any]) -> NaturalHistoryParameters:
-    return NaturalHistoryParameters(
-        incubation_shape=float(params.get("incubation_shape", 5.807)),
-        incubation_scale=float(params.get("incubation_scale", 0.948)),
-        latent_shape=float(params.get("latent_shape", 3.38)),
-        symptomatic_rate=float(params.get("symptomatic_rate", 0.37)),
-        symptomatic_shape=float(params.get("symptomatic_shape", 1.0)),
-        transmission_rate_ratio=float(params.get("transmission_rate_ratio", 2.29)),
-        testing_delay_shape=float(params.get("testing_delay_shape", 1.0)),
-        testing_delay_scale=float(params.get("testing_delay_scale", 1.0)),
-        substitution_rate=float(params.get("substitution_rate", 1e-3)),
-        relaxation=float(params.get("relaxation", 0.33)),
-        genome_length=int(params.get("genome_length", 29903)),
-    )
-
-
-def _resolve_target(raw: Any) -> tuple[str, ...]:
-    labels = (raw,) if isinstance(raw, str) else tuple(str(v) for v in raw)
-    if not labels or any(not label.strip() for label in labels):
-        raise ValueError("target must contain at least one non-empty label.")
-    return labels
 
 
 @lru_cache(maxsize=None)
@@ -242,7 +242,7 @@ def evaluate_scenario(
     # ------------------------------------------------------------------
     tree = _load_tree_template(tree_path).copy()
     reference = _reference_memberships_for_tree(tree_path)
-    data_nhp = _build_nhp(generation_parameters)
+    data_nhp = build_natural_history_parameters(generation_parameters)
     synthetic_genome_length = int(generation_parameters.get("synthetic_genome_length", 5_000))
     fraction_sampled = float(generation_parameters.get("fraction_sampled", 1.0))
 
@@ -259,45 +259,33 @@ def evaluate_scenario(
     )
     pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
 
-    pairs = pairwise.loc[pairwise["BothSampled"]].copy()
-    is_related = pairs["IsRelated"].astype(int).values
+    pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
+    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
     n_pairs = len(pairs)
     prevalence = float(is_related.mean()) if n_pairs > 0 else float("nan")
-    sampling_date_differences = pairs["SamplingDateDistanceDays"].to_numpy(copy=False)
-    deterministic_distances = pairs["DeterministicDistance"].to_numpy(copy=False)
-    stochastic_distances = pairs["StochasticDistance"].to_numpy(copy=False)
-    case_a = pairs["CaseA"].to_numpy(copy=False)
-    case_b = pairs["CaseB"].to_numpy(copy=False)
+    sampling_date_differences = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
+    deterministic_distances = pairs[PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN].to_numpy(copy=False)
+    stochastic_distances = pairs[PAIRWISE_STOCHASTIC_DISTANCE_COLUMN].to_numpy(copy=False)
+    case_a = pairs[PAIRWISE_CASE_A_COLUMN].to_numpy(copy=False)
+    case_b = pairs[PAIRWISE_CASE_B_COLUMN].to_numpy(copy=False)
     vertex_ids = np.unique(np.concatenate((case_a, case_b))).tolist()
     distance_columns = {
-        "DeterministicDistance": deterministic_distances,
-        "StochasticDistance": stochastic_distances,
+        PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN: deterministic_distances,
+        PAIRWISE_STOCHASTIC_DISTANCE_COLUMN: stochastic_distances,
     }
     feature_matrices = {
-        "DeterministicDistance": np.column_stack((sampling_date_differences, deterministic_distances)),
-        "StochasticDistance": np.column_stack((sampling_date_differences, stochastic_distances)),
+        PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN: np.column_stack(
+            (sampling_date_differences, deterministic_distances)
+        ),
+        PAIRWISE_STOCHASTIC_DISTANCE_COLUMN: np.column_stack(
+            (sampling_date_differences, stochastic_distances)
+        ),
     }
 
     # ------------------------------------------------------------------
     # 2. Build EpiLink scorers
     # ------------------------------------------------------------------
-    raw_target = inference_parameters.get("target", ("ad(0)", "ca(0,0)"))
-    maximum_depth = int(inference_parameters.get("maximum_depth", 0))
-    target_labels = _resolve_target(raw_target)
-    num_simulations = int(inference_parameters.get("num_simulations", 10_000))
-
-    infer_nhp = _build_nhp(inference_parameters)
-    infer_profile = InfectiousnessToTransmission(parameters=infer_nhp, rng_seed=rng_seed)
-    linkage_models = {
-        mp: EpiLink(
-            mutation_process=mp,
-            transmission_profile=infer_profile,
-            maximum_depth=maximum_depth,
-            mc_samples=num_simulations,
-            target=target_labels,
-        )
-        for mp in ("deterministic", "stochastic")
-    }
+    linkage_models = build_linkage_models(inference_parameters, rng_seed=rng_seed)
 
     # ------------------------------------------------------------------
     # 3. Score pairs

@@ -1,9 +1,10 @@
 -e ..
 PyYAML
 bcubed
-igraph
+python-igraph
 networkx
 numpy
 pandas
 scikit-learn
 scipy
+pyarrow
