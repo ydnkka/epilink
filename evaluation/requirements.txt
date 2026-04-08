@@ -1,5 +1,5 @@
 -e ..
-PyYAML
+pyyaml
 bcubed
 python-igraph
 networkx
@@ -8,3 +8,4 @@ pandas
 scikit-learn
 scipy
 pyarrow
+snakemake
