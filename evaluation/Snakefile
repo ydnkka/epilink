@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+WORKFLOW_ROOT = Path(workflow.basedir).resolve()
+SOURCE_ROOT = WORKFLOW_ROOT / "src"
+
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
+
+from evaluation.config import load_config, resolve_configured_output_path, resolve_configured_path
+
+
+CONFIG_PATH = Path(config.get("evaluation_config", WORKFLOW_ROOT / "config.yaml")).expanduser()
+if not CONFIG_PATH.is_absolute():
+    CONFIG_PATH = (WORKFLOW_ROOT / CONFIG_PATH).resolve()
+
+EVALUATION_CONFIG = load_config(CONFIG_PATH)
+CONFIG_INPUT = str(CONFIG_PATH)
+TREE_INPUT = str(resolve_configured_path(EVALUATION_CONFIG, "paths.tree_path"))
+
+SCOVMOD_DIR = resolve_configured_output_path(EVALUATION_CONFIG, "outputs.scovmod.directory")
+SPARSIFICATION_DIR = resolve_configured_output_path(
+    EVALUATION_CONFIG,
+    "outputs.sparsification.directory",
+)
+STABILITY_DIR = resolve_configured_output_path(EVALUATION_CONFIG, "outputs.stability.directory")
+SYNTHETIC_DIR = resolve_configured_output_path(EVALUATION_CONFIG, "outputs.synthetic.directory")
+BOSTON_DIR = resolve_configured_output_path(EVALUATION_CONFIG, "outputs.boston.directory")
+
+SCOVMOD_INPUTS = [
+    CONFIG_INPUT,
+    str(resolve_configured_path(EVALUATION_CONFIG, "paths.scovmod.infection_path")),
+    str(resolve_configured_path(EVALUATION_CONFIG, "paths.scovmod.transmission_path")),
+]
+SCOVMOD_OUTPUTS = [
+    str(resolve_configured_output_path(EVALUATION_CONFIG, "outputs.scovmod.tree_path")),
+    str(resolve_configured_output_path(EVALUATION_CONFIG, "outputs.scovmod.heterogeneity_path")),
+    str(SCOVMOD_DIR / "tree_summary.parquet"),
+    str(SCOVMOD_DIR / "component_sizes.parquet"),
+    str(SCOVMOD_DIR / "degree_distributions.parquet"),
+]
+
+SPARSIFICATION_OUTPUTS = [
+    str(SPARSIFICATION_DIR / "score_surfaces.parquet"),
+    str(SPARSIFICATION_DIR / "sparsify_edge_retention.parquet"),
+    str(resolve_configured_output_path(EVALUATION_CONFIG, "outputs.sparsification.optimal_thresholds_path")),
+]
+
+STABILITY_OUTPUTS = [
+    str(STABILITY_DIR / "case_counts_over_time.parquet"),
+    str(STABILITY_DIR / "stability_resolution_selection.parquet"),
+]
+
+SYNTHETIC_OUTPUTS = [str(SYNTHETIC_DIR / "results.parquet")]
+
+BOSTON_INPUTS = [
+    str(resolve_configured_path(EVALUATION_CONFIG, "paths.boston.metadata_path")),
+    str(resolve_configured_path(EVALUATION_CONFIG, "paths.boston.pairwise_path")),
+]
+BOSTON_OUTPUTS = [
+    str(BOSTON_DIR / "cluster_summary.parquet"),
+    str(BOSTON_DIR / "cluster_composition.parquet"),
+    str(BOSTON_DIR / "cluster_sizes.parquet"),
+]
+
+
+def _module_env() -> dict[str, str]:
+    environment = os.environ.copy()
+    current_pythonpath = environment.get("PYTHONPATH")
+    if current_pythonpath:
+        environment["PYTHONPATH"] = os.pathsep.join((str(SOURCE_ROOT), current_pythonpath))
+    else:
+        environment["PYTHONPATH"] = str(SOURCE_ROOT)
+    return environment
+
+
+def run_module(module_name: str) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"from evaluation.{module_name} import main; main({str(CONFIG_PATH)!r})",
+        ],
+        check=True,
+        cwd=WORKFLOW_ROOT,
+        env=_module_env(),
+    )
+
+
+localrules: all
+
+
+rule all:
+    input:
+        SCOVMOD_OUTPUTS,
+        SPARSIFICATION_OUTPUTS,
+        STABILITY_OUTPUTS,
+        SYNTHETIC_OUTPUTS,
+        BOSTON_OUTPUTS,
+
+
+rule scovmod:
+    input:
+        SCOVMOD_INPUTS
+    output:
+        SCOVMOD_OUTPUTS
+    message:
+        "Running scovmod.py"
+    run:
+        run_module("scovmod")
+
+
+rule sparsification:
+    input:
+        SCOVMOD_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+    output:
+        SPARSIFICATION_OUTPUTS
+    message:
+        "Running sparsification.py"
+    run:
+        run_module("sparsification")
+
+
+rule stability:
+    input:
+        SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+    output:
+        STABILITY_OUTPUTS
+    message:
+        "Running stability.py"
+    run:
+        run_module("stability")
+
+
+rule experiments:
+    input:
+        STABILITY_OUTPUTS + SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+    output:
+        SYNTHETIC_OUTPUTS
+    message:
+        "Running experiments.py"
+    run:
+        run_module("experiments")
+
+
+rule boston:
+    input:
+        SYNTHETIC_OUTPUTS + [CONFIG_INPUT] + BOSTON_INPUTS
+    output:
+        BOSTON_OUTPUTS
+    message:
+        "Running boston.py"
+    run:
+        run_module("boston")
