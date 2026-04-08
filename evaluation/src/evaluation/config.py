@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -178,6 +179,15 @@ def resolve_configured_output_path(
     return resolve_output_path(config, get_config_value(config, dotted_path, default=default))
 
 
+def configure_logging(level: int = logging.INFO) -> None:
+    """Configure minimal console logging for workflow modules."""
+
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(level=level, format="%(message)s")
+    root_logger.setLevel(level)
+
+
 def gamma_mean_cv_to_shape_scale(mean: float, cv: float) -> dict[str, float]:
     return _gamma_mean_cv_to_shape_scale(mean, cv)
 
@@ -265,7 +275,7 @@ def generate_scenarios(config: dict[str, Any]) -> dict[str, ScenarioSpec]:
 
 def build_run_specs(config: dict[str, Any]) -> list[RunSpec]:
     scenarios = generate_scenarios(config)
-    tree_path = str(resolve_config_path(config, config["paths"]["tree_path"]))
+    tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
     inference_baseline = resolve_inference_baseline_parameters(config)
 
     runs: list[RunSpec] = []
@@ -294,7 +304,7 @@ def build_run_specs(config: dict[str, Any]) -> list[RunSpec]:
                 RunSpec(
                     condition=condition_name,
                     scenario_name=scenario_name,
-                    tree_path=tree_path,
+                    tree_path=str(tree_path),
                     generation_parameters=generation_params,
                     inference_parameters=inference_params,
                     logit_training_source=condition["logit_training_source"],

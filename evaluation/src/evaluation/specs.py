@@ -143,7 +143,7 @@ def expand_baseline_parameters(
         float(baseline["testing_delay"]["cv"]),
     )
 
-    parameters = {
+    parameters: dict[str, Any] = {
         **fixed,
         "incubation_shape": incubation["shape"],
         "incubation_scale": incubation["scale"],

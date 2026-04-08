@@ -1,6 +1,7 @@
 """Run the empirical Boston clustering workflow."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import igraph as ig
@@ -9,6 +10,7 @@ import pandas as pd
 
 try:
     from .config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
@@ -21,6 +23,7 @@ try:
     from .models import build_linkage_model
 except ImportError:
     from config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
@@ -31,6 +34,9 @@ except ImportError:
     from leiden import run_leiden_partition
     from metrics import analyse_partition_composition
     from models import build_linkage_model
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +109,8 @@ def summarise_cluster_sizes(cluster_results: pd.DataFrame, focus_cluster_ids: se
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
+    configure_logging()
+    LOGGER.info("boston: starting")
     config = load_config(config_path)
     workflow = get_config_value(config, "workflows.boston", default={})
     schema = get_config_value(config, "workflows.boston.schema", default={})
@@ -131,6 +139,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     if not pairwise_path.exists():
         raise FileNotFoundError(f"Boston pairwise distances file not found: {pairwise_path}")
 
+    LOGGER.info("boston: loading inputs")
     metadata = pd.read_parquet(metadata_path)
     pair_data = pd.read_parquet(pairwise_path)
 
@@ -166,6 +175,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
         dtype=float,
     )
 
+    LOGGER.info("boston: clustering graph")
     g = build_graph(
         pairwise_df=pair_data,
         metadata_df=metadata,
@@ -230,6 +240,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary.to_parquet(results_dir / "cluster_summary.parquet", index=False)
     focus_results.to_parquet(results_dir / "cluster_composition.parquet", index=False)
     cluster_sizes.to_parquet(results_dir / "cluster_sizes.parquet", index=False)
+    LOGGER.info("boston: done")
 
 
 if __name__ == "__main__":

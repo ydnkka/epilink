@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
+import logging
 from typing import Any
 from pathlib import Path
 import json
@@ -9,14 +10,17 @@ import json
 import pandas as pd
 
 try:
-    from .config import build_run_specs, load_config, resolve_configured_output_path
+    from .config import build_run_specs, configure_logging, load_config, resolve_configured_output_path
     from .evaluate import ScenarioResult, evaluate_scenario
     from .specs import BASELINE_SCENARIO_NAME, parameter_columns
 except ImportError:
-    from config import build_run_specs, load_config, resolve_configured_output_path
+    from config import build_run_specs, configure_logging, load_config, resolve_configured_output_path
     from evaluate import ScenarioResult, evaluate_scenario
     from specs import BASELINE_SCENARIO_NAME, parameter_columns
 
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _evaluate_run(
@@ -77,6 +81,7 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     runs = build_run_specs(config)
     evaluate_kwargs = deepcopy(config["execution"].get("evaluate_kwargs", {}))
     max_workers = config["execution"].get("max_workers", None)
+    LOGGER.info("experiments: %d runs configured", len(runs))
 
     loss_reference = config["design"]["loss_reference"]
     loss_reference_condition = loss_reference["condition"]
@@ -100,6 +105,7 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     other_runs = [run for run in runs if not _is_loss_reference(run)]
 
     # Phase 1: the loss-reference runs are sequential — their outputs seed the parallel phase.
+    LOGGER.info("experiments: running baseline reference")
     for run in baseline_runs:
         scenario_result, classifiers = evaluate_scenario(
             tree_path=run.tree_path,
@@ -124,6 +130,7 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
 
     # Phase 2: all remaining runs in parallel.
     if other_runs:
+        LOGGER.info("experiments: running remaining scenarios")
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
@@ -148,11 +155,14 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(results_rows)
 
 def main(config_path: str | Path = "config.yaml") -> None:
+    configure_logging()
+    LOGGER.info("experiments: starting")
     config = load_config(config_path)
     out_dir = resolve_configured_output_path(config, "outputs.synthetic.directory")
     out_dir.mkdir(parents=True, exist_ok=True)
     results = run_experiment(config)
     results.to_parquet(out_dir / "results.parquet", index=False)
+    LOGGER.info("experiments: done")
 
 if __name__ == "__main__":
     main()

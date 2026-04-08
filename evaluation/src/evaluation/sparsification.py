@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
@@ -18,10 +19,10 @@ from epilink import (
 
 try:
     from .config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
-        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
@@ -42,10 +43,10 @@ try:
     )
 except ImportError:
     from config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
-        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
@@ -64,6 +65,9 @@ except ImportError:
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
         score_metadata,
     )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def timed(function, *args, **kwargs):
@@ -276,6 +280,8 @@ def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.
 def main(config_path: str | Path = "config.yaml") -> None:
     # args = build_parser(config_path).parse_args()
 
+    configure_logging()
+    LOGGER.info("sparsification: starting")
     config = load_config(config_path)
     workflow = get_config_value(config, "workflows.sparsification", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
@@ -289,7 +295,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build scored pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_configured_path(config, "paths.tree_path"))
+    LOGGER.info("sparsification: simulating and scoring pairs")
+    tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
     tree = nx.read_gml(tree_path)
 
     data_profile = InfectiousnessToTransmission(
@@ -340,6 +347,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 3. Sparsification analysis
     # ------------------------------------------------------------------
+    LOGGER.info("sparsification: evaluating thresholds")
     results_dir = resolve_configured_output_path(config, "outputs.sparsification.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -411,6 +419,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
     optimal_thresholds = determine_optimal_thresholds(retention_frame, min_weight_retention)
     (results_dir / "optimal_thresholds.json").write_text(json.dumps(optimal_thresholds, indent=2))
+    LOGGER.info("sparsification: done")
 
 
 if __name__ == "__main__":

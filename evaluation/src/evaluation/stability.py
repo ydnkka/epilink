@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +18,10 @@ from epilink import (
 
 try:
     from .config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
-        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
@@ -38,10 +39,10 @@ try:
     )
 except ImportError:
     from config import (
+        configure_logging,
         get_config_value,
         load_config,
         resolve_configured_output_path,
-        resolve_configured_path,
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
@@ -57,6 +58,9 @@ except ImportError:
         PAIRWISE_RELATED_COLUMN,
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
     )
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +154,8 @@ def cumulative_stability(
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
+    configure_logging()
+    LOGGER.info("stability: starting")
     config = load_config(config_path)
     workflow = get_config_value(config, "workflows.stability", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
@@ -169,7 +175,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 1. Simulate epidemic and build pairwise table
     # ------------------------------------------------------------------
-    tree_path = str(resolve_configured_path(config, "paths.tree_path"))
+    LOGGER.info("stability: simulating and scoring pairs")
+    tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
     tree = nx.read_gml(tree_path)
 
     data_profile = InfectiousnessToTransmission(
@@ -263,6 +270,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 4. Cumulative stability
     # ------------------------------------------------------------------
+    LOGGER.info("stability: evaluating cumulative partitions")
     results_dir = resolve_configured_output_path(config, "outputs.stability.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -295,6 +303,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     evaluation_metrics.to_parquet(results_dir / "stability_resolution_selection.parquet", index=False)
+    LOGGER.info("stability: done")
 
 
 if __name__ == "__main__":
