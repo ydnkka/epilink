@@ -7,7 +7,7 @@ experiment:
   seed: 12345
 
 paths:
-  tree_path: "../../data/processed/scovmod/scovmod_tree.gml"
+  tree_path: "data/processed/scovmod/scovmod_tree.gml"
 
 fixed_parameters:
   latent_shape: 3.38
@@ -126,5 +126,23 @@ execution:
     return_classifier: true
 
 outputs:
-  directory: "../../results/synthetic_epilink_robustness"
+  directory: "results/synthetic_epilink_robustness"
   file_format: "csv"
+
+
+# Boston empirical dataset clustering
+boston:
+  inputs:
+    metadata: data/processed/boston/boston_metadata.parquet
+    pairwise_distances: data/processed/boston/boston_pairwise_distances.parquet
+    id_col_1: SeqID1
+    id_col_2: SeqID2
+    date_col: Date
+    exposure_col: Exposure
+    temporal_col: Temporal_Distance
+    genetic_col: SNP_Distance
+  analysis:
+    min_edge_weight: 0.0001
+    resolution: 0.3
+    min_cluster_size: 2
+    focus_exposures: [Conference, SNF]

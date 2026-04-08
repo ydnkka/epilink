@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-"""
-Transmission heterogeneity estimators.
-
-Utilities for fitting a negative binomial offspring distribution and summarizing
-transmission concentration from individual-level offspring counts.
-"""
-
 import warnings
 
 import numpy as np
