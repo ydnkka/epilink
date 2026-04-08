@@ -1,0 +1,9 @@
+-e ..
+PyYAML
+bcubed
+igraph
+networkx
+numpy
+pandas
+scikit-learn
+scipy
