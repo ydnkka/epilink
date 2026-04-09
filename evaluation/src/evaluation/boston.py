@@ -17,11 +17,11 @@ try:
         resolve_configured_path,
         resolve_inference_baseline_parameters,
     )
-    from .specs import DEFAULT_SEED
     from .leiden import run_leiden_partition
     from .metrics import analyse_partition_composition
     from .models import build_linkage_model
-except ImportError:
+    from .specs import DEFAULT_SEED
+except ImportError:  # pragma: no cover - support direct script execution
     from config import (
         configure_logging,
         get_config_value,
@@ -30,10 +30,10 @@ except ImportError:
         resolve_configured_path,
         resolve_inference_baseline_parameters,
     )
-    from specs import DEFAULT_SEED
     from leiden import run_leiden_partition
     from metrics import analyse_partition_composition
     from models import build_linkage_model
+    from specs import DEFAULT_SEED
 
 
 LOGGER = logging.getLogger(__name__)

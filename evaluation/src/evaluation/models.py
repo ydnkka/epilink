@@ -12,7 +12,7 @@ try:
         expand_baseline_parameters,
         resolve_target_labels,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - support direct script execution
     from specs import (
         DEFAULT_MAXIMUM_DEPTH,
         DEFAULT_NUM_SIMULATIONS,

@@ -30,8 +30,8 @@ try:
     from .metrics import predict_logistic_scores
     from .models import build_linkage_models, build_natural_history_parameters
     from .specs import (
-        EPILINK_SPECS,
         DEFAULT_SEED,
+        EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,
@@ -41,7 +41,7 @@ try:
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
         score_metadata,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - support direct script execution
     from config import (
         configure_logging,
         get_config_value,
@@ -54,8 +54,8 @@ except ImportError:
     from metrics import predict_logistic_scores
     from models import build_linkage_models, build_natural_history_parameters
     from specs import (
-        EPILINK_SPECS,
         DEFAULT_SEED,
+        EPILINK_SPECS,
         LOGIT_SPECS,
         MODEL_KEYS,
         PAIRWISE_BOTH_SAMPLED_COLUMN,

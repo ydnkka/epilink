@@ -3,18 +3,28 @@ from __future__ import annotations
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 import logging
-from typing import Any
-from pathlib import Path
 import json
+from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 try:
-    from .config import build_run_specs, configure_logging, load_config, resolve_configured_output_path
+    from .config import (
+        build_run_specs,
+        configure_logging,
+        load_config,
+        resolve_configured_output_path,
+    )
     from .evaluate import ScenarioResult, evaluate_scenario
     from .specs import BASELINE_SCENARIO_NAME, parameter_columns
-except ImportError:
-    from config import build_run_specs, configure_logging, load_config, resolve_configured_output_path
+except ImportError:  # pragma: no cover - support direct script execution
+    from config import (
+        build_run_specs,
+        configure_logging,
+        load_config,
+        resolve_configured_output_path,
+    )
     from evaluate import ScenarioResult, evaluate_scenario
     from specs import BASELINE_SCENARIO_NAME, parameter_columns
 
