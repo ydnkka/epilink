@@ -39,10 +39,14 @@ try:
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
         SCORE_METADATA,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - support direct script execution
     from leiden import build_weighted_graph, run_leiden_partition
     from metrics import bcubed_scores, predict_logistic_scores
-    from models import build_linkage_models, build_natural_history_parameters, nhp_from_baseline
+    from models import (
+        build_linkage_models,
+        build_natural_history_parameters,
+        nhp_from_baseline,
+    )
     from specs import (
         EPILINK_SPECS,
         LOGIT_SPECS,

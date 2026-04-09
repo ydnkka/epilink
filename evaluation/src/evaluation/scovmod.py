@@ -23,9 +23,9 @@ try:
         resolve_configured_output_path,
         resolve_configured_path,
     )
-    from .specs import DEFAULT_SEED
     from .heterogeneity import heterogeneity
-except ImportError:
+    from .specs import DEFAULT_SEED
+except ImportError:  # pragma: no cover - support direct script execution
     from config import (
         configure_logging,
         get_config_value,
@@ -33,8 +33,8 @@ except ImportError:
         resolve_configured_output_path,
         resolve_configured_path,
     )
-    from specs import DEFAULT_SEED
     from heterogeneity import heterogeneity
+    from specs import DEFAULT_SEED
 
 
 LOGGER = logging.getLogger(__name__)

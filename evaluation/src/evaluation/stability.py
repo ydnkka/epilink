@@ -25,8 +25,18 @@ try:
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
-    from .leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
-    from .metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
+    from .leiden import (
+        build_weighted_graph,
+        partition_to_frame,
+        run_leiden_partition,
+        subset_pairs_for_nodes,
+    )
+    from .metrics import (
+        bcubed_scores,
+        get_reference_memberships,
+        overlap_metrics_between,
+        predict_logistic_scores,
+    )
     from .models import build_linkage_models, build_natural_history_parameters
     from .specs import (
         DEFAULT_SEED,
@@ -37,7 +47,7 @@ try:
         PAIRWISE_RELATED_COLUMN,
         PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - support direct script execution
     from config import (
         configure_logging,
         get_config_value,
@@ -46,8 +56,18 @@ except ImportError:
         resolve_generation_baseline_parameters,
         resolve_inference_baseline_parameters,
     )
-    from leiden import build_weighted_graph, partition_to_frame, run_leiden_partition, subset_pairs_for_nodes
-    from metrics import bcubed_scores, get_reference_memberships, overlap_metrics_between, predict_logistic_scores
+    from leiden import (
+        build_weighted_graph,
+        partition_to_frame,
+        run_leiden_partition,
+        subset_pairs_for_nodes,
+    )
+    from metrics import (
+        bcubed_scores,
+        get_reference_memberships,
+        overlap_metrics_between,
+        predict_logistic_scores,
+    )
     from models import build_linkage_models, build_natural_history_parameters
     from specs import (
         DEFAULT_SEED,

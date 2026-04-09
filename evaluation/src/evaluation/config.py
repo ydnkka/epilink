@@ -8,19 +8,23 @@ from typing import Any, Mapping
 
 import yaml
 
+MODULE_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = MODULE_ROOT.parent
+PROJECT_ROOT = SRC_ROOT.parent
+
 try:
     from .specs import (
         BASELINE_SCENARIO_NAME,
         copy_scenario_parameters,
         expand_baseline_parameters,
-        gamma_mean_cv_to_shape_scale as _gamma_mean_cv_to_shape_scale,
+        gamma_mean_cv_to_shape_scale as gamma_mean_cv_to_shape_scale,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - support direct script/notebook execution
     from specs import (
         BASELINE_SCENARIO_NAME,
         copy_scenario_parameters,
         expand_baseline_parameters,
-        gamma_mean_cv_to_shape_scale as _gamma_mean_cv_to_shape_scale,
+        gamma_mean_cv_to_shape_scale as gamma_mean_cv_to_shape_scale,
     )
 
 
@@ -51,38 +55,23 @@ class RunSpec:
 def project_root() -> Path:
     """Return the evaluation project root."""
 
-    return Path(__file__).resolve().parents[2]
+    return PROJECT_ROOT
 
 
 def source_root() -> Path:
     """Return the directory that contains the evaluation modules."""
 
-    return Path(__file__).resolve().parent
+    return MODULE_ROOT
 
 
 def resolve_path(path_like: str | Path, *, root: Path | None = None) -> Path:
-    """Resolve a path against likely evaluation roots and prefer existing targets."""
+    """Resolve a path relative to a supplied root or the evaluation project root."""
 
     path = Path(path_like).expanduser()
     if path.is_absolute():
         return path.resolve()
-
-    candidate_roots = []
-    if root is not None:
-        candidate_roots.append(Path(root).resolve())
-    candidate_roots.extend((Path.cwd().resolve(), project_root(), source_root()))
-
-    seen: set[Path] = set()
-    for base in candidate_roots:
-        if base in seen:
-            continue
-        seen.add(base)
-        resolved = (base / path).resolve()
-        if resolved.exists():
-            return resolved
-
-    fallback_root = candidate_roots[0] if candidate_roots else project_root()
-    return (fallback_root / path).resolve()
+    base = Path(root).expanduser().resolve() if root is not None else project_root()
+    return (base / path).resolve()
 
 
 def load_config(path_like: str | Path = "config.yaml") -> dict[str, Any]:
@@ -189,7 +178,7 @@ def configure_logging(level: int = logging.INFO) -> None:
 
 
 def gamma_mean_cv_to_shape_scale(mean: float, cv: float) -> dict[str, float]:
-    return _gamma_mean_cv_to_shape_scale(mean, cv)
+    return gamma_mean_cv_to_shape_scale(mean, cv)
 
 
 def _check_constraint(name: str, value: float, constraint: str) -> None:
