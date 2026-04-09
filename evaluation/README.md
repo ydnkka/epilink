@@ -114,6 +114,14 @@ snakemake -n --cores 1
 snakemake --cores 1
 ```
 
+Module logs are also written to:
+
+- `results/logs/scovmod.log`
+- `results/logs/sparsification.log`
+- `results/logs/stability.log`
+- `results/logs/experiments.log`
+- `results/logs/boston.log`
+
 ### Run a specific step
 
 ```bash
