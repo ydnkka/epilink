@@ -1,0 +1,8 @@
+sparsification: starting
+sparsification: simulating and scoring pairs
+Simulating epidemic dates for tree with 4990 nodes.
+Simulating genomic sequences of length 5000.
+Precomputing 10000 draws for 2 scenarios.
+Precomputing 10000 draws for 2 scenarios.
+sparsification: evaluating thresholds
+sparsification: done
