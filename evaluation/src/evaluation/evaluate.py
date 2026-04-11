@@ -183,6 +183,11 @@ def _clustering(
 
     return float(best_f1), float(mean_stability), float(std_stability)
 
+def _compute_loss(current, baseline, key):
+    if baseline is None or key not in baseline:
+        return None
+    return (current - float(baseline[key])) / float(baseline[key])
+
 
 def _make_model_result(
         ap: float,
@@ -191,13 +196,11 @@ def _make_model_result(
         std_stability: float,
         baseline: dict[str, float] | None,
 ) -> ModelResult:
-    ap_loss = (ap - float(baseline["ap"])) if baseline is not None and "ap" in baseline else None
-    f1_loss = (best_f1 - float(baseline["best_f1"])) if baseline is not None and "best_f1" in baseline else None
     return ModelResult(
         ap=ap,
-        ap_loss=ap_loss,
+        ap_loss=_compute_loss(ap, baseline, "ap"),
         best_f1=best_f1,
-        f1_loss=f1_loss,
+        f1_loss=_compute_loss(best_f1, baseline, "best_f1"),
         mean_stability=mean_stability,
         std_stability=std_stability,
     )
