@@ -5,3 +5,10 @@ __pycache__/
 .venv/
 /AGENTS.md
 .snakemake/
+*.aux
+*.log
+*.out
+*.blg
+*.bbl
+*.toc
+*.gz
