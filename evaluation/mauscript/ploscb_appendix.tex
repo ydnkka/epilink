@@ -1,0 +1,403 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage[
+  aboveskip=1pt,
+  labelfont=bf,
+  labelsep=period,
+  justification=raggedright,
+  singlelinecheck=off
+]{caption}
+
+% Number sections as S1, S2, etc.
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thesubsection}{S\arabic{section}.\arabic{subsection}}
+
+\begin{document}
+
+\noindent\textbf{\LARGE S1 Text. Detailed derivation and modelling assumptions for the EpiLink compatibility model.}
+
+\vspace{1.5em}
+
+\noindent This supplement expands the model summary in the main manuscript and makes explicit the structural assumptions underlying the default EpiLink score used in this study. Throughout, the observed data for a sampled pair $(i,j)$ are a signed testing-time difference $t_{ij}$ and a consensus-level genetic distance $g_{ij}$ expressed in substitutions. EpiLink compares each observed pair with Monte Carlo draws generated under candidate latent transmission scenarios and reports a compatibility score rather than a calibrated posterior probability.
+
+\tableofcontents
+\vspace{1em}
+
+% ---------------------------------------------------------------
+\section{Natural-history model}
+\label{sec:S1_nathistory}
+% ---------------------------------------------------------------
+
+EpiLink uses an $E/P/I$ natural-history model in which the latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages have Gamma-distributed durations. The formulation follows the variable-infectiousness framework of Hart et al.~\cite{Hart2021} and is consistent with early SARS-CoV-2 evidence for substantial presymptomatic transmission and incubation periods centred near five days~\cite{He2020, Ferretti2020, Lauer2020, McAloon2020}.
+
+Let
+\[
+y_E \sim \Gamma(k_E, \theta_{\mathrm{inc}}), \qquad
+y_P \sim \Gamma(k_P, \theta_{\mathrm{inc}}), \qquad
+y_I \sim \Gamma(k_I, \theta_I),
+\]
+where the presymptomatic shape is defined by
+\[
+k_P = k_{\mathrm{inc}} - k_E,
+\]
+so that the incubation period is
+\[
+\tau_{\mathrm{inc}} = y_E + y_P \sim \Gamma(k_{\mathrm{inc}}, \theta_{\mathrm{inc}}).
+\]
+In the current implementation, $k_I = 1$ and
+\[
+\theta_I = \frac{1}{k_I \mu} = \frac{1}{\mu},
+\]
+where $\mu$ is the symptomatic-stage removal rate. The constraint $0 < k_E < k_{\mathrm{inc}}$ ensures a positive presymptomatic stage duration.
+
+% ---------------------------------------------------------------
+\section{Transmission timing relative to infectiousness onset}
+\label{sec:S1_toit}
+% ---------------------------------------------------------------
+
+Let $y_{\mathrm{toit}}$ denote the time from onset of infectiousness to transmission (TOIT). In the implementation, $y_{\mathrm{toit}}$ is drawn from the \texttt{InfectiousnessToTransmission} profile, whose density is~\cite{Hart2021}
+\[
+f(y_{\mathrm{toit}}) =
+\begin{cases}
+0, & y_{\mathrm{toit}} < 0, \\[6pt]
+C\!\left[\alpha\bigl(1 - F_P(y_{\mathrm{toit}})\bigr)
++ \int_0^{y_{\mathrm{toit}}}
+  \bigl(1 - F_I(y_{\mathrm{toit}} - y_P)\bigr) f_P(y_P)\,dy_P\right],
+& y_{\mathrm{toit}} \ge 0,
+\end{cases}
+\]
+where $f_P$ and $F_P$ are the presymptomatic probability density and cumulative distribution functions, $F_I$ is the symptomatic cumulative distribution function, and $\alpha$ is the presymptomatic-to-symptomatic transmission-rate ratio.
+
+Writing $\lambda_{\mathrm{inc}} = 1/(k_{\mathrm{inc}}\theta_{\mathrm{inc}})$, the Hart et al.\ normalisation constant is
+\[
+C = \frac{k_{\mathrm{inc}}\lambda_{\mathrm{inc}}\mu}
+         {\alpha k_P \mu + k_{\mathrm{inc}}\lambda_{\mathrm{inc}}}.
+\]
+The implied presymptomatic transmission fraction is
+\[
+q_P = \frac{\alpha k_P \mu}{\alpha k_P \mu + k_{\mathrm{inc}}\lambda_{\mathrm{inc}}}.
+\]
+Because $\alpha > 1$ under the default parameterisation, transmission intensity is elevated before symptom onset and reduced after, although symptomatic transmission remains possible. This is consistent with empirical evidence that infectiousness peaks around symptom onset and that a substantial fraction of SARS-CoV-2 transmission occurs before symptoms are recognised~\cite{He2020, Ferretti2020}.
+
+The generation interval for a single infection event is then
+\[
+\tau_{\mathrm{gen}} = y_E + y_{\mathrm{toit}},
+\]
+broadly consistent with empirical estimates from transmission-pair data~\cite{Ganyani2020, Hart2022}.
+
+For the default Hart et al.\ 2021 parameterisation used in EpiLink, the natural-history parameters are
+\[
+k_{\mathrm{inc}} = 5.807, \qquad
+\theta_{\mathrm{inc}} = 0.948\ \mathrm{days}, \qquad
+k_E = 3.38, \qquad
+k_I = 1,
+\]
+\[
+\mu = 0.37\ \mathrm{day}^{-1}, \qquad
+\alpha = 2.29.
+\]
+These imply $k_P = k_{\mathrm{inc}} - k_E = 2.427$, a mean incubation period of approximately $5.51$ days, and a mean symptomatic-stage duration of approximately $2.70$ days.
+
+% ---------------------------------------------------------------
+\section{Observation model for testing times}
+\label{sec:S1_obsmodel}
+% ---------------------------------------------------------------
+
+Observed case times are sampling or testing times, not infection times. EpiLink assumes a Gamma-distributed delay from symptom onset to testing,
+\[
+x_{\mathrm{test}} \sim \Gamma(k_{\mathrm{test}}, \theta_{\mathrm{test}}),
+\]
+drawn independently for each sampled case. The total delay from infection to testing is therefore
+\[
+\tau_{\mathrm{obs}} = \tau_{\mathrm{inc}} + x_{\mathrm{test}}.
+\]
+For a latent reference infection time $t_x$ and a scenario-specific elapsed time $A_k(s)$ from that reference point to the infection of sampled case $k \in \{i, j\}$,
+\[
+t_{\mathrm{test},k} = t_x + A_k(s) + \tau_{\mathrm{obs},k}.
+\]
+The baseline testing-delay parameters used in this study are mean $= 1.0$ day and coefficient of variation $= 1.0$ (i.e.\ exponential), giving $k_{\mathrm{test}} = 1$ and $\theta_{\mathrm{test}} = 1.0$ day.
+
+% ---------------------------------------------------------------
+\section{Scenario space}
+\label{sec:S1_scenarios}
+% ---------------------------------------------------------------
+
+Let $M$ denote the maximum hidden depth considered between the two sampled cases. The full candidate scenario set is
+\[
+\mathcal{S}_M =
+\bigl\{H_{\mathrm{AD}}(m): m = 0,\ldots,M\bigr\}
+\cup
+\bigl\{H_{\mathrm{CA}}(m_i,m_j): m_i,m_j \ge 0,\; m_i+m_j \le M\bigr\}.
+\]
+Here:
+\begin{itemize}
+  \item $H_{\mathrm{AD}}(m)$ is an ancestor-descendant history in which case $j$ descends from case $i$ through $m$ unsampled intermediates;
+  \item $H_{\mathrm{CA}}(m_i,m_j)$ is a common-ancestor history in which both sampled cases descend from a shared unsampled source through branch depths $m_i$ and $m_j$.
+\end{itemize}
+
+The labels $H_{\mathrm{CA}}(m_i,m_j)$ and $H_{\mathrm{CA}}(m_j,m_i)$ are generally distinct because EpiLink uses the signed time difference $t_{ij}$. The default target used throughout this manuscript is intentionally narrow:
+\[
+\mathcal{S}_\star = \bigl\{H_{\mathrm{AD}}(0),\; H_{\mathrm{CA}}(0,0)\bigr\}, \qquad M = 0.
+\]
+The reported target score is therefore the sum of compatibility with direct transmission ($H_{\mathrm{AD}}(0)$, $i$ directly infects $j$) and co-primary infection ($H_{\mathrm{CA}}(0,0)$, both sampled cases descend from the same unsampled source in a single generation step). Note that $H_{\mathrm{AD}}(0)$ and $H_{\mathrm{CA}}(0,0)$ target different directions of time: the ancestor-descendant scenario implies $j$ is later than $i$ (positive $t_{ij}$), while the common-ancestor scenario is symmetric in timing.
+
+% ---------------------------------------------------------------
+\section{Temporal compatibility variable}
+\label{sec:S1_temporal}
+% ---------------------------------------------------------------
+
+Subtracting the testing times for cases $i$ and $j$ gives the scenario-implied testing-time difference
+\[
+T_s = A_j(s) - A_i(s) + \tau_{\mathrm{obs},j} - \tau_{\mathrm{obs},i}.
+\]
+
+For ancestor-descendant scenarios, the index case $i$ is the reference point ($A_i = 0$):
+\[
+A_i\!\bigl(H_{\mathrm{AD}}(m)\bigr) = 0, \qquad
+A_j\!\bigl(H_{\mathrm{AD}}(m)\bigr) = \sum_{r=0}^{m} \tau_{\mathrm{gen},r},
+\]
+so
+\[
+T_{ij}\!\bigl(H_{\mathrm{AD}}(m)\bigr)
+= \sum_{r=0}^{m} \tau_{\mathrm{gen},r}
++ \tau_{\mathrm{obs},j}
+- \tau_{\mathrm{obs},i}.
+\]
+
+For common-ancestor scenarios, both sampled cases descend from an unsampled source (the reference point at elapsed time 0):
+\[
+A_i\!\bigl(H_{\mathrm{CA}}(m_i,m_j)\bigr)
+= \sum_{r=1}^{m_i+1} \tau_{\mathrm{gen},r}^{(i)}, \qquad
+A_j\!\bigl(H_{\mathrm{CA}}(m_i,m_j)\bigr)
+= \sum_{s=1}^{m_j+1} \tau_{\mathrm{gen},s}^{(j)},
+\]
+giving
+\[
+T_{ij}\!\bigl(H_{\mathrm{CA}}(m_i,m_j)\bigr)
+= \sum_{s=1}^{m_j+1} \tau_{\mathrm{gen},s}^{(j)}
+- \sum_{r=1}^{m_i+1} \tau_{\mathrm{gen},r}^{(i)}
++ \tau_{\mathrm{obs},j}
+- \tau_{\mathrm{obs},i}.
+\]
+Monte Carlo simulation under scenario $s$ with $N = 10{,}000$ draws yields the empirical temporal distribution $\{T_s^{(1)},\ldots,T_s^{(N)}\}$.
+
+% ---------------------------------------------------------------
+\section{Branch length and genetic model}
+\label{sec:S1_genetic}
+% ---------------------------------------------------------------
+
+EpiLink converts latent transmission histories into an effective transmission-related branch length $B_s$ (measured in days), and then into a distribution of expected consensus genetic distances.
+
+\subsection{Ancestor-descendant branch length}
+\label{sec:S1_ad_branch}
+
+For ancestor-descendant scenarios:
+\[
+\widetilde{B}_{ij}\!\bigl(H_{\mathrm{AD}}(m)\bigr)
+= \sum_{r=0}^{m} \tau_{\mathrm{gen},r}
++ \tau_{\mathrm{obs},j}
+- \tau_{\mathrm{obs},i}.
+\]
+This equals the temporal contrast $T_{ij}(H_{\mathrm{AD}}(m))$: ancestor-descendant genetic separation is driven by the same elapsed time that determines the expected testing gap. Because lineage lengths cannot be negative, the implementation uses
+\[
+B_{ij}\!\bigl(H_{\mathrm{AD}}(m)\bigr)
+= \max\!\bigl\{0,\;\widetilde{B}_{ij}\!\bigl(H_{\mathrm{AD}}(m)\bigr)\bigr\}.
+\]
+
+\subsection{Common-ancestor branch length}
+\label{sec:S1_ca_branch}
+
+For common-ancestor scenarios, branch length accumulates along both descendant lineages from the shared unsampled source:
+\[
+B_{ij}\!\bigl(H_{\mathrm{CA}}(m_i,m_j)\bigr)
+= \sum_{r=1}^{m_i+1} \tau_{\mathrm{gen},r}^{(i)}
++ \sum_{s=1}^{m_j+1} \tau_{\mathrm{gen},s}^{(j)}
++ \tau_{\mathrm{obs},i}
++ \tau_{\mathrm{obs},j}.
+\]
+Unlike the ancestor-descendant case, this sum is always non-negative and grows with each additional unsampled intermediate.
+
+\subsection{Molecular clock}
+\label{sec:S1_clock}
+
+Let $r$ denote the median substitution rate in substitutions per site per year and $L$ the genome length in sites. The per-genome daily rate is
+\[
+\lambda = \frac{rL}{365}.
+\]
+Under a strict molecular clock, $\lambda$ is fixed across draws. Under the relaxed-clock option, EpiLink samples branch-specific rates from an uncorrelated log-normal model~\cite{Drummond2006},
+\[
+r^{(n)} \sim \mathrm{LogNormal}\!\bigl(\log r - \tfrac{1}{2}\sigma_r^2,\; \sigma_r^2\bigr),
+\qquad
+\lambda^{(n)} = \frac{r^{(n)} L}{365},
+\]
+where $\sigma_r$ is the clock-relaxation parameter and the log-normal is parameterised so that the \emph{median} equals $r$. The baseline evaluation uses $r = 10^{-3}$ substitutions per site per year and $\sigma_r = 0.33$ for the relaxed-clock variant.
+
+\subsection{Mutation model}
+\label{sec:S1_mutation}
+
+Given a branch-length draw $B_s^{(n)}$, the expected genetic distance is
+\[
+G_s^{(n)} = \lambda^{(n)} B_s^{(n)}
+\]
+under the \emph{deterministic} mutation model, or
+\[
+G_s^{(n)} \mid B_s^{(n)}, \lambda^{(n)}
+\sim \mathrm{Poisson}\!\bigl(\lambda^{(n)} B_s^{(n)}\bigr)
+\]
+under the \emph{stochastic} mutation model. The deterministic model produces a point estimate of expected substitutions given branch length; the stochastic model adds Poisson noise around that expectation, substantially widening the compatibility region near the origin of the temporal-genetic score surface (see main text, Results).
+
+% ---------------------------------------------------------------
+\section{Compatibility scoring}
+\label{sec:S1_scoring}
+% ---------------------------------------------------------------
+
+For each scenario $s$, EpiLink caches Monte Carlo draws
+\[
+\bigl\{T_s^{(n)},\; B_s^{(n)},\; G_s^{(n)}\bigr\}_{n=1}^{N}.
+\]
+Observed values are scored by their percentile within the simulated distribution. For an observed value $x_{\mathrm{obs}}$ and $N$ scenario-specific draws $x_1^{(s)},\ldots,x_N^{(s)}$,
+\[
+p_s(x_{\mathrm{obs}})
+= \frac{\#\bigl\{n : x_n^{(s)} \le x_{\mathrm{obs}}\bigr\}}{N},
+\]
+and the percentile is converted to a centrality-based compatibility score:
+\[
+C_s(x_{\mathrm{obs}})
+= 1 - 2\bigl|p_s(x_{\mathrm{obs}}) - 0.5\bigr|.
+\]
+This transformation maps percentile $p_s$ to a score that is 1 at the median of the scenario distribution and declines symmetrically towards 0 at the extremes. Applying this to time and genetics gives temporal and genetic compatibilities,
+\[
+C_{T,s}(i,j) = C_s(t_{ij}), \qquad
+C_{G,s}(i,j) = C_s(g_{ij}),
+\]
+and the scenario-level compatibility is their product:
+\[
+C_s(i,j) = C_{T,s}(i,j)\; C_{G,s}(i,j).
+\]
+The multiplicative combination rewards pairs that are simultaneously central in both the temporal and genetic distributions implied by the same latent scenario. For a user-defined target subset $\mathcal{S}_\star \subseteq \mathcal{S}_M$, EpiLink reports the summed target score:
+\[
+C_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j).
+\]
+Because these are summed compatibilities, not probabilities, target scores can exceed 1 when both scenarios simultaneously align well with the observation (as occurs near the common-ancestor / direct-transmission overlap region at small $t_{ij}$ and $g_{ij}$).
+
+% ---------------------------------------------------------------
+\section{Modelling assumptions}
+\label{sec:S1_assumptions}
+% ---------------------------------------------------------------
+
+The derivation above makes the following assumptions, which are useful to state explicitly.
+
+\begin{enumerate}
+
+\item \textbf{Recent linkage is represented by a restricted latent-history set.}
+In this manuscript, ``recent transmission linkage'' is defined as either direct transmission or co-primary infection from a shared recent source. Unsampled intermediates are not part of the default target score because $M = 0$.
+
+\item \textbf{Individuals share a common natural-history model.}
+Stage-duration distributions, testing-delay distributions, and infectiousness parameters are assumed identical across all cases within a run of the model. Individual-level heterogeneity is not accounted for.
+
+\item \textbf{Transmission timing is anchored to symptom onset.}
+The $E/P/I$ profile assumes higher transmission intensity in the presymptomatic phase and a reduced propensity after symptom onset, rather than a flat infectiousness profile over time~\cite{Hart2021, He2020, Ferretti2020}.
+
+\item \textbf{Testing time is a noisy proxy for infection time.}
+The only observed time used by EpiLink is the sample collection or testing date. Delays from symptom onset to testing are treated as independent Gamma-distributed random variables and are not directly observed.
+
+\item \textbf{Generation intervals are independent and identically distributed across transmission events.}
+Once the natural-history parameters are fixed, each transmission event contributes an independent draw from the same generation-interval distribution. Correlations arising from, for example, household or healthcare transmission contexts are not modelled.
+
+\item \textbf{Consensus divergence is driven primarily by transmission-linked lineage time.}
+EpiLink assumes limited within-host diversity over the timescale of interest, so that consensus differences mostly accumulate along the between-host lineages connecting the sampled genomes. This is broadly consistent with evidence for low within-host diversity at high viral load and a narrow SARS-CoV-2 transmission bottleneck~\cite{Lythgoe2021}.
+
+\item \textbf{Mutation counts are conditionally independent given branch length and clock rate.}
+Under the stochastic mutation model, the observed consensus distance is generated as a Poisson count conditional on the effective branch length and the (possibly relaxed-clock-drawn) substitution rate. Spatial or phylogenetic correlations in substitution rates are not modelled.
+
+\item \textbf{Temporal and genetic compatibility are combined multiplicatively.}
+The product $C_s(i,j) = C_{T,s}(i,j)\cdot C_{G,s}(i,j)$ rewards pairs that are simultaneously central in both the temporal and genetic distributions implied by the same latent scenario, and penalises pairs that are extreme in either dimension. An alternative additive or max-based aggregation would assign different weights to these two evidence streams.
+
+\item \textbf{Compatibility is not a posterior probability.}
+The percentile-centrality score is intentionally descriptive and symmetric about the scenario median. A score of 0 indicates that the observed value falls at the extreme of the Monte Carlo distribution under that scenario; a score of 1 indicates it falls exactly at the median. Low compatibility indicates poor alignment with the chosen assumptions; it does not by itself prove the absence of epidemiological linkage or provide a calibrated false-positive rate.
+
+\end{enumerate}
+
+% ---------------------------------------------------------------
+\section{Interpretation and scope}
+\label{sec:S1_interpretation}
+% ---------------------------------------------------------------
+
+Under this formulation, EpiLink should be read as an interpretable compatibility filter for recent-linkage hypotheses. Its outputs depend directly on the chosen latent-history target $\mathcal{S}_\star$, the assumed natural-history profile, the testing-delay model, and the molecular clock model. In the present study the target is restricted to $\{H_{\mathrm{AD}}(0), H_{\mathrm{CA}}(0,0)\}$; expanding the target to include hidden intermediates (larger $M$) would assign positive compatibility to pairs connected through unsampled chains, increasing scores for more distantly related pairs at the cost of reduced specificity for recent direct linkage.
+
+The method is therefore most useful when:
+\begin{enumerate}
+  \item the practical goal is to rank or cluster plausible recent-transmission neighbourhoods rather than estimate a fully calibrated transmission tree;
+  \item consensus genomes and sampling dates are available for each case;
+  \item labelled training pairs for a supervised discriminant are absent or cannot be assumed to transfer across settings; and
+  \item the analyst can articulate and inspect the natural-history and molecular-clock assumptions encoded in the model parameters.
+\end{enumerate}
+When labelled data are available and the generative process is well-characterised, the synthetic benchmark in the main text shows that a supervised logistic-regression model trained on temporal and genetic distances offers stronger pairwise discrimination and cluster recovery. EpiLink's primary advantage in those settings is interpretability: each score can be decomposed into the temporal and genetic compatibility contributions from each target scenario, making it possible to diagnose why a particular pair was or was not flagged as a recent-linkage candidate.
+
+% ---------------------------------------------------------------
+\begin{thebibliography}{10}
+
+\bibitem{Hart2021}
+Hart WS, Maini PK, Thompson RN.
+High infectiousness immediately before COVID-19 symptom onset highlights the importance of continued contact tracing.
+\textit{eLife}. 2021;10:e65534.
+doi:\href{https://doi.org/10.7554/eLife.65534}{10.7554/eLife.65534}.
+
+\bibitem{Hart2022}
+Hart WS, Miller E, Andrews NJ, Waight P, Maini PK, Funk S, Thompson RN.
+Generation time of the Alpha and Delta SARS-CoV-2 variants: an epidemiological analysis.
+\textit{The Lancet Infectious Diseases}. 2022;22(5):603--610.
+doi:\href{https://doi.org/10.1016/S1473-3099(22)00001-9}{10.1016/S1473-3099(22)00001-9}.
+
+\bibitem{He2020}
+He X, Lau EHY, Wu P, Deng X, Wang J, Hao X, et al.
+Temporal dynamics in viral shedding and transmissibility of COVID-19.
+\textit{Nature Medicine}. 2020;26:672--675.
+doi:\href{https://doi.org/10.1038/s41591-020-0869-5}{10.1038/s41591-020-0869-5}.
+
+\bibitem{Ferretti2020}
+Ferretti L, Wymant C, Kendall M, Zhao L, Nurtay A, Abeler-D{\"o}rner L, et al.
+Quantifying SARS-CoV-2 transmission suggests epidemic control with digital contact tracing.
+\textit{Science}. 2020;368(6491):eabb6936.
+doi:\href{https://doi.org/10.1126/science.abb6936}{10.1126/science.abb6936}.
+
+\bibitem{Lauer2020}
+Lauer SA, Grantz KH, Bi Q, Jones FK, Zheng Q, Meredith HR, et al.
+The Incubation Period of Coronavirus Disease 2019 (COVID-19) From Publicly Reported Confirmed Cases: Estimation and Application.
+\textit{Annals of Internal Medicine}. 2020;172(9):577--582.
+doi:\href{https://doi.org/10.7326/M20-0504}{10.7326/M20-0504}.
+
+\bibitem{McAloon2020}
+McAloon C, Collins \'{A}, Hunt K, Barber A, Byrne AW, Butler F, et al.
+Incubation period of COVID-19: a rapid systematic review and meta-analysis of observational research.
+\textit{BMJ Open}. 2020;10(8):e039652.
+doi:\href{https://doi.org/10.1136/bmjopen-2020-039652}{10.1136/bmjopen-2020-039652}.
+
+\bibitem{Ganyani2020}
+Ganyani T, Kremer C, Chen D, Torneri A, Faes C, Wallinga J, Hens N.
+Estimating the generation interval for coronavirus disease (COVID-19) based on symptom onset data, March 2020.
+\textit{Eurosurveillance}. 2020;25(17):2000257.
+doi:\href{https://doi.org/10.2807/1560-7917.ES.2020.25.17.2000257}{10.2807/1560-7917.ES.2020.25.17.2000257}.
+
+\bibitem{Drummond2006}
+Drummond AJ, Ho SYW, Phillips MJ, Rambaut A.
+Relaxed Phylogenetics and Dating with Confidence.
+\textit{PLoS Biology}. 2006;4(5):e88.
+doi:\href{https://doi.org/10.1371/journal.pbio.0040088}{10.1371/journal.pbio.0040088}.
+
+\bibitem{Lythgoe2021}
+Lythgoe KA, Hall M, Ferretti L, de Cesare M, MacIntyre-Cockett G, Trebes A, et al.
+SARS-CoV-2 within-host diversity and transmission.
+\textit{Science}. 2021;372(6539):eabg0821.
+doi:\href{https://doi.org/10.1126/science.abg0821}{10.1126/science.abg0821}.
+
+\end{thebibliography}
+
+\end{document}
