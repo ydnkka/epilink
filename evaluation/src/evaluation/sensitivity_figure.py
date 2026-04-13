@@ -110,7 +110,7 @@ def _draw_panel(
     ax.set_xlim(-clamp * 1.08, clamp * 1.08)
     ax.set_ylim(n - 0.5, -0.5)
     ax.set_yticks(range(n))
-    ax.set_yticklabels(SCENARIO_LABELS_LIST, fontsize="small")
+    ax.set_yticklabels(SCENARIO_LABELS_LIST, fontsize="medium")
     if not show_ylabels:
         ax.tick_params(axis="y", labelleft=False)
     ax.tick_params(axis="y", length=0)
@@ -153,7 +153,7 @@ def make_sensitivity_figure(df: pd.DataFrame, metric: str) -> plt.Figure:
     )
 
     metric_label = "Average precision (AP) loss" if metric == "ap_loss" else "F1 score loss"
-    fig.supxlabel(f"{metric_label} relative to baseline", fontsize="medium", x=0.6, ha="center")
+    fig.supxlabel(f"{metric_label} relative to baseline", x=0.6, ha="center")
 
     return fig
 

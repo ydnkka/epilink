@@ -25,7 +25,7 @@
 
 \vspace{1.5em}
 
-\noindent This supplement expands the model summary in the main manuscript and makes explicit the structural assumptions underlying the default EpiLink score used in this study. Throughout, the observed data for a sampled pair $(i,j)$ are a signed testing-time difference $t_{ij}$ and a consensus-level genetic distance $g_{ij}$ expressed in substitutions. EpiLink compares each observed pair with Monte Carlo draws generated under candidate latent transmission scenarios and reports a compatibility score rather than a calibrated posterior probability.
+\noindent This supplement expands the model summary in the main manuscript and makes explicit the structural assumptions underlying the default EpiLink score. For a sampled pair $(i,j)$, the observed data are a signed testing-time difference $t_{ij}$ (in days) and a consensus-level genetic distance $g_{ij}$ (in substitutions). EpiLink compares each observed pair against Monte Carlo draws generated under candidate latent transmission scenarios and reports a compatibility score, not a calibrated posterior probability.
 
 \tableofcontents
 \vspace{1em}
@@ -62,7 +62,7 @@ where $\mu$ is the symptomatic-stage removal rate. The constraint $0 < k_E < k_{
 \label{sec:S1_toit}
 % ---------------------------------------------------------------
 
-Let $y_{\mathrm{toit}}$ denote the time from onset of infectiousness to transmission (TOIT). In the implementation, $y_{\mathrm{toit}}$ is drawn from the \texttt{InfectiousnessToTransmission} profile, whose density is~\cite{Hart2021}
+Let $y_{\mathrm{toit}}$ denote the time from onset of infectiousness to transmission. In the implementation, $y_{\mathrm{toit}}$ is drawn from the \texttt{InfectiousnessToTransmission} profile, whose density is~\cite{Hart2021}
 \[
 f(y_{\mathrm{toit}}) =
 \begin{cases}
@@ -251,7 +251,7 @@ under the \emph{deterministic} mutation model, or
 G_s^{(n)} \mid B_s^{(n)}, \lambda^{(n)}
 \sim \mathrm{Poisson}\!\bigl(\lambda^{(n)} B_s^{(n)}\bigr)
 \]
-under the \emph{stochastic} mutation model. The deterministic model produces a point estimate of expected substitutions given branch length; the stochastic model adds Poisson noise around that expectation, substantially widening the compatibility region near the origin of the temporal-genetic score surface (see main text, Results).
+under the \emph{stochastic} mutation model. The deterministic model gives a single expected substitution count given branch length and clock rate; the stochastic model adds Poisson noise around that expectation, substantially widening the compatibility region near the origin of the temporal-genetic score surface (see main text, Results).
 
 % ---------------------------------------------------------------
 \section{Compatibility scoring}
@@ -330,16 +330,9 @@ The percentile-centrality score is intentionally descriptive and symmetric about
 \label{sec:S1_interpretation}
 % ---------------------------------------------------------------
 
-Under this formulation, EpiLink should be read as an interpretable compatibility filter for recent-linkage hypotheses. Its outputs depend directly on the chosen latent-history target $\mathcal{S}_\star$, the assumed natural-history profile, the testing-delay model, and the molecular clock model. In the present study the target is restricted to $\{H_{\mathrm{AD}}(0), H_{\mathrm{CA}}(0,0)\}$; expanding the target to include hidden intermediates (larger $M$) would assign positive compatibility to pairs connected through unsampled chains, increasing scores for more distantly related pairs at the cost of reduced specificity for recent direct linkage.
+Under this formulation, EpiLink should be read as an interpretable compatibility filter for recent-linkage hypotheses. Its outputs depend directly on the chosen latent-history target $\mathcal{S}_\star$, the assumed natural-history profile, the testing-delay model, and the molecular clock model. In the present study the target is restricted to $\{H_{\mathrm{AD}}(0), H_{\mathrm{CA}}(0,0)\}$; expanding the target to include hidden intermediates (larger $M$) would assign positive compatibility to pairs connected through unsampled chains, broadening sensitivity at the cost of reduced specificity for recent direct linkage.
 
-The method is therefore most useful when:
-\begin{enumerate}
-  \item the practical goal is to rank or cluster plausible recent-transmission neighbourhoods rather than estimate a fully calibrated transmission tree;
-  \item consensus genomes and sampling dates are available for each case;
-  \item labelled training pairs for a supervised discriminant are absent or cannot be assumed to transfer across settings; and
-  \item the analyst can articulate and inspect the natural-history and molecular-clock assumptions encoded in the model parameters.
-\end{enumerate}
-When labelled data are available and the generative process is well-characterised, the synthetic benchmark in the main text shows that a supervised logistic-regression model trained on temporal and genetic distances offers stronger pairwise discrimination and cluster recovery. EpiLink's primary advantage in those settings is interpretability: each score can be decomposed into the temporal and genetic compatibility contributions from each target scenario, making it possible to diagnose why a particular pair was or was not flagged as a recent-linkage candidate.
+The method is most useful when the practical goal is to rank or cluster plausible recent-transmission neighbourhoods rather than estimate a fully calibrated transmission tree, consensus genomes and sampling dates are available, labelled training pairs are absent or cannot be assumed to transfer across settings, and the analyst can inspect the natural-history and molecular-clock assumptions encoded in the model parameters. Because each score decomposes into the temporal and genetic compatibility contributions from each target scenario, it is possible to diagnose directly why a particular pair was or was not flagged as a recent-linkage candidate.
 
 % ---------------------------------------------------------------
 \begin{thebibliography}{10}
