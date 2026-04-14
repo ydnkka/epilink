@@ -17,14 +17,14 @@ try:
         BASELINE_SCENARIO_NAME,
         copy_scenario_parameters,
         expand_baseline_parameters,
-        gamma_mean_cv_to_shape_scale as gamma_mean_cv_to_shape_scale,
+        gamma_mean_cv_to_shape_scale as _gamma_mean_cv_to_shape_scale,
     )
 except ImportError:  # pragma: no cover - support direct script/notebook execution
     from specs import (
         BASELINE_SCENARIO_NAME,
         copy_scenario_parameters,
         expand_baseline_parameters,
-        gamma_mean_cv_to_shape_scale as gamma_mean_cv_to_shape_scale,
+        gamma_mean_cv_to_shape_scale as _gamma_mean_cv_to_shape_scale,
     )
 
 
@@ -178,7 +178,7 @@ def configure_logging(level: int = logging.INFO) -> None:
 
 
 def gamma_mean_cv_to_shape_scale(mean: float, cv: float) -> dict[str, float]:
-    return gamma_mean_cv_to_shape_scale(mean, cv)
+    return _gamma_mean_cv_to_shape_scale(mean, cv)
 
 
 def _check_constraint(name: str, value: float, constraint: str) -> None:

@@ -78,8 +78,8 @@
 \vspace*{0.2in}
 \begin{flushleft}
 
-%    {\Large\textbf{\textit{EpiLink}: a label-free, process-based compatibility model for genomic transmission clustering in infectious disease surveillanc}}
-    {\Large\bfseries\textit{EpiLink}: a label-free, process-based compatibility model for genomic transmission clustering in infectious disease surveillance}
+%    {\Large\textbf{\textit{EpiLink}: a process-based compatibility model for genomic transmission clustering in infectious disease surveillanc}}
+    {\Large\bfseries\textit{EpiLink}: a process-based compatibility model for genomic transmission clustering in infectious disease surveillance}
 
 %    Short: \textit{EpiLink}: process-based genomic transmission clustering
 
@@ -103,7 +103,7 @@
 \end{flushleft}
 
 \section*{Abstract}
-Identifying clusters of epidemiologically linked infections from pathogen genomic data is a core task in infectious disease surveillance, yet existing approaches rely on fixed genetic distance thresholds whose relationship to recent transmission is often ambiguous. This limitation is especially pronounced in superspreading events, where rapid, clustered transmission produces many cases with minimal genetic divergence within short time windows. We developed EpiLink, a label-free, process-based method that evaluates whether the observed consensus genetic distance and sampling-time difference between two cases are consistent with a user-specified set of latent recent-transmission scenarios. Rather than applying a hard cut-off, EpiLink produces graded pairwise compatibility scores by locating observed temporal and genetic distances within Monte Carlo distributions generated under explicit natural-history assumptions, combining uncertainty in infection timing, testing delay, and mutation accumulation into a single interpretable score.
+Identifying clusters of epidemiologically linked infections from pathogen genomic data is a core task in infectious disease surveillance, yet existing approaches rely on fixed genetic distance thresholds whose relationship to recent transmission is often ambiguous. This limitation is especially pronounced in superspreading events, where rapid, clustered transmission produces many cases with minimal genetic divergence within short time windows. We developed EpiLink, a process-based method that evaluates whether the observed consensus genetic distance and sampling-time difference between two cases are consistent with a user-specified set of latent recent-transmission scenarios. Rather than applying a hard cut-off, EpiLink produces graded pairwise compatibility scores by locating observed temporal and genetic distances within Monte Carlo distributions generated under explicit natural-history assumptions, combining uncertainty in infection timing, testing delay, and mutation accumulation into a single interpretable score.
 
 We evaluated EpiLink on a 4{,}990-case synthetic outbreak derived from an individual-based SARS-CoV-2 simulator, comparing four EpiLink variants against supervised logistic regression references across baseline conditions, twelve systematic parameter perturbations, and a temporal stability analysis. Under matched baseline conditions, the supervised comparator achieved the strongest pairwise discrimination, but EpiLink variants produced moderately coherent clusters across all scenarios, with performance largely preserved under parameter misspecification except when incubation period variability or molecular clock rate were substantially altered. Cluster assignments were stable across consecutive weekly updates once case accumulation moved beyond the earliest sparse epidemic weeks. Applying EpiLink to 772 SARS-CoV-2 sequences from the 2020 Boston epidemic without any supervised training recovered clusters strongly enriched for documented skilled nursing facility and conference outbreaks, with exposure composition deviating significantly from background in all five focus clusters.
 
@@ -138,55 +138,55 @@ We developed EpiLink, a pairwise compatibility model that assesses whether the o
 
 \begin{figure}[hp]
 \centering
- \includegraphics[width=0.7\textwidth]{figures/Fig1}
+\includegraphics[width=0.75\textwidth]{figures/Fig1}
 \caption{\textbf{Overview of the EpiLink compatibility model.}
-For a sampled pair $(i,j)$, the observed inputs are the testing-time difference $t_{ij}$ and the consensus genetic distance $g_{ij}$. These are evaluated against a set of latent transmission scenarios $\mathcal{S}_M$, encompassing ancestor-descendant chains $H_{\mathrm{AD}}(m)$ and common-ancestor histories $H_{\mathrm{CA}}(m_i,m_j)$. A shared natural-history model with Gamma-distributed latent ($y_E$), presymptomatic infectious ($y_P$), and symptomatic infectious ($y_I$) stage durations, together with a Gamma-distributed delay from symptom onset to testing ($x_\text{test}$) drives two parallel Monte Carlo tracks: the temporal track samples the implied testing-time difference $T_s$ for each scenario, and the genetic track samples expected substitution counts $G_s$ under a deterministic ($G_s = \lambda B_s$) or Poisson ($G_s \sim \mathrm{Poisson}(\lambda B_s)$) mutational process. $y_{\mathrm{toit}}$ is the time from onset of infectiousness to transmission; $\nu$ is the substitution rate per site per year; $L$ is the genome length; $B_s$ is the implied effective transmission-related branch length; and $\tau_{\text{obs}} = \tau_{\text{inc}} + x_{\text{test}}$ is the total duration from exposure to testing. Temporal compatibility $C_{T,s}$ and genetic compatibility $C_{G,s}$ are each computed as two-sided percentile proximity scores. The final target compatibility $C_{\mathcal{S}_\star}(i,j)$ is the product summed over the user-defined target scenario subset $\mathcal{S}_\star$.
-}
+For a sampled pair $(i,j)$, the observed inputs are the testing-time difference $t_{ij}$ and the consensus genetic distance $g_{ij}$. These are evaluated against a set of latent transmission scenarios $\mathcal{S}_M$, encompassing ancestor-descendant chains $H_{\mathrm{AD}}(m)$ and common-ancestor histories $H_{\mathrm{CA}}(m_i,m_j)$. A shared natural-history model with Gamma-distributed latent ($y_E$), presymptomatic infectious ($y_P$), and symptomatic infectious  ($y_I$) stage durations, together with a Gamma-distributed delay from symptom onset to testing ($x_\text{test}$) drives two parallel Monte Carlo tracks: the temporal track samples the implied testing-time difference $T_s$ for each scenario, and the genetic track samples expected substitution counts $G_s$ under a deterministic ($G_s = \lambda B_s$) or Poisson ($G_s \sim \mathrm{Poisson}(\lambda B_s)$) mutational process. $y_{\mathrm{toit}}$ is the time from onset of infectiousness to transmission; $\nu$ is the substitution rate per site per year; $L$ is the genome length; $B_s$ is the implied effective transmission-related branch length; and $\tau_{\text{obs}} = \tau_{\text{inc}} + x_{\text{test}}$ is the total duration from exposure to testing. Temporal compatibility $C_{T,s}$ and genetic compatibility $C_{G,s}$ are each computed as two-sided percentile proximity scores. The final target compatibility $C_{\mathcal{S}_\star}(i,j)$ is the product summed over the user-defined target scenario subset $\mathcal{S}_\star$.}
 \label{fig:epilink}
 \end{figure}
 
 We considered two classes of latent transmission scenarios up to a maximum hidden depth $M$:
 
-$$
+\[
 \mathcal{S}_M = \bigl\{H_{\mathrm{AD}}(m):m=0,\ldots,M\bigr\}
                \cup
-               \bigl\{H_{\mathrm{CA}}(m_i,m_j): m_i,m_j\ge 0,\; m_i+m_j\le M\bigr\}.
-$$
+               \bigl\{H_{\mathrm{CA}}(m_i,m_j): m_i,m_j\ge 0,\;
+               m_i+m_j\le M\bigr\}.
+\]
 
 Here, $H_{\mathrm{AD}}(m)$ denotes an ancestor-descendant scenario in which case $j$ descends from case $i$ through $m$ unsampled intermediates, and $H_{\mathrm{CA}}(m_i,m_j)$ denotes a common-ancestor scenario in which both cases descend independently from a shared unsampled source. The cases $H_{\mathrm{AD}}(0)$ and $H_{\mathrm{CA}}(0,0)$ correspond to direct transmission and co-primary infection, respectively. In the default configuration used throughout this study, the target subset is $\mathcal{S}_\star = \{H_{\mathrm{AD}}(0), H_{\mathrm{CA}}(0,0)\}$, implying a maximum depth of $M=0$.
 
-For each scenario $s\in\mathcal{S}_M$, EpiLink generates Monte Carlo draws from a shared natural-history model with Gamma-distributed latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages, together with a Gamma-distributed delay from symptom onset to testing~\cite{Hart2021, McAloon2020, Hart2022}. Writing the incubation period as $\tau_{\mathrm{inc}}=y_E+y_P$ and the generation time as $\tau_{\mathrm{gen}}=\tau_{\mathrm{inc}}+y_{\mathrm{toit}}$ (where $y_{\mathrm{toit}}$ is the time from onset of infectiousness to transmission), these draws induce a scenario-specific distribution for the expected testing-time difference $T_s$. The same latent history defines an effective transmission-related branch length $B_s$: under ancestor-descendant scenarios, this is the sum of generation intervals along the chain; under common-ancestor scenarios, it is the sum of lineage lengths from the shared source to both sampled descendants. The full derivation of $T_s$ and $B_s$ is given in~\nameref{par:S1_Appendix}.
+For each scenario $s\in\mathcal{S}_M$, EpiLink generates Monte Carlo draws from a shared natural-history model with Gamma-distributed latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages, together with a Gamma-distributed delay from symptom onset to testing~\cite{Hart2021, McAloon2020,
+Hart2022}. Writing the incubation period as $\tau_{\mathrm{inc}}=y_E+y_P$ and the generation time as $\tau_{\mathrm{gen}}=\tau_{\mathrm{inc}}+y_{\mathrm{toit}}$ (where $y_{\mathrm{toit}}$ is the time from onset of infectiousness to transmission), these draws induce a scenario-specific distribution for the expected testing-time difference $T_s$. The same latent history defines an effective transmission-related branch length $B_s$: under ancestor-descendant scenarios, this is the sum of generation intervals along the chain; under common-ancestor scenarios, it is the sum of lineage lengths from the shared source to both sampled descendants. The full derivation of $T_s$ and $B_s$ is given in~\nameref{par:S1_Appendix}.
 
 Branch-length draws were converted into expected genetic distances using a per-genome daily substitution rate $\lambda = \nu L/365$, where $\nu$ is the substitution rate per site per year and $L$ is the genome length. Under a deterministic clock, $G_s = \lambda B_s$; under a stochastic (Poisson) mutation process, $G_s \mid B_s \sim \mathrm{Poisson}(\lambda B_s)$. A relaxed uncorrelated log-normal clock draws $\nu$ from a log-normal distribution~\cite{Drummond2006}.
 
 Compatibility was quantified by locating each observed value within the corresponding scenario-specific empirical distribution. For observed value $x_{\mathrm{obs}}$ and $n_s$ Monte Carlo draws from scenario $s$:
 
-$$
+\[
 p_s(x_{\mathrm{obs}}) = \frac{\#\{i : x_i^{(s)} \le x_{\mathrm{obs}}\}}{n_s},
 \qquad
 C_s(x_{\mathrm{obs}}) = 1 - 2\left|p_s(x_{\mathrm{obs}}) - 0.5\right|.
-$$
+\]
 
 Temporal and genetic compatibilities $C_{T,s}(i,j)$ and $C_{G,s}(i,j)$ are combined as their product to obtain the scenario-level score $C_s(i,j) = C_{T,s}(i,j)\, C_{G,s}(i,j)$, and then summed across the target subset:
 
-$$
+\[
 C_{\mathcal{S}_\star}(i,j) = \sum_{s \in \mathcal{S}_\star} C_s(i,j).
-$$
+\]
 
-This is a compatibility model rather than a calibrated probabilistic
-transmission model: scores reflect how centrally the observed pair sits within
-the simulated distributions induced by $\mathcal{S}_\star$, not posterior
-transmission probabilities.
+This is a compatibility model rather than a calibrated probabilistic transmission model: scores reflect how centrally the observed pair sits within the simulated distributions induced by $\mathcal{S}_\star$, not posterior transmission
+probabilities.
 
 \subsection*{Synthetic benchmark dataset}
 
-We evaluated EpiLink using synthetic outbreak datasets derived from SCoVMod, a large-scale individual-based SARS-CoV-2 transmission simulator~\cite{Banks2022}. Starting from SCoVMod infection-history and transmission-event outputs, we constructed a directed transmission network, resolved multiply infected nodes by retaining the earliest recorded parent, and selected a weakly connected component containing approximately 5{,}000 nodes. A rooted arborescence was then obtained by computing the maximum spanning arborescence with edge weights defined as the negative simulation timestep, thereby favouring earlier parental assignments. The resulting transmission tree comprised 4{,}990 nodes and 4{,}989 directed edges.
+We evaluated EpiLink using synthetic outbreak datasets derived from SCoVMod, a spatially explicit agent-based model that simulates infection spread across Scotland using demographic structure, mobility patterns, and time-varying contact behaviour~\cite{Banks2022}. Starting from SCoVMod infection-history and transmission-event outputs, we constructed a directed transmission network, resolved multiply infected nodes by retaining the earliest recorded parent, and selected a weakly connected component containing approximately 5{,}000 nodes. A rooted arborescence was then obtained by computing the maximum spanning arborescence with edge weights defined as the negative simulation timestep, thereby favouring earlier parental assignments. The resulting transmission tree comprised 4{,}990 nodes and 4{,}989 directed edges.
 
-Transmission heterogeneity in the underlying SCoVMod outbreak was summarised by fitting a negative-binomial offspring distribution to the full transmission network, yielding an estimated dispersion parameter of $\hat{k} = 0.233$ (95\% CI: 0.232--0.235) and mean reproductive number $\bar{R}_t \approx 1.00$ (95\% CI: 0.992--1.006). Approximately 15.6\% of individuals accounted for 80\% of onward transmission. Synthetic epidemic dates and pairwise genetic distances were generated by overlaying the EpiLink natural-history model onto this fixed transmission-tree topology.
+Transmission heterogeneity in the underlying SCoVMod outbreak was summarised by fitting a negative-binomial offspring distribution to the full transmission network, yielding an estimated dispersion parameter of $\hat{k} = 0.233$ (95\%CI: 0.232--0.235) and mean reproductive number $\bar{R}_t \approx 1.00$ (95\% CI: 0.992--1.006). Approximately 15.6\% of individuals accounted for 80\% of onward transmission, consistent with the superspreading dynamics motivating this work. Synthetic epidemic dates and pairwise genetic distances were generated by overlaying the EpiLink natural-history model onto this fixed transmission-tree
+topology.
 
 \subsection*{Baseline natural-history parameters}
 
-Key baseline evaluation parameters (Table~\ref{tab:parameters}) were drawn from published SARS-CoV-2 estimates~\cite{Hart2021, Duchene2020, vanDorp2020}. Other $E/P/I$ infectiousness profile parameters were kept fixed at their fitted values~\cite{Hart2021}. To aid interpretation, the mean and coefficient of variation (CV) of the Gamma distributions are shown. In implementation, these are converted into the corresponding shape $k$ and scale $\theta$ parameters. Multipliers of $\{0.75, 1.25\}$ were applied to strictly positive parameters (incubation mean and CV, testing-delay mean and CV, and substitution rate), whereas multipliers of $\{0.0, 1.25\}$ were applied to the clock-relaxation parameter (log-normal std), allowing inclusion of a strict-clock case. In total, this produced 12 perturbation scenarios.
+Key baseline evaluation parameters (Table~\ref{tab:parameters}) were drawn from published SARS-CoV-2 estimates~\cite{Hart2021, Duchene2020, vanDorp2020}. Other $E/P/I$ infectiousness profile parameters were kept fixed at their fitted values (see~\nameref{par:S1_Appendix}). To aid interpretation, the mean and coefficient of variation (CV) of the Gamma distributions are shown; in implementation, these are mapped to the corresponding shape $k$ and scale $\theta$ parameters, such that increasing the CV decreases the shape parameter and increases the scale parameter. Multipliers of $\{0.75, 1.25\}$ were applied to strictly positive parameters (incubation mean and CV, testing-delay mean and CV, and substitution rate), whereas multipliers of $\{0.0, 1.25\}$ were applied to the clock-relaxation parameter (log-normal std), allowing inclusion of a strict-clock case. In total, this produced 12 perturbation scenarios.
 
 \begin{table}[!ht]
 \caption{\textbf{Baseline evaluation parameters and perturbation design.}}
@@ -215,49 +215,41 @@ Sparsification threshold & $10^{-4}$ &---&---\\
 
 \subsection*{Model variants}
 
-Synthetic pairwise temporal and genetic data---either deterministic (D) or stochastic (S)---were supplied as input to EpiLink, which itself can apply either a deterministic or stochastic formulation for compatibility score inference. This yields four EpiLink variants: EDD (deterministic inference, deterministic input), EDS (deterministic inference, stochastic input), ESD (stochastic inference, deterministic input), and ESS (stochastic inference, stochastic input). Two logistic regression models (LD and LS) were fitted directly to the corresponding pairwise temporal and genetic features; both were trained on a random 10\% subsample of all case pairs and are treated throughout as supervised reference comparators.
+Synthetic pairwise temporal and genetic data---either deterministic (D) or stochastic (S)---were supplied as input to EpiLink, which itself can apply either a deterministic or stochastic formulation for compatibility score inference. This yields four EpiLink variants: EDD (deterministic inference, deterministic input), EDS (deterministic inference, stochastic input), ESD (stochastic inference, deterministic input), and ESS (stochastic inference, stochastic input). Two logistic regression models (LD and LS) were fitted as supervised reference comparators using the same pairwise features supplied to EpiLink. Both were trained on a random 10\% subsample of all case pairs, ensuring they had access to the same observables as EpiLink but with the addition of transmission labels.
 
 \subsection*{Simulation design and sensitivity analysis}
 
-We conducted a simulation study to evaluate inference performance and robustness under a range of epidemiological and evolutionary conditions. Synthetic outbreak datasets were generated on the fixed 4{,}990-case transmission tree under the baseline parameterisation described above. Sensitivity analyses were designed to assess the effect of perturbing the two core mechanisms governing pairwise compatibility:
+We conducted a simulation study to evaluate inference performance and robustness under a range of epidemiological and evolutionary conditions. Synthetic outbreak datasets were generated on the fixed 4{,}990-case transmission tree under the baseline parameterisation described above. Sensitivity analyses were designed to assess the effect of perturbing the two core mechanisms governing pairwise compatibility: (1) the infection-to-sampling interval, varied through the mean and CV of the incubation-period and testing-delay distributions; and (2) the molecular clock rate, varied through the substitution rate and degree of relaxation. Perturbations were applied one at a time.
 
-\begin{enumerate}
-    \item \textbf{Infection-to-sampling interval}, varied through the mean and coefficient of variation of the incubation-period and testing-delay distributions;
-    \item \textbf{Molecular clock rate}, varied through the median substitution rate and degree of relaxation.
-\end{enumerate}
-
-Perturbations were applied one at a time, and each scenario was evaluated under two inference conditions to distinguish performance changes due to altered data-generating conditions from those due to model misspecification.
-
-In the \textbf{matched} condition, inference parameters were updated to match the perturbed data-generating values. This represents best-case performance under each altered regime, assuming perfect knowledge of the underlying epidemiological and molecular parameters.
-
-In the \textbf{mismatched} condition, data-generation parameters were perturbed as above, but inference parameters were held fixed at their baseline values. This condition quantifies the robustness of the inference procedure to parameter misspecification.
-
-The logistic regression comparators were treated analogously. Under the matched condition, they were retrained separately for each perturbation scenario. Under the mismatched condition, they were trained once using baseline data only and then applied unchanged to perturbed scenarios, thereby assessing performance under distribution shift.
-
-Performance losses were calculated as relative changes from the unperturbed matched baseline; comparing matched and mismatched results separates the effect of the altered generating regime from the additional cost of inference under incorrect assumptions.
+Each scenario was evaluated under two inference conditions. In the \textbf{matched} condition, inference parameters were updated to match the perturbed data-generating values, representing best-case performance under each altered regime. In the \textbf{mismatched} condition, data-generation parameters were perturbed but inference parameters were held fixed at their baseline values, quantifying robustness to parameter misspecification. The logistic regression comparators were treated analogously: retrained for each perturbation scenario under the matched condition, and trained once on baseline data only under the mismatched condition. Performance losses were calculated as changes relative to the unperturbed matched baseline, separating the effect of the altered generating regime from the additional cost of inference under incorrect assumptions.
 
 \subsection*{Sparsification analysis}
 
-We identified minimum score thresholds at which nearly all total edge weight was retained while graph density was substantially reduced. For each model, the optimal sparsification threshold was defined as the smallest value in $\{0, 10^{-4}, 10^{-3}, 10^{-2}, 10^{-1}\}$ that retained at least 99.5\% of total edge weight.
+We identified minimum score thresholds at which nearly all total edge weight was retained while graph density was substantially reduced. For each model, the optimal sparsification threshold was defined as the smallest value in $\{10^{-4}, 10^{-3}, 10^{-2}, 10^{-1}\}$ that retained at least 99.5\% of total edge weight.
 
-\subsection*{Graph clustering and evaluation metrics}
+\subsection*{Graph construction and community detection}
 
-For all synthetic experiments, weighted graphs were constructed from pairwise compatibility scores (or logistic probabilities) after excluding edges below the chosen sparsification threshold ($10^{-4}$). Community detection was then performed using the Leiden algorithm~\cite{Traag2019} with a modularity-based objective. The resolution parameter was swept over $\gamma \in \{0.1, 0.2, \ldots, 1.0\}$, with 10 random restarts at each value. For each model, the resolution giving the highest BCubed F1 score was selected.
+For all synthetic experiments, weighted graphs were constructed from pairwise compatibility scores (or logistic probabilities) after excluding edges below the sparsification threshold ($10^{-4}$). Community detection was performed using the Leiden algorithm~\cite{Traag2019} with a modularity-based objective. The resolution parameter was swept over $\gamma \in \{0.1, 0.2, \ldots, 1.0\}$ with 10 random restarts at each value, and the resolution yielding the highest BCubed F1 score was selected for each model.
 
-Clustering performance was assessed using BCubed precision and recall~\cite{Amigo2008} against overlapping reference neighbourhoods derived from the transmission tree. For each node $u$, the reference cluster consisted of $u$ together with all of its direct infectees. BCubed precision measures, for each case, the proportion of inferred co-cluster members that truly share its reference neighbourhood, whereas BCubed recall measures the proportion of the reference neighbourhood recovered in the inferred cluster. BCubed F1 score is the harmonic mean of precision and recall, averaged across all cases.
+\subsection*{Performance metrics}
 
-Pairwise discrimination was quantified using the average precision (AP) because positive pairs were rare, comprising approximately 0.14\% of all sampled pairs, making precision--recall summaries more informative in this highly imbalanced setting~\cite{Saito2015}. A pair was labelled positive if they were connected by direct transmission or were sibling infectees sharing the same parent in the transmission tree.
+Clustering performance was assessed using BCubed precision and recall~\cite{Amigo2008} against overlapping reference neighbourhoods derived from the transmission tree. For each node $u$, the reference cluster consisted of $u$ together with all of its direct infectees. BCubed precision measures, for each case, the proportion of inferred co-cluster members that truly share its reference neighbourhood; BCubed recall measures the proportion of the reference neighbourhood recovered in the inferred cluster; BCubed F1 is their harmonic mean, averaged across all cases.
+
+Pairwise discrimination was quantified using average precision (AP). Positive pairs were rare, comprising approximately 0.14\% of all sampled pairs, making precision--recall summaries more informative than ROC-based measures in this highly imbalanced setting~\cite{Saito2015}. A pair was labelled positive if the two cases were connected by direct transmission or were sibling infectees sharing the same parent in the transmission tree.
 
 \subsection*{Temporal stability analysis}
 
-Temporal stability was evaluated by grouping sampled cases into weekly availability bins. After each cumulative weekly update, clustering was recomputed using only the cases available up to that time point. Consecutive weekly partitions were then compared using three measures: forward overlap, defined as the fraction of a later cluster recovered from its best-matched earlier cluster; backward overlap, defined as the fraction of an earlier cluster retained in its best-matched later cluster; and the Jaccard index, which provides a symmetric measure of stability that penalises both splitting and merging. For the logistic regression reference models, training labels were restricted to the first three cumulative weekly bins (86 initial cases), reflecting a limited early-supervision setting. The clustering resolution for all models was fixed using the early window and then held constant across subsequent cumulative analyses.
+Temporal stability was evaluated by grouping sampled cases into weekly availability bins and recomputing clustering after each cumulative weekly update using only cases available up to that time point. Consecutive weekly partitions were compared using three measures: forward overlap (the fraction of a later cluster recovered
+from its best-matched earlier cluster), backward overlap (the fraction of an earlier cluster retained in its best-matched later cluster), and the Jaccard index, which provides a symmetric stability measure that penalises both splitting and merging. For the logistic regression comparators, training labels were restricted
+to the first three cumulative weekly bins (86 initial cases), reflecting a limited early-supervision setting. The clustering resolution for all models was fixed using the early window and held constant across subsequent cumulative analyses.
 
 \subsection*{Boston empirical dataset and clustering}
-The empirical evaluation used 772 high-quality SARS-CoV-2 whole-genome sequences (greater than 98\% coverage) collected by Massachusetts General Hospital (MGH) and the Massachusetts Department of Public Health (DPH) during the first wave of the COVID-19 pandemic in Boston, Massachusetts (March--June 2020)~\cite{Lemieux2021}. Sequences were aligned using Nextclade against the SARS-CoV-2 reference genome (GenBank accession no. MN908947.3)~\cite{Aksamentov2021}. Pairwise consensus SNP distances were computed under the TN93 substitution model~\cite{TamuraNei1993}. Sequence metadata included collection date and an exposure category label (Conference, SNF, BHCHP, City, Other) derived from epidemiological investigation. EpiLink scores were computed for all 297{,}396 unique pairs using the stochastic variant under baseline inference parameters. A weighted graph was constructed with minimum edge weight $10^{-4}$, and the Leiden algorithm was run at resolution $\gamma = 0.3$ with 10 restarts. Clusters of size $\ge 2$ were retained. Focus clusters were those containing at least one Conference- or SNF-linked case; deviation from background exposure prevalence was tested using a $\chi^2$ goodness-of-fit test.
+
+The empirical evaluation used 772 high-quality SARS-CoV-2 whole-genome sequences ($>$98\% coverage) collected by Massachusetts General Hospital (MGH) and the Massachusetts Department of Public Health (DPH) during the first wave of the COVID-19 pandemic in Boston, Massachusetts (March--May 2020)~\cite{Lemieux2021}. Sequences were aligned using Nextclade against the SARS-CoV-2 reference genome (GenBank accession no. MN908947.3)~\cite{Aksamentov2021}. Pairwise consensus SNP distances were computed under the TN93 substitution model~\cite{TamuraNei1993}. Sequence metadata included collection date and an exposure category label (Conference, SNF, BHCHP, City, Other) derived from epidemiological investigation. EpiLink scores were computed for all 297{,}396 unique pairs using the stochastic variant under baseline inference parameters. A weighted graph was constructed with minimum edge weight $10^{-4}$, and the Leiden algorithm was run at resolution $\gamma = 0.3$ with 10 restarts. Clusters of size $\ge 2$ were retained. Focus clusters were those containing at least one Conference- or SNF-linked case; deviation from background exposure prevalence was tested using a $\chi^2$ goodness-of-fit test.
 
 \subsection*{Software and data availability}
 
-The EpiLink software is available at \url{https://github.com/ydnkka/epilink}. Code, configuration files, and derived outputs required to reproduce the synthetic and empirical analyses presented here are available at \url{https://github.com/ydnkka/epilink/evaluation}. The Boston empirical inputs were derived from the previously published dataset~\cite{Lemieux2021}, and the synthetic benchmark was based on SCoVMod outputs~\cite{Banks2022}.
+The EpiLink software is available at \url{https://github.com/ydnkka/epilink}. Code, configuration files, and derived outputs required to reproduce the synthetic and empirical analyses are available at \url{https://github.com/ydnkka/epilink/evaluation}. The Boston empirical inputs were derived from the previously published dataset~\cite{Lemieux2021}, and the synthetic benchmark was based on SCoVMod outputs~\cite{Banks2022}.
 
 \textit{For journal submission, replace with the final journal-formatted Data Availability Statement, including the persistent repository link and archived release information.}
 
@@ -271,7 +263,7 @@ Compatibility scores were highest for pairs with small SNP distances and short  
 \centering
 \includegraphics[width=0.8\textwidth]{figures/Fig2}
 \caption{\textbf{EpiLink compatibility surfaces.}
-Contour plots of EpiLink compatibility as a function of genetic distance (x-axis) and temporal gap (y-axis), using baseline inference parameters. (A) deterministic genetic component; (B) stochastic genetic component.}
+Contour plots of EpiLink compatibility as a function of genetic distance and temporal gap, using baseline inference parameters. (A) deterministic genetic component; (B) stochastic genetic component.}
 \label{fig:surfaces}
 \end{figure}
 
@@ -349,7 +341,7 @@ Forward overlap, backward overlap, and Jaccard index between consecutive weekly 
 
 \subsection*{Application to empirical data recovers exposure-enriched clusters}
 
-Applying EpiLink to 297{,}396 unique pairs from 772 Boston sequences yielded 77 clusters of size $\ge 2$, containing 642 sequences in total, with a highly right-skewed size distribution (median = 3, mean = 8.3, max = 84) (Fig~\ref{fig:boston}A). Five focus clusters contained at least one conference- or SNF-linked case, with exposure composition deviating significantly from background in all five ($\chi^2$, all $p < 0.003$) (Fig~\ref{fig:boston}B).
+Applying EpiLink to 297{,}396 unique pairs from 772 Boston sequences yielded 77 clusters of size $\ge 2$, containing 642 sequences in total, with a highly right-skewed size distribution (median = 3, mean = 8.3, max = 84) (Fig~\ref{fig:boston}A). Five focus clusters contained at least one Conference- or SNF-linked case, with exposure composition deviating significantly from background in all five ($\chi^2$, all $p < 0.003$) (Fig~\ref{fig:boston}B).
 
 \begin{figure}[!htbp]
 \centering
@@ -359,8 +351,8 @@ Applying EpiLink to 297{,}396 unique pairs from 772 Boston sequences yielded 77 
 \label{fig:boston}
 \end{figure}
 
-The two largest focus clusters illustrate the signal EpiLink recovers. Cluster 11 ($n = 84$) was dominated by SNF-linked cases (88.1\%), with mean intra-cluster SNP distance of 0.69 (max 4) and mean sampling gap of 2.3 days (max 6) --- consistent with a tight, contemporaneous outbreak. Cluster 22 ($n = 29$) was enriched for
-conference-linked cases (93.1\%), with similarly compact genetic and temporal structure (mean SNP distance 1.14, max 5; mean gap 1.4 days, max 7). In both cases, mean inter-cluster SNP distance (5.0 for cluster 11) confirmed clear genetic separation from background. These results demonstrate that EpiLink recovers epidemiologically coherent clusters in real-world surveillance data, with cluster membership reflecting known exposure structure rather than sampling artefact.
+The two largest focus clusters illustrate the signal EpiLink recovers. Cluster 11 ($n = 84$) was dominated by SNF-linked cases (88.1\%), with mean intra-cluster SNP distance of 0.69 (max 4) and mean sampling gap of 2.30 days (max 6) --- consistent with a tight, contemporaneous outbreak. Cluster 22 ($n = 29$) was enriched for
+Conference-linked cases (93.1\%), with similarly compact genetic and temporal structure (mean SNP distance 1.14, max 5; mean gap 1.43 days, max 7). In both cases, mean inter-cluster SNP distance was $>3$, confirming clear genetic separation from background. These results demonstrate that EpiLink recovers epidemiologically coherent clusters in real-world surveillance data, with cluster membership reflecting known exposure structure rather than sampling artefact.
 
 \section*{Discussion}
 
