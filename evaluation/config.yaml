@@ -17,6 +17,8 @@ paths:
 
 outputs:
   directory: "results"
+  logs:
+    pipeline_log: "logs/pipeline.log"
   synthetic:
     directory: "synthetic"
   boston:
@@ -138,7 +140,7 @@ conditions:
     logit_training_source: scenario
     fixed_inference: false
 
-  generation_varied_inference_fixed:
+  mismatched:
     description: >
       Data-generation parameters are taken from the active scenario.
       Inference parameters remain fixed at the inference baseline.
@@ -165,7 +167,7 @@ parameter_constraints:
 execution:
   evaluate_conditions:
     - matched
-    - generation_varied_inference_fixed
+    - mismatched
 
   # Maximum parallel worker processes for non-baseline runs.
   # null  → one worker per CPU core (default).

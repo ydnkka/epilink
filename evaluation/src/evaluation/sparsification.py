@@ -1,4 +1,5 @@
 """Quantify retention and runtime effects of edge sparsification, then determine optimal thresholds."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +11,30 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from config import (
+    configure_logging,
+    get_config_value,
+    get_pipeline_log_path,
+    load_config,
+    resolve_configured_output_path,
+    resolve_generation_baseline_parameters,
+    resolve_inference_baseline_parameters,
+)
+from leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
+from models import build_linkage_models, build_natural_history_parameters, predict_logistic_scores
+from specs import (
+    DEFAULT_SEED,
+    EPILINK_SPECS,
+    LOGIT_SPECS,
+    MODEL_KEYS,
+    PAIRWISE_BOTH_SAMPLED_COLUMN,
+    PAIRWISE_CASE_A_COLUMN,
+    PAIRWISE_CASE_B_COLUMN,
+    PAIRWISE_RELATED_COLUMN,
+    PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+    score_metadata,
+)
+
 from epilink import (
     InfectiousnessToTransmission,
     build_pairwise_case_table,
@@ -17,81 +42,55 @@ from epilink import (
     simulate_genomic_sequences,
 )
 
-try:
-    from .config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_generation_baseline_parameters,
-        resolve_inference_baseline_parameters,
-    )
-    from .leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
-    from .metrics import predict_logistic_scores
-    from .models import build_linkage_models, build_natural_history_parameters
-    from .specs import (
-        DEFAULT_SEED,
-        EPILINK_SPECS,
-        LOGIT_SPECS,
-        MODEL_KEYS,
-        PAIRWISE_BOTH_SAMPLED_COLUMN,
-        PAIRWISE_CASE_A_COLUMN,
-        PAIRWISE_CASE_B_COLUMN,
-        PAIRWISE_RELATED_COLUMN,
-        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-        score_metadata,
-    )
-except ImportError:  # pragma: no cover - support direct script execution
-    from config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_generation_baseline_parameters,
-        resolve_inference_baseline_parameters,
-    )
-    from leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
-    from metrics import predict_logistic_scores
-    from models import build_linkage_models, build_natural_history_parameters
-    from specs import (
-        DEFAULT_SEED,
-        EPILINK_SPECS,
-        LOGIT_SPECS,
-        MODEL_KEYS,
-        PAIRWISE_BOTH_SAMPLED_COLUMN,
-        PAIRWISE_CASE_A_COLUMN,
-        PAIRWISE_CASE_B_COLUMN,
-        PAIRWISE_RELATED_COLUMN,
-        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-        score_metadata,
-    )
-
-
 LOGGER = logging.getLogger(__name__)
 
 
 def timed(function, *args, **kwargs):
-    """Measure wall-clock time for a function call."""
+    """Call *function* with the given arguments and return ``(result, elapsed_seconds)``."""
     start = time.perf_counter()
     output = function(*args, **kwargs)
     return output, time.perf_counter() - start
 
 
-def sparsify_edges(pairwise_frame: pd.DataFrame, min_edge_weight: float, weight_column: str) -> pd.DataFrame:
-    """Filter a pairwise table to the retained edges for a threshold."""
+def sparsify_edges(
+    pairwise_frame: pd.DataFrame, min_edge_weight: float, weight_column: str
+) -> pd.DataFrame:
+    """Return *pairwise_frame* filtered to rows whose *weight_column* ≥ *min_edge_weight*.
+
+    A threshold of zero or below returns the full frame unchanged.
+    """
     if float(min_edge_weight) <= 0:
         return pairwise_frame
     return pairwise_frame.loc[pairwise_frame[weight_column] >= min_edge_weight]
 
 
 def timed_igraph_and_leiden(
-        pairwise_frame: pd.DataFrame,
-        weight_column: str,
-        vertex_ids: pd.Index,
-        resolution: float,
-        rng_seed: int = 12345,
+    pairwise_frame: pd.DataFrame,
+    weight_column: str,
+    vertex_ids: pd.Index,
+    resolution: float,
+    rng_seed: int = 12345,
 ) -> tuple[float, float]:
-    """Measure graph construction and Leiden runtime for a sparsified edge set."""
+    """Return (graph-build seconds, Leiden seconds) for a sparsified edge set.
+
+    Parameters
+    ----------
+    pairwise_frame : pandas.DataFrame
+        Pre-filtered pairwise table (already sparsified).
+    weight_column : str
+        Edge weight column name.
+    vertex_ids : pandas.Index
+        Complete set of vertex identifiers (ensures isolated nodes are included).
+    resolution : float
+        Leiden resolution parameter.
+    rng_seed : int, optional
+        RNG seed for Leiden.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(build_seconds, leiden_seconds)`` wall-clock durations.
+    """
     graph, build_seconds = timed(
         build_weighted_graph,
         pairwise_frame=pairwise_frame,
@@ -110,7 +109,9 @@ def timed_igraph_and_leiden(
     return float(build_seconds), float(leiden_seconds)
 
 
-def determine_optimal_thresholds(retention_frame: pd.DataFrame, min_weight_retention: float) -> dict[str, float]:
+def determine_optimal_thresholds(
+    retention_frame: pd.DataFrame, min_weight_retention: float
+) -> dict[str, float]:
     """Select the lowest positive threshold that preserves at least min_weight_retention fraction."""
 
     def _rank_candidates(candidates: pd.DataFrame) -> pd.DataFrame:
@@ -149,10 +150,10 @@ def build_surface_axis(max_value: float, step: float) -> np.ndarray:
 
 
 def build_compatibility_surface(
-        linkage_models: dict[str, Any],
-        snps: np.ndarray,
-        days: np.ndarray,
-        mutation_processes: tuple[str, ...],
+    linkage_models: dict[str, Any],
+    snps: np.ndarray,
+    days: np.ndarray,
+    mutation_processes: tuple[str, ...],
 ) -> pd.DataFrame:
     """Evaluate target-compatibility surfaces over a SNP-by-time grid."""
     snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
@@ -179,12 +180,12 @@ def build_compatibility_surface(
 
 
 def build_logit_surface(
-        pairwise_frame: pd.DataFrame,
-        is_related: np.ndarray,
-        snps: np.ndarray,
-        days: np.ndarray,
-        training_fraction: float,
-        rng_seed: int,
+    pairwise_frame: pd.DataFrame,
+    is_related: np.ndarray,
+    snps: np.ndarray,
+    days: np.ndarray,
+    training_fraction: float,
+    rng_seed: int,
 ) -> pd.DataFrame:
     """Train logistic surfaces on deterministic and stochastic distance features."""
     snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
@@ -220,11 +221,15 @@ def build_logit_surface(
     return pd.concat(surfaces, ignore_index=True)
 
 
-def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.DataFrame,) -> pd.DataFrame:
+def merge_score_surfaces(
+    compatibility_surface: pd.DataFrame,
+    logit_surface: pd.DataFrame,
+) -> pd.DataFrame:
     """Combine compatibility and logit surfaces into one wide table."""
     compatibility_frame = (
-        compatibility_surface
-        .pivot(index=["snp", "days"], columns="mutation_process", values="compatibility")
+        compatibility_surface.pivot(
+            index=["snp", "days"], columns="mutation_process", values="compatibility"
+        )
         .rename(
             columns={
                 "deterministic": "compatibility_deterministic",
@@ -234,8 +239,9 @@ def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.
         .reset_index()
     )
     logit_frame = (
-        logit_surface
-        .pivot(index=["snp", "days"], columns="weight_column", values="logit_probability")
+        logit_surface.pivot(
+            index=["snp", "days"], columns="weight_column", values="logit_probability"
+        )
         .rename(
             columns={
                 "LD": "logit_deterministic",
@@ -278,11 +284,10 @@ def merge_score_surfaces(compatibility_surface: pd.DataFrame, logit_surface: pd.
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
-    # args = build_parser(config_path).parse_args()
-
-    configure_logging()
-    LOGGER.info("sparsification: starting")
+    """Run the sparsification analysis and write retention/threshold parquet outputs."""
     config = load_config(config_path)
+    configure_logging(log_file=get_pipeline_log_path(config))
+    LOGGER.info("sparsification: starting")
     workflow = get_config_value(config, "workflows.sparsification", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
     inference_parameters = resolve_inference_baseline_parameters(config)
@@ -333,9 +338,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     for spec in LOGIT_SPECS:
-        feature_matrix = pairs[
-            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
-        ].to_numpy(copy=False)
+        feature_matrix = pairs[[PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]].to_numpy(
+            copy=False
+        )
         pairs[spec["key"]], _ = predict_logistic_scores(
             feature_matrix,
             is_related,
@@ -397,18 +402,24 @@ def main(config_path: str | Path = "config.yaml") -> None:
                 resolution=resolution,
                 rng_seed=rng_seed,
             )
-            retention_rows.append({
-                "weight_column": weight_column,
-                **metadata,
-                "min_edge_weight": float(threshold),
-                "edge_retention_frac": (
-                    float(retained_edges / reference_edge_count) if reference_edge_count > 0 else float("nan")
-                ),
-                "weight_retention_frac": (
-                    float(retained_weight / reference_weight) if reference_weight > 0 else float("nan")
-                ),
-                "t_pipeline_s": float(sparsify_seconds + build_seconds + leiden_seconds),
-            })
+            retention_rows.append(
+                {
+                    "weight_column": weight_column,
+                    **metadata,
+                    "min_edge_weight": float(threshold),
+                    "edge_retention_frac": (
+                        float(retained_edges / reference_edge_count)
+                        if reference_edge_count > 0
+                        else float("nan")
+                    ),
+                    "weight_retention_frac": (
+                        float(retained_weight / reference_weight)
+                        if reference_weight > 0
+                        else float("nan")
+                    ),
+                    "t_pipeline_s": float(sparsify_seconds + build_seconds + leiden_seconds),
+                }
+            )
 
     retention_frame = (
         pd.DataFrame(retention_rows)
@@ -419,7 +430,10 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
     optimal_thresholds = determine_optimal_thresholds(retention_frame, min_weight_retention)
     (results_dir / "optimal_thresholds.json").write_text(json.dumps(optimal_thresholds, indent=2))
-    LOGGER.info("sparsification: done")
+    LOGGER.info(
+        "sparsification: done (optimal thresholds: %s)",
+        {k: f"{v:.4f}" for k, v in optimal_thresholds.items()},
+    )
 
 
 if __name__ == "__main__":

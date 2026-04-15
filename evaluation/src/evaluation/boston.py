@@ -1,4 +1,5 @@
 """Run the empirical Boston clustering workflow."""
+
 from __future__ import annotations
 
 import logging
@@ -7,34 +8,19 @@ from pathlib import Path
 import igraph as ig
 import numpy as np
 import pandas as pd
-
-try:
-    from .config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_configured_path,
-        resolve_inference_baseline_parameters,
-    )
-    from .leiden import run_leiden_partition
-    from .metrics import analyse_partition_composition
-    from .models import build_linkage_model
-    from .specs import DEFAULT_SEED
-except ImportError:  # pragma: no cover - support direct script execution
-    from config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_configured_path,
-        resolve_inference_baseline_parameters,
-    )
-    from leiden import run_leiden_partition
-    from metrics import analyse_partition_composition
-    from models import build_linkage_model
-    from specs import DEFAULT_SEED
-
+from config import (
+    configure_logging,
+    get_config_value,
+    get_pipeline_log_path,
+    load_config,
+    resolve_configured_output_path,
+    resolve_configured_path,
+    resolve_inference_baseline_parameters,
+)
+from leiden import run_leiden_partition
+from metrics import analyse_partition_composition
+from models import build_linkage_model
+from specs import DEFAULT_SEED
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,15 +29,38 @@ LOGGER = logging.getLogger(__name__)
 # Data preparation
 # ---------------------------------------------------------------------------
 
+
 def add_temporal_distance(
-        pairwise_df: pd.DataFrame,
-        metadata_df: pd.DataFrame,
-        metadata_id_col: str,
-        id_col_1: str,
-        id_col_2: str,
-        date_col: str,
-        out_col: str,
+    pairwise_df: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    metadata_id_col: str,
+    id_col_1: str,
+    id_col_2: str,
+    date_col: str,
+    out_col: str,
 ) -> pd.DataFrame:
+    """Compute absolute sampling-date difference (days) for each pair and append as a new column.
+
+    Parameters
+    ----------
+    pairwise_df : pandas.DataFrame
+        Pairwise distance table with columns *id_col_1* and *id_col_2*.
+    metadata_df : pandas.DataFrame
+        Per-sample metadata with columns *metadata_id_col* and *date_col*.
+    metadata_id_col : str
+        Column name in *metadata_df* used to join on pairwise IDs.
+    id_col_1, id_col_2 : str
+        Column names in *pairwise_df* holding the two sample identifiers.
+    date_col : str
+        Column in *metadata_df* holding sample collection dates.
+    out_col : str
+        Name for the new integer column of absolute date differences.
+
+    Returns
+    -------
+    pandas.DataFrame
+        *pairwise_df* with *out_col* appended (absolute days between samples).
+    """
     date_map = metadata_df.set_index(metadata_id_col)[date_col]
     d1 = pd.to_datetime(pairwise_df[id_col_1].map(date_map))
     d2 = pd.to_datetime(pairwise_df[id_col_2].map(date_map))
@@ -60,17 +69,17 @@ def add_temporal_distance(
 
 
 def build_graph(
-        pairwise_df: pd.DataFrame,
-        metadata_df: pd.DataFrame,
-        metadata_id_col: str,
-        metadata_date_col: str,
-        metadata_clade_col: str,
-        id_col_1: str,
-        id_col_2: str,
-        exposure_col: str,
-        weight_column: str,
-        minimum_weight: float = 0.0001,
-        edge_attribute_columns: tuple[str, ...] = (),
+    pairwise_df: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    metadata_id_col: str,
+    metadata_date_col: str,
+    metadata_clade_col: str,
+    id_col_1: str,
+    id_col_2: str,
+    exposure_col: str,
+    weight_column: str,
+    minimum_weight: float = 0.0001,
+    edge_attribute_columns: tuple[str, ...] = (),
 ) -> ig.Graph:
     """Build an igraph Graph with vertex metadata and weighted edges."""
     all_ids = pd.unique(pairwise_df[[id_col_1, id_col_2]].values.ravel())
@@ -80,7 +89,9 @@ def build_graph(
     g = ig.Graph(n=len(all_ids))
     g.vs[metadata_id_col] = all_ids.tolist()
     g.vs[metadata_date_col] = [metadata_dict.get(sid, {}).get(metadata_date_col) for sid in all_ids]
-    g.vs[metadata_clade_col] = [metadata_dict.get(sid, {}).get(metadata_clade_col) for sid in all_ids]
+    g.vs[metadata_clade_col] = [
+        metadata_dict.get(sid, {}).get(metadata_clade_col) for sid in all_ids
+    ]
     g.vs[exposure_col] = [metadata_dict.get(sid, {}).get(exposure_col) for sid in all_ids]
 
     filtered = pairwise_df[pairwise_df[weight_column] >= minimum_weight]
@@ -94,10 +105,14 @@ def build_graph(
     return g
 
 
-def summarise_cluster_sizes(cluster_results: pd.DataFrame, focus_cluster_ids: set[int]) -> pd.DataFrame:
+def summarise_cluster_sizes(
+    cluster_results: pd.DataFrame, focus_cluster_ids: set[int]
+) -> pd.DataFrame:
     """Return all reported cluster sizes and flag the focus clusters."""
     sizes = cluster_results[["cluster_id", "size"]].copy()
-    sizes = sizes.sort_values(["size", "cluster_id"], ascending=[False, True]).reset_index(drop=True)
+    sizes = sizes.sort_values(["size", "cluster_id"], ascending=[False, True]).reset_index(
+        drop=True
+    )
     sizes["rank"] = np.arange(1, len(sizes) + 1, dtype=int)
     sizes["is_focus_cluster"] = sizes["cluster_id"].isin(focus_cluster_ids)
     return sizes
@@ -109,9 +124,10 @@ def summarise_cluster_sizes(cluster_results: pd.DataFrame, focus_cluster_ids: se
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
-    configure_logging()
-    LOGGER.info("boston: starting")
+    """Run the full Boston empirical clustering workflow and write parquet outputs."""
     config = load_config(config_path)
+    configure_logging(log_file=get_pipeline_log_path(config))
+    LOGGER.info("boston: starting")
     workflow = get_config_value(config, "workflows.boston", default={})
     schema = get_config_value(config, "workflows.boston.schema", default={})
     metadata_path = resolve_configured_path(config, "paths.boston.metadata_path")
@@ -142,6 +158,11 @@ def main(config_path: str | Path = "config.yaml") -> None:
     LOGGER.info("boston: loading inputs")
     metadata = pd.read_parquet(metadata_path)
     pair_data = pd.read_parquet(pairwise_path)
+    LOGGER.info(
+        "boston: loaded %d samples, %d pairs",
+        len(metadata),
+        len(pair_data),
+    )
 
     missing_pairwise = {pairwise_id_col_1, pairwise_id_col_2, genetic_col} - set(pair_data.columns)
     if missing_pairwise:
@@ -206,33 +227,44 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
 
     if focus_exposures:
-        focus_cols = [f"count::{label}" for label in focus_exposures if f"count::{label}" in cluster_results.columns]
+        focus_cols = [
+            f"count::{label}"
+            for label in focus_exposures
+            if f"count::{label}" in cluster_results.columns
+        ]
         if not focus_cols:
             raise ValueError(f"Focus exposures not found in cluster summary: {focus_exposures}")
         focus_results = cluster_results[cluster_results[focus_cols].sum(axis=1) > 0]
     else:
         focus_results = cluster_results
 
-    summary = focus_results[[
-        "cluster_id",
-        "size",
-        f"intra_mean_{genetic_col}",
-        f"intra_max_{genetic_col}",
-        f"intra_mean_{temporal_col}",
-        f"intra_max_{temporal_col}",
-        f"inter_mean_{genetic_col}",
-    ]].copy()
-    summary.rename(columns={
-        "cluster_id": "Cluster ID",
-        "size": "Size",
-        f"intra_mean_{genetic_col}": "Intra-SNP (Mean)",
-        f"intra_max_{genetic_col}": "Intra-SNP (Max)",
-        f"intra_mean_{temporal_col}": "Intra-Time (Mean)",
-        f"intra_max_{temporal_col}": "Intra-Time (Max)",
-        f"inter_mean_{genetic_col}": "Inter-SNP (Mean)",
-    }, inplace=True)
+    summary = focus_results[
+        [
+            "cluster_id",
+            "size",
+            f"intra_mean_{genetic_col}",
+            f"intra_max_{genetic_col}",
+            f"intra_mean_{temporal_col}",
+            f"intra_max_{temporal_col}",
+            f"inter_mean_{genetic_col}",
+        ]
+    ].copy()
+    summary.rename(
+        columns={
+            "cluster_id": "Cluster ID",
+            "size": "Size",
+            f"intra_mean_{genetic_col}": "Intra-SNP (Mean)",
+            f"intra_max_{genetic_col}": "Intra-SNP (Max)",
+            f"intra_mean_{temporal_col}": "Intra-Time (Mean)",
+            f"intra_max_{temporal_col}": "Intra-Time (Max)",
+            f"inter_mean_{genetic_col}": "Inter-SNP (Mean)",
+        },
+        inplace=True,
+    )
 
-    cluster_sizes = summarise_cluster_sizes(cluster_results, set(focus_results["cluster_id"].astype(int)))
+    cluster_sizes = summarise_cluster_sizes(
+        cluster_results, set(focus_results["cluster_id"].astype(int))
+    )
 
     results_dir = resolve_configured_output_path(config, "outputs.boston.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -240,7 +272,11 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary.to_parquet(results_dir / "cluster_summary.parquet", index=False)
     focus_results.to_parquet(results_dir / "cluster_composition.parquet", index=False)
     cluster_sizes.to_parquet(results_dir / "cluster_sizes.parquet", index=False)
-    LOGGER.info("boston: done")
+    LOGGER.info(
+        "boston: done (%d focus clusters written to %s)",
+        len(focus_results),
+        results_dir,
+    )
 
 
 if __name__ == "__main__":

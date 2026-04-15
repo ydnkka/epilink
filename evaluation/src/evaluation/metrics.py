@@ -1,31 +1,49 @@
+"""Clustering evaluation metrics and partition comparison utilities.
+
+Provides BCubed precision/recall/F1 for overlapping cluster memberships,
+forward/backward/Jaccard overlap between consecutive partitions, per-cluster
+composition summaries with chi-square enrichment tests, logistic-regression
+scoring helpers, and a reference-membership reader for GML transmission trees.
+"""
+
 from __future__ import annotations
 
 from collections import Counter, defaultdict
 from typing import Any
 
-import numpy as np
-from sklearn.linear_model import LogisticRegression
 import bcubed
 import igraph as ig
+import networkx as nx
+import numpy as np
 import pandas as pd
 from scipy.stats import chisquare
 
-def get_reference_memberships(tree_path) -> dict[int, set[int]]:
-    """Build overlapping reference clusters from each case and its direct infectees."""
 
-    graph = ig.Graph.Read_GML(str(tree_path))
-    clusters = []
-    for node_index in range(graph.vcount()):
-        direct_infectees = set(graph.successors(node_index))
-        cluster_members = {node_index} | direct_infectees
-        cluster_labels = [graph.vs[index]["label"] for index in cluster_members]
-        clusters.append(cluster_labels)
+def get_reference_memberships(tree: nx.DiGraph) -> dict[int, set[int]]:
+    """Build ground-truth cluster membership sets from a GML transmission tree.
 
+    Each node in the tree represents the root of a transmission cluster whose
+    members are the root itself plus all direct successors.
+
+    Parameters
+    ----------
+    tree : networkx.DiGraph
+        Directed transmission tree as loaded from a GML file.
+
+    Returns
+    -------
+    dict[int, set[int]]
+        Mapping from integer case ID to the set of cluster IDs it belongs to.
+    """
     memberships: dict[int, set[int]] = defaultdict(set)
-    for cluster_id, cluster_members in enumerate(clusters):
-        for node_label in cluster_members:
-            memberships[int(node_label)].add(int(cluster_id))
-    return memberships
+
+    for cluster_id, node_label in enumerate(tree.nodes()):
+        cluster_members = set(node_label).union(tree.successors(node_label))
+        for member in cluster_members:
+            memberships[int(member)].add(cluster_id)
+
+    return dict(memberships)
+
 
 def bcubed_scores(
     predicted_memberships: dict[int, set[int]],
@@ -34,11 +52,16 @@ def bcubed_scores(
     """Compute BCubed precision, recall, and F1 for overlapping memberships."""
 
     shared_cases = sorted(
-        (case_id for case_id in set(predicted_memberships) & set(reference_memberships) if case_id is not None),
+        (
+            case_id
+            for case_id in set(predicted_memberships) & set(reference_memberships)
+            if case_id is not None
+        ),
         key=str,
     )
     valid_cases = [
-        case_id for case_id in shared_cases
+        case_id
+        for case_id in shared_cases
         if predicted_memberships[case_id] and reference_memberships[case_id]
     ]
     filtered_predicted = {case_id: predicted_memberships[case_id] for case_id in valid_cases}
@@ -70,8 +93,12 @@ def overlap_metrics_between(
 ) -> pd.DataFrame:
     """Compute forward, backward, and Jaccard overlap between two partitions."""
 
-    earlier_labels = {case_id: cluster_id for case_id, cluster_id in earlier_labels.items() if case_id is not None}
-    later_labels = {case_id: cluster_id for case_id, cluster_id in later_labels.items() if case_id is not None}
+    earlier_labels = {
+        case_id: cluster_id for case_id, cluster_id in earlier_labels.items() if case_id is not None
+    }
+    later_labels = {
+        case_id: cluster_id for case_id, cluster_id in later_labels.items() if case_id is not None
+    }
     earlier_clusters = make_cluster_sets(earlier_labels)
     later_clusters = make_cluster_sets(later_labels)
     shared_cases = sorted(set(earlier_labels) & set(later_labels), key=str)
@@ -158,11 +185,21 @@ def analyse_partition_composition(
             has_within = len(within_values) > 0
             has_between = len(between_values) > 0
 
-            edge_summary[f"intra_mean_{edge_attribute}"] = np.mean(within_values) if has_within else None
-            edge_summary[f"intra_max_{edge_attribute}"] = np.max(within_values) if has_within else None
-            edge_summary[f"intra_min_{edge_attribute}"] = np.min(within_values) if has_within else None
-            edge_summary[f"inter_mean_{edge_attribute}"] = np.mean(between_values) if has_between else None
-            edge_summary[f"inter_min_{edge_attribute}"] = np.min(between_values) if has_between else None
+            edge_summary[f"intra_mean_{edge_attribute}"] = (
+                np.mean(within_values) if has_within else None
+            )
+            edge_summary[f"intra_max_{edge_attribute}"] = (
+                np.max(within_values) if has_within else None
+            )
+            edge_summary[f"intra_min_{edge_attribute}"] = (
+                np.min(within_values) if has_within else None
+            )
+            edge_summary[f"inter_mean_{edge_attribute}"] = (
+                np.mean(between_values) if has_between else None
+            )
+            edge_summary[f"inter_min_{edge_attribute}"] = (
+                np.min(between_values) if has_between else None
+            )
 
         row = {
             "cluster_id": cluster_id,
@@ -184,67 +221,3 @@ def analyse_partition_composition(
     if not result_frame.empty:
         result_frame = result_frame.sort_values("size", ascending=False).reset_index(drop=True)
     return result_frame
-
-def build_training_indices(y: np.ndarray, train_size: int, rng_seed: int) -> np.ndarray:
-    """Sample a train subset that keeps at least one example from each class when possible."""
-
-    classes = np.unique(y)
-    if len(classes) < 2:
-        return np.array([], dtype=int)
-
-    train_size = int(min(max(train_size, len(classes)), len(y)))
-    rng = np.random.default_rng(rng_seed)
-    selected: list[int] = []
-    remaining: list[int] = []
-
-    for class_label in classes:
-        class_indices = np.flatnonzero(y == class_label)
-        chosen = int(rng.choice(class_indices))
-        selected.append(chosen)
-        remaining.extend(int(index) for index in class_indices if index != chosen)
-
-    extra_needed = train_size - len(selected)
-    if extra_needed > 0:
-        extra_pool = np.asarray(remaining, dtype=int)
-        if extra_needed >= len(extra_pool):
-            extra = extra_pool
-        else:
-            extra = rng.choice(extra_pool, size=extra_needed, replace=False)
-        selected.extend(int(index) for index in np.asarray(extra, dtype=int))
-
-    return np.asarray(sorted(selected), dtype=int)
-
-
-def predict_logistic_scores(
-        feature_matrix: np.ndarray,
-        y: np.ndarray,
-        *,
-        training_fraction: float,
-        rng_seed: int,
-        predict_feature_matrix: np.ndarray | None = None,
-        return_classifier: bool = False,
-) -> tuple[np.ndarray, LogisticRegression | None]:
-    """Fit logistic regression when feasible, otherwise return a constant prior score."""
-
-    prediction_features = (
-        np.asarray(feature_matrix) if predict_feature_matrix is None else np.asarray(predict_feature_matrix)
-    )
-    if len(y) == 0:
-        return np.full(len(prediction_features), np.nan, dtype=float), None
-
-    prevalence = float(y.mean())
-    if len(np.unique(y)) < 2:
-        return np.full(len(prediction_features), prevalence, dtype=float), None
-
-    classifier = LogisticRegression(solver="lbfgs", max_iter=200)
-    if float(training_fraction) >= 1.0:
-        classifier.fit(feature_matrix, y)
-        return classifier.predict_proba(prediction_features)[:, 1], classifier if return_classifier else None
-
-    requested_train_size = int(np.ceil(len(y) * float(training_fraction)))
-    train_indices = build_training_indices(y, requested_train_size, rng_seed)
-    if len(train_indices) == 0 or len(np.unique(y[train_indices])) < 2:
-        return np.full(len(prediction_features), prevalence, dtype=float), None
-
-    classifier.fit(feature_matrix[train_indices], y[train_indices])
-    return classifier.predict_proba(prediction_features)[:, 1], classifier if return_classifier else None

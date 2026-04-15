@@ -1,4 +1,5 @@
 """Evaluate partition stability as cases accrue over time."""
+
 from __future__ import annotations
 
 import json
@@ -9,76 +10,42 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from config import (
+    configure_logging,
+    get_config_value,
+    get_pipeline_log_path,
+    load_config,
+    resolve_configured_output_path,
+    resolve_generation_baseline_parameters,
+    resolve_inference_baseline_parameters,
+)
+from leiden import (
+    build_weighted_graph,
+    run_leiden_partition,
+    subset_pairs_for_nodes,
+)
+from metrics import (
+    bcubed_scores,
+    get_reference_memberships,
+    overlap_metrics_between,
+)
+from models import build_linkage_models, build_natural_history_parameters, predict_logistic_scores
+from specs import (
+    DEFAULT_SEED,
+    EPILINK_SPECS,
+    LOGIT_SPECS,
+    MODEL_KEYS,
+    PAIRWISE_BOTH_SAMPLED_COLUMN,
+    PAIRWISE_RELATED_COLUMN,
+    PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
+)
+
 from epilink import (
     InfectiousnessToTransmission,
     build_pairwise_case_table,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
 )
-
-try:
-    from .config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_generation_baseline_parameters,
-        resolve_inference_baseline_parameters,
-    )
-    from .leiden import (
-        build_weighted_graph,
-        partition_to_frame,
-        run_leiden_partition,
-        subset_pairs_for_nodes,
-    )
-    from .metrics import (
-        bcubed_scores,
-        get_reference_memberships,
-        overlap_metrics_between,
-        predict_logistic_scores,
-    )
-    from .models import build_linkage_models, build_natural_history_parameters
-    from .specs import (
-        DEFAULT_SEED,
-        EPILINK_SPECS,
-        LOGIT_SPECS,
-        MODEL_KEYS,
-        PAIRWISE_BOTH_SAMPLED_COLUMN,
-        PAIRWISE_RELATED_COLUMN,
-        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-    )
-except ImportError:  # pragma: no cover - support direct script execution
-    from config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_generation_baseline_parameters,
-        resolve_inference_baseline_parameters,
-    )
-    from leiden import (
-        build_weighted_graph,
-        partition_to_frame,
-        run_leiden_partition,
-        subset_pairs_for_nodes,
-    )
-    from metrics import (
-        bcubed_scores,
-        get_reference_memberships,
-        overlap_metrics_between,
-        predict_logistic_scores,
-    )
-    from models import build_linkage_models, build_natural_history_parameters
-    from specs import (
-        DEFAULT_SEED,
-        EPILINK_SPECS,
-        LOGIT_SPECS,
-        MODEL_KEYS,
-        PAIRWISE_BOTH_SAMPLED_COLUMN,
-        PAIRWISE_RELATED_COLUMN,
-        PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
-    )
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -87,31 +54,40 @@ LOGGER = logging.getLogger(__name__)
 # Temporal helpers
 # ---------------------------------------------------------------------------
 
+
 def sampling_times(tree: nx.Graph, step_days: int) -> pd.DataFrame:
     """Assign cases to cumulative availability bins based on rounded sample dates."""
-    sampling = {node_id: int(round(sample_date)) for node_id, sample_date in tree.nodes(data="sample_date")}
-    case_meta = pd.DataFrame({"node": list(sampling.keys()), "sampling_time": list(sampling.values())})
+    sampling = {
+        node_id: int(round(sample_date)) for node_id, sample_date in tree.nodes(data="sample_date")
+    }
+    case_meta = pd.DataFrame(
+        {"node": list(sampling.keys()), "sampling_time": list(sampling.values())}
+    )
 
     time_min = case_meta["sampling_time"].min()
     time_max = case_meta["sampling_time"].max()
     cuts = np.arange(time_min, time_max + step_days, step_days)
-    bin_index = (cuts.searchsorted(case_meta["sampling_time"].values, side="right") - 1).clip(0, len(cuts) - 1)
+    bin_index = (cuts.searchsorted(case_meta["sampling_time"].values, side="right") - 1).clip(
+        0, len(cuts) - 1
+    )
 
     case_meta["available_bin_start"] = cuts[bin_index]
-    case_meta = case_meta.sort_values(["available_bin_start", "sampling_time"]).reset_index(drop=True)
+    case_meta = case_meta.sort_values(["available_bin_start", "sampling_time"]).reset_index(
+        drop=True
+    )
     codes, _ = pd.factorize(case_meta["available_bin_start"], sort=True)
     case_meta["available_time"] = codes
     return case_meta.sort_values("sampling_time").reset_index(drop=True)
 
 
 def run_partition_for_nodes(
-        pairwise_frame: pd.DataFrame,
-        nodes_present: set,
-        weight_column: str,
-        minimum_weight: float,
-        resolution: float,
-        num_restarts: int,
-        rng_seed: int,
+    pairwise_frame: pd.DataFrame,
+    nodes_present: set,
+    weight_column: str,
+    minimum_weight: float,
+    resolution: float,
+    num_restarts: int,
+    rng_seed: int,
 ) -> dict[Any, int]:
     """Infer a single Leiden partition for the available cases at one time point."""
     subgraph_pairs = subset_pairs_for_nodes(pairwise_frame, nodes_present)
@@ -132,13 +108,13 @@ def run_partition_for_nodes(
 
 
 def cumulative_stability(
-        pairwise_frame: pd.DataFrame,
-        case_meta: pd.DataFrame,
-        weight_column: str,
-        resolution: float,
-        minimum_weight: float,
-        num_restarts: int,
-        rng_seed: int,
+    pairwise_frame: pd.DataFrame,
+    case_meta: pd.DataFrame,
+    weight_column: str,
+    resolution: float,
+    minimum_weight: float,
+    num_restarts: int,
+    rng_seed: int,
 ) -> pd.DataFrame:
     """Run cumulative clustering and compare consecutive time-step partitions."""
     transitions = []
@@ -174,9 +150,10 @@ def cumulative_stability(
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
-    configure_logging()
-    LOGGER.info("stability: starting")
+    """Simulate epidemic data, select resolutions, and evaluate cumulative partition stability."""
     config = load_config(config_path)
+    configure_logging(log_file=get_pipeline_log_path(config))
+    LOGGER.info("stability: starting")
     workflow = get_config_value(config, "workflows.stability", default={})
     generation_parameters = resolve_generation_baseline_parameters(config)
     inference_parameters = resolve_inference_baseline_parameters(config)
@@ -188,7 +165,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     resolution_grid = np.asarray(workflow.get("resolution_grid"), dtype=float)
 
     optimal_thresholds: dict[str, float] = {}
-    thresholds_path = resolve_configured_output_path(config, "outputs.sparsification.optimal_thresholds_path")
+    thresholds_path = resolve_configured_output_path(
+        config, "outputs.sparsification.optimal_thresholds_path"
+    )
     if thresholds_path.exists():
         optimal_thresholds = json.loads(thresholds_path.read_text())
 
@@ -253,7 +232,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # ------------------------------------------------------------------
     # 3. Select best resolution per model via BCubed F1 on initial cases
     # ------------------------------------------------------------------
-    reference = get_reference_memberships(tree_path)
+    reference = get_reference_memberships(tree)
     initial_pairs = subset_pairs_for_nodes(pairs, initial_nodes)
 
     metric_rows = []
@@ -285,7 +264,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
     evaluation_metrics = pd.DataFrame(metric_rows)
     best_index = evaluation_metrics.groupby("weight")["f1_score"].idxmax()
-    model_resolution_map = evaluation_metrics.loc[best_index].set_index("weight")["resolution"].to_dict()
+    model_resolution_map = (
+        evaluation_metrics.loc[best_index].set_index("weight")["resolution"].to_dict()
+    )
 
     # ------------------------------------------------------------------
     # 4. Cumulative stability
@@ -322,8 +303,13 @@ def main(config_path: str | Path = "config.yaml") -> None:
             results_dir / f"temporal_stability_{key}.parquet", index=True
         )
 
-    evaluation_metrics.to_parquet(results_dir / "stability_resolution_selection.parquet", index=False)
-    LOGGER.info("stability: done")
+    evaluation_metrics.to_parquet(
+        results_dir / "stability_resolution_selection.parquet", index=False
+    )
+    LOGGER.info(
+        "stability: done (results written to %s)",
+        results_dir,
+    )
 
 
 if __name__ == "__main__":

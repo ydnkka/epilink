@@ -1,9 +1,0 @@
-experiments: starting
-experiments: 26 runs configured
-experiments: running baseline reference
-Simulating epidemic dates for tree with 4990 nodes.
-Simulating genomic sequences of length 5000.
-Precomputing 10000 draws for 2 scenarios.
-Precomputing 10000 draws for 2 scenarios.
-experiments: running remaining scenarios
-experiments: done

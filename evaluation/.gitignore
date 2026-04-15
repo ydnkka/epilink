@@ -3,7 +3,6 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 .venv/
-/AGENTS.md
 .snakemake/
 *.aux
 *.log
