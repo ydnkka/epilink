@@ -1,12 +1,26 @@
+"""Shared plotting constants, theme helpers, and PLOS-compliant figure export.
+
+Provides:
+- PLOS figure dimension constants (:data:`PLOS_WIDTHS_CM`, :data:`PLOS_MAX_HEIGHT_CM`).
+- Canonical model, condition, scenario, and stability display mappings used
+  across all evaluation figures.
+- :func:`set_plos_theme` for consistent seaborn/matplotlib styling.
+- :func:`save_plos_figure` for exporting PDF and TIFF at publication DPI.
+- :func:`add_panel_labels` for labelling subplot panels (A, B, C, …).
+"""
+
 from __future__ import annotations
 
+import logging
+import string
 from collections.abc import Sequence
 from pathlib import Path
-import string
 from typing import Literal
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+LOGGER = logging.getLogger(__name__)
 
 PLOS_WIDTHS_CM = {
     "min": 6.68,
@@ -15,6 +29,87 @@ PLOS_WIDTHS_CM = {
     "full": 19.05,
 }
 PLOS_MAX_HEIGHT_CM = 22.23
+
+# ─── Shared evaluation constants ──────────────────────────────────────────────
+
+#: Canonical model order used across all figures.
+MODELS: list[str] = ["EDD", "EDS", "ESD", "ESS", "LD", "LS"]
+
+#: Raw-key → display-label mapping for condition columns.
+CONDITION_LABELS: dict[str, str] = {
+    "matched": "Matched",
+    "mismatched": "Mismatched",
+}
+#: Display order matching CONDITION_LABELS insertion order.
+CONDITION_ORDER: list[str] = list(CONDITION_LABELS.values())
+#: Colour assigned to each condition display name.
+CONDITION_COLORS: dict[str, str] = {
+    "Matched": "#185FA5",
+    "Mismatched": "#993C1D",
+}
+
+#: Raw scenario key → short display label (canonical, shared across all figures).
+SCENARIO_LABELS: dict[str, str] = {
+    "baseline": "Baseline",
+    "incubation_mean_0.75": "Inc mean ↓25%",
+    "incubation_mean_1.25": "Inc mean ↑25%",
+    "incubation_cv_0.75": "Inc CV ↓25%",
+    "incubation_cv_1.25": "Inc CV ↑25%",
+    "testing_delay_mean_0.75": "Delay mean ↓25%",
+    "testing_delay_mean_1.25": "Delay mean ↑25%",
+    "testing_delay_cv_0.75": "Delay CV ↓25%",
+    "testing_delay_cv_1.25": "Delay CV ↑25%",
+    "substitution_rate_0.75": "Clock rate ↓25%",
+    "substitution_rate_1.25": "Clock rate ↑25%",
+    "relaxation_0.00": "Relax. strict clock",
+    "relaxation_1.25": "Relax. ↑25%",
+}
+#: Non-baseline scenario keys in the canonical display order.
+SCENARIO_ORDER: list[str] = [
+    "incubation_mean_0.75",
+    "incubation_mean_1.25",
+    "incubation_cv_0.75",
+    "incubation_cv_1.25",
+    "testing_delay_mean_0.75",
+    "testing_delay_mean_1.25",
+    "testing_delay_cv_0.75",
+    "testing_delay_cv_1.25",
+    "substitution_rate_0.75",
+    "substitution_rate_1.25",
+    "relaxation_0.00",
+    "relaxation_1.25",
+]
+
+#: Per-model colour palette, indexed in MODELS order.
+MODEL_PALETTE: list[str] = [
+    "#E63946",
+    "#457B9D",
+    "#2A9D8F",
+    "#E9C46A",
+    "#9B5DE5",
+    "#F4A261",
+]
+#: Per-model line styles, indexed in MODELS order.
+MODEL_LINESTYLES: list = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
+
+#: Colours for temporal-stability metrics.
+STABILITY_COLORS: dict[str, str] = {
+    "forward": "#0072B2",
+    "backward": "#D55E00",
+    "jaccard": "#CC79A7",
+}
+#: Marker styles for temporal-stability metrics.
+STABILITY_MARKERS: dict[str, str] = {
+    "forward": "^",
+    "backward": "*",
+    "jaccard": "d",
+}
+#: Legend labels for temporal-stability metrics.
+STABILITY_LABELS: dict[str, str] = {
+    "forward": "Forward",
+    "backward": "Backward",
+    "jaccard": "Jaccard",
+}
 
 
 def set_plos_theme(
@@ -69,7 +164,7 @@ def save_plos_figure(
     fig: plt.Figure,
     stem: str,
     *,
-    outdir: str | Path = ".",
+    out_dir: str | Path = ".",
     width_cm: float = PLOS_WIDTHS_CM["text_column"],
     height_cm: float | None = None,
     dpi: int = 600,
@@ -104,7 +199,7 @@ def save_plos_figure(
 
     fig.set_size_inches(target_w, target_h, forward=True)
 
-    output_dir = Path(outdir)
+    output_dir = Path(out_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     saved_paths: dict[str, Path] = {}
 
@@ -112,13 +207,13 @@ def save_plos_figure(
         pdf_path = output_dir / f"{stem}.pdf"
         fig.savefig(pdf_path, dpi=dpi, transparent=False)
         saved_paths["pdf"] = pdf_path
-        print(f"Saved PDF: {pdf_path}")
+        LOGGER.info("figures: saved PDF  %s", pdf_path)
 
     if save_eps:
         eps_path = output_dir / f"{stem}.eps"
         fig.savefig(eps_path, format="eps", dpi=dpi, transparent=False)
         saved_paths["eps"] = eps_path
-        print(f"Saved EPS: {eps_path}")
+        LOGGER.info("figures: saved EPS  %s", eps_path)
 
     if save_tiff:
         tif_path = output_dir / f"{stem}.tif"
@@ -130,7 +225,7 @@ def save_plos_figure(
             pil_kwargs={"compression": "tiff_lzw"},
         )
         saved_paths["tiff"] = tif_path
-        print(f"Saved TIFF: {tif_path}")
+        LOGGER.info("figures: saved TIFF %s", tif_path)
 
     if close:
         plt.close(fig)

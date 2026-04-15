@@ -1,6 +1,14 @@
+"""Build a canonical transmission tree from SCoVMod simulation outputs.
+
+Parses the ragged-CSV infection and transmission files produced by SCoVMod,
+constructs a directed transmission network, resolves re-infections to a
+single-parent tree, selects the largest connected component closest to a
+configured target size, and exports a GML tree plus degree/heterogeneity
+summary statistics.
+"""
+
 from __future__ import annotations
 
-import argparse
 import ast
 import csv
 import json
@@ -10,39 +18,27 @@ from typing import Any
 
 import networkx as nx
 import numpy as np
-from numpy.random import default_rng
 import pandas as pd
-
+from config import (
+    configure_logging,
+    get_config_value,
+    get_pipeline_log_path,
+    load_config,
+    resolve_configured_output_path,
+    resolve_configured_path,
+)
+from heterogeneity import heterogeneity
 from networkx.algorithms.tree.branchings import maximum_spanning_arborescence
-
-try:
-    from .config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_configured_path,
-    )
-    from .heterogeneity import heterogeneity
-    from .specs import DEFAULT_SEED
-except ImportError:  # pragma: no cover - support direct script execution
-    from config import (
-        configure_logging,
-        get_config_value,
-        load_config,
-        resolve_configured_output_path,
-        resolve_configured_path,
-    )
-    from heterogeneity import heterogeneity
-    from specs import DEFAULT_SEED
-
+from numpy.random import default_rng
+from specs import DEFAULT_SEED
 
 LOGGER = logging.getLogger(__name__)
 
 
-# -----------------------------
+# ---------------------------------------------------------------------------
 # SCoVMod parsing and tree building
-# -----------------------------
+# ---------------------------------------------------------------------------
+
 
 def parse_scovmod_outputs(filepath: Path) -> pd.DataFrame:
     """
@@ -86,9 +82,9 @@ def parse_scovmod_outputs(filepath: Path) -> pd.DataFrame:
 
 
 def build_transmission_network(
-        trans_events_df: pd.DataFrame,
-        infect_hist_df: pd.DataFrame,
-        rng_seed: int = 12345,
+    trans_events_df: pd.DataFrame,
+    infect_hist_df: pd.DataFrame,
+    rng_seed: int = 12345,
 ) -> nx.DiGraph:
     """
     Build a directed transmission network from event and history tables.
@@ -115,7 +111,9 @@ def build_transmission_network(
     rng = default_rng(rng_seed)
 
     # Build fast lookup: (TimeStep, Location) -> List[IDs]
-    infection_lookup = {(int(row.TimeStep), int(row.Location)): row.Ids for row in infect_hist_df.itertuples()}
+    infection_lookup = {
+        (int(row.TimeStep), int(row.Location)): row.Ids for row in infect_hist_df.itertuples()
+    }
 
     edges = []
 
@@ -288,15 +286,16 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
     return summary
 
 
-# -----------------------------
-# Main execution
-# -----------------------------
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 def main(config_path: str | Path = "config.yaml") -> None:
-    configure_logging()
-    LOGGER.info("scovmod: starting")
+    """Parse SCoVMod outputs, build the transmission tree, and write summary parquets."""
     config = load_config(config_path)
+    configure_logging(log_file=get_pipeline_log_path(config))
+    LOGGER.info("scovmod: starting")
     workflow = get_config_value(config, "workflows.scovmod", default={})
     infection_path = resolve_configured_path(config, "paths.scovmod.infection_path")
     transmission_path = resolve_configured_path(config, "paths.scovmod.transmission_path")
@@ -310,7 +309,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
     out_dir = resolve_configured_output_path(config, "outputs.scovmod.directory")
     tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
-    heterogeneity_path = resolve_configured_output_path(config, "outputs.scovmod.heterogeneity_path")
+    heterogeneity_path = resolve_configured_output_path(
+        config, "outputs.scovmod.heterogeneity_path"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     LOGGER.info("scovmod: parsing inputs")
@@ -318,50 +319,55 @@ def main(config_path: str | Path = "config.yaml") -> None:
     infect_df = parse_scovmod_outputs(infection_path)
     trans_df = parse_scovmod_outputs(transmission_path)
 
-    LOGGER.info("scovmod: building tree")
+    LOGGER.info(
+        "scovmod: building tree (infection rows=%d, transmission rows=%d)",
+        len(infect_df),
+        len(trans_df),
+    )
     # Build raw network
-    raw_G = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
+    raw_g = build_transmission_network(trans_df, infect_df, rng_seed=rng_seed)
 
     # Raw network diagnostics
-    raw_components = [len(c) for c in nx.weakly_connected_components(raw_G)]
+    raw_components = [len(c) for c in nx.weakly_connected_components(raw_g)]
 
     # Clean multiple parents
-    clean_G = remove_reinfections(raw_G)
-    clean_components = [len(c) for c in nx.weakly_connected_components(clean_G)]
+    clean_g = remove_reinfections(raw_g)
+    clean_components = [len(c) for c in nx.weakly_connected_components(clean_g)]
 
-    component_sizes = pd.DataFrame({
-        "kind": ["raw"] * len(raw_components) + ["cleaned"] * len(clean_components),
-        "value": raw_components + clean_components
-    })
-
+    component_sizes = pd.DataFrame(
+        {
+            "kind": ["raw"] * len(raw_components) + ["cleaned"] * len(clean_components),
+            "value": raw_components + clean_components,
+        }
+    )
 
     # Select target component
-    comp_G = select_target_component(
-        clean_G,
+    comp_g = select_target_component(
+        clean_g,
         target_size=target_component_size,
     )
 
     degree_rows: list[dict[str, object]] = []
-    degree_rows.extend(_degree_rows(raw_G, "raw"))
-    degree_rows.extend(_degree_rows(clean_G, "cleaned"))
-    degree_rows.extend(_degree_rows(comp_G, "selected_component"))
+    degree_rows.extend(_degree_rows(raw_g, "raw"))
+    degree_rows.extend(_degree_rows(clean_g, "cleaned"))
+    degree_rows.extend(_degree_rows(comp_g, "selected_component"))
     degree_df = pd.DataFrame(degree_rows)
 
     # Build tree (MSA)
-    tree_G = build_msa_tree(comp_G)
+    tree_G = build_msa_tree(comp_g)
 
     # Save graph
     nx.write_gml(tree_G, tree_path)
 
-    offspring_counts = np.array(list(dict(clean_G.out_degree(clean_G.nodes)).values()))
+    offspring_counts = np.array(list(dict(clean_g.out_degree(clean_g.nodes)).values()))
     results = heterogeneity(offspring_counts)
     heterogeneity_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     # Save summary stats
     summaries = [
-        summarise_graph(raw_G, "raw"),
-        summarise_graph(clean_G, "cleaned"),
-        summarise_graph(comp_G, "selected_component"),
+        summarise_graph(raw_g, "raw"),
+        summarise_graph(clean_g, "cleaned"),
+        summarise_graph(comp_g, "selected_component"),
         summarise_graph(tree_G, "final_tree"),
     ]
 
@@ -370,7 +376,12 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary_df.to_parquet(out_dir / "tree_summary.parquet", index=False)
     component_sizes.to_parquet(out_dir / "component_sizes.parquet", index=False)
     degree_df.to_parquet(out_dir / "degree_distributions.parquet", index=False)
-    LOGGER.info("scovmod: done")
+    LOGGER.info(
+        "scovmod: done (tree nodes=%d, tree edges=%d)",
+        tree_G.number_of_nodes(),
+        tree_G.number_of_edges(),
+    )
+
 
 if __name__ == "__main__":
     main()

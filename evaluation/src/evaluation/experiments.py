@@ -1,9 +1,17 @@
+"""Orchestrate the synthetic scenario experiment grid.
+
+Builds all (condition × scenario) run specifications from config, runs the
+loss-reference scenario first to seed classifiers and baseline metrics, then
+dispatches all remaining scenarios in parallel via ``ProcessPoolExecutor``.
+Results are collected into a tidy ``pandas.DataFrame`` and written to parquet.
+"""
+
 from __future__ import annotations
 
+import json
+import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
-import logging
-import json
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +21,7 @@ try:
     from .config import (
         build_run_specs,
         configure_logging,
+        get_pipeline_log_path,
         load_config,
         resolve_configured_output_path,
     )
@@ -22,6 +31,7 @@ except ImportError:  # pragma: no cover - support direct script execution
     from config import (
         build_run_specs,
         configure_logging,
+        get_pipeline_log_path,
         load_config,
         resolve_configured_output_path,
     )
@@ -29,18 +39,35 @@ except ImportError:  # pragma: no cover - support direct script execution
     from specs import BASELINE_SCENARIO_NAME, parameter_columns
 
 
-
 LOGGER = logging.getLogger(__name__)
 
 
 def _evaluate_run(
-        run: Any,
-        evaluate_kwargs: dict[str, Any],
-        baseline_performance: dict[str, dict[str, float]] | None,
-        logistic_classifier: dict[str, Any] | None,
+    run: Any,
+    evaluate_kwargs: dict[str, Any],
+    baseline_performance: dict[str, dict[str, float]] | None,
+    logistic_classifier: dict[str, Any] | None,
 ) -> tuple:
-    """Worker: evaluate a single run. Must be module-level for ProcessPoolExecutor pickling."""
-    scenario_result, classifiers = evaluate_scenario(
+    """Evaluate a single run spec; module-level so ``ProcessPoolExecutor`` can pickle it.
+
+    Parameters
+    ----------
+    run : RunSpec
+        The run specification to evaluate.
+    evaluate_kwargs : dict
+        Extra keyword arguments forwarded to :func:`evaluate_scenario`.
+    baseline_performance : dict or None
+        Per-model baseline AP and F1 used to compute relative loss.
+    logistic_classifier : dict or None
+        Pre-fitted logistic classifiers from the loss-reference run (may be
+        ``None`` when the run trains its own).
+
+    Returns
+    -------
+    tuple[RunSpec, ScenarioResult]
+        The original run spec and the evaluation result.
+    """
+    scenario_result, classifiers, _ = evaluate_scenario(
         tree_path=run.tree_path,
         scenario_name=run.scenario_name,
         generation_parameters=run.generation_parameters,
@@ -53,11 +80,12 @@ def _evaluate_run(
 
 
 def _make_row(
-        run: Any,
-        scenario_result: ScenarioResult,
-        model_key: str,
-        model_result: Any,
+    run: Any,
+    scenario_result: ScenarioResult,
+    model_key: str,
+    model_result: Any,
 ) -> dict[str, Any]:
+    """Flatten one (run, model) result into a single tidy dict row."""
     return {
         "condition": run.condition,
         "scenario": run.scenario_name,
@@ -100,7 +128,9 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     baseline_performance_cache: dict[str, dict[str, float]] = {}
 
     optimal_thresholds: dict[str, float] = {}
-    thresholds_path = resolve_configured_output_path(config, "outputs.sparsification.optimal_thresholds_path")
+    thresholds_path = resolve_configured_output_path(
+        config, "outputs.sparsification.optimal_thresholds_path"
+    )
     if thresholds_path.exists():
         optimal_thresholds = json.loads(thresholds_path.read_text())
 
@@ -109,7 +139,10 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     results_rows = []
 
     def _is_loss_reference(run: Any) -> bool:
-        return run.condition == loss_reference_condition and run.scenario_name == loss_reference_scenario
+        return (
+            run.condition == loss_reference_condition
+            and run.scenario_name == loss_reference_scenario
+        )
 
     baseline_runs = [run for run in runs if _is_loss_reference(run)]
     other_runs = [run for run in runs if not _is_loss_reference(run)]
@@ -117,7 +150,7 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
     # Phase 1: the loss-reference runs are sequential — their outputs seed the parallel phase.
     LOGGER.info("experiments: running baseline reference")
     for run in baseline_runs:
-        scenario_result, classifiers = evaluate_scenario(
+        scenario_result, classifiers, _ = evaluate_scenario(
             tree_path=run.tree_path,
             scenario_name=run.scenario_name,
             generation_parameters=run.generation_parameters,
@@ -164,15 +197,22 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
 
     return pd.DataFrame(results_rows)
 
+
 def main(config_path: str | Path = "config.yaml") -> None:
-    configure_logging()
-    LOGGER.info("experiments: starting")
+    """Run all configured experiments and write the tidy results parquet."""
     config = load_config(config_path)
+    configure_logging(log_file=get_pipeline_log_path(config))
+    LOGGER.info("experiments: starting")
     out_dir = resolve_configured_output_path(config, "outputs.synthetic.directory")
     out_dir.mkdir(parents=True, exist_ok=True)
     results = run_experiment(config)
     results.to_parquet(out_dir / "results.parquet", index=False)
-    LOGGER.info("experiments: done")
+    LOGGER.info(
+        "experiments: done (%d result rows written to %s)",
+        len(results),
+        out_dir / "results.parquet",
+    )
+
 
 if __name__ == "__main__":
     main()

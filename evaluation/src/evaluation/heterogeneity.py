@@ -1,3 +1,10 @@
+"""Estimate transmission heterogeneity from offspring-count distributions.
+
+Fits a negative-binomial model (by MLE, with a method-of-moments fallback),
+computes bootstrap 95% CIs for the mean (R) and dispersion (k), and reports
+superspreading statistics.  The public entry-point is :func:`heterogeneity`.
+"""
+
 from __future__ import annotations
 
 import warnings
@@ -83,7 +90,7 @@ def _moments_nb(
     if n < 2:
         warnings.warn(
             "Method-of-moments: n < 2, cannot estimate dispersion k; returning k = NaN.",
-            RuntimeWarning
+            RuntimeWarning,
         )
         return R, np.nan
 
@@ -94,11 +101,11 @@ def _moments_nb(
         warnings.warn(
             "Method-of-moments: sample variance <= mean; NB dispersion k not identifiable. "
             "Returning k = NaN (treat as Poisson-like).",
-            RuntimeWarning
+            RuntimeWarning,
         )
         return R, np.nan
 
-    k = (R ** 2) / (var - R)
+    k = (R**2) / (var - R)
     if not np.isfinite(k) or k <= 0:
         warnings.warn("Method-of-moments: computed invalid k; returning k = NaN.", RuntimeWarning)
         k = np.nan
@@ -147,7 +154,7 @@ def _fit_nb_mle(counts: np.ndarray, eps: float = 1e-9) -> tuple[float, float]:
     # Initialise with method-of-moments
     Rt = max(x.mean(), eps)
     var = x.var(ddof=1) if x.size > 1 else Rt + 1.0
-    k0 = max((Rt ** 2) / max(var - Rt, eps), 0.3)
+    k0 = max((Rt**2) / max(var - Rt, eps), 0.3)
 
     def nll(params: np.ndarray) -> float:
         R, logk = params
@@ -165,7 +172,7 @@ def _fit_nb_mle(counts: np.ndarray, eps: float = 1e-9) -> tuple[float, float]:
         nll,
         x0=np.array([Rt, np.log(k0)]),
         method="L-BFGS-B",
-        bounds=[(1e-12, None), (np.log(1e-8), np.log(1e8))]
+        bounds=[(1e-12, None), (np.log(1e-8), np.log(1e8))],
     )
     if not res.success:
         raise RuntimeError(f"NB MLE failed: {res.message}")
@@ -335,7 +342,7 @@ def heterogeneity(
     bootstrap: int = 200,
     bootstrap_seed: int | None = 123,
     superspreading_quantile: float = 0.99,
-    tol: float = 1e-12
+    tol: float = 1e-12,
 ) -> dict[str, object]:
     r"""
     Estimate transmission heterogeneity from offspring counts.
@@ -397,7 +404,7 @@ def heterogeneity(
                 "fit_method": "degenerate",
                 "fit_notes": "mean=0",
                 "quantile": q,
-            }
+            },
         }
 
     # Fit NB safely (MLE if possible, otherwise MoM with warnings)
@@ -433,17 +440,17 @@ def heterogeneity(
         "meta": {
             "n": int(n),
             "total_transmissions": int(x.sum()),
-            "bootstrap_kept": int(kept),
-            "bootstrap_kept_R": int(kept_R),
-            "bootstrap_kept_k": int(kept_k),
+            "bootstrap_kept": kept,
+            "bootstrap_kept_R": kept_R,
+            "bootstrap_kept_k": kept_k,
             "fit_method": method,
             "fit_notes": notes,
             "quantile": q,
-        }
+        },
     }
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Example usage
     example_data = [0, 1, 0, 2, 3, 0, 0, 5, 1, 0, 0, 4, 2, 0]
     results = heterogeneity(example_data, bootstrap=100)

@@ -1,3 +1,11 @@
+"""igraph graph-construction and Leiden community-detection helpers.
+
+Provides :func:`build_weighted_graph` for assembling an undirected weighted
+graph from a pairwise edge table, :func:`run_leiden_partition` for multi-restart
+Leiden clustering, and utility functions for converting partitions and
+subsetting pair tables.
+"""
+
 from __future__ import annotations
 
 import random
@@ -9,15 +17,15 @@ import pandas as pd
 
 
 def build_weighted_graph(
-        minimum_weight: float,
-        pairwise_frame: pd.DataFrame | None = None,
-        weight_column: str | None = None,
-        source_column: str = "CaseA",
-        target_column: str = "CaseB",
-        vertex_ids: list[str] | pd.Index | None = None,
-        source_ids: list[Any] | np.ndarray | pd.Index | None = None,
-        target_ids: list[Any] | np.ndarray | pd.Index | None = None,
-        weights: list[float] | np.ndarray | pd.Series | None = None,
+    minimum_weight: float,
+    pairwise_frame: pd.DataFrame | None = None,
+    weight_column: str | None = None,
+    source_column: str = "CaseA",
+    target_column: str = "CaseB",
+    vertex_ids: list[str] | pd.Index | None = None,
+    source_ids: list[Any] | np.ndarray | pd.Index | None = None,
+    target_ids: list[Any] | np.ndarray | pd.Index | None = None,
+    weights: list[float] | np.ndarray | pd.Series | None = None,
 ) -> ig.Graph:
     """Build an undirected weighted graph from a pairwise edge table."""
 
@@ -29,7 +37,9 @@ def build_weighted_graph(
         weight_values = pairwise_frame[weight_column].to_numpy(copy=False)
     else:
         if source_ids is None or target_ids is None or weights is None:
-            raise ValueError("Provide pairwise_frame or all of source_ids, target_ids, and weights.")
+            raise ValueError(
+                "Provide pairwise_frame or all of source_ids, target_ids, and weights."
+            )
         source_values = np.asarray(source_ids)
         target_values = np.asarray(target_ids)
         weight_values = np.asarray(weights, dtype=float)
@@ -59,7 +69,11 @@ def build_weighted_graph(
 
     if vertex_ids is not None:
         vertex_id_list = [str(vertex_id) for vertex_id in vertex_ids]
-        present = set(graph.vs["case_id"]) if graph.vcount() and "case_id" in graph.vs.attributes() else set()
+        present = (
+            set(graph.vs["case_id"])
+            if graph.vcount() and "case_id" in graph.vs.attributes()
+            else set()
+        )
         missing = [vertex_id for vertex_id in vertex_id_list if vertex_id not in present]
         if missing:
             start_index = graph.vcount()
@@ -73,11 +87,11 @@ def build_weighted_graph(
 
 
 def run_leiden_partition(
-        graph: ig.Graph,
-        weight_column: str,
-        resolution: float,
-        num_restarts: int,
-        rng_seed: int | None = None,
+    graph: ig.Graph,
+    weight_column: str,
+    resolution: float,
+    num_restarts: int,
+    rng_seed: int | None = None,
 ) -> tuple[ig.VertexClustering, float]:
     """Run Leiden repeatedly and keep the highest-modularity partition."""
 
@@ -109,10 +123,10 @@ def run_leiden_partition(
 
 
 def partition_to_frame(
-        graph: ig.Graph,
-        partition: ig.VertexClustering,
-        weight_column: str,
-        resolution: float,
+    graph: ig.Graph,
+    partition: ig.VertexClustering,
+    weight_column: str,
+    resolution: float,
 ) -> pd.DataFrame:
     """Convert an igraph partition into a tidy output table."""
 
