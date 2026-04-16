@@ -242,6 +242,133 @@ def make_fig_baseline() -> plt.Figure:
     return fig
 
 
+# ─── Synthetic metric summaries ──────────────────────────────────────
+
+
+def _plot_metric_panel(
+    ax: plt.Axes,
+    df: pd.DataFrame,
+    metric: str,
+    title: str,
+) -> None:
+    sns.barplot(
+        data=df,
+        x="model",
+        y=metric,
+        hue="condition",
+        palette=CONDITION_COLORS,
+        hue_order=CONDITION_ORDER,
+        errorbar=("ci", 95),
+        capsize=0.2,
+        err_kws={'linewidth': 1.2},
+        width=0.75,
+        ax=ax,
+    )
+    ax.set_xlabel("")
+    ax.set_ylabel(title)
+    ax.set_ylim(0, 1)
+    ax.grid(True, alpha=0.12, color="#555870")
+
+
+def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
+    """Per-model metric summaries across non-baseline scenarios."""
+
+    fig, axes = plt.subplots(
+        2,
+        2,
+        figsize=(
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
+        ),
+        sharex=True,
+        constrained_layout=True,
+        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
+    )
+    axes = axes.flatten()
+
+    for ax, (metric, title) in zip(axes, METRIC_PANELS):
+        _plot_metric_panel(ax, results, metric=metric, title=title)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    for ax in axes:
+        if ax.legend_ is not None:
+            ax.legend_.remove()
+
+    fig.legend(
+        handles,
+        labels,
+        title="Condition",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.1),
+        ncol=2,
+    )
+    fig.supxlabel("Model")
+    add_panel_labels(list(axes))
+    return fig
+
+
+# ─── Temporal stability ───────────────────────────────────────────────
+
+
+def _plot_stability_panel(df: pd.DataFrame, ax: plt.Axes, model: str) -> None:
+    for metric in STABILITY_LABELS:
+        sns.lineplot(
+            data=df,
+            x="t1",
+            y=metric,
+            color=STABILITY_COLORS[metric],
+            marker=STABILITY_MARKERS[metric],
+            ax=ax,
+            label=STABILITY_LABELS[metric],
+        )
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_ylim(0, 1.05)
+    ax.set_title(model, fontweight="bold")
+    ax.grid(True, alpha=0.12, color="#555870")
+
+
+def make_fig_stability() -> plt.Figure:
+    """Temporal stability across epidemic weeks, one panel per model."""
+    stability_frames = {
+        m: read_result_table("stability", f"temporal_stability_{m}.parquet") for m in MODELS
+    }
+
+    fig, axes = plt.subplots(
+        3,
+        2,
+        figsize=(
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 1.15,
+        ),
+        sharex=True,
+        sharey=True,
+        constrained_layout=True,
+        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
+    )
+    axes = axes.flatten()
+
+    for ax, (m, frame) in zip(axes, stability_frames.items()):
+        _plot_stability_panel(frame, ax, m)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    for ax in axes:
+        if ax.legend_ is not None:
+            ax.legend_.remove()
+
+    fig.legend(
+        handles,
+        labels,
+        title="Stability metric",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.075),
+        ncol=3,
+    )
+    fig.supylabel("Temporal stability")
+    fig.supxlabel("Epidemic week")
+    return fig
+
+
 # ─── Sensitivity lollipop plots ─────────────────────────────────
 
 
@@ -354,132 +481,6 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
     )
     metric_label = "Average precision (AP) loss" if metric == "ap_loss" else "F1 score loss"
     fig.supxlabel(f"{metric_label} relative to baseline", x=0.6, ha="center")
-    return fig
-
-
-# ─── Synthetic metric summaries ──────────────────────────────────────
-
-
-def _plot_metric_panel(
-    ax: plt.Axes,
-    df: pd.DataFrame,
-    metric: str,
-    title: str,
-) -> None:
-    sns.pointplot(
-        data=df,
-        x="model",
-        y=metric,
-        hue="condition",
-        palette=CONDITION_COLORS,
-        order=MODELS,
-        hue_order=CONDITION_ORDER,
-        dodge=True,
-        errorbar=("ci", 95),
-        ax=ax,
-    )
-    ax.set_xlabel("")
-    ax.set_ylabel(title)
-    ax.set_ylim(0, 1)
-    ax.grid(True, alpha=0.12, color="#555870")
-
-
-def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
-    """Per-model metric summaries across non-baseline scenarios."""
-
-    fig, axes = plt.subplots(
-        2,
-        2,
-        figsize=(
-            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
-            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
-        ),
-        sharex=True,
-        constrained_layout=True,
-        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
-    )
-    axes = axes.flatten()
-
-    for ax, (metric, title) in zip(axes, METRIC_PANELS):
-        _plot_metric_panel(ax, results, metric=metric, title=title)
-
-    handles, labels = axes[0].get_legend_handles_labels()
-    for ax in axes:
-        if ax.legend_ is not None:
-            ax.legend_.remove()
-
-    fig.legend(
-        handles,
-        labels,
-        title="Condition",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.1),
-        ncol=2,
-    )
-    fig.supxlabel("Model")
-    add_panel_labels(list(axes))
-    return fig
-
-
-# ─── Temporal stability ───────────────────────────────────────────────
-
-
-def _plot_stability_panel(df: pd.DataFrame, ax: plt.Axes, model: str) -> None:
-    for metric in STABILITY_LABELS:
-        sns.lineplot(
-            data=df,
-            x="t1",
-            y=metric,
-            color=STABILITY_COLORS[metric],
-            marker=STABILITY_MARKERS[metric],
-            ax=ax,
-            label=STABILITY_LABELS[metric],
-        )
-    ax.set_xlabel("")
-    ax.set_ylabel("")
-    ax.set_ylim(0, 1.05)
-    ax.set_title(model, fontweight="bold")
-    ax.grid(True, alpha=0.12, color="#555870")
-
-
-def make_fig_stability() -> plt.Figure:
-    """Temporal stability across epidemic weeks, one panel per model."""
-    stability_frames = {
-        m: read_result_table("stability", f"temporal_stability_{m}.parquet") for m in MODELS
-    }
-
-    fig, axes = plt.subplots(
-        3,
-        2,
-        figsize=(
-            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
-            cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 1.15,
-        ),
-        sharex=True,
-        sharey=True,
-        constrained_layout=True,
-        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
-    )
-    axes = axes.flatten()
-
-    for ax, (m, frame) in zip(axes, stability_frames.items()):
-        _plot_stability_panel(frame, ax, m)
-
-    handles, labels = axes[0].get_legend_handles_labels()
-    for ax in axes:
-        if ax.legend_ is not None:
-            ax.legend_.remove()
-
-    fig.legend(
-        handles,
-        labels,
-        title="Stability metric",
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.075),
-        ncol=3,
-    )
-    fig.supylabel("Temporal stability")
-    fig.supxlabel("Epidemic week")
     return fig
 
 
@@ -676,6 +677,7 @@ def main(*, save: bool = True) -> None:
     results = read_result_table("synthetic", "results.parquet")
     results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
     results = results.loc[results["scenario"] != "baseline"].copy()
+    results.sort_values("ap", ascending=False, inplace=True)
     trend = make_fig_synthetic(results)
     if SAVE_FIGURES:
         export_figure(trend, "perturbation")
@@ -684,6 +686,16 @@ def main(*, save: bool = True) -> None:
         plt.show()
 
     plt.close(trend)
+
+    # Temporal stability
+    temp = make_fig_stability()
+    if SAVE_FIGURES:
+        export_figure(temp, "temporal")
+
+    if SHOW_PLOTS:
+        plt.show()
+
+    plt.close(temp)
 
     # AP-loss/F1-loss lollipop
     for metric in ("ap_loss", "f1_loss"):
@@ -696,15 +708,6 @@ def main(*, save: bool = True) -> None:
 
         plt.close(fig)
 
-    # Temporal stability
-    temp = make_fig_stability()
-    if SAVE_FIGURES:
-        export_figure(temp, "temporal")
-
-    if SHOW_PLOTS:
-        plt.show()
-
-    plt.close(temp)
 
     # Boston cluster composition
     boston = make_fig_boston()

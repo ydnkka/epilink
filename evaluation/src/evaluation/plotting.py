@@ -41,11 +41,11 @@ CONDITION_LABELS: dict[str, str] = {
     "mismatched": "Mismatched",
 }
 #: Display order matching CONDITION_LABELS insertion order.
-CONDITION_ORDER: list[str] = list(CONDITION_LABELS.values())
+CONDITION_ORDER: list[str] = ["Matched", "Mismatched"]
 #: Colour assigned to each condition display name.
 CONDITION_COLORS: dict[str, str] = {
-    "Matched": "#185FA5",
-    "Mismatched": "#993C1D",
+    "Matched": "#5C4AE4",
+    "Mismatched": "#F5A623",
 }
 
 #: Raw scenario key → short display label (canonical, shared across all figures).
@@ -94,9 +94,9 @@ MODEL_LINESTYLES: list = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
 
 #: Colours for temporal-stability metrics.
 STABILITY_COLORS: dict[str, str] = {
-    "forward": "#0072B2",
-    "backward": "#D55E00",
-    "jaccard": "#CC79A7",
+    "forward": "#3A86FF",
+    "backward": "#2EC4B6",
+    "jaccard": "#FF6B35",
 }
 #: Marker styles for temporal-stability metrics.
 STABILITY_MARKERS: dict[str, str] = {
