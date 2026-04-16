@@ -17,13 +17,13 @@ Required inputs (resolved via config.yaml)
 
 Generated outputs
 -----------------
-    results/figures/Fig2.{pdf,tif}  – baseline PR / PRG / calibration
-    results/figures/Fig3.{pdf,tif}  – compatibility surfaces
-    results/figures/Fig4.{pdf,tif}  – synthetic metric summaries
-    results/figures/Fig5.{pdf,tif}  – sensitivity F1-loss lollipop
-    results/figures/S1_Fig.{pdf,tif} – sensitivity AP-loss lollipop
-    results/figures/Fig6.{pdf,tif}  – temporal stability
-    results/figures/Fig7.{pdf,tif}  – Boston cluster descriptives
+    results/figures/surf.tif  – compatibility surfaces
+    results/figures/baseline.tif  – baseline PR curves
+    results/figures/perturbation.tif  – synthetic metric summaries
+    results/figures/f1_loss.tif  – sensitivity F1-loss lollipop
+    results/figures/ap_loss.tif – sensitivity AP-loss lollipop
+    results/figures/temporal.tif  – temporal stability
+    results/figures/boston.tif  – Boston cluster descriptives
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from pandas.errors import DuplicateLabelError
 
 from config import load_config, outputs_root, project_root
 from matplotlib.lines import Line2D
@@ -59,6 +58,7 @@ from plotting import (
     save_plos_figure,
     set_plos_theme,
 )
+from specs import MODEL_LABELS
 from sklearn.metrics import precision_recall_curve
 
 LOGGER = logging.getLogger(__name__)
@@ -107,11 +107,6 @@ _SENSITIVITY_TICKS: dict[str, list[float]] = {
 _SENSITIVITY_KEYS: list[str] = SCENARIO_ORDER
 _SENSITIVITY_LABELS: list[str] = [SCENARIO_LABELS[k] for k in SCENARIO_ORDER]
 
-# Font sizes
-TINY = "x-small"
-SMALL = "small"
-MEDIUM = "medium"
-
 # ─── I/O helpers ──────────────────────────────────────────────────────────────
 
 
@@ -124,7 +119,9 @@ def export_figure(fig: plt.Figure, stem: str, **kwargs) -> dict[str, Path]:
     """Save *fig* if SAVE_FIGURES is True; otherwise return an empty dict."""
     if not SAVE_FIGURES:
         return {}
-    return save_plos_figure(fig, stem, out_dir=FIGURE_OUTPUT_DIR, **kwargs)
+    return save_plos_figure(
+        fig, stem, out_dir=FIGURE_OUTPUT_DIR, save_pdf=False, **kwargs
+    )
 
 
 # ─── Compatibility surfaces ──────────────────────────────────────────
@@ -187,26 +184,12 @@ def make_fig_compatibility() -> plt.Figure:
     return fig
 
 
-# ─── Baseline PR / PRG / calibration ─────────────────────────────────
+# ─── Baseline PR Curves ────────────────────────────────
 
 
 def make_fig_baseline() -> plt.Figure:
-    """Four-panel baseline performance figure.
-
-    Panels
-    ------
-    A  PR curves with AP annotations and bootstrap CI
-    B  Precision-Recall-Gain (PRG) curves
-    C  Isotonic-calibration reliability diagrams
-    D  Best-F1 horizontal bar chart
-
-    Loads
-    -----
-    - ``synthetic/baseline_scores.parquet``   raw scores + IsRelated labels
-    - ``synthetic/baseline_summary.parquet``  pre-computed summary from analyse_baseline()
-    """
+    """PR curves for all six models, including no-skill baseline."""
     scores_df = read_result_table("synthetic", "baseline_scores.parquet")
-    summary_df = read_result_table("synthetic", "baseline_summary.parquet")
 
     y = scores_df["IsRelated"].values
     prevalence = float(y.mean())
@@ -216,36 +199,27 @@ def make_fig_baseline() -> plt.Figure:
         scores = scores_df[model].values
         pr_data[model] = precision_recall_curve(y, scores)
 
-    fig, axes = plt.subplots(
-        1,
-        2,
+    fig, ax = plt.subplots(
         figsize=(
             cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
             cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 0.6,
         ),
         constrained_layout=True,
-        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
-        width_ratios=[1.75, 1],
     )
-    axes = np.atleast_1d(axes).flatten()
-
-    ax_pr = axes[0]
-    ax_bar = axes[1]
 
     # ── PR curves ────────────────────────────────────────────────────────
     for i, model in enumerate(MODELS):
-        row = summary_df.loc[summary_df["model"] == model].iloc[0]
         prec, rec, _ = pr_data[model]
-        ax_pr.plot(
+        ax.plot(
             rec,
             prec,
             color=MODEL_PALETTE[i],
             ls=MODEL_LINESTYLES[i],
             lw=1.6,
-            label=f"{model}: AP={row['ap']:.3f} [{row['ci_lo']:.3f},{row['ci_hi']:.3f}]",
+            label=f"{model}\n({MODEL_LABELS.get(model)})",
         )
 
-    ax_pr.axhline(
+    ax.axhline(
         prevalence,
         color="#555870",
         lw=1.0,
@@ -253,48 +227,18 @@ def make_fig_baseline() -> plt.Figure:
         label=f"No-skill baseline ($\\pi$={prevalence:.3f})",
     )
 
-    ax_pr.set_xlabel("Recall", fontsize=MEDIUM)
-    ax_pr.set_ylabel("Precision", fontsize=MEDIUM)
-    ax_pr.tick_params(labelsize=SMALL)
-    ax_pr.set_xlim(0, 1)
-    ax_pr.set_ylim(0, 1.02)
-    ax_pr.grid(True, alpha=0.12, color="#555870")
-    ax_pr.legend(
-        loc="upper right",
-        bbox_to_anchor=(1.00, 1.00),
-        # framealpha=0.55,
-        frameon=True,
-        fancybox=True,
-        facecolor="white",
-        edgecolor="white",
-        fontsize=TINY,
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1.02)
+    ax.grid(True, alpha=0.12, color="#555870")
+    ax.legend(
+        title="Model",
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        labelspacing=1.5,
+        frameon=False,
     )
-
-    # ── Best-F1 bar chart ────────────────────────────────────────────────
-    ordered = summary_df.sort_values("best_f1", ascending=True)
-    y_pos = np.arange(len(MODELS))
-    bars = ax_bar.barh(
-        y_pos,
-        ordered["best_f1"],
-        color=[MODEL_PALETTE[MODELS.index(m)] for m in ordered["model"]],
-    )
-    ax_bar.set_yticks(y_pos)
-    ax_bar.set_yticklabels(ordered["model"], fontsize=SMALL)
-    ax_bar.set_xlabel("Best F1", fontsize=MEDIUM)
-    ax_bar.tick_params(labelsize=SMALL)
-    ax_bar.grid(True, alpha=0.12, color="#555870", axis="x")
-    ax_bar.set_xlim(0, 1)
-    for bar, (_, row) in zip(bars, ordered.iterrows()):
-        ax_bar.text(
-            bar.get_width() + 0.01,
-            bar.get_y() + bar.get_height() / 2,
-            f"{row['best_f1']:.3f}",
-            va="center",
-            ha="left",
-            fontsize=TINY,
-        )
-
-    add_panel_labels(list(axes))
     return fig
 
 
@@ -348,16 +292,15 @@ def _draw_sensitivity_panel(
     ax.set_xlim(-clamp * 1.08, clamp * 1.08)
     ax.set_ylim(n - 0.5, -0.5)
     ax.set_yticks(range(n))
-    ax.set_yticklabels(_SENSITIVITY_LABELS, fontsize=MEDIUM)
+    ax.set_yticklabels(_SENSITIVITY_LABELS)
     if not show_ylabels:
         ax.tick_params(axis="y", labelleft=False)
     ax.tick_params(axis="y", length=0)
     ax.set_xticks(_SENSITIVITY_TICKS[metric])
     ax.set_xticklabels(
         [("0" if t == 0.0 else f"{t:+.1f}") for t in _SENSITIVITY_TICKS[metric]],
-        fontsize=SMALL,
     )
-    ax.set_title(model, fontsize=SMALL, fontweight="bold")
+    ax.set_title(model, fontweight="bold")
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.grid(True, alpha=0.12, color="#555870", axis="x")
@@ -474,7 +417,7 @@ def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
         ncol=2,
     )
     fig.supxlabel("Model")
-    add_panel_labels(list(axes), size=MEDIUM)
+    add_panel_labels(list(axes))
     return fig
 
 
@@ -495,7 +438,7 @@ def _plot_stability_panel(df: pd.DataFrame, ax: plt.Axes, model: str) -> None:
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.set_ylim(0, 1.05)
-    ax.set_title(model, fontsize=SMALL, fontweight="bold")
+    ax.set_title(model, fontweight="bold")
     ax.grid(True, alpha=0.12, color="#555870")
 
 
@@ -709,69 +652,69 @@ def main(*, save: bool = True) -> None:
     LOGGER.info("figures: figure output = %s", FIGURE_OUTPUT_DIR)
     LOGGER.info("figures: save figures  = %s", SAVE_FIGURES)
 
-    # Fig 2 – compatibility surfaces
-    fig2 = make_fig_compatibility()
+    # Compatibility surfaces
+    surf = make_fig_compatibility()
     if SAVE_FIGURES:
-        export_figure(fig2, "Fig2")
+        export_figure(surf, "surfaces")
 
     if SHOW_PLOTS:
         plt.show()
 
-    plt.close(fig2)
+    plt.close(surf)
 
-    # Fig 3 – baseline PR / PRG / calibration / F1 bar
-    fig3 = make_fig_baseline()
+    # Baseline PR curves
+    baseline = make_fig_baseline()
     if SAVE_FIGURES:
-        export_figure(fig3, "Fig3")
+        export_figure(baseline, "baseline")
 
     if SHOW_PLOTS:
         plt.show()
 
-    plt.close(fig3)
+    plt.close(baseline)
 
-    # Fig 4 - performance trend across scenarios
+    # Performance trend across scenarios
     results = read_result_table("synthetic", "results.parquet")
     results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
     results = results.loc[results["scenario"] != "baseline"].copy()
-    fig4 = make_fig_synthetic(results)
+    trend = make_fig_synthetic(results)
     if SAVE_FIGURES:
-        export_figure(fig4, "Fig4")
+        export_figure(trend, "perturbation")
 
     if SHOW_PLOTS:
         plt.show()
 
-    plt.close(fig4)
+    plt.close(trend)
 
-    # Fig 5 S1 Fig – AP-loss/F1-loss lollipop
-    for stem, metric in (("S1_Fig", "ap_loss"), ("Fig5", "f1_loss")):
+    # AP-loss/F1-loss lollipop
+    for metric in ("ap_loss", "f1_loss"):
         fig = make_fig_sensitivity(results, metric)
         if SAVE_FIGURES:
-            export_figure(fig, stem)
+            export_figure(fig, metric)
 
         if SHOW_PLOTS:
             plt.show()
 
         plt.close(fig)
 
-    # Fig 6 – temporal stability
-    fig6 = make_fig_stability()
+    # Temporal stability
+    temp = make_fig_stability()
     if SAVE_FIGURES:
-        export_figure(fig6, "Fig6")
+        export_figure(temp, "temporal")
 
     if SHOW_PLOTS:
         plt.show()
 
-    plt.close(fig6)
+    plt.close(temp)
 
-    # Fig 7 – Boston cluster composition
-    fig7 = make_fig_boston()
+    # Boston cluster composition
+    boston = make_fig_boston()
     if SAVE_FIGURES:
-        export_figure(fig7, "Fig7")
+        export_figure(boston, "boston")
 
     if SHOW_PLOTS:
         plt.show()
 
-    plt.close(fig7)
+    plt.close(boston)
 
     # Diagnostic prints
     print_baseline_metrics()

@@ -39,16 +39,16 @@ SCENARIO_PARAMETER_FIELDS = (
     "relaxation",
 )
 
-MODEL_KEYS = ("EDD", "EDS", "ESD", "ESS", "LD", "LS")
-"""Canonical model abbreviations.
+MODEL_LABELS = {
+    "EDD": "EpiLink deterministic, deterministic data",
+    "EDS": "EpiLink deterministic, stochastic data",
+    "ESD": "EpiLink stochastic, deterministic data",
+    "ESS": "EpiLink stochastic, stochastic data",
+    "LD": "Logistic inference, deterministic data",
+    "LS": "Logistic inference, stochastic data",
+}
 
-EDD — EpiLink, deterministic inference, deterministic data
-EDS — EpiLink, deterministic inference, stochastic data
-ESD — EpiLink, stochastic inference, deterministic data
-ESS — EpiLink, stochastic inference, stochastic data
-LD  — Logistic regression on deterministic distances
-LS  — Logistic regression on stochastic distances
-"""
+MODEL_KEYS = tuple(MODEL_LABELS.keys())
 
 EPILINK_SPECS: tuple[dict[str, str], ...] = (
     {
