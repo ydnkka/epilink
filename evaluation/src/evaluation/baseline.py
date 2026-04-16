@@ -268,7 +268,7 @@ def analyse_baseline(
                 "ap": round(basic[model]["ap"], 4),
                 "best_f1": round(basic[model]["best_f1"], 4),
                 "mean_stability": round(basic[model]["mean_stability"], 4),
-                "std_stability": round(basic[model]["best_f1"], 4),
+                "std_stability": round(basic[model]["std_stability"], 4),
                 "ci_lo": round(ci_lo, 4),
                 "ci_hi": round(ci_hi, 4),
                 "relative_ap": round(basic[model]["ap"] / prevalence, 3),

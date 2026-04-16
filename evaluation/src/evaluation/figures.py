@@ -36,6 +36,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from pandas.errors import DuplicateLabelError
+
 from config import load_config, outputs_root, project_root
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MultipleLocator
@@ -68,8 +70,8 @@ CONFIG = load_config()
 RESULTS_ROOT = outputs_root(CONFIG)
 FIGURE_OUTPUT_DIR = RESULTS_ROOT / "figures"
 
-# Set to False to preview without writing any files.
-SAVE_FIGURES = True
+SAVE_FIGURES = True  # Set to False to avoid saving figures to disk.
+SHOW_PLOTS = True  # Set to False to avoid showing plots.
 
 # Metric panels for the synthetic figure (column name → y-axis label).
 METRIC_PANELS: list[tuple[str, str]] = [
@@ -439,10 +441,8 @@ def _plot_metric_panel(
     ax.grid(True, alpha=0.12, color="#555870")
 
 
-def make_fig_synthetic() -> plt.Figure:
+def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
     """Per-model metric summaries across non-baseline scenarios."""
-    df = read_result_table("synthetic", "results.parquet")
-    df = df.loc[df["scenario"] != "baseline"]
 
     fig, axes = plt.subplots(
         2,
@@ -458,7 +458,7 @@ def make_fig_synthetic() -> plt.Figure:
     axes = axes.flatten()
 
     for ax, (metric, title) in zip(axes, METRIC_PANELS):
-        _plot_metric_panel(ax, df, metric=metric, title=title)
+        _plot_metric_panel(ax, results, metric=metric, title=title)
 
     handles, labels = axes[0].get_legend_handles_labels()
     for ax in axes:
@@ -649,12 +649,10 @@ def print_stability_minima() -> None:
         print(f"  {model}: {parts}")
 
 
-def print_f1_loss_pivot() -> None:
+def print_loss_pivot(results: pd.DataFrame) -> None:
     """Print mismatched F1-loss pivot (scenarios × models)."""
-    results = read_result_table("synthetic", "results.parquet").copy()
-    results = results.loc[results["scenario"] != "baseline"].copy()
-    matched = results.loc[results["condition"] == "matched"]
-    mismatched = results.loc[results["condition"] == "mismatched"]
+    matched = results.loc[results["condition"] == "Matched"]
+    mismatched = results.loc[results["condition"] == "Mismatched"]
 
     print("\n── F1 loss – Matched condition ──────────────────────────────────")
     pivot = (
@@ -678,7 +676,7 @@ def print_f1_loss_pivot() -> None:
 
     print("\n── AP loss – Matched condition ──────────────────────────────────")
     pivot = (
-        matched[["model", "scenario", "f1_loss"]]
+        matched[["model", "scenario", "ap_loss"]]
         .pivot_table(index="scenario", columns="model", values="ap_loss")
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
@@ -688,7 +686,7 @@ def print_f1_loss_pivot() -> None:
 
     print("\n── AP loss – Mismatched condition ──────────────────────────────────")
     pivot = (
-        mismatched[["model", "scenario", "f1_loss"]]
+        mismatched[["model", "scenario", "ap_loss"]]
         .pivot_table(index="scenario", columns="model", values="ap_loss")
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
@@ -713,52 +711,71 @@ def main(*, save: bool = True) -> None:
 
     # Fig 2 – compatibility surfaces
     fig2 = make_fig_compatibility()
-    export_figure(fig2, "Fig2")
     if SAVE_FIGURES:
+        export_figure(fig2, "Fig2")
+
+    if SHOW_PLOTS:
         plt.show()
+
     plt.close(fig2)
 
     # Fig 3 – baseline PR / PRG / calibration / F1 bar
     fig3 = make_fig_baseline()
-    export_figure(fig3, "Fig3")
     if SAVE_FIGURES:
+        export_figure(fig3, "Fig3")
+
+    if SHOW_PLOTS:
         plt.show()
+
     plt.close(fig3)
 
     # Fig 4 - performance trend across scenarios
-    fig4 = make_fig_synthetic()
-    export_figure(fig4, "Fig4")
+    results = read_result_table("synthetic", "results.parquet")
+    results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
+    results = results.loc[results["scenario"] != "baseline"].copy()
+    fig4 = make_fig_synthetic(results)
     if SAVE_FIGURES:
+        export_figure(fig4, "Fig4")
+
+    if SHOW_PLOTS:
         plt.show()
+
     plt.close(fig4)
 
     # Fig 5 S1 Fig – AP-loss/F1-loss lollipop
-    results = read_result_table("synthetic", "results.parquet").copy()
-    results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
     for stem, metric in (("S1_Fig", "ap_loss"), ("Fig5", "f1_loss")):
         fig = make_fig_sensitivity(results, metric)
-        export_figure(fig, stem)
         if SAVE_FIGURES:
+            export_figure(fig, stem)
+
+        if SHOW_PLOTS:
             plt.show()
+
         plt.close(fig)
 
     # Fig 6 – temporal stability
     fig6 = make_fig_stability()
-    export_figure(fig6, "Fig6")
     if SAVE_FIGURES:
+        export_figure(fig6, "Fig6")
+
+    if SHOW_PLOTS:
         plt.show()
+
     plt.close(fig6)
 
     # Fig 7 – Boston cluster composition
     fig7 = make_fig_boston()
-    export_figure(fig7, "Fig7")
     if SAVE_FIGURES:
+        export_figure(fig7, "Fig7")
+
+    if SHOW_PLOTS:
         plt.show()
+
     plt.close(fig7)
 
     # Diagnostic prints
     print_baseline_metrics()
-    print_f1_loss_pivot()
+    print_loss_pivot(results)
     print_stability_minima()
 
     LOGGER.info("figures: done")
