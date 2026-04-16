@@ -17,26 +17,16 @@ from typing import Any
 
 import pandas as pd
 
-try:
-    from .config import (
-        build_run_specs,
-        configure_logging,
-        get_pipeline_log_path,
-        load_config,
-        resolve_configured_output_path,
-    )
-    from .evaluate import ScenarioResult, evaluate_scenario
-    from .specs import BASELINE_SCENARIO_NAME, parameter_columns
-except ImportError:  # pragma: no cover - support direct script execution
-    from config import (
-        build_run_specs,
-        configure_logging,
-        get_pipeline_log_path,
-        load_config,
-        resolve_configured_output_path,
-    )
-    from evaluate import ScenarioResult, evaluate_scenario
-    from specs import BASELINE_SCENARIO_NAME, parameter_columns
+
+from config import (
+    build_run_specs,
+    configure_logging,
+    get_pipeline_log_path,
+    load_config,
+    resolve_configured_output_path,
+)
+from evaluate import ScenarioResult, evaluate_scenario
+from specs import BASELINE_SCENARIO_NAME, parameter_columns
 
 
 LOGGER = logging.getLogger(__name__)
