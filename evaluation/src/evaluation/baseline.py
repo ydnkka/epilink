@@ -306,21 +306,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
     summary = analyse_baseline(scores_df, metrics)
 
     scores_df.to_parquet(out_dir / "baseline_scores.parquet", index=False)
-    (out_dir / "baseline_perfomance.json").write_text(json.dumps(metrics, indent=2))
     summary.to_parquet(out_dir / "baseline_summary.parquet", index=False)
     LOGGER.info("baseline: written outputs to %s", out_dir)
-
-    print("\n── Baseline analysis summary ───────────────────────────────────────")
-    with pd.option_context(
-        "display.max_columns",
-        None,
-        "display.width",
-        120,
-        "display.float_format",
-        "{:.4f}".format,
-    ):
-        print(summary.to_string(index=False))
-    LOGGER.info("baseline: done")
 
 
 if __name__ == "__main__":

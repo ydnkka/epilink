@@ -439,9 +439,10 @@ def _plot_metric_panel(
     ax.grid(True, alpha=0.12, color="#555870")
 
 
-def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
+def make_fig_synthetic() -> plt.Figure:
     """Per-model metric summaries across non-baseline scenarios."""
-    df = results.loc[results["scenario"] != "baseline"]
+    df = read_result_table("synthetic", "results.parquet")
+    df = df.loc[df["scenario"] != "baseline"]
 
     fig, axes = plt.subplots(
         2,
@@ -618,43 +619,80 @@ def make_fig_boston() -> plt.Figure:
 # ─── Diagnostic helpers ───────────────────────────────────────────────────────
 
 
-def print_baseline_metrics(results: pd.DataFrame) -> None:
-    """Print per-model AP / F1 / stability at baseline (Matched condition)."""
-    print("\n── Baseline metrics (Matched) ──────────────────────────────────────")
-    baseline = results.loc[
-        (results["scenario"] == "baseline") & (results["condition"] == "Matched")
-    ]
-    for row in baseline.to_dict(orient="records"):
+def print_baseline_metrics() -> None:
+    """Print per-model AP / F1 / stability at baseline."""
+
+    df = read_result_table("synthetic", "baseline_summary.parquet").copy()
+
+    print("\n── Baseline metrics ──────────────────────────────────────")
+
+    for row in df.to_dict(orient="records"):
         print(
             f"  {row['model']}: "
-            f"AP={row['ap']:.3f}, "
+            f"AP={row['ap']:.3f} (95% CI[{row['ci_lo']:.3f}, {row['ci_hi']:.3f}]), "
+            f"Relative AP={row['relative_ap']:.3f} vs. prevalence AP={row['prevalence']:.5f}, "
             f"F1={row['best_f1']:.3f}, "
-            f"Mean={row['mean_stability']:.3f}, "
-            f"SD={row['std_stability']:.3f}"
+            f"Partition stability={row['mean_stability']:.3f} (SD={row['std_stability']:.3f}), "
+            f"Brier score={row['brier']:.3f}"
         )
 
 
 def print_stability_minima() -> None:
     """Print per-model minimum stability values across all epidemic weeks."""
-    print("\n── Temporal stability minima ───────────────────────────────────────")
+    print("\n── Temporal stability mean (minima) ───────────────────────────────────────")
     metrics = list(STABILITY_LABELS)
     for model in MODELS:
         df = read_result_table("stability", f"temporal_stability_{model}.parquet")
         mins = df[metrics].min()
-        parts = ", ".join(f"{m}={mins[m]:.3f}" for m in metrics)
+        means = df[metrics].mean()
+        parts = ", ".join(f"{m}={means[m]:.3f} ({mins[m]:.3f})" for m in metrics)
         print(f"  {model}: {parts}")
 
 
-def print_f1_loss_pivot(results: pd.DataFrame) -> None:
+def print_f1_loss_pivot() -> None:
     """Print mismatched F1-loss pivot (scenarios × models)."""
-    data = results.loc[(results["scenario"] != "baseline") & (results["condition"] == "Mismatched")]
+    results = read_result_table("synthetic", "results.parquet").copy()
+    results = results.loc[results["scenario"] != "baseline"].copy()
+    matched = results.loc[results["condition"] == "matched"]
+    mismatched = results.loc[results["condition"] == "mismatched"]
+
+    print("\n── F1 loss – Matched condition ──────────────────────────────────")
     pivot = (
-        data[["model", "scenario", "f1_loss"]]
+        matched[["model", "scenario", "f1_loss"]]
         .pivot_table(index="scenario", columns="model", values="f1_loss")
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
     )
+    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+        print(pivot.to_string(index=False))
+
     print("\n── F1 loss – Mismatched condition ──────────────────────────────────")
+    pivot = (
+        mismatched[["model", "scenario", "f1_loss"]]
+        .pivot_table(index="scenario", columns="model", values="f1_loss")
+        .reindex(index=SCENARIO_ORDER, columns=MODELS)
+        .reset_index()
+    )
+    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+        print(pivot.to_string(index=False))
+
+    print("\n── AP loss – Matched condition ──────────────────────────────────")
+    pivot = (
+        matched[["model", "scenario", "f1_loss"]]
+        .pivot_table(index="scenario", columns="model", values="ap_loss")
+        .reindex(index=SCENARIO_ORDER, columns=MODELS)
+        .reset_index()
+    )
+    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+        print(pivot.to_string(index=False))
+
+    print("\n── AP loss – Mismatched condition ──────────────────────────────────")
+    pivot = (
+        mismatched[["model", "scenario", "f1_loss"]]
+        .pivot_table(index="scenario", columns="model", values="ap_loss")
+        .reindex(index=SCENARIO_ORDER, columns=MODELS)
+        .reset_index()
+    )
     with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
         print(pivot.to_string(index=False))
 
@@ -687,19 +725,16 @@ def main(*, save: bool = True) -> None:
         plt.show()
     plt.close(fig3)
 
-    # Fig 4 / S1 – load synthetic results once, share across figures
-    results = read_result_table("synthetic", "results.parquet").copy()
-    results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
-    print_baseline_metrics(results)
-    print_f1_loss_pivot(results)
-
-    fig4 = make_fig_synthetic(results)
+    # Fig 4 - performance trend across scenarios
+    fig4 = make_fig_synthetic()
     export_figure(fig4, "Fig4")
     if SAVE_FIGURES:
         plt.show()
     plt.close(fig4)
 
     # Fig 5 S1 Fig – AP-loss/F1-loss lollipop
+    results = read_result_table("synthetic", "results.parquet").copy()
+    results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
     for stem, metric in (("S1_Fig", "ap_loss"), ("Fig5", "f1_loss")):
         fig = make_fig_sensitivity(results, metric)
         export_figure(fig, stem)
@@ -708,7 +743,6 @@ def main(*, save: bool = True) -> None:
         plt.close(fig)
 
     # Fig 6 – temporal stability
-    print_stability_minima()
     fig6 = make_fig_stability()
     export_figure(fig6, "Fig6")
     if SAVE_FIGURES:
@@ -721,6 +755,11 @@ def main(*, save: bool = True) -> None:
     if SAVE_FIGURES:
         plt.show()
     plt.close(fig7)
+
+    # Diagnostic prints
+    print_baseline_metrics()
+    print_f1_loss_pivot()
+    print_stability_minima()
 
     LOGGER.info("figures: done")
 
