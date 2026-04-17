@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.snakemake/
+*.bib
+*.bst
+*.aux
+*.log
+*.out
+*.blg
+*.bbl
+*.toc
+*.gz

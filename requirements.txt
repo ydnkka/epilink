@@ -1,0 +1,13 @@
+-e ..
+pyyaml
+bcubed
+python-igraph
+networkx
+matplotlib
+numpy
+pandas
+scikit-learn
+scipy
+seaborn
+pyarrow
+snakemake
