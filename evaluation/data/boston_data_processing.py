@@ -3,12 +3,12 @@ import pandas as pd
 
 
 metadata = pd.read_csv(
-    "MGH_DPH_98percent_772samples_metadata.csv",
+    "raw/boston/MGH_DPH_98percent_772samples_metadata.csv",
     parse_dates=["collection_date"]
 )
 
 pairwise = pd.read_csv(
-    "MGH_DPH_98percent_772samples_tn93_distances.csv"
+    "raw/boston/MGH_DPH_98percent_772samples_tn93_distances.csv"
 )
 
 seq1_dates = metadata.set_index("seq_id").loc[list(pairwise["seq_id_1"]), "collection_date"]
@@ -18,7 +18,7 @@ temporal_distances = temp_diff.astype(int)
 pairwise["temporal_distance"] = temporal_distances
 
 nextclade_result = pd.read_table(
-    "MGH_DPH_98percent_772samples_nextclade.tsv",
+    "raw/boston/MGH_DPH_98percent_772samples_nextclade.tsv",
     index_col=0
 )
 
