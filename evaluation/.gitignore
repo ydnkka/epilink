@@ -1,8 +1,6 @@
 __pycache__/
 *.py[cod]
-.ipynb_checkpoints/
 .DS_Store
-.venv/
 .snakemake/
 *.bib
 *.bst
@@ -13,4 +11,3 @@ __pycache__/
 *.bbl
 *.toc
 *.gz
-mauscript/preparation.md

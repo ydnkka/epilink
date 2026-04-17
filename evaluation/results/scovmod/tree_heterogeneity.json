@@ -1,3 +1,26 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:e12de04ed2f19da686f50f9f92377d7c7e24ece5b988cdd76455ced06ab46b28
-size 600
+{
+  "disp_k": 0.23295007758779804,
+  "meanRt": 0.9994133666199423,
+  "RtCI95": [
+    0.9922797959978048,
+    1.0055915297206908
+  ],
+  "kCI95": [
+    0.23169662743533537,
+    0.23466684634112334
+  ],
+  "superspreading_threshold": 4.0,
+  "prop_80_percent_transmitters": 0.15611716890248217,
+  "pct_zero_transmitters": 67.83461794935795,
+  "pct_superspreaders": 9.339388227229886,
+  "meta": {
+    "n": 536866,
+    "total_transmissions": 536541,
+    "bootstrap_kept": 200,
+    "bootstrap_kept_R": 200,
+    "bootstrap_kept_k": 200,
+    "fit_method": "mle",
+    "fit_notes": "",
+    "quantile": 0.99
+  }
+}

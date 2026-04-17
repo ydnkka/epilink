@@ -1,3 +1,8 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:4b1df6c78f3f09553e2cb84801c621ac5b2afd70beb1045f5dd1d1faf48dabdf
-size 102
+{
+  "EDD": 0.0001,
+  "EDS": 0.0001,
+  "ESD": 0.0001,
+  "ESS": 0.0001,
+  "LD": 0.0001,
+  "LS": 0.0001
+}
