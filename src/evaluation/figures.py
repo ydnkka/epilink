@@ -97,11 +97,11 @@ EXPOSURE_LABELS: dict[str, str] = {
 }
 
 # Sensitivity lollipop: clamp values and x-tick positions per metric.
-_SENSITIVITY_CLAMP: dict[str, float] = {"ap_loss": 1.1, "f1_loss": 0.7}
-_SENSITIVITY_TICKS: dict[str, list[float]] = {
-    "ap_loss": [-1.0, -0.5, 0.0, 0.5, 1.0],
-    "f1_loss": [-0.6, -0.3, 0.0, 0.3, 0.6],
-}
+# _SENSITIVITY_CLAMP: dict[str, float] = {"ap_loss": 1.1, "f1_loss": 0.7}
+# _SENSITIVITY_TICKS: dict[str, list[float]] = {
+#     "ap_loss": [-1.0, -0.5, 0.0, 0.5, 1.0],
+#     "f1_loss": [-0.3,-0.15, 0.0, 0.15, 0.3],
+# }
 
 # Scenario display order and labels for sensitivity figures (non-baseline only).
 _SENSITIVITY_KEYS: list[str] = SCENARIO_ORDER
@@ -110,9 +110,39 @@ _SENSITIVITY_LABELS: list[str] = [SCENARIO_LABELS[k] for k in SCENARIO_ORDER]
 # ─── I/O helpers ──────────────────────────────────────────────────────────────
 
 
+_GIT_LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/"
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def read_result_table(*parts: str) -> pd.DataFrame:
     """Load a parquet table from the configured results root."""
-    return pd.read_parquet(RESULTS_ROOT.joinpath(*parts))
+    path = RESULTS_ROOT.joinpath(*parts)
+
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(len(_GIT_LFS_POINTER_PREFIX))
+    except FileNotFoundError as exc:
+        display_path = _display_path(path)
+        raise FileNotFoundError(
+            f"Missing result table: {display_path}. Run the workflow step that "
+            "produces this file before generating figures."
+        ) from exc
+
+    if header.startswith(_GIT_LFS_POINTER_PREFIX):
+        display_path = _display_path(path)
+        raise RuntimeError(
+            f"{display_path} is a Git LFS pointer, not a Parquet table. Hydrate "
+            f"the artifact with `git lfs pull --include={display_path}` or, if "
+            f"the object is already cached locally, `git lfs checkout {display_path}`."
+        )
+
+    return pd.read_parquet(path)
 
 
 def export_figure(fig: plt.Figure, stem: str, **kwargs) -> dict[str, Path]:
@@ -371,6 +401,37 @@ def make_fig_stability() -> plt.Figure:
 
 # ─── Sensitivity lollipop plots ─────────────────────────────────
 
+_METRIC_META: dict[str, dict] = {
+    "ap_loss": {
+        "label":  "Average precision (AP) loss",
+        "short":  "ΔAP",
+        "clamp":  1.1,
+        "ticks":  [-1.0, -0.5, 0.0, 0.5, 1.0],
+    },
+    "f1_loss": {
+        "label":  "F1 score loss",
+        "short":  "ΔF1",
+        "clamp":  0.3,
+        "ticks":  [-0.3, -0.15, 0.0, 0.15, 0.3],
+    },
+}
+
+# Back-compat aliases (used elsewhere in the module)
+_SENSITIVITY_CLAMP: dict[str, float] = {k: v["clamp"] for k, v in _METRIC_META.items()}
+_SENSITIVITY_TICKS: dict[str, list[float]] = {k: v["ticks"] for k, v in _METRIC_META.items()}
+
+
+def _fmt_sensitivity_tick(val: float, clamp: float) -> str:
+    """Format a tick label with auto-precision based on the axis range.
+
+    Uses two decimal places for small ranges (clamp ≤ 0.5) so that ticks
+    like ±0.15 render as ``+0.15`` rather than being rounded to ``+0.1``.
+    """
+    if val == 0.0:
+        return "0"
+    decimals = 2 if clamp <= 0.5 else 1
+    return f"{val:+.{decimals}f}"
+
 
 def _draw_sensitivity_panel(
     ax: plt.Axes,
@@ -378,34 +439,71 @@ def _draw_sensitivity_panel(
     metric: str,
     model: str,
     show_ylabels: bool,
+    metric_label: str | None = None,
 ) -> None:
+    """Draw a single sensitivity lollipop panel.
+
+    Parameters
+    ----------
+    ax:
+        Target axes.
+    df:
+        Full results table; filtered internally to ``model`` and each
+        condition.
+    metric:
+        ``'ap_loss'`` or ``'f1_loss'``.
+    model:
+        Model name used both as a filter key and as the panel title.
+    show_ylabels:
+        Whether to render y-tick labels (suppressed on non-leftmost panels).
+    metric_label:
+        Short label shown on the x-axis (e.g. ``'ΔAP'``). Falls back to
+        ``metric`` if not provided.
+    """
     clamp = _SENSITIVITY_CLAMP[metric]
+    ticks = _SENSITIVITY_TICKS[metric]
     n = len(_SENSITIVITY_KEYS)
     offset = 0.18
     model_df = df[df["model"] == model]
 
+    # Subtle mid-range reference band — gives readers a feel for the scale
+    ax.axvspan(-clamp * 0.5, clamp * 0.5, color="#e8e9f0", alpha=0.35, zorder=0)
+    ax.axvline(0, color="black", linewidth=0.8, alpha=0.35, zorder=1)
+
     for cond, y_offset in [("Matched", -offset), ("Mismatched", +offset)]:
         col = CONDITION_COLORS[cond]
         cond_df = model_df[model_df["condition"] == cond].set_index("scenario")
+
         for i, sk in enumerate(_SENSITIVITY_KEYS):
             if sk not in cond_df.index:
                 continue
             v = cond_df.loc[sk, metric]
             if pd.isna(v):
                 continue
+
             clipped = abs(v) > clamp
             xv = float(np.clip(v, -clamp, clamp))
             cy = float(i) + y_offset
+
+            # Stem
             ax.plot(
-                [0, xv],
-                [cy, cy],
+                [0, xv], [cy, cy],
                 color=col,
                 linewidth=1.2,
                 alpha=0.7,
                 linestyle="--" if clipped else "-",
                 solid_capstyle="round",
             )
-            ax.plot(xv, cy, "o", color=col, markersize=3.0, zorder=3, markeredgewidth=0)
+            # Head
+            ax.plot(
+                xv, cy,
+                "o",
+                color=col,
+                markersize=3.0,
+                zorder=3,
+                markeredgewidth=0,
+            )
+            # Arrow indicating the value extends beyond the clamped axis
             if clipped:
                 sign = 1 if v > 0 else -1
                 ax.annotate(
@@ -415,37 +513,59 @@ def _draw_sensitivity_panel(
                     arrowprops=dict(arrowstyle="->", color=col, lw=0.8),
                 )
 
-    ax.axvline(0, color="black", linewidth=0.6, alpha=0.25, zorder=0)
-    ax.set_xlim(-clamp * 1.08, clamp * 1.08)
+    # ── axes formatting ───────────────────────────────────────────────────────
+    ax.set_xlim(-clamp * 1.12, clamp * 1.12)
     ax.set_ylim(n - 0.5, -0.5)
+
     ax.set_yticks(range(n))
-    ax.set_yticklabels(_SENSITIVITY_LABELS)
-    if not show_ylabels:
-        ax.tick_params(axis="y", labelleft=False)
+    ax.set_yticklabels(_SENSITIVITY_LABELS if show_ylabels else [""] * n)
     ax.tick_params(axis="y", length=0)
-    ax.set_xticks(_SENSITIVITY_TICKS[metric])
+
+    ax.set_xticks(ticks)
     ax.set_xticklabels(
-        [("0" if t == 0.0 else f"{t:+.1f}") for t in _SENSITIVITY_TICKS[metric]],
+        [_fmt_sensitivity_tick(t, clamp) for t in ticks],
+        fontsize=7,
     )
+
+    label = metric_label or metric
+    ax.set_xlabel(
+        f"{label}  [±{clamp}]",
+        fontsize=7.5,
+        labelpad=3,
+        color="#555870",
+    )
+
     ax.set_title(model, fontweight="bold")
+
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.grid(True, alpha=0.12, color="#555870", axis="x")
 
 
 def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
-    """Main (metric='f1_loss') or Supplementary (metric='ap_loss') – sensitivity lollipops.
+    """Sensitivity lollipop figure — one metric per call.
+
+    Produces the main figure (``metric='f1_loss'``) or the supplementary
+    figure (``metric='ap_loss'``). The two figures deliberately use
+    different x-axis ranges; the clamp value is surfaced in both the
+    per-panel x-label and the figure-level ``supxlabel`` so readers
+    cannot mistake bar-length comparisons across the two.
 
     Parameters
     ----------
     df:
-        The synthetic results table, already condition-label-mapped and including
-        non-baseline scenarios only (or with baseline rows present – they are
-        ignored inside the panel drawing).
+        Synthetic results table with condition labels already mapped.
+        Baseline rows are ignored inside each panel.
     metric:
-        Either ``'ap_loss'`` or ``'f1_loss'``.
+        ``'f1_loss'`` or ``'ap_loss'``.
+
+    Returns
+    -------
+    plt.Figure
     """
+    meta = _METRIC_META[metric]
     nrows, ncols = 2, 3
+
     fig, axes = plt.subplots(
         nrows,
         ncols,
@@ -454,15 +574,22 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
             cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 1.2,
         ),
         constrained_layout=True,
-        gridspec_kw={"hspace": 0.1},
     )
-    for idx, (ax, model) in enumerate(zip(axes.flatten(), MODELS)):
-        _draw_sensitivity_panel(ax, df, metric, model, show_ylabels=(idx % ncols == 0))
 
+    for idx, (ax, model) in enumerate(zip(axes.flat, MODELS)):
+        _draw_sensitivity_panel(
+            ax,
+            df,
+            metric=metric,
+            model=model,
+            show_ylabels=(idx % ncols == 0),
+            metric_label=meta["short"],
+        )
+
+    # ── legend ────────────────────────────────────────────────────────────────
     legend_elements = [
         Line2D(
-            [0],
-            [0],
+            [0], [0],
             marker="o",
             color="w",
             markerfacecolor=CONDITION_COLORS[cond],
@@ -472,15 +599,22 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
         for cond in CONDITION_ORDER
     ]
     fig.legend(
-        title="Condition",
         handles=legend_elements,
+        title="Condition",
         loc="upper center",
         bbox_to_anchor=(0.6, 1.075),
         ncol=2,
         frameon=False,
+        # fontsize=7.5,
+        # title_fontsize=7.5,
     )
-    metric_label = "Average precision (AP) loss" if metric == "ap_loss" else "F1 score loss"
-    fig.supxlabel(f"{metric_label} relative to baseline", x=0.6, ha="center")
+
+    # Clamp surfaced here so readers comparing the two figures are warned
+    fig.supxlabel(
+        f"{meta['label']} relative to baseline  (axis clamped at ±{meta['clamp']})",
+        x=0.6, ha="center"
+    )
+
     return fig
 
 

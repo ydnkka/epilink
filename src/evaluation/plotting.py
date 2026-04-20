@@ -169,6 +169,7 @@ def save_plos_figure(
     height_cm: float | None = None,
     dpi: int = 600,
     save_pdf: bool = True,
+    save_png: bool = False,
     save_tiff: bool = True,
     save_eps: bool = False,
     close: bool = False,
@@ -208,6 +209,12 @@ def save_plos_figure(
         fig.savefig(pdf_path, dpi=dpi, transparent=False)
         saved_paths["pdf"] = pdf_path
         LOGGER.info("figures: saved PDF  %s", pdf_path)
+
+    if save_png:
+        png_path = output_dir / f"{stem}.png"
+        fig.savefig(png_path, dpi=dpi, transparent=False)
+        saved_paths["png"] = png_path
+        LOGGER.info("figures: saved PNG  %s", png_path)
 
     if save_eps:
         eps_path = output_dir / f"{stem}.eps"
