@@ -25,4 +25,4 @@ site/
 docs/epilink_schematic.aux
 docs/epilink_schematic.log
 docs/epilink_schematic.tex
-/CLAUDE.md
+/.snakemake/
