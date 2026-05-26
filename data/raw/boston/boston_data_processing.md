@@ -4,16 +4,18 @@ Sequences and metadata from [Lemieux et al., (2021)](https://www.science.org/doi
 
 ## Sequence analysis with [`Nextclade`](https://docs.nextstrain.org/projects/nextclade/en/stable/index.html)
 
-In order to assign clades, Nextclade places sequences on a reference tree that is representative of the global phylogeny (see figure below). The query sequence (dashed) is compared to all sequences (including internal nodes) of the reference tree to identify the nearest neighbor.
+In order to assign clades, Nextclade places sequences on a reference tree that is representative of the global phylogeny (see figure below). The query sequence (dashed) is compared to all sequences (including internal nodes) of the reference tree to identify the nearest neighbour.
 
 [Nextclade Result Table Columns Meaning](https://docs.nextstrain.org/projects/nextclade/en/stable/user/output-files/04-results-tsv.html)
 
 STEP 1
+
 ```aiignore
 nextclade dataset get --name "nextstrain/sars-cov-2/wuhan-hu-1/orfs" --output-dir "sars-cov-2"
 ```
 
 STEP 2
+
 ```aiignore
 nextclade run \
     --input-dataset "sars-cov-2" \
@@ -31,5 +33,3 @@ Pairwise temporal distances were calculated as the absolute difference between t
 tn93 -t 1 -a skip -o "MGH_DPH_98percent_772samples_tn93_distances.csv" \
 "MGH_DPH_98percent_772samples_aligned.fasta"
 ```
-
-
