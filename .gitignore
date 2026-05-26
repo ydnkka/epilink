@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 .snakemake/
 .claude/
+.vscode/
 *.bib
 *.bst
 *.aux

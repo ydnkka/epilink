@@ -67,7 +67,7 @@ STABILITY_OUTPUTS = [
 
 BASELINE_OUTPUTS = [
     str(SYNTHETIC_DIR / "baseline_scores.parquet"),
-    str(SYNTHETIC_DIR / "baseline_perfomance.json"),
+    str(SYNTHETIC_DIR / "baseline_performance.json"),
     str(SYNTHETIC_DIR / "baseline_summary.parquet"),
 ]
 
@@ -125,7 +125,9 @@ def run_module(module_name: str, log_path: str) -> None:
         assert process.stdout is not None
         for line in process.stdout:
             sys.stderr.write(line)
+            sys.stderr.flush()
             handle.write(line)
+            handle.flush()
 
     return_code = process.wait()
     if return_code != 0:
@@ -199,7 +201,12 @@ rule stability:
 
 rule experiments:
     input:
-        STABILITY_OUTPUTS + SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+        (
+            BASELINE_OUTPUTS
+            + STABILITY_OUTPUTS
+            + SPARSIFICATION_OUTPUTS
+            + [CONFIG_INPUT, TREE_INPUT]
+        )
     output:
         SYNTHETIC_OUTPUTS
     log:

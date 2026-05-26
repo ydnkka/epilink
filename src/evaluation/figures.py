@@ -39,7 +39,13 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from config import load_config, outputs_root, project_root
+from config import (
+    configure_logging,
+    get_pipeline_log_path,
+    load_config,
+    outputs_root,
+    project_root,
+)
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MultipleLocator
 from plotting import (
@@ -71,9 +77,10 @@ PROJECT_ROOT = project_root()
 CONFIG = load_config()
 RESULTS_ROOT = outputs_root(CONFIG)
 FIGURE_OUTPUT_DIR = RESULTS_ROOT / "figures"
+FIGURE_LOG_PATH = RESULTS_ROOT / "logs" / "figures.log"
 
 SAVE_FIGURES = True  # Set to False to avoid saving figures to disk.
-SHOW_PLOTS = True  # Set to False to avoid showing plots.
+SHOW_PLOTS = False  # Set to True or pass --show to preview figures interactively.
 
 # Metric panels for the synthetic figure (column name → y-axis label).
 METRIC_PANELS: list[tuple[str, str]] = [
@@ -83,11 +90,12 @@ METRIC_PANELS: list[tuple[str, str]] = [
     ("std_stability", "Partition stability (SD)"),
 ]
 
-# Score columns for the compatibility-surface panels.
+# Score columns for the compatibility-surface panels, with display titles.
 SURFACE_PANELS: tuple[str, ...] = (
     "compatibility_deterministic",
     "compatibility_stochastic",
 )
+_SURFACE_TITLES: tuple[str, ...] = ("Deterministic", "Stochastic")
 
 # Exposure-count columns present in the Boston composition table.
 EXPOSURE_LABELS: dict[str, str] = {
@@ -97,13 +105,6 @@ EXPOSURE_LABELS: dict[str, str] = {
     "count::Conference": "Conference",
     "count::SNF": "SNF",
 }
-
-# Sensitivity lollipop: clamp values and x-tick positions per metric.
-# _SENSITIVITY_CLAMP: dict[str, float] = {"ap_loss": 1.1, "f1_loss": 0.7}
-# _SENSITIVITY_TICKS: dict[str, list[float]] = {
-#     "ap_loss": [-1.0, -0.5, 0.0, 0.5, 1.0],
-#     "f1_loss": [-0.3,-0.15, 0.0, 0.15, 0.3],
-# }
 
 # Scenario display order and labels for sensitivity figures (non-baseline only).
 _SENSITIVITY_KEYS: list[str] = SCENARIO_ORDER
@@ -152,7 +153,7 @@ def export_figure(fig: Figure, stem: str, **kwargs) -> dict[str, Path]:
     if not SAVE_FIGURES:
         return {}
     return save_plos_figure(
-        fig, stem, out_dir=FIGURE_OUTPUT_DIR, save_pdf=False, **kwargs
+        fig, stem, out_dir=FIGURE_OUTPUT_DIR, **kwargs
     )
 
 
@@ -202,8 +203,9 @@ def make_fig_compatibility() -> Figure:
     axes = np.atleast_1d(axes).flatten()
 
     filled = None
-    for ax, score in zip(axes, SURFACE_PANELS):
+    for ax, score, title in zip(axes, SURFACE_PANELS, _SURFACE_TITLES):
         filled = _add_surface_panel(ax, surfaces, score)
+        ax.set_title(title)
 
     if filled is None:
         raise RuntimeError("No surface panels were drawn.")
@@ -282,12 +284,14 @@ def _plot_metric_panel(
     df: pd.DataFrame,
     metric: str,
     title: str,
+    ylim: tuple[float, float] = (0, 1),
 ) -> None:
     sns.barplot(
         data=df,
         x="model",
         y=metric,
         hue="condition",
+        order=MODELS,
         palette=CONDITION_COLORS,
         hue_order=CONDITION_ORDER,
         errorbar=("ci", 95),
@@ -298,7 +302,7 @@ def _plot_metric_panel(
     )
     ax.set_xlabel("")
     ax.set_ylabel(title)
-    ax.set_ylim(0, 1)
+    ax.set_ylim(*ylim)
     ax.grid(True, alpha=0.12, color="#555870")
 
 
@@ -319,7 +323,8 @@ def make_fig_synthetic(results: pd.DataFrame) -> Figure:
     axes = axes.flatten()
 
     for ax, (metric, title) in zip(axes, METRIC_PANELS):
-        _plot_metric_panel(ax, results, metric=metric, title=title)
+        ylim = (0, 0.15) if metric == "std_stability" else (0, 1)
+        _plot_metric_panel(ax, results, metric=metric, title=title, ylim=ylim)
 
     handles, labels = axes[0].get_legend_handles_labels()
     for ax in axes:
@@ -406,14 +411,12 @@ def make_fig_stability() -> Figure:
 
 _METRIC_META: dict[str, dict] = {
     "ap_loss": {
-        "label": "Average precision (AP) loss",
-        "short": "ΔAP",
+        "label": "AP score loss relative to baseline",
         "clamp": 1.1,
         "ticks": [-1.0, -0.5, 0.0, 0.5, 1.0],
     },
     "f1_loss": {
-        "label": "F1 score loss",
-        "short": "ΔF1",
+        "label": "F1 score loss relative to baseline",
         "clamp": 0.3,
         "ticks": [-0.3, -0.15, 0.0, 0.15, 0.3],
     },
@@ -444,7 +447,6 @@ def _draw_sensitivity_panel(
     metric: str,
     model: str,
     show_ylabels: bool,
-    metric_label: str | None = None,
 ) -> None:
     """Draw a single sensitivity lollipop panel.
 
@@ -461,9 +463,6 @@ def _draw_sensitivity_panel(
         Model name used both as a filter key and as the panel title.
     show_ylabels:
         Whether to render y-tick labels (suppressed on non-leftmost panels).
-    metric_label:
-        Short label shown on the x-axis (e.g. ``'ΔAP'``). Falls back to
-        ``metric`` if not provided.
     """
     clamp = _SENSITIVITY_CLAMP[metric]
     ticks = _SENSITIVITY_TICKS[metric]
@@ -482,7 +481,7 @@ def _draw_sensitivity_panel(
         for i, sk in enumerate(_SENSITIVITY_KEYS):
             if sk not in cond_df.index:
                 continue
-            v = cond_df[cond_df[sk]][metric].to_numpy()
+            v = float(cond_df.loc[sk, metric]) # type: ignore
             if pd.isna(v):
                 continue
 
@@ -534,13 +533,7 @@ def _draw_sensitivity_panel(
         fontsize=7,
     )
 
-    label = metric_label or metric
-    ax.set_xlabel(
-        f"{label}  [±{clamp}]",
-        fontsize=7.5,
-        labelpad=3,
-        color="#555870",
-    )
+    ax.set_xlabel("")
 
     ax.set_title(model, fontweight="bold")
 
@@ -590,7 +583,6 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> Figure:
             metric=metric,
             model=model,
             show_ylabels=(idx % ncols == 0),
-            metric_label=meta["short"],
         )
 
     # ── legend ────────────────────────────────────────────────────────────────
@@ -613,13 +605,10 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> Figure:
         bbox_to_anchor=(0.6, 1.075),
         ncol=2,
         frameon=False,
-        # fontsize=7.5,
-        # title_fontsize=7.5,
     )
 
-    # Clamp surfaced here so readers comparing the two figures are warned
     fig.supxlabel(
-        f"{meta['label']} relative to baseline  (axis clamped at ±{meta['clamp']})",
+        meta["label"],
         x=0.6,
         ha="center",
     )
@@ -706,15 +695,32 @@ def make_fig_boston() -> Figure:
 # ─── Diagnostic helpers ───────────────────────────────────────────────────────
 
 
+def _quiet_noisy_loggers() -> None:
+    """Keep figure logs focused on pipeline messages, not font subsetting internals."""
+    logging.getLogger("fontTools").setLevel(logging.WARNING)
+
+
+def _log_diagnostic(message: str = "") -> None:
+    """Log diagnostic text using the shared figure/pipeline log handlers."""
+    LOGGER.info("%s", message)
+
+
+def _log_table(table: str) -> None:
+    """Log a preformatted diagnostic table one line at a time."""
+    for line in table.splitlines():
+        _log_diagnostic(line)
+
+
 def print_baseline_metrics() -> None:
     """Print per-model AP / F1 / stability at baseline."""
 
     df = read_result_table("synthetic", "baseline_summary.parquet").copy()
 
-    print("\n── Baseline metrics ──────────────────────────────────────")
+    _log_diagnostic()
+    _log_diagnostic("── Baseline metrics ──────────────────────────────────────")
 
     for row in df.to_dict(orient="records"):
-        print(
+        _log_diagnostic(
             f"  {row['model']}: "
             f"AP={row['ap']:.3f} (95% CI[{row['ci_lo']:.3f}, {row['ci_hi']:.3f}]), "
             f"Relative AP={row['relative_ap']:.3f} vs. prevalence AP={row['prevalence']:.5f}, "
@@ -726,16 +732,15 @@ def print_baseline_metrics() -> None:
 
 def print_stability_minima() -> None:
     """Print per-model minimum stability values across all epidemic weeks."""
-    print(
-        "\n── Temporal stability mean (minima) ───────────────────────────────────────"
-    )
+    _log_diagnostic()
+    _log_diagnostic("── Temporal stability mean (minima) ───────────────────────────────────────")
     metrics = list(STABILITY_LABELS)
     for model in MODELS:
         df = read_result_table("stability", f"temporal_stability_{model}.parquet")
         mins = df[metrics].min()
         means = df[metrics].mean()
         parts = ", ".join(f"{m}={means[m]:.3f} ({mins[m]:.3f})" for m in metrics)
-        print(f"  {model}: {parts}")
+        _log_diagnostic(f"  {model}: {parts}")
 
 
 def print_loss_pivot(results: pd.DataFrame) -> None:
@@ -743,7 +748,8 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
     matched = results.loc[results["condition"] == "Matched"]
     mismatched = results.loc[results["condition"] == "Mismatched"]
 
-    print("\n── F1 loss – Matched condition ──────────────────────────────────")
+    _log_diagnostic()
+    _log_diagnostic("── F1 loss – Matched condition ──────────────────────────────────")
     pivot = (
         matched[["model", "scenario", "f1_loss"]]
         .pivot_table(index="scenario", columns="model", values="f1_loss")
@@ -753,9 +759,10 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
     with pd.option_context(
         "display.float_format", "{:+.3f}".format, "display.width", 120
     ):
-        print(pivot.to_string(index=False))
+        _log_table(pivot.to_string(index=False))
 
-    print("\n── F1 loss – Mismatched condition ──────────────────────────────────")
+    _log_diagnostic()
+    _log_diagnostic("── F1 loss – Mismatched condition ──────────────────────────────────")
     pivot = (
         mismatched[["model", "scenario", "f1_loss"]]
         .pivot_table(index="scenario", columns="model", values="f1_loss")
@@ -765,9 +772,10 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
     with pd.option_context(
         "display.float_format", "{:+.3f}".format, "display.width", 120
     ):
-        print(pivot.to_string(index=False))
+        _log_table(pivot.to_string(index=False))
 
-    print("\n── AP loss – Matched condition ──────────────────────────────────")
+    _log_diagnostic()
+    _log_diagnostic("── AP loss – Matched condition ──────────────────────────────────")
     pivot = (
         matched[["model", "scenario", "ap_loss"]]
         .pivot_table(index="scenario", columns="model", values="ap_loss")
@@ -777,9 +785,10 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
     with pd.option_context(
         "display.float_format", "{:+.3f}".format, "display.width", 120
     ):
-        print(pivot.to_string(index=False))
+        _log_table(pivot.to_string(index=False))
 
-    print("\n── AP loss – Mismatched condition ──────────────────────────────────")
+    _log_diagnostic()
+    _log_diagnostic("── AP loss – Mismatched condition ──────────────────────────────────")
     pivot = (
         mismatched[["model", "scenario", "ap_loss"]]
         .pivot_table(index="scenario", columns="model", values="ap_loss")
@@ -789,13 +798,13 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
     with pd.option_context(
         "display.float_format", "{:+.3f}".format, "display.width", 120
     ):
-        print(pivot.to_string(index=False))
+        _log_table(pivot.to_string(index=False))
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 
-def main(*, save: bool = True) -> None:
+def main(*, save: bool = True, show: bool = False) -> None:
     """Assemble and optionally export all manuscript figures.
 
     Reads completed evaluation outputs from the paths configured in
@@ -807,10 +816,18 @@ def main(*, save: bool = True) -> None:
     ----------
     save : bool
         If ``True`` (default), write PDF/TIFF files for each figure.  Pass
-        ``False`` to preview figures interactively without saving.
+        ``False`` (or ``--no-save`` on the CLI) to skip file output.
+    show : bool
+        If ``True``, call ``plt.show()`` after each figure for interactive
+        preview.  Defaults to ``False``; pass ``--show`` on the CLI to enable.
     """
-    global SAVE_FIGURES
+    global SAVE_FIGURES, SHOW_PLOTS
     SAVE_FIGURES = save
+    SHOW_PLOTS = show
+
+    configure_logging(log_file=get_pipeline_log_path(CONFIG))
+    configure_logging(log_file=FIGURE_LOG_PATH)
+    _quiet_noisy_loggers()
 
     set_plos_theme()
 
@@ -901,7 +918,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-save",
         action="store_true",
-        help="Preview figures without writing any files.",
+        help="Skip writing figure files to disk.",
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Display figures interactively after each is built.",
     )
     args = parser.parse_args()
-    main(save=not args.no_save)
+    main(save=not args.no_save, show=args.show)

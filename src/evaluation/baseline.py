@@ -317,8 +317,23 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
 
     summary = analyse_baseline(scores_df, metrics)
+    performance = {
+        metric["model"]: {
+            "n_pairs": int(metric["n_pairs"]),
+            "prevalence": float(metric["prevalence"]),
+            "ap": float(metric["ap"]),
+            "best_f1": float(metric["best_f1"]),
+            "mean_stability": float(metric["mean_stability"]),
+            "std_stability": float(metric["std_stability"]),
+        }
+        for metric in metrics
+    }
 
     scores_df.to_parquet(out_dir / "baseline_scores.parquet", index=False)
+    (out_dir / "baseline_performance.json").write_text(
+        json.dumps(performance, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     summary.to_parquet(out_dir / "baseline_summary.parquet", index=False)
     LOGGER.info("baseline: written outputs to %s", out_dir)
 
