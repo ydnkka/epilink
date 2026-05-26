@@ -4,6 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/epilink.svg)](https://pypi.org/project/epilink/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![codecov](https://codecov.io/gh/ydnkka/epilink/branch/master/graph/badge.svg)](https://codecov.io/gh/ydnkka/epilink)
+[![DOI](https://zenodo.org/badge/1065508228.svg)](https://doi.org/10.5281/zenodo.20402075)
 
 EpiLink scores how compatible pairs of sampled infections are with recent
 transmission scenarios, using the difference in sampling dates and the consensus
