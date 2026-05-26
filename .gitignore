@@ -5,8 +5,6 @@ __pycache__/
 .snakemake/
 .claude/
 .vscode/
-*.bib
-*.bst
 *.aux
 *.log
 *.out
