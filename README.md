@@ -2,7 +2,6 @@
 
 [![DOI](https://zenodo.org/badge/1065508228.svg)](https://doi.org/10.5281/zenodo.20402075)
 
-
 > **EpiLink** is a process-based compatibility model for genomic transmission clustering in
 > infectious disease surveillance. This repository contains the reproducible evaluation
 > workflow that generates all results and figures reported in the accompanying manuscript.
