@@ -796,6 +796,19 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
 
 
 def main(*, save: bool = True) -> None:
+    """Assemble and optionally export all manuscript figures.
+
+    Reads completed evaluation outputs from the paths configured in
+    ``config.yaml``, builds each figure in sequence, and (when *save* is
+    ``True``) writes PDF and TIFF exports to the configured figure output
+    directory.
+
+    Parameters
+    ----------
+    save : bool
+        If ``True`` (default), write PDF/TIFF files for each figure.  Pass
+        ``False`` to preview figures interactively without saving.
+    """
     global SAVE_FIGURES
     SAVE_FIGURES = save
 

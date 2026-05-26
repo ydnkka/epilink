@@ -1,4 +1,18 @@
-"""Run the empirical Boston clustering workflow."""
+"""Run the empirical Boston SARS-CoV-2 clustering workflow.
+
+Loads pairwise distances and sample metadata from the processed Boston dataset
+(derived from Lemieux *et al.* 2021), builds a compatibility graph using the
+matched-baseline EpiLink model with the optimal sparsification threshold, runs
+multi-restart Leiden community detection, and writes per-cluster composition
+and size summaries.
+
+Cluster composition analysis reports enrichment of documented outbreak affiliations
+(skilled nursing facility, conference) using chi-square tests, providing the
+empirical validation reported in the manuscript.
+
+The public entry-point is :func:`main`, which is called by the Snakemake
+``boston`` rule and can also be run directly as ``python -m evaluation.boston``.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,18 @@
-"""Evaluate partition stability as cases accrue over time."""
+"""Evaluate partition stability as cases accrue over time.
+
+Simulates a synthetic epidemic on the pre-built SCoVMod transmission tree, then
+incrementally reveals cases week by week and re-infers Leiden partitions at each
+time step.  Three overlap metrics — forward, backward, and Jaccard — are computed
+between consecutive partitions for each model, capturing how stable cluster
+assignments remain as surveillance data accumulate.
+
+The module also selects the Leiden resolution parameter that maximises mean
+stability for each model and writes a resolution-selection summary.
+
+The public entry-point is :func:`main`, which is called by the Snakemake
+``stability`` rule and can also be run directly as
+``python -m evaluation.stability``.
+"""
 
 from __future__ import annotations
 

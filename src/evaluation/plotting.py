@@ -119,6 +119,23 @@ def set_plos_theme(
     font: str = "Arial",
     font_scale: float = 1.0,
 ) -> None:
+    """Apply a PLOS-compliant seaborn/matplotlib theme.
+
+    Sets font family, base sizes, axis styles, and PDF/PS font embedding flags
+    to match PLOS Computational Biology figure guidelines.  Call once at the top
+    of any figure-generating module before creating axes.
+
+    Parameters
+    ----------
+    context : {"paper", "talk", "poster"}
+        Seaborn scaling context.  ``"paper"`` (default) uses the smallest base
+        sizes appropriate for print figures.
+    font : str
+        Primary sans-serif font name.  Falls back to ``"Arial"``,
+        ``"Liberation Sans"``, then ``"DejaVu Sans"`` if unavailable.
+    font_scale : float
+        Multiplicative scaling factor applied to all font sizes.
+    """
     sns.set_theme(
         style="white",
         context=context,
@@ -159,6 +176,7 @@ def set_plos_theme(
 
 
 def cm_to_inch(cm: float) -> float:
+    """Convert centimetres to inches."""
     return cm / 2.54
 
 
@@ -176,6 +194,52 @@ def save_plos_figure(
     save_eps: bool = False,
     close: bool = False,
 ) -> dict[str, Path]:
+    """Resize *fig* to PLOS dimensions and export to the requested formats.
+
+    The figure is resized in-place to *width_cm* × *height_cm* (preserving the
+    current aspect ratio when *height_cm* is ``None``).  An error is raised if
+    the target height would exceed the PLOS maximum of
+    :data:`PLOS_MAX_HEIGHT_CM`.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        Figure to export.
+    stem : str
+        Output filename without extension (e.g. ``"baseline"``).
+    out_dir : str or Path
+        Directory to write files into.  Created if it does not exist.
+    width_cm : float
+        Target figure width in centimetres.  Defaults to the PLOS text-column
+        width (13.2 cm).
+    height_cm : float or None
+        Target figure height in centimetres.  If ``None``, the height is
+        derived from the current aspect ratio of *fig*.
+    dpi : int
+        Resolution for raster outputs.  Must be in [300, 600].
+    save_pdf : bool
+        Write a ``{stem}.pdf`` file (default ``True``).
+    save_png : bool
+        Write a ``{stem}.png`` file (default ``False``).
+    save_tiff : bool
+        Write an LZW-compressed ``{stem}.tif`` file (default ``True``).
+    save_eps : bool
+        Write a ``{stem}.eps`` file (default ``False``).
+    close : bool
+        Call ``plt.close(fig)`` after saving (default ``False``).
+
+    Returns
+    -------
+    dict[str, Path]
+        Mapping from format key (``"pdf"``, ``"png"``, ``"tiff"``, ``"eps"``)
+        to the saved file path, containing only the formats that were written.
+
+    Raises
+    ------
+    ValueError
+        If *dpi* is outside [300, 600], *width_cm* or *height_cm* is
+        non-positive, or the resulting height exceeds the PLOS maximum.
+    """
     if not (300 <= dpi <= 600):
         raise ValueError("dpi should usually be between 300 and 600 for PLOS figures.")
     if width_cm <= 0:
@@ -249,6 +313,23 @@ def add_panel_labels(
     y: float = 1.1,
     size: float | str = "medium",
 ) -> None:
+    """Add bold uppercase panel labels (A, B, C, …) to a sequence of axes.
+
+    Labels are placed in axes-coordinate space so they stay anchored relative
+    to each panel regardless of figure layout.
+
+    Parameters
+    ----------
+    axes : sequence of Axes
+        Axes to label, in display order.  Labels are assigned A, B, C, … in
+        the same order.
+    x : float
+        Horizontal position in axes coordinates (default 0 = left edge).
+    y : float
+        Vertical position in axes coordinates (default 1.1 = above top edge).
+    size : float or str
+        Font size passed directly to :func:`matplotlib.axes.Axes.text`.
+    """
     labels = list(string.ascii_uppercase)
     for ax, label in zip(axes, labels):
         ax.text(

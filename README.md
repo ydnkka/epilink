@@ -1,234 +1,181 @@
-# Evaluation
+# EpiLink — evaluation code
 
-This subproject contains the reproducible evaluation workflows for the `epilink`
-project. It includes:
+> **EpiLink** is a process-based compatibility model for genomic transmission clustering in
+> infectious disease surveillance. This repository contains the reproducible evaluation
+> workflow that generates all results and figures reported in the accompanying manuscript.
+>
+> The EpiLink package itself is at <https://github.com/ydnkka/epilink>.
 
-- preprocessing of raw SCoVMod transmission outputs into a canonical tree,
-- sparsification analysis for score thresholds,
-- temporal stability analysis,
-- synthetic robustness experiments,
-- baseline performance analysis with bootstrap statistics, and
-- Boston dataset clustering analysis.
+## Overview
 
-The workflow is configuration-driven through `config.yaml`, and generated
-artifacts are written under `results/`.
+EpiLink scores case pairs by asking: given their observed sampling-time difference and
+consensus genetic distance, how consistent are those observations with recent transmission?
+Rather than applying a fixed threshold, it simulates distributions of expected temporal and
+genetic distances under candidate transmission histories and produces graded pairwise
+compatibility scores.
 
-## Project layout
+This repository provides the full analysis pipeline — data preprocessing, sparsification
+analysis, synthetic robustness experiments, temporal stability analysis, baseline
+statistical evaluation, and empirical clustering on a published Boston SARS-CoV-2 dataset —
+along with the code to reproduce every manuscript figure.
 
-### Pipeline entry-point modules
+## Requirements
 
-These modules contain a `main()` function and are executed by the Snakemake
-workflow (or directly):
-
-- `src/evaluation/scovmod.py` — Parses SCoVMod CSVs and builds the canonical
-  GML transmission tree.
-- `src/evaluation/sparsification.py` — Computes score surfaces, edge-retention
-  summaries, and optimal per-model sparsification thresholds.
-- `src/evaluation/stability.py` — Evaluates cumulative temporal stability as
-  cases accrue over time.
-- `src/evaluation/experiments.py` — Runs the synthetic robustness experiment
-  grid across configured scenarios and conditions.
-- `src/evaluation/baseline.py` — Runs the matched-baseline scenario and
-  computes a rich statistical summary (bootstrap AP CIs, PRG, Brier score).
-- `src/evaluation/figures.py` — Assembles all manuscript figures from completed
-  evaluation outputs and writes PDF + TIFF exports.
-
-### Shared library modules
-
-These modules expose helpers imported by one or more entry-point modules and
-have no `__main__` block intended for direct use:
-
-- `src/evaluation/config.py` — Config loading, path resolution, logging setup,
-  and scenario/run-spec construction.
-- `src/evaluation/specs.py` — Shared constants (column names, model keys),
-  parameter-expansion helpers, and score-metadata lookup.
-- `src/evaluation/models.py` — EpiLink scorer construction and logistic-
-  regression scoring helpers.
-- `src/evaluation/evaluate.py` — Core scenario evaluation logic: simulate,
-  score, compute AP / best-F1 / stability for all models.
-- `src/evaluation/leiden.py` — igraph graph-construction and multi-restart
-  Leiden clustering helpers.
-- `src/evaluation/metrics.py` — BCubed precision/recall/F1, overlap metrics
-  between consecutive partitions, and cluster-composition summaries.
-- `src/evaluation/heterogeneity.py` — Negative-binomial MLE (with MoM fallback)
-  and bootstrap CIs for transmission heterogeneity.
-- `src/evaluation/plotting.py` — PLOS figure-dimension constants, shared
-  condition/scenario/model display mappings, seaborn theme, and
-  publication-grade figure export.
-
-## Environment setup
-
-Use Python 3.10+ and install both the parent package and the evaluation
-dependencies from the `evaluation/` directory:
+Python 3.10 or later. Install all dependencies (including the EpiLink package) from the
+repository root:
 
 ```bash
-python3 -m pip install -e ..
-python3 -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-The `requirements.txt` file intentionally keeps the parent package dependency
-as `-e ..`.
+## Data
 
-## Inputs and outputs
+Raw inputs expected by the pipeline:
 
-### Inputs
+| File | Description |
+| ---- | ----------- |
+| `data/raw/scovmod/InfectedIndividuals.1.csv` | SCoVMod individual infection records |
+| `data/raw/scovmod/TransmissionEvents.1.csv` | SCoVMod transmission event records |
+| `data/processed/boston/boston_metadata.parquet` | Boston sample metadata |
+| `data/processed/boston/boston_pairwise_distances.parquet` | Boston pairwise distances |
 
-- Raw SCoVMod inputs are read from:
-  - `data/raw/scovmod/InfectedIndividuals.1.csv`
-  - `data/raw/scovmod/TransmissionEvents.1.csv`
-- Processed Boston inputs are read from:
-  - `data/processed/boston/boston_metadata.parquet`
-  - `data/processed/boston/boston_pairwise_distances.parquet`
+The SCoVMod simulation data are generated by the agent-based transmission model described
+in the manuscript. The Boston dataset is derived from Lemieux *et al.* (2021) — see the
+manuscript for full provenance and processing details.
 
 Treat `data/raw/` and `data/processed/` as read-only input directories.
 
-### Canonical tree output
+## Reproducing results
 
-The generated SCoVMod tree is the canonical input consumed by all downstream
-synthetic workflows:
+All outputs are written under `results/`. The pipeline is orchestrated by Snakemake and
+controlled entirely by `config.yaml`.
 
-- `results/scovmod/scovmod_tree.gml`
-
-This location is configured via `outputs.scovmod.tree_path` in `config.yaml`.
-
-### Results directories
-
-By default, all outputs are placed under `results/`:
-
-- `results/scovmod/` — GML tree, heterogeneity JSON, degree distributions,
-  and component/tree summary parquets.
-- `results/sparsification/` — Score surfaces, edge-retention summaries, and
-  `optimal_thresholds.json`.
-- `results/stability/` — Temporal stability parquets per model and resolution-
-  selection summary.
-- `results/synthetic/` — Full experiment results, raw baseline scores, and
-  baseline statistical summary.
-- `results/boston/` — Cluster composition, cluster sizes, and cluster summary.
-- `results/figures/` — PDF and TIFF figure exports.
-
-## Logging
-
-All pipeline modules use Python's standard `logging` library with a shared
-format:
-
-```text
-YYYY-MM-DD HH:MM:SS [LEVEL] module_name: message
-```
-
-Each module call to `configure_logging()` adds:
-
-1. A **console handler** (stderr) — active in all contexts.
-2. A **file handler appending to the unified pipeline log** —
-   `results/logs/pipeline.log` (configured via `outputs.logs.pipeline_log` in
-   `config.yaml`).
-
-When running via Snakemake, each module's stdout+stderr is also captured
-separately to its own per-rule log file (see below). The unified pipeline log
-collects a single chronological record across all modules, which is useful for
-auditing the full run order and timings.
-
-## Configuration
-
-The pipeline is controlled by `config.yaml`. Important sections include:
-
-- `paths` — locations of raw and processed input data.
-- `outputs` — output root, per-workflow output subdirectories, and log paths.
-- `workflows` — workflow-specific parameters for SCoVMod, sparsification,
-  stability, and Boston analysis.
-- `generation_baseline`, `inference_baseline`, `perturbations`, `conditions`,
-  and `execution` — synthetic evaluation design.
-
-Most changes to experiment behaviour should be made in `config.yaml`, not in
-code.
-
-## Snakemake workflow
-
-The `Snakefile` executes the core analysis in this order:
-
-1. `scovmod` — build transmission tree
-2. `sparsification` — compute score surfaces and optimal thresholds
-3. `baseline` — run matched-baseline evaluation and compute rich statistics
-4. `stability` — evaluate cumulative temporal stability
-5. `experiments` — run the full synthetic robustness grid
-6. `boston` — run the empirical Boston clustering analysis
-
-Rules 3 (`baseline`) and 4 (`stability`) are independent of each other and
-both depend only on `sparsification`, so Snakemake can schedule them in
-parallel when more than one core is available.
-
-This ordering ensures the SCoVMod tree is created before any downstream
-synthetic analyses depend on it.
-
-### Dry run
+### Dry run (check rule graph without executing)
 
 ```bash
 PYTHONPATH=src:src/evaluation snakemake -n --cores 1
 ```
 
-### Run the full workflow
+### Full pipeline
 
 ```bash
 PYTHONPATH=src:src/evaluation snakemake --cores 1
 ```
 
-Per-rule log files are written to:
+Use `--cores N` with N > 1 to parallelise the `baseline` and `stability` rules, which
+are independent of each other.
 
-- `results/logs/scovmod.log`
-- `results/logs/sparsification.log`
-- `results/logs/baseline.log`
-- `results/logs/stability.log`
-- `results/logs/experiments.log`
-- `results/logs/boston.log`
-
-The unified log across all rules is appended to:
-
-- `results/logs/pipeline.log`
-
-### Run a specific step
+### Run a single step
 
 ```bash
 PYTHONPATH=src:src/evaluation snakemake --cores 1 sparsification
 ```
 
-### Use a different config file
+Available rule names: `scovmod`, `sparsification`, `baseline`, `stability`,
+`experiments`, `boston`.
+
+### Use an alternative config file
 
 ```bash
 PYTHONPATH=src:src/evaluation snakemake --cores 1 --config evaluation_config=path/to/config.yaml
 ```
 
-## Running modules directly
+### Generate manuscript figures
 
-Run modules without Snakemake from `evaluation/` with `PYTHONPATH=src:src/evaluation`:
-
-```bash
-PYTHONPATH=src:src/evaluation python3 -m evaluation.scovmod
-PYTHONPATH=src:src/evaluation python3 -m evaluation.sparsification
-PYTHONPATH=src:src/evaluation python3 -m evaluation.stability
-PYTHONPATH=src:src/evaluation python3 -m evaluation.experiments
-PYTHONPATH=src:src/evaluation python3 -m evaluation.boston
-PYTHONPATH=src:src/evaluation python3 -m evaluation.baseline
-```
-
-Figures are generated separately (not part of the Snakemake pipeline):
+Figures are assembled separately after the pipeline completes:
 
 ```bash
 PYTHONPATH=src:src/evaluation python3 -m evaluation.figures          # save PDF + TIFF
 PYTHONPATH=src:src/evaluation python3 -m evaluation.figures --no-save  # preview only
 ```
 
-## Recommended smoke checks
-
-From `evaluation/`, quick import checks before a full run:
+### Run modules directly (without Snakemake)
 
 ```bash
-PYTHONPATH=src python3 -c "from evaluation.config import load_config; load_config()"
-snakemake -n --cores 1
+PYTHONPATH=src:src/evaluation python3 -m evaluation.scovmod
+PYTHONPATH=src:src/evaluation python3 -m evaluation.sparsification
+PYTHONPATH=src:src/evaluation python3 -m evaluation.stability
+PYTHONPATH=src:src/evaluation python3 -m evaluation.experiments
+PYTHONPATH=src:src/evaluation python3 -m evaluation.baseline
+PYTHONPATH=src:src/evaluation python3 -m evaluation.boston
 ```
 
-For synthetic experiment changes, checking config parsing and run-spec
-construction is often faster than a full evaluation:
+## Pipeline execution order
+
+```text
+scovmod ──► sparsification ──► baseline  ──► experiments ──► boston
+                          └──► stability ─┘
+```
+
+Rules `baseline` and `stability` are independent and can run in parallel.
+
+## Outputs
+
+| Directory | Contents |
+| --------- | -------- |
+| `results/scovmod/` | GML transmission tree, heterogeneity JSON, degree distributions, component/tree summary parquets |
+| `results/sparsification/` | Score surfaces, edge-retention summaries, `optimal_thresholds.json` |
+| `results/stability/` | Temporal stability parquets per model, resolution-selection summary |
+| `results/synthetic/` | Full experiment results, raw baseline scores, baseline statistical summary |
+| `results/boston/` | Cluster composition, cluster sizes, cluster summary |
+| `results/figures/` | PDF and TIFF figure exports |
+| `results/logs/` | Per-rule log files and unified `pipeline.log` |
+
+## Repository structure
+
+### Pipeline entry-point modules (`src/evaluation/`)
+
+| Module | Description |
+| ------ | ----------- |
+| `scovmod.py` | Parses SCoVMod CSVs and builds the canonical GML transmission tree |
+| `sparsification.py` | Computes score surfaces, edge-retention summaries, and optimal per-model thresholds |
+| `stability.py` | Evaluates cumulative temporal stability as cases accrue over time |
+| `experiments.py` | Runs the synthetic robustness experiment grid across all scenarios and conditions |
+| `baseline.py` | Runs the matched-baseline scenario and computes bootstrap AP CIs, PRG, and Brier score |
+| `figures.py` | Assembles all manuscript figures from completed evaluation outputs |
+
+### Shared library modules (`src/evaluation/`)
+
+| Module | Description |
+| ------ | ----------- |
+| `config.py` | Config loading, path resolution, logging setup, scenario/run-spec construction |
+| `specs.py` | Shared constants, column names, model keys, parameter-expansion helpers |
+| `models.py` | EpiLink scorer construction and logistic-regression scoring helpers |
+| `evaluate.py` | Core scenario evaluation: simulate, score, compute AP/F1/stability for all models |
+| `leiden.py` | igraph graph-construction and multi-restart Leiden clustering helpers |
+| `metrics.py` | BCubed precision/recall/F1, partition overlap metrics, cluster-composition summaries |
+| `heterogeneity.py` | Negative-binomial MLE and bootstrap CIs for transmission heterogeneity |
+| `plotting.py` | PLOS figure-dimension constants, display mappings, seaborn theme, publication-grade export |
+
+## Configuration
+
+`config.yaml` at the repository root controls all pipeline behaviour. Key sections:
+
+- `paths` — input data locations
+- `outputs` — output root and per-workflow subdirectories
+- `workflows` — SCoVMod, sparsification, stability, and Boston workflow parameters
+- `generation_baseline`, `inference_baseline`, `perturbations`, `conditions`, `execution` — synthetic experiment design
+
+Most changes to experiment behaviour should be made in `config.yaml`, not in code.
+
+## Logging
+
+All modules use Python's standard `logging` library with a shared format:
+
+```text
+YYYY-MM-DD HH:MM:SS [LEVEL] module_name: message
+```
+
+Each module appends to a unified pipeline log at `results/logs/pipeline.log` and writes
+per-rule logs to `results/logs/<rule>.log` when run via Snakemake.
+
+## Quick import checks
 
 ```bash
+# Verify config loads correctly
+PYTHONPATH=src python3 -c "from evaluation.config import load_config; load_config()"
+
+# Count run specifications for the synthetic experiment grid
 PYTHONPATH=src python3 -c "
 from evaluation.config import build_run_specs, load_config
 print(len(build_run_specs(load_config())), 'run specs')

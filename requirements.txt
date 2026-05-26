@@ -1,4 +1,4 @@
--e ..
+epilink==0.1.4
 pyyaml
 bcubed
 python-igraph

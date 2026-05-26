@@ -1,4 +1,20 @@
-"""Quantify retention and runtime effects of edge sparsification, then determine optimal thresholds."""
+"""Quantify retention and runtime effects of edge sparsification, then determine optimal thresholds.
+
+Runs two analyses and writes their outputs to the configured results directory:
+
+1. **Score surfaces** — evaluates EpiLink compatibility and logistic-regression scores
+   across a grid of (SNP distance, sampling-time difference) values for each model,
+   producing the surface plots in the manuscript.
+
+2. **Sparsification analysis** — sweeps score thresholds for each model, measuring
+   retained edge fraction and Leiden graph/clustering runtime.  From these curves,
+   :func:`determine_optimal_thresholds` selects the lowest threshold that retains at
+   least a configured minimum edge fraction, producing ``optimal_thresholds.json``
+   that is consumed by all downstream synthetic-experiment rules.
+
+The public entry-point is :func:`main`, which is called by the Snakemake ``sparsification``
+rule and can also be run directly as ``python -m evaluation.sparsification``.
+"""
 
 from __future__ import annotations
 
