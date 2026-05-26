@@ -9,7 +9,7 @@ subsetting pair tables.
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, Iterable
 
 import igraph as ig
 import numpy as np
@@ -22,16 +22,18 @@ def build_weighted_graph(
     weight_column: str | None = None,
     source_column: str = "CaseA",
     target_column: str = "CaseB",
-    vertex_ids: list[str] | pd.Index | None = None,
-    source_ids: list[Any] | np.ndarray | pd.Index | None = None,
-    target_ids: list[Any] | np.ndarray | pd.Index | None = None,
-    weights: list[float] | np.ndarray | pd.Series | None = None,
+    vertex_ids: Iterable[Any] | None = None,
+    source_ids: Iterable[Any] | None = None,
+    target_ids: Iterable[Any] |  None = None,
+    weights: Iterable[float] | None = None,
 ) -> ig.Graph:
     """Build an undirected weighted graph from a pairwise edge table."""
 
     if pairwise_frame is not None:
         if weight_column is None:
-            raise ValueError("weight_column is required when pairwise_frame is provided.")
+            raise ValueError(
+                "weight_column is required when pairwise_frame is provided."
+            )
         source_values = pairwise_frame[source_column].to_numpy(copy=False)
         target_values = pairwise_frame[target_column].to_numpy(copy=False)
         weight_values = pairwise_frame[weight_column].to_numpy(copy=False)
@@ -44,10 +46,16 @@ def build_weighted_graph(
         target_values = np.asarray(target_ids)
         weight_values = np.asarray(weights, dtype=float)
 
-    if len(source_values) != len(target_values) or len(source_values) != len(weight_values):
-        raise ValueError("source_ids, target_ids, and weights must have the same length.")
+    if len(source_values) != len(target_values) or len(source_values) != len(
+        weight_values
+    ):
+        raise ValueError(
+            "source_ids, target_ids, and weights must have the same length."
+        )
 
-    valid_mask = pd.notna(source_values) & pd.notna(target_values) & ~np.isnan(weight_values)
+    valid_mask = (
+        pd.notna(source_values) & pd.notna(target_values) & ~np.isnan(weight_values)
+    )
     if minimum_weight > 0:
         valid_mask &= weight_values >= minimum_weight
 
@@ -74,7 +82,9 @@ def build_weighted_graph(
             if graph.vcount() and "case_id" in graph.vs.attributes()
             else set()
         )
-        missing = [vertex_id for vertex_id in vertex_id_list if vertex_id not in present]
+        missing = [
+            vertex_id for vertex_id in vertex_id_list if vertex_id not in present
+        ]
         if missing:
             start_index = graph.vcount()
             graph.add_vertices(len(missing))
@@ -110,7 +120,7 @@ def run_leiden_partition(
         modularity = graph.modularity(
             membership=partition,
             weights=weight_column,
-            resolution=resolution,
+            resolution=resolution, # type: ignore
             directed=False,
         )
         if modularity > best_modularity:
@@ -148,8 +158,12 @@ def total_edge_weight(pairwise_frame: pd.DataFrame, *, weight_column: str) -> fl
     return float(pairwise_frame[weight_column].sum())
 
 
-def subset_pairs_for_nodes(pairwise_frame: pd.DataFrame, node_ids: set[Any]) -> pd.DataFrame:
+def subset_pairs_for_nodes(
+    pairwise_frame: pd.DataFrame, node_ids: set[Any]
+) -> pd.DataFrame:
     """Return the induced pairwise subgraph for a set of nodes."""
 
-    mask = pairwise_frame["CaseA"].isin(node_ids) & pairwise_frame["CaseB"].isin(node_ids)
+    mask = pairwise_frame["CaseA"].isin(node_ids) & pairwise_frame["CaseB"].isin(
+        node_ids
+    )
     return pairwise_frame.loc[mask].copy()

@@ -64,8 +64,12 @@ def bcubed_scores(
         for case_id in shared_cases
         if predicted_memberships[case_id] and reference_memberships[case_id]
     ]
-    filtered_predicted = {case_id: predicted_memberships[case_id] for case_id in valid_cases}
-    filtered_reference = {case_id: reference_memberships[case_id] for case_id in valid_cases}
+    filtered_predicted = {
+        case_id: predicted_memberships[case_id] for case_id in valid_cases
+    }
+    filtered_reference = {
+        case_id: reference_memberships[case_id] for case_id in valid_cases
+    }
 
     if not filtered_predicted or not filtered_reference:
         raise ValueError("No valid cases with non-empty memberships.")
@@ -94,10 +98,14 @@ def overlap_metrics_between(
     """Compute forward, backward, and Jaccard overlap between two partitions."""
 
     earlier_labels = {
-        case_id: cluster_id for case_id, cluster_id in earlier_labels.items() if case_id is not None
+        case_id: cluster_id
+        for case_id, cluster_id in earlier_labels.items()
+        if case_id is not None
     }
     later_labels = {
-        case_id: cluster_id for case_id, cluster_id in later_labels.items() if case_id is not None
+        case_id: cluster_id
+        for case_id, cluster_id in later_labels.items()
+        if case_id is not None
     }
     earlier_clusters = make_cluster_sets(earlier_labels)
     later_clusters = make_cluster_sets(later_labels)
@@ -113,8 +121,12 @@ def overlap_metrics_between(
         rows.append(
             {
                 "node": case_id,
-                "forward": len(overlap) / len(later_cluster) if later_cluster else np.nan,
-                "backward": len(overlap) / len(earlier_cluster) if earlier_cluster else np.nan,
+                "forward": len(overlap) / len(later_cluster)
+                if later_cluster
+                else np.nan,
+                "backward": len(overlap) / len(earlier_cluster)
+                if earlier_cluster
+                else np.nan,
                 "jaccard": len(overlap) / len(union) if union else np.nan,
                 "earlier_cluster_size": len(earlier_cluster),
                 "later_cluster_size": len(later_cluster),
@@ -129,7 +141,7 @@ def analyse_partition_composition(
     partition: ig.VertexClustering,
     *,
     node_attribute: str,
-    edge_attributes: list[str] = None,
+    edge_attributes: list[str] | None = None,
     min_cluster_size: int = 1,
 ) -> pd.DataFrame:
     """Summarise within-cluster composition and edge properties."""
@@ -166,13 +178,18 @@ def analyse_partition_composition(
         chi_square_p_value = None
         if observed.sum() > 0 and total_nodes > 0:
             expected_proportions = np.asarray(
-                [overall_counts.get(category, 0) / total_nodes for category in global_categories],
+                [
+                    overall_counts.get(category, 0) / total_nodes
+                    for category in global_categories
+                ],
                 dtype=float,
             )
             expected = expected_proportions * observed.sum()
             valid = expected > 0
             if valid.sum() >= 1:
-                _, chi_square_p_value = chisquare(f_obs=observed[valid], f_exp=expected[valid])
+                _, chi_square_p_value = chisquare(
+                    f_obs=observed[valid], f_exp=expected[valid]
+                )
 
         within_edges = graph.es.select(_within=members)
         outside_members = list(set(range(graph.vcount())) - set(members))
@@ -219,5 +236,7 @@ def analyse_partition_composition(
 
     result_frame = pd.DataFrame(results)
     if not result_frame.empty:
-        result_frame = result_frame.sort_values("size", ascending=False).reset_index(drop=True)
+        result_frame = result_frame.sort_values("size", ascending=False).reset_index(
+            drop=True
+        )
     return result_frame

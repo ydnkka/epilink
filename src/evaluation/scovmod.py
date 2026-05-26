@@ -112,14 +112,14 @@ def build_transmission_network(
 
     # Build fast lookup: (TimeStep, Location) -> List[IDs]
     infection_lookup = {
-        (int(row.TimeStep), int(row.Location)): row.Ids for row in infect_hist_df.itertuples()
+        (row.TimeStep, row.Location): row.Ids for row in infect_hist_df.itertuples()
     }
 
     edges = []
 
     for row in trans_events_df.itertuples():
-        t = int(row.TimeStep)
-        loc = int(row.Location)
+        t = row.TimeStep
+        loc = row.Location
         exposed = row.Ids
 
         potential = infection_lookup.get((t, loc), [])
@@ -129,7 +129,7 @@ def build_transmission_network(
         # Convert to numpy array once for faster filtering
         potential = np.asarray(potential, dtype=int)
 
-        for infectee in exposed:
+        for infectee in exposed:  # type: ignore
             infectee = int(infectee)
             valid = potential[potential != infectee]
             if valid.size == 0:
@@ -164,7 +164,7 @@ def remove_reinfections(graph: nx.DiGraph) -> nx.DiGraph:
     outbreak backbone.
     """
     cleaned = graph.copy()
-    nodes_multi = [n for n, d in cleaned.in_degree(cleaned.nodes) if d > 1]
+    nodes_multi = [n for n, d in cleaned.in_degree() if d > 1]
 
     for node in nodes_multi:
         in_edges = list(cleaned.in_edges(node, data=True))
@@ -243,12 +243,14 @@ def _degree_rows(graph: nx.DiGraph, label: str) -> list[dict[str, object]]:
     list of dict
         Each dict has keys ``graph``, ``degree_type``, and ``value``.
     """
-    in_deg = np.array([d for _, d in graph.in_degree(graph.nodes)], dtype=int)
-    out_deg = np.array([d for _, d in graph.out_degree(graph.nodes)], dtype=int)
+    in_deg = np.array([d for _, d in graph.in_degree()], dtype=int)
+    out_deg = np.array([d for _, d in graph.out_degree()], dtype=int)
 
     rows: list[dict[str, object]] = []
     rows.extend({"graph": label, "degree_type": "in", "value": int(v)} for v in in_deg)
-    rows.extend({"graph": label, "degree_type": "out", "value": int(v)} for v in out_deg)
+    rows.extend(
+        {"graph": label, "degree_type": "out", "value": int(v)} for v in out_deg
+    )
     return rows
 
 
@@ -269,8 +271,8 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
         Summary metrics keyed by name, including node/edge counts and degree
         statistics.
     """
-    in_degs = np.array([d for _, d in graph.in_degree(graph.nodes)], dtype=int)
-    out_degs = np.array([d for _, d in graph.out_degree(graph.nodes)], dtype=int)
+    in_degs = np.array([d for _, d in graph.in_degree()], dtype=int)
+    out_degs = np.array([d for _, d in graph.out_degree()], dtype=int)
 
     summary = {
         "label": label,
@@ -281,7 +283,9 @@ def summarise_graph(graph: nx.DiGraph, label: str) -> dict[str, Any]:
         "max_out_degree": int(out_degs.max()) if out_degs.size else 0,
         "mean_out_degree": float(out_degs.mean()) if out_degs.size else 0.0,
         "prop_in_degree_gt1": float(np.mean(in_degs > 1)) if in_degs.size else 0.0,
-        "prop_out_degree_ge10": float(np.mean(out_degs >= 10)) if out_degs.size else 0.0,
+        "prop_out_degree_ge10": float(np.mean(out_degs >= 10))
+        if out_degs.size
+        else 0.0,
     }
     return summary
 
@@ -298,14 +302,18 @@ def main(config_path: str | Path = "config.yaml") -> None:
     LOGGER.info("scovmod: starting")
     workflow = get_config_value(config, "workflows.scovmod", default={})
     infection_path = resolve_configured_path(config, "paths.scovmod.infection_path")
-    transmission_path = resolve_configured_path(config, "paths.scovmod.transmission_path")
+    transmission_path = resolve_configured_path(
+        config, "paths.scovmod.transmission_path"
+    )
     target_component_size = int(workflow.get("target_component_size"))
     rng_seed = int(get_config_value(config, "rng_seed", default=DEFAULT_SEED))
 
     if not infection_path.exists():
         raise FileNotFoundError(f"Missing infection history file: {infection_path}")
     if not transmission_path.exists():
-        raise FileNotFoundError(f"Missing transmission events file: {transmission_path}")
+        raise FileNotFoundError(
+            f"Missing transmission events file: {transmission_path}"
+        )
 
     out_dir = resolve_configured_output_path(config, "outputs.scovmod.directory")
     tree_path = resolve_configured_output_path(config, "outputs.scovmod.tree_path")
@@ -359,7 +367,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # Save graph
     nx.write_gml(tree_G, tree_path)
 
-    offspring_counts = np.array(list(dict(clean_g.out_degree(clean_g.nodes)).values()))
+    offspring_counts = np.array(list(dict(clean_g.out_degree()).values()))
     results = heterogeneity(offspring_counts)
     heterogeneity_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 

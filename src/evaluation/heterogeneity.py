@@ -107,7 +107,9 @@ def _moments_nb(
 
     k = (R**2) / (var - R)
     if not np.isfinite(k) or k <= 0:
-        warnings.warn("Method-of-moments: computed invalid k; returning k = NaN.", RuntimeWarning)
+        warnings.warn(
+            "Method-of-moments: computed invalid k; returning k = NaN.", RuntimeWarning
+        )
         k = np.nan
     return R, float(k)
 
@@ -182,7 +184,9 @@ def _fit_nb_mle(counts: np.ndarray, eps: float = 1e-9) -> tuple[float, float]:
     return R_hat, k_hat
 
 
-def _fit_nb_safely(counts: np.ndarray, tol: float = 1e-12) -> tuple[float, float, str, str]:
+def _fit_nb_safely(
+    counts: np.ndarray, tol: float = 1e-12
+) -> tuple[float, float, str, str]:
     r"""
     Fit a negative binomial model with robust fallbacks.
 
@@ -229,7 +233,9 @@ def _fit_nb_safely(counts: np.ndarray, tol: float = 1e-12) -> tuple[float, float
         R_mle, k_mle = _fit_nb_mle(x)
         return R_mle, k_mle, "mle", ""
     except Exception as e:
-        warnings.warn(f"MLE failed ({e}); falling back to method-of-moments.", RuntimeWarning)
+        warnings.warn(
+            f"MLE failed ({e}); falling back to method-of-moments.", RuntimeWarning
+        )
         R_mom, k_mom = _moments_nb(x, tol=tol)
         return R_mom, k_mom, "moments-fallback", "mle-failed"
 

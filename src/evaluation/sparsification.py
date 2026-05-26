@@ -21,7 +21,11 @@ from config import (
     resolve_inference_baseline_parameters,
 )
 from leiden import build_weighted_graph, run_leiden_partition, total_edge_weight
-from models import build_linkage_models, build_natural_history_parameters, predict_logistic_scores
+from models import (
+    build_linkage_models,
+    build_natural_history_parameters,
+    predict_logistic_scores,
+)
 from specs import (
     DEFAULT_SEED,
     EPILINK_SPECS,
@@ -156,7 +160,9 @@ def build_compatibility_surface(
     mutation_processes: tuple[str, ...],
 ) -> pd.DataFrame:
     """Evaluate target-compatibility surfaces over a SNP-by-time grid."""
-    snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
+    snp_grid, day_grid = np.meshgrid(
+        np.asarray(snps, dtype=float), np.asarray(days, dtype=float)
+    )
     surfaces: list[pd.DataFrame] = []
     for mutation_process in mutation_processes:
         compatibilities = np.asarray(
@@ -188,7 +194,9 @@ def build_logit_surface(
     rng_seed: int,
 ) -> pd.DataFrame:
     """Train logistic surfaces on deterministic and stochastic distance features."""
-    snp_grid, day_grid = np.meshgrid(np.asarray(snps, dtype=float), np.asarray(days, dtype=float))
+    snp_grid, day_grid = np.meshgrid(
+        np.asarray(snps, dtype=float), np.asarray(days, dtype=float)
+    )
     predict_features = np.column_stack((day_grid.ravel(), snp_grid.ravel()))
     surfaces: list[pd.DataFrame] = []
     for spec in LOGIT_SPECS:
@@ -275,7 +283,9 @@ def merge_score_surfaces(
         "logit_deterministic",
         "logit_stochastic",
     ]
-    return merged.loc[:, column_order].sort_values(["days", "snp"]).reset_index(drop=True)
+    return (
+        merged.loc[:, column_order].sort_values(["days", "snp"]).reset_index(drop=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -318,10 +328,10 @@ def main(config_path: str | Path = "config.yaml") -> None:
         tree=populated_tree,
         genome_length=int(generation_parameters.get("synthetic_genome_length", 5_000)),
     )
-    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
+    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)  # type: ignore
     pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
-    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
-    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
+    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).to_numpy()
+    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy()
 
     # ------------------------------------------------------------------
     # 2. Build EpiLink scorers and score pairs
@@ -338,9 +348,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
         )
 
     for spec in LOGIT_SPECS:
-        feature_matrix = pairs[[PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]].to_numpy(
-            copy=False
-        )
+        feature_matrix = pairs[
+            [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
+        ].to_numpy(copy=False)
         pairs[spec["key"]], _ = predict_logistic_scores(
             feature_matrix,
             is_related,
@@ -353,7 +363,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # 3. Sparsification analysis
     # ------------------------------------------------------------------
     LOGGER.info("sparsification: evaluating thresholds")
-    results_dir = resolve_configured_output_path(config, "outputs.sparsification.directory")
+    results_dir = resolve_configured_output_path(
+        config, "outputs.sparsification.directory"
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
 
     snps = build_surface_axis(15, 0.1)
@@ -378,7 +390,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     merged_surface.to_parquet(results_dir / "score_surfaces.parquet", index=False)
 
     reference_nodes = pd.Index(
-        pd.unique(pairs[[PAIRWISE_CASE_A_COLUMN, PAIRWISE_CASE_B_COLUMN]].values.ravel())
+        pd.unique(
+            pairs[[PAIRWISE_CASE_A_COLUMN, PAIRWISE_CASE_B_COLUMN]].values.ravel()
+        )
     ).astype(str)
 
     retention_rows: list[dict[str, object]] = []
@@ -388,10 +402,14 @@ def main(config_path: str | Path = "config.yaml") -> None:
 
         reference_weight = total_edge_weight(pairs, weight_column=weight_column)
         reference_edge_count = len(pairs)
-        metadata = score_metadata(weight_column, logistic_training_fraction=training_fraction)
+        metadata = score_metadata(
+            weight_column, logistic_training_fraction=training_fraction
+        )
 
         for threshold in sparsification_thresholds:
-            filtered, sparsify_seconds = timed(sparsify_edges, pairs, threshold, weight_column)
+            filtered, sparsify_seconds = timed(
+                sparsify_edges, pairs, threshold, weight_column
+            )
             retained_weight = total_edge_weight(filtered, weight_column=weight_column)
             retained_edges = len(filtered)
 
@@ -417,7 +435,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
                         if reference_weight > 0
                         else float("nan")
                     ),
-                    "t_pipeline_s": float(sparsify_seconds + build_seconds + leiden_seconds),
+                    "t_pipeline_s": float(
+                        sparsify_seconds + build_seconds + leiden_seconds
+                    ),
                 }
             )
 
@@ -426,10 +446,16 @@ def main(config_path: str | Path = "config.yaml") -> None:
         .sort_values(["weight_column", "min_edge_weight"])
         .reset_index(drop=True)
     )
-    retention_frame.to_parquet(results_dir / "sparsify_edge_retention.parquet", index=False)
+    retention_frame.to_parquet(
+        results_dir / "sparsify_edge_retention.parquet", index=False
+    )
 
-    optimal_thresholds = determine_optimal_thresholds(retention_frame, min_weight_retention)
-    (results_dir / "optimal_thresholds.json").write_text(json.dumps(optimal_thresholds, indent=2))
+    optimal_thresholds = determine_optimal_thresholds(
+        retention_frame, min_weight_retention
+    )
+    (results_dir / "optimal_thresholds.json").write_text(
+        json.dumps(optimal_thresholds, indent=2)
+    )
     LOGGER.info(
         "sparsification: done (optimal thresholds: %s)",
         {k: f"{v:.4f}" for k, v in optimal_thresholds.items()},

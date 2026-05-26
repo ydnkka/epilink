@@ -1,9 +1,9 @@
+.idea/
 __pycache__/
 *.py[cod]
 .DS_Store
 .snakemake/
 .claude/
-.idea/
 *.bib
 *.bst
 *.aux
@@ -13,3 +13,8 @@ __pycache__/
 *.bbl
 *.toc
 *.gz
+*.pdf
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+manuscript/figures

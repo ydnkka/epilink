@@ -26,7 +26,9 @@ from specs import (
 from epilink import EpiLink, InfectiousnessToTransmission, NaturalHistoryParameters
 
 
-def build_natural_history_parameters(parameters: Mapping[str, Any]) -> NaturalHistoryParameters:
+def build_natural_history_parameters(
+    parameters: Mapping[str, Any],
+) -> NaturalHistoryParameters:
     """Construct a ``NaturalHistoryParameters`` object from a flat parameter mapping.
 
     Missing keys fall back to hard-coded defaults matching the baseline config.
@@ -51,7 +53,9 @@ def nhp_from_baseline(
     fixed_parameters: Mapping[str, Any],
 ) -> NaturalHistoryParameters:
     """Expand baseline + fixed parameters and return a ``NaturalHistoryParameters`` object."""
-    return build_natural_history_parameters(expand_baseline_parameters(baseline, fixed_parameters))
+    return build_natural_history_parameters(
+        expand_baseline_parameters(baseline, fixed_parameters)
+    )
 
 
 def build_linkage_model(

@@ -29,7 +29,11 @@ from metrics import (
     get_reference_memberships,
     overlap_metrics_between,
 )
-from models import build_linkage_models, build_natural_history_parameters, predict_logistic_scores
+from models import (
+    build_linkage_models,
+    build_natural_history_parameters,
+    predict_logistic_scores,
+)
 from specs import (
     DEFAULT_SEED,
     EPILINK_SPECS,
@@ -58,7 +62,8 @@ LOGGER = logging.getLogger(__name__)
 def sampling_times(tree: nx.Graph, step_days: int) -> pd.DataFrame:
     """Assign cases to cumulative availability bins based on rounded sample dates."""
     sampling = {
-        node_id: int(round(sample_date)) for node_id, sample_date in tree.nodes(data="sample_date")
+        node_id: int(round(sample_date))
+        for node_id, sample_date in tree.nodes(data="sample_date")
     }
     case_meta = pd.DataFrame(
         {"node": list(sampling.keys()), "sampling_time": list(sampling.values())}
@@ -67,14 +72,14 @@ def sampling_times(tree: nx.Graph, step_days: int) -> pd.DataFrame:
     time_min = case_meta["sampling_time"].min()
     time_max = case_meta["sampling_time"].max()
     cuts = np.arange(time_min, time_max + step_days, step_days)
-    bin_index = (cuts.searchsorted(case_meta["sampling_time"].values, side="right") - 1).clip(
-        0, len(cuts) - 1
-    )
+    bin_index = (
+        cuts.searchsorted(case_meta["sampling_time"].values, side="right") - 1
+    ).clip(0, len(cuts) - 1)
 
     case_meta["available_bin_start"] = cuts[bin_index]
-    case_meta = case_meta.sort_values(["available_bin_start", "sampling_time"]).reset_index(
-        drop=True
-    )
+    case_meta = case_meta.sort_values(
+        ["available_bin_start", "sampling_time"]
+    ).reset_index(drop=True)
     codes, _ = pd.factorize(case_meta["available_bin_start"], sort=True)
     case_meta["available_time"] = codes
     return case_meta.sort_values("sampling_time").reset_index(drop=True)
@@ -122,7 +127,9 @@ def cumulative_stability(
     previous_labels: dict | None = None
 
     for current_time in sorted(case_meta["available_time"].unique()):
-        nodes_present = set(case_meta.loc[case_meta["available_time"] <= current_time, "node"])
+        nodes_present = set(
+            case_meta[case_meta["available_time"] <= current_time]["node"]
+        )
         labels = run_partition_for_nodes(
             pairwise_frame,
             nodes_present=nodes_present,
@@ -192,7 +199,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
         tree=populated_tree,
         genome_length=int(generation_parameters.get("synthetic_genome_length", 5_000)),
     )
-    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
+    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)  # type: ignore
     pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
     case_meta = sampling_times(populated_tree, step_days=step_days)
 
@@ -200,27 +207,29 @@ def main(config_path: str | Path = "config.yaml") -> None:
     # 2. Score pairs
     # ------------------------------------------------------------------
     linkage_models = build_linkage_models(inference_parameters, rng_seed=rng_seed)
-    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
+    sampling_dates = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy()
     for spec in EPILINK_SPECS:
         pairs[spec["key"]] = np.asarray(
             linkage_models[spec["mutation_process"]].score_target(
                 sample_time_difference=sampling_dates,
-                genetic_distance=pairs[spec["distance_col"]].to_numpy(copy=False),
+                genetic_distance=pairs[spec["distance_col"]].to_numpy(),
             ),
             dtype=float,
         )
 
     # Train logistic classifiers on early cases only, predict over all pairs.
-    initial_nodes = set(case_meta.loc[case_meta["available_time"] <= train_max_time_index, "node"])
+    initial_nodes = set(
+        case_meta.loc[case_meta["available_time"] <= train_max_time_index, "node"]
+    )
     initial_pairs = subset_pairs_for_nodes(pairs, initial_nodes)
-    y_train = initial_pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
+    y_train = initial_pairs[PAIRWISE_RELATED_COLUMN].astype(int).to_numpy()
     for spec in LOGIT_SPECS:
         train_features = initial_pairs[
             [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
-        ].to_numpy(copy=False)
+        ].to_numpy()
         predict_features = pairs[
             [PAIRWISE_TEMPORAL_DISTANCE_COLUMN, spec["distance_col"]]
-        ].to_numpy(copy=False)
+        ].to_numpy()
         pairs[spec["key"]], _ = predict_logistic_scores(
             train_features,
             y_train,
@@ -254,13 +263,17 @@ def main(config_path: str | Path = "config.yaml") -> None:
             )
             predicted = {
                 int(case_id): {int(cluster_id)}
-                for case_id, cluster_id in zip(graph.vs["case_id"], partition.membership)
+                for case_id, cluster_id in zip(
+                    graph.vs["case_id"], partition.membership
+                )
             }
             try:
                 _, _, f1 = bcubed_scores(predicted, reference)
             except ValueError:
                 f1 = float("nan")
-            metric_rows.append({"weight": key, "resolution": float(resolution), "f1_score": f1})
+            metric_rows.append(
+                {"weight": key, "resolution": float(resolution), "f1_score": f1}
+            )
 
     evaluation_metrics = pd.DataFrame(metric_rows)
     best_index = evaluation_metrics.groupby("weight")["f1_score"].idxmax()
@@ -299,7 +312,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
         if stability_frame.empty:
             continue
 
-        stability_frame.groupby("t1")[["forward", "backward", "jaccard"]].mean().to_parquet(
+        stability_frame.groupby("t1")[
+            ["forward", "backward", "jaccard"]
+        ].mean().to_parquet(
             results_dir / f"temporal_stability_{key}.parquet", index=True
         )
 

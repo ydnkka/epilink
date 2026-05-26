@@ -5,7 +5,7 @@ This module is the shared foundation for all evaluation workflow modules. It pro
 - YAML config loading with directory-relative path resolution.
 - Helpers to resolve configured paths for inputs and outputs.
 - ``configure_logging``: consistent log format (timestamp + level + logger name) with
-  optional append-mode file handler for a single unified pipeline log.
+optional append-mode file handler for a single unified pipeline log.
 - ``get_pipeline_log_path``: reads the unified log path from the loaded config.
 - Scenario and run-spec builders used by the synthetic experiments workflow.
 """
@@ -87,7 +87,9 @@ def load_config(path_like: str | Path = "config.yaml") -> dict[str, Any]:
     config_path = Path(path_like).expanduser()
     if not config_path.is_absolute():
         cwd_candidate = (Path.cwd() / config_path).resolve()
-        config_path = cwd_candidate if cwd_candidate.exists() else resolve_path(config_path)
+        config_path = (
+            cwd_candidate if cwd_candidate.exists() else resolve_path(config_path)
+        )
 
     with config_path.open("r", encoding="utf-8") as handle:
         loaded = yaml.safe_load(handle)
@@ -95,7 +97,9 @@ def load_config(path_like: str | Path = "config.yaml") -> dict[str, Any]:
     if loaded is None:
         loaded = {}
     if not isinstance(loaded, dict):
-        raise TypeError(f"Expected a mapping in {config_path}, found {type(loaded).__name__}.")
+        raise TypeError(
+            f"Expected a mapping in {config_path}, found {type(loaded).__name__}."
+        )
 
     config = deepcopy(loaded)
     config[_CONFIG_DIR_KEY] = str(config_path.parent)
@@ -146,7 +150,9 @@ def resolve_configured_path(
 ) -> Path:
     """Resolve a configured path relative to the config file location."""
 
-    return resolve_config_path(config, get_config_value(config, dotted_path, default=default))
+    return resolve_config_path(
+        config, get_config_value(config, dotted_path, default=default)
+    )
 
 
 def outputs_root(config: dict[str, Any]) -> Path:
@@ -172,7 +178,9 @@ def resolve_configured_output_path(
 ) -> Path:
     """Resolve a configured output path relative to the configured outputs root."""
 
-    return resolve_output_path(config, get_config_value(config, dotted_path, default=default))
+    return resolve_output_path(
+        config, get_config_value(config, dotted_path, default=default)
+    )
 
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)-5s] %(name)s: %(message)s"
@@ -273,12 +281,16 @@ def _get_dotted(obj: dict[str, Any], dotted_path: str) -> Any:
 
 def resolve_generation_baseline_parameters(config: dict[str, Any]) -> dict[str, Any]:
     """Expand the generation baseline section with fixed parameters from config."""
-    return expand_baseline_parameters(config["generation_baseline"], config["fixed_parameters"])
+    return expand_baseline_parameters(
+        config["generation_baseline"], config["fixed_parameters"]
+    )
 
 
 def resolve_inference_baseline_parameters(config: dict[str, Any]) -> dict[str, Any]:
     """Expand the inference baseline section with fixed parameters from config."""
-    return expand_baseline_parameters(config["inference_baseline"], config["fixed_parameters"])
+    return expand_baseline_parameters(
+        config["inference_baseline"], config["fixed_parameters"]
+    )
 
 
 def generate_scenarios(config: dict[str, Any]) -> dict[str, ScenarioSpec]:
@@ -325,7 +337,9 @@ def generate_scenarios(config: dict[str, Any]) -> dict[str, ScenarioSpec]:
             flat_checks = {
                 "incubation_mean": float(scenario_generation["incubation"]["mean"]),
                 "incubation_cv": float(scenario_generation["incubation"]["cv"]),
-                "testing_delay_mean": float(scenario_generation["testing_delay"]["mean"]),
+                "testing_delay_mean": float(
+                    scenario_generation["testing_delay"]["mean"]
+                ),
                 "testing_delay_cv": float(scenario_generation["testing_delay"]["cv"]),
                 "substitution_rate": float(scenario_generation["substitution_rate"]),
                 "relaxation": float(scenario_generation["relaxation"]),
@@ -381,7 +395,9 @@ def build_run_specs(config: dict[str, Any]) -> list[RunSpec]:
                 baseline_scenario = scenarios[BASELINE_SCENARIO_NAME]
                 generation_params = deepcopy(baseline_scenario.generation_parameters)
             else:
-                raise ValueError(f"Unknown generation_source: {condition['generation_source']}")
+                raise ValueError(
+                    f"Unknown generation_source: {condition['generation_source']}"
+                )
 
             if condition["inference_source"] == "scenario":
                 inference_params = deepcopy(inference_baseline)
@@ -389,7 +405,9 @@ def build_run_specs(config: dict[str, Any]) -> list[RunSpec]:
             elif condition["inference_source"] == "baseline":
                 inference_params = deepcopy(inference_baseline)
             else:
-                raise ValueError(f"Unknown inference_source: {condition['inference_source']}")
+                raise ValueError(
+                    f"Unknown inference_source: {condition['inference_source']}"
+                )
 
             runs.append(
                 RunSpec(

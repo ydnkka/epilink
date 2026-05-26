@@ -111,7 +111,7 @@ By default, all outputs are placed under `results/`:
 All pipeline modules use Python's standard `logging` library with a shared
 format:
 
-```
+```text
 YYYY-MM-DD HH:MM:SS [LEVEL] module_name: message
 ```
 

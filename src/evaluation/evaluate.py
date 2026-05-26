@@ -172,7 +172,9 @@ def _clustering(
         for res1, res2 in zip(ordered_resolutions[:-1], ordered_resolutions[1:]):
             p1_mem = memberships[res1]
             p2_mem = memberships[res2]
-            _, _, f1 = bcubed_scores(predicted_memberships=p1_mem, reference_memberships=p2_mem)
+            _, _, f1 = bcubed_scores(
+                predicted_memberships=p1_mem, reference_memberships=p2_mem
+            )
             stability.append(f1)
         mean_stability = np.mean(stability)
         std_stability = np.std(stability)
@@ -217,9 +219,9 @@ def evaluate_scenario(
     scenario_name: str,
     generation_parameters: dict[str, Any],
     inference_parameters: dict[str, Any],
-    logistic_classifier: dict[str, LogisticRegression] = None,
-    baseline_performance: dict[str, dict[str, float]] = None,
-    sparsification: dict[str, float] = None,
+    logistic_classifier: dict[str, LogisticRegression] | None = None,
+    baseline_performance: dict[str, dict[str, float]] | None = None,
+    sparsification: dict[str, float] | None = None,
     n_restarts: int = 10,
     rng_seed: int = 12345,
     training_fraction: float = 0.1,
@@ -271,7 +273,9 @@ def evaluate_scenario(
     tree = _load_tree_template(tree_path).copy()
     reference = _reference_memberships(tree_path)
     data_nhp = build_natural_history_parameters(generation_parameters)
-    synthetic_genome_length = int(generation_parameters.get("synthetic_genome_length", 5_000))
+    synthetic_genome_length = int(
+        generation_parameters.get("synthetic_genome_length", 5_000)
+    )
     fraction_sampled = float(generation_parameters.get("fraction_sampled", 1.0))
 
     data_profile = InfectiousnessToTransmission(parameters=data_nhp, rng_seed=rng_seed)
@@ -285,17 +289,17 @@ def evaluate_scenario(
         tree=populated_tree,
         genome_length=synthetic_genome_length,
     )
-    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
+    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)  # type: ignore
 
     pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
-    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).values
+    is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).to_numpy()
     n_pairs = len(pairs)
     prevalence = float(is_related.mean()) if n_pairs > 0 else float("nan")
-    sampling_date_differences = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy(copy=False)
-    deterministic_distances = pairs[PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN].to_numpy(copy=False)
-    stochastic_distances = pairs[PAIRWISE_STOCHASTIC_DISTANCE_COLUMN].to_numpy(copy=False)
-    case_a = pairs[PAIRWISE_CASE_A_COLUMN].to_numpy(copy=False)
-    case_b = pairs[PAIRWISE_CASE_B_COLUMN].to_numpy(copy=False)
+    sampling_date_differences = pairs[PAIRWISE_TEMPORAL_DISTANCE_COLUMN].to_numpy()
+    deterministic_distances = pairs[PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN].to_numpy()
+    stochastic_distances = pairs[PAIRWISE_STOCHASTIC_DISTANCE_COLUMN].to_numpy()
+    case_a = pairs[PAIRWISE_CASE_A_COLUMN].to_numpy()
+    case_b = pairs[PAIRWISE_CASE_B_COLUMN].to_numpy()
     vertex_ids = np.unique(np.concatenate((case_a, case_b))).tolist()
     distance_columns = {
         PAIRWISE_DETERMINISTIC_DISTANCE_COLUMN: deterministic_distances,
@@ -333,9 +337,9 @@ def evaluate_scenario(
     for spec in _LOGIT_SPECS:
         feature_matrix = feature_matrices[spec["distance_col"]]
         if logistic_classifier is not None:
-            scores[spec["key"]] = logistic_classifier[spec["key"]].predict_proba(feature_matrix)[
-                :, 1
-            ]
+            scores[spec["key"]] = logistic_classifier[spec["key"]].predict_proba(
+                feature_matrix
+            )[:, 1]
         else:
             scores[spec["key"]], classifier = predict_logistic_scores(
                 feature_matrix,
@@ -349,7 +353,9 @@ def evaluate_scenario(
     # ------------------------------------------------------------------
     # 4. Compute metrics and assemble result
     # ------------------------------------------------------------------
-    result = ScenarioResult(scenario_name=scenario_name, n_pairs=n_pairs, prevalence=prevalence)
+    result = ScenarioResult(
+        scenario_name=scenario_name, n_pairs=n_pairs, prevalence=prevalence
+    )
     has_both_classes = len(np.unique(is_related)) == 2
     for key in MODEL_KEYS:
         threshold = float(sparsification.get(key, 0.0001))

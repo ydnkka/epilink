@@ -157,7 +157,9 @@ def resolve_target_labels(raw: Any = DEFAULT_TARGET) -> tuple[str, ...]:
         Non-empty tuple of stripped, non-empty label strings.
     """
     labels = DEFAULT_TARGET if raw is None else raw
-    labels = (labels,) if isinstance(labels, str) else tuple(str(value) for value in labels)
+    labels = (
+        (labels,) if isinstance(labels, str) else tuple(str(value) for value in labels)
+    )
     if not labels or any(not label.strip() for label in labels):
         raise ValueError("target must contain at least one non-empty label.")
     return labels
@@ -247,7 +249,9 @@ def parameter_columns(parameters: Mapping[str, Any], *, prefix: str) -> dict[str
         Dict keyed ``"<prefix>_<field>"`` for each field in
         :data:`SCENARIO_PARAMETER_FIELDS`.
     """
-    return {f"{prefix}_{field}": parameters[field] for field in SCENARIO_PARAMETER_FIELDS}
+    return {
+        f"{prefix}_{field}": parameters[field] for field in SCENARIO_PARAMETER_FIELDS
+    }
 
 
 def score_metadata(

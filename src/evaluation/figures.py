@@ -33,6 +33,8 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -145,7 +147,7 @@ def read_result_table(*parts: str) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def export_figure(fig: plt.Figure, stem: str, **kwargs) -> dict[str, Path]:
+def export_figure(fig: Figure, stem: str, **kwargs) -> dict[str, Path]:
     """Save *fig* if SAVE_FIGURES is True; otherwise return an empty dict."""
     if not SAVE_FIGURES:
         return {}
@@ -166,7 +168,7 @@ def _surface_matrix(surface_frame: pd.DataFrame, score: str) -> pd.DataFrame:
     )
 
 
-def _add_surface_panel(ax: plt.Axes, surface_frame: pd.DataFrame, score: str):
+def _add_surface_panel(ax: Axes, surface_frame: pd.DataFrame, score: str):
     pivot = _surface_matrix(surface_frame, score)
     filled = ax.contourf(
         pivot.columns.to_numpy(dtype=float),
@@ -181,7 +183,7 @@ def _add_surface_panel(ax: plt.Axes, surface_frame: pd.DataFrame, score: str):
     return filled
 
 
-def make_fig_compatibility() -> plt.Figure:
+def make_fig_compatibility() -> Figure:
     """Compatibility surfaces (deterministic vs stochastic mutation process)."""
     surfaces = read_result_table("sparsification", "score_surfaces.parquet")
 
@@ -217,16 +219,16 @@ def make_fig_compatibility() -> plt.Figure:
 # ─── Baseline PR Curves ────────────────────────────────
 
 
-def make_fig_baseline() -> plt.Figure:
+def make_fig_baseline() -> Figure:
     """PR curves for all six models, including no-skill baseline."""
     scores_df = read_result_table("synthetic", "baseline_scores.parquet")
 
-    y = scores_df["IsRelated"].values
+    y = scores_df["IsRelated"].to_numpy()
     prevalence = float(y.mean())
 
     pr_data: dict[str, tuple] = {}
     for model in MODELS:
-        scores = scores_df[model].values
+        scores = scores_df[model].to_numpy()
         pr_data[model] = precision_recall_curve(y, scores)
 
     fig, ax = plt.subplots(
@@ -276,7 +278,7 @@ def make_fig_baseline() -> plt.Figure:
 
 
 def _plot_metric_panel(
-    ax: plt.Axes,
+    ax: Axes,
     df: pd.DataFrame,
     metric: str,
     title: str,
@@ -290,7 +292,7 @@ def _plot_metric_panel(
         hue_order=CONDITION_ORDER,
         errorbar=("ci", 95),
         capsize=0.2,
-        err_kws={'linewidth': 1.2},
+        err_kws={"linewidth": 1.2},
         width=0.75,
         ax=ax,
     )
@@ -300,7 +302,7 @@ def _plot_metric_panel(
     ax.grid(True, alpha=0.12, color="#555870")
 
 
-def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
+def make_fig_synthetic(results: pd.DataFrame) -> Figure:
     """Per-model metric summaries across non-baseline scenarios."""
 
     fig, axes = plt.subplots(
@@ -340,7 +342,7 @@ def make_fig_synthetic(results: pd.DataFrame) -> plt.Figure:
 # ─── Temporal stability ───────────────────────────────────────────────
 
 
-def _plot_stability_panel(df: pd.DataFrame, ax: plt.Axes, model: str) -> None:
+def _plot_stability_panel(df: pd.DataFrame, ax: Axes, model: str):
     for metric in STABILITY_LABELS:
         sns.lineplot(
             data=df,
@@ -358,10 +360,11 @@ def _plot_stability_panel(df: pd.DataFrame, ax: plt.Axes, model: str) -> None:
     ax.grid(True, alpha=0.12, color="#555870")
 
 
-def make_fig_stability() -> plt.Figure:
+def make_fig_stability() -> Figure:
     """Temporal stability across epidemic weeks, one panel per model."""
     stability_frames = {
-        m: read_result_table("stability", f"temporal_stability_{m}.parquet") for m in MODELS
+        m: read_result_table("stability", f"temporal_stability_{m}.parquet")
+        for m in MODELS
     }
 
     fig, axes = plt.subplots(
@@ -403,22 +406,24 @@ def make_fig_stability() -> plt.Figure:
 
 _METRIC_META: dict[str, dict] = {
     "ap_loss": {
-        "label":  "Average precision (AP) loss",
-        "short":  "ΔAP",
-        "clamp":  1.1,
-        "ticks":  [-1.0, -0.5, 0.0, 0.5, 1.0],
+        "label": "Average precision (AP) loss",
+        "short": "ΔAP",
+        "clamp": 1.1,
+        "ticks": [-1.0, -0.5, 0.0, 0.5, 1.0],
     },
     "f1_loss": {
-        "label":  "F1 score loss",
-        "short":  "ΔF1",
-        "clamp":  0.3,
-        "ticks":  [-0.3, -0.15, 0.0, 0.15, 0.3],
+        "label": "F1 score loss",
+        "short": "ΔF1",
+        "clamp": 0.3,
+        "ticks": [-0.3, -0.15, 0.0, 0.15, 0.3],
     },
 }
 
 # Back-compat aliases (used elsewhere in the module)
 _SENSITIVITY_CLAMP: dict[str, float] = {k: v["clamp"] for k, v in _METRIC_META.items()}
-_SENSITIVITY_TICKS: dict[str, list[float]] = {k: v["ticks"] for k, v in _METRIC_META.items()}
+_SENSITIVITY_TICKS: dict[str, list[float]] = {
+    k: v["ticks"] for k, v in _METRIC_META.items()
+}
 
 
 def _fmt_sensitivity_tick(val: float, clamp: float) -> str:
@@ -434,7 +439,7 @@ def _fmt_sensitivity_tick(val: float, clamp: float) -> str:
 
 
 def _draw_sensitivity_panel(
-    ax: plt.Axes,
+    ax: Axes,
     df: pd.DataFrame,
     metric: str,
     model: str,
@@ -477,7 +482,7 @@ def _draw_sensitivity_panel(
         for i, sk in enumerate(_SENSITIVITY_KEYS):
             if sk not in cond_df.index:
                 continue
-            v = cond_df.loc[sk, metric]
+            v = cond_df[cond_df[sk]][metric].to_numpy()
             if pd.isna(v):
                 continue
 
@@ -487,7 +492,8 @@ def _draw_sensitivity_panel(
 
             # Stem
             ax.plot(
-                [0, xv], [cy, cy],
+                [0, xv],
+                [cy, cy],
                 color=col,
                 linewidth=1.2,
                 alpha=0.7,
@@ -496,7 +502,8 @@ def _draw_sensitivity_panel(
             )
             # Head
             ax.plot(
-                xv, cy,
+                xv,
+                cy,
                 "o",
                 color=col,
                 markersize=3.0,
@@ -542,7 +549,7 @@ def _draw_sensitivity_panel(
     ax.grid(True, alpha=0.12, color="#555870", axis="x")
 
 
-def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
+def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> Figure:
     """Sensitivity lollipop figure — one metric per call.
 
     Produces the main figure (``metric='f1_loss'``) or the supplementary
@@ -589,7 +596,8 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
     # ── legend ────────────────────────────────────────────────────────────────
     legend_elements = [
         Line2D(
-            [0], [0],
+            [0],
+            [0],
             marker="o",
             color="w",
             markerfacecolor=CONDITION_COLORS[cond],
@@ -612,7 +620,8 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
     # Clamp surfaced here so readers comparing the two figures are warned
     fig.supxlabel(
         f"{meta['label']} relative to baseline  (axis clamped at ±{meta['clamp']})",
-        x=0.6, ha="center"
+        x=0.6,
+        ha="center",
     )
 
     return fig
@@ -621,7 +630,7 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> plt.Figure:
 # ─── Boston cluster composition ──────────────────────────────────────
 
 
-def make_fig_boston() -> plt.Figure:
+def make_fig_boston() -> Figure:
     """Cluster-size histogram paired with exposure-composition heatmap."""
     boston_comp = read_result_table("boston", "cluster_composition.parquet")
     boston_sizes = read_result_table("boston", "cluster_sizes.parquet")
@@ -717,7 +726,9 @@ def print_baseline_metrics() -> None:
 
 def print_stability_minima() -> None:
     """Print per-model minimum stability values across all epidemic weeks."""
-    print("\n── Temporal stability mean (minima) ───────────────────────────────────────")
+    print(
+        "\n── Temporal stability mean (minima) ───────────────────────────────────────"
+    )
     metrics = list(STABILITY_LABELS)
     for model in MODELS:
         df = read_result_table("stability", f"temporal_stability_{model}.parquet")
@@ -739,7 +750,9 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
     )
-    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+    with pd.option_context(
+        "display.float_format", "{:+.3f}".format, "display.width", 120
+    ):
         print(pivot.to_string(index=False))
 
     print("\n── F1 loss – Mismatched condition ──────────────────────────────────")
@@ -749,7 +762,9 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
     )
-    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+    with pd.option_context(
+        "display.float_format", "{:+.3f}".format, "display.width", 120
+    ):
         print(pivot.to_string(index=False))
 
     print("\n── AP loss – Matched condition ──────────────────────────────────")
@@ -759,7 +774,9 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
     )
-    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+    with pd.option_context(
+        "display.float_format", "{:+.3f}".format, "display.width", 120
+    ):
         print(pivot.to_string(index=False))
 
     print("\n── AP loss – Mismatched condition ──────────────────────────────────")
@@ -769,7 +786,9 @@ def print_loss_pivot(results: pd.DataFrame) -> None:
         .reindex(index=SCENARIO_ORDER, columns=MODELS)
         .reset_index()
     )
-    with pd.option_context("display.float_format", "{:+.3f}".format, "display.width", 120):
+    with pd.option_context(
+        "display.float_format", "{:+.3f}".format, "display.width", 120
+    ):
         print(pivot.to_string(index=False))
 
 
@@ -809,7 +828,9 @@ def main(*, save: bool = True) -> None:
 
     # Performance trend across scenarios
     results = read_result_table("synthetic", "results.parquet")
-    results["condition"] = results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
+    results["condition"] = (
+        results["condition"].map(CONDITION_LABELS).fillna(results["condition"])
+    )
     results = results.loc[results["scenario"] != "baseline"].copy()
     results.sort_values("ap", ascending=False, inplace=True)
     trend = make_fig_synthetic(results)
@@ -841,7 +862,6 @@ def main(*, save: bool = True) -> None:
             plt.show()
 
         plt.close(fig)
-
 
     # Boston cluster composition
     boston = make_fig_boston()

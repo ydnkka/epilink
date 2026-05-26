@@ -28,21 +28,21 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from config import (
+from .config import (
     build_run_specs,
     configure_logging,
     get_pipeline_log_path,
     load_config,
     resolve_configured_output_path,
 )
-from evaluate import evaluate_scenario
-from sklearn.calibration import IsotonicRegression
+from .evaluate import evaluate_scenario
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
     precision_recall_curve,
 )
-from specs import DEFAULT_SEED
+from .specs import DEFAULT_SEED
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,14 +64,20 @@ def stratified_bootstrap_auprc(
     seed=DEFAULT_SEED,
 ) -> tuple[float, float]:
     """Stratified bootstrap CI on AP (positives and negatives resampled separately)."""
-    LOGGER.debug("baseline: stratified_bootstrap_auprc n_boot=%d alpha=%s", n_boot, alpha)
+    LOGGER.debug(
+        "baseline: stratified_bootstrap_auprc n_boot=%d alpha=%s", n_boot, alpha
+    )
     rng = np.random.default_rng(seed)
     pos_idx = np.where(y_true == 1)[0]
     neg_idx = np.where(y_true == 0)[0]
 
     # Generate all bootstrap index arrays in one vectorised call.
-    b_pos = rng.choice(pos_idx, size=(n_boot, len(pos_idx)), replace=True)  # (n_boot, n_pos)
-    b_neg = rng.choice(neg_idx, size=(n_boot, len(neg_idx)), replace=True)  # (n_boot, n_neg)
+    b_pos = rng.choice(
+        pos_idx, size=(n_boot, len(pos_idx)), replace=True
+    )  # (n_boot, n_pos)
+    b_neg = rng.choice(
+        neg_idx, size=(n_boot, len(neg_idx)), replace=True
+    )  # (n_boot, n_neg)
     b_all = np.concatenate([b_pos, b_neg], axis=1)  # (n_boot, n)
 
     boot_aps = np.array([average_precision_score(y_true[b], scores[b]) for b in b_all])
@@ -121,7 +127,12 @@ def compute_prg_curve(
         warnings.simplefilter("ignore", RuntimeWarning)
         prec_gain = np.where(prec > 0, (prec - pi) / ((1 - pi) * prec), 0.0)
         rec_gain = np.where(rec > 0, (rec - pi) / ((1 - pi) * rec), 0.0)
-    mask = (rec_gain >= 0) & (prec_gain >= 0) & np.isfinite(prec_gain) & np.isfinite(rec_gain)
+    mask = (
+        (rec_gain >= 0)
+        & (prec_gain >= 0)
+        & np.isfinite(prec_gain)
+        & np.isfinite(rec_gain)
+    )
     rg, pg = rec_gain[mask], prec_gain[mask]
     if len(rg) > 1:
         order = np.argsort(rg)
@@ -141,7 +152,7 @@ def evaluate_baseline(config: dict[str, Any]) -> dict[str, Any]:
     -------
     dict with keys:
         ``metrics`` – list of per-model basic metric dicts
-                      (model, n_pairs, prevalence, ap, best_f1, mean/std_stability)
+                    (model, n_pairs, prevalence, ap, best_f1, mean/std_stability)
         ``scores``  – DataFrame with IsRelated + one score column per model
     """
     runs = build_run_specs(config)
@@ -195,7 +206,7 @@ def analyse_baseline(
     df: pd.DataFrame,
     basic_metrics: list[dict[str, Any]],
     *,
-    model_keys: tuple[str, ...] = None,
+    model_keys: tuple[str, ...] | None = None,
     n_bootstrap: int = N_BOOTSTRAP,
     ci_alpha: float = CI_ALPHA,
     beta: int = BETA,
@@ -231,7 +242,7 @@ def analyse_baseline(
         model, ap, best_f1, ci_lo, ci_hi, relative_ap, auprg, brier,
         prevalence, p_at_r{N}, f{beta}_at_r{N}  (one column per recall level)
     """
-    y = df["IsRelated"].values
+    y = df["IsRelated"].to_numpy()
     prevalence = float(y.mean())
     basic = {m["model"]: m for m in basic_metrics}
 
@@ -241,7 +252,7 @@ def analyse_baseline(
     rows = []
     for model in model_keys:
         LOGGER.info("baseline: computing summary for model %s", model)
-        scores = df[model].values
+        scores = df[model].to_numpy()
         ci_lo, ci_hi = stratified_bootstrap_auprc(
             y,
             scores,
@@ -258,7 +269,9 @@ def analyse_baseline(
             for rl in fixed_recall_levels
         }
         fbeta_at = {
-            f"f{beta}_at_r{int(rl * 100)}": compute_f_beta_at_recall(y, scores, rl, beta)[2]
+            f"f{beta}_at_r{int(rl * 100)}": compute_f_beta_at_recall(
+                y, scores, rl, beta
+            )[2]
             for rl in fixed_recall_levels
         }
 

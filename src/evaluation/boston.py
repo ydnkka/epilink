@@ -88,14 +88,20 @@ def build_graph(
 
     g = ig.Graph(n=len(all_ids))
     g.vs[metadata_id_col] = all_ids.tolist()
-    g.vs[metadata_date_col] = [metadata_dict.get(sid, {}).get(metadata_date_col) for sid in all_ids]
+    g.vs[metadata_date_col] = [
+        metadata_dict.get(sid, {}).get(metadata_date_col) for sid in all_ids
+    ]
     g.vs[metadata_clade_col] = [
         metadata_dict.get(sid, {}).get(metadata_clade_col) for sid in all_ids
     ]
-    g.vs[exposure_col] = [metadata_dict.get(sid, {}).get(exposure_col) for sid in all_ids]
+    g.vs[exposure_col] = [
+        metadata_dict.get(sid, {}).get(exposure_col) for sid in all_ids
+    ]
 
     filtered = pairwise_df[pairwise_df[weight_column] >= minimum_weight]
-    edges = list(zip(filtered[id_col_1].map(id_to_index), filtered[id_col_2].map(id_to_index)))
+    edges = list(
+        zip(filtered[id_col_1].map(id_to_index), filtered[id_col_2].map(id_to_index))
+    )
     g.add_edges(edges)
 
     for col in (*edge_attribute_columns, weight_column):
@@ -110,9 +116,9 @@ def summarise_cluster_sizes(
 ) -> pd.DataFrame:
     """Return all reported cluster sizes and flag the focus clusters."""
     sizes = cluster_results[["cluster_id", "size"]].copy()
-    sizes = sizes.sort_values(["size", "cluster_id"], ascending=[False, True]).reset_index(
-        drop=True
-    )
+    sizes = sizes.sort_values(
+        ["size", "cluster_id"], ascending=[False, True]
+    ).reset_index(drop=True)
     sizes["rank"] = np.arange(1, len(sizes) + 1, dtype=int)
     sizes["is_focus_cluster"] = sizes["cluster_id"].isin(focus_cluster_ids)
     return sizes
@@ -153,7 +159,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
     if not metadata_path.exists():
         raise FileNotFoundError(f"Boston metadata file not found: {metadata_path}")
     if not pairwise_path.exists():
-        raise FileNotFoundError(f"Boston pairwise distances file not found: {pairwise_path}")
+        raise FileNotFoundError(
+            f"Boston pairwise distances file not found: {pairwise_path}"
+        )
 
     LOGGER.info("boston: loading inputs")
     metadata = pd.read_parquet(metadata_path)
@@ -164,13 +172,21 @@ def main(config_path: str | Path = "config.yaml") -> None:
         len(pair_data),
     )
 
-    missing_pairwise = {pairwise_id_col_1, pairwise_id_col_2, genetic_col} - set(pair_data.columns)
+    missing_pairwise = {pairwise_id_col_1, pairwise_id_col_2, genetic_col} - set(
+        pair_data.columns
+    )
     if missing_pairwise:
-        raise ValueError(f"Missing required columns in pairwise file: {missing_pairwise}")
+        raise ValueError(
+            f"Missing required columns in pairwise file: {missing_pairwise}"
+        )
 
-    missing_metadata = {metadata_id_col, metadata_date_col, exposure_col} - set(metadata.columns)
+    missing_metadata = {metadata_id_col, metadata_date_col, exposure_col} - set(
+        metadata.columns
+    )
     if missing_metadata:
-        raise ValueError(f"Missing required columns in metadata file: {missing_metadata}")
+        raise ValueError(
+            f"Missing required columns in metadata file: {missing_metadata}"
+        )
 
     pair_data = add_temporal_distance(
         pairwise_df=pair_data,
@@ -190,8 +206,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     pair_data[weight_column] = np.asarray(
         stochastic_model.score_target(
-            sample_time_difference=pair_data[temporal_col].values,
-            genetic_distance=pair_data[genetic_col].values,
+            sample_time_difference=pair_data[temporal_col].to_numpy(),
+            genetic_distance=pair_data[genetic_col].to_numpy(),
         ),
         dtype=float,
     )
@@ -233,7 +249,9 @@ def main(config_path: str | Path = "config.yaml") -> None:
             if f"count::{label}" in cluster_results.columns
         ]
         if not focus_cols:
-            raise ValueError(f"Focus exposures not found in cluster summary: {focus_exposures}")
+            raise ValueError(
+                f"Focus exposures not found in cluster summary: {focus_exposures}"
+            )
         focus_results = cluster_results[cluster_results[focus_cols].sum(axis=1) > 0]
     else:
         focus_results = cluster_results

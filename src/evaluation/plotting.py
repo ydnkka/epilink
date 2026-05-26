@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Literal
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 import seaborn as sns
 
 LOGGER = logging.getLogger(__name__)
@@ -161,7 +163,7 @@ def cm_to_inch(cm: float) -> float:
 
 
 def save_plos_figure(
-    fig: plt.Figure,
+    fig: Figure,
     stem: str,
     *,
     out_dir: str | Path = ".",
@@ -241,7 +243,7 @@ def save_plos_figure(
 
 
 def add_panel_labels(
-    axes: Sequence[plt.Axes],
+    axes: Sequence[Axes],
     *,
     x: float = 0,
     y: float = 1.1,

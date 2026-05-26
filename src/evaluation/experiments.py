@@ -159,7 +159,9 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
         }
 
         for model_key, model_result in scenario_result.models.items():
-            results_rows.append(_make_row(run, scenario_result, model_key, model_result))
+            results_rows.append(
+                _make_row(run, scenario_result, model_key, model_result)
+            )
 
     # Phase 2: all remaining runs in parallel.
     if other_runs:
@@ -183,7 +185,9 @@ def run_experiment(config: dict[str, Any]) -> pd.DataFrame:
             for future in as_completed(futures):
                 run, scenario_result = future.result()
                 for model_key, model_result in scenario_result.models.items():
-                    results_rows.append(_make_row(run, scenario_result, model_key, model_result))
+                    results_rows.append(
+                        _make_row(run, scenario_result, model_key, model_result)
+                    )
 
     return pd.DataFrame(results_rows)
 
