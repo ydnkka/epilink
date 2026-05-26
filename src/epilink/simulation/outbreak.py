@@ -15,9 +15,7 @@ from .results import SimulationResult, SimulationSequenceSet
 logger = logging.getLogger(__name__)
 
 _PackedGenomicDataSource = (
-    SimulationResult
-    | Mapping[str, PackedGenomicData]
-    | SimulationSequenceSet[PackedGenomicData]
+    SimulationResult | Mapping[str, PackedGenomicData] | SimulationSequenceSet[PackedGenomicData]
 )
 
 

@@ -73,7 +73,6 @@ packages = ["src/epilink"]
 include = [
     "/README.md",
     "/LICENSE",
-    "/CONTRIBUTING.md",
     "/CITATION.cff",
     "/src",
     "/tests",
@@ -104,6 +103,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+    "@overload",
 ]
 precision = 2
 show_missing = true

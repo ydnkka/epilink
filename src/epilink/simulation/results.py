@@ -46,20 +46,15 @@ class SimulationResult:
     raw: SimulationSequenceSet[NDArrayInt8] | None
 
     @overload
-    def __getitem__(
-        self, key: Literal["packed"]
-    ) -> SimulationSequenceSet[PackedGenomicData]:
-        ...
+    def __getitem__(self, key: Literal["packed"]) -> SimulationSequenceSet[PackedGenomicData]: ...
 
     @overload
-    def __getitem__(self, key: Literal["raw"]) -> SimulationSequenceSet[NDArrayInt8] | None:
-        ...
+    def __getitem__(self, key: Literal["raw"]) -> SimulationSequenceSet[NDArrayInt8] | None: ...
 
     @overload
     def __getitem__(
         self, key: str
-    ) -> SimulationSequenceSet[PackedGenomicData] | SimulationSequenceSet[NDArrayInt8] | None:
-        ...
+    ) -> SimulationSequenceSet[PackedGenomicData] | SimulationSequenceSet[NDArrayInt8] | None: ...
 
     def __getitem__(
         self, key: str

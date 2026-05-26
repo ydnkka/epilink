@@ -469,5 +469,70 @@ class TestEpiLink(unittest.TestCase):
         )
 
 
+class TestResultDictProtocol(unittest.TestCase):
+    """Cover the dict-protocol methods on ScenarioScore and PairCompatibilityResult."""
+
+    @staticmethod
+    def _make_scenario_score() -> ScenarioScore:
+        return ScenarioScore(
+            time_percentile=0.4,
+            time_compatibility=0.8,
+            genetic_percentile=0.6,
+            genetic_compatibility=0.9,
+            compatibility=0.72,
+        )
+
+    @staticmethod
+    def _make_pair_result() -> PairCompatibilityResult:
+        score = TestResultDictProtocol._make_scenario_score()
+        return PairCompatibilityResult(
+            target="ad(0)",
+            target_labels=("ad(0)",),
+            target_compatibility=0.72,
+            scenario_scores={"ad(0)": score},
+        )
+
+    # --- ScenarioScore ---
+
+    def test_scenario_score_getitem_returns_field_value(self) -> None:
+        score = self._make_scenario_score()
+        self.assertAlmostEqual(score["compatibility"], 0.72)
+        self.assertAlmostEqual(score["time_percentile"], 0.4)
+
+    def test_scenario_score_iter_yields_all_field_names(self) -> None:
+        score = self._make_scenario_score()
+        keys = list(score)
+        self.assertEqual(
+            keys,
+            [
+                "time_percentile",
+                "time_compatibility",
+                "genetic_percentile",
+                "genetic_compatibility",
+                "compatibility",
+            ],
+        )
+
+    def test_scenario_score_len_returns_five(self) -> None:
+        self.assertEqual(len(self._make_scenario_score()), 5)
+
+    def test_scenario_score_contains_valid_and_invalid_keys(self) -> None:
+        score = self._make_scenario_score()
+        self.assertIn("compatibility", score)
+        self.assertNotIn("missing", score)
+        self.assertNotIn(42, score)  # non-string key
+
+    # --- PairCompatibilityResult ---
+
+    def test_pair_result_iter_yields_all_field_names(self) -> None:
+        result = self._make_pair_result()
+        self.assertEqual(
+            list(result), ["target", "target_labels", "target_compatibility", "scenario_scores"]
+        )
+
+    def test_pair_result_len_returns_four(self) -> None:
+        self.assertEqual(len(self._make_pair_result()), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -370,5 +370,94 @@ class TestSimulationHelpers(unittest.TestCase):
         self.assertEqual(rows[("A", "D")].SamplingDateDistanceDays, 10.0)
 
 
+class TestSimulationSequenceSet(unittest.TestCase):
+    """Cover the dict-protocol methods on SimulationSequenceSet."""
+
+    def _make_set(self) -> SimulationSequenceSet[int]:
+        return SimulationSequenceSet(deterministic=1, stochastic=2)
+
+    def test_getitem_valid_keys_return_members(self) -> None:
+        s = self._make_set()
+        self.assertEqual(s["deterministic"], 1)
+        self.assertEqual(s["stochastic"], 2)
+
+    def test_getitem_invalid_key_raises_key_error(self) -> None:
+        s = self._make_set()
+        with self.assertRaises(KeyError):
+            _ = s["missing"]
+
+    def test_len_returns_two(self) -> None:
+        self.assertEqual(len(self._make_set()), 2)
+
+    def test_contains_valid_and_invalid_keys(self) -> None:
+        s = self._make_set()
+        self.assertIn("deterministic", s)
+        self.assertIn("stochastic", s)
+        self.assertNotIn("other", s)
+
+    def test_to_dict_returns_both_members(self) -> None:
+        s = self._make_set()
+        self.assertEqual(s.to_dict(), {"deterministic": 1, "stochastic": 2})
+
+
+class TestSimulationResult(unittest.TestCase):
+    """Cover the dict-protocol methods on SimulationResult."""
+
+    def _make_result(self, *, with_raw: bool = True) -> SimulationResult:
+        packed_data = np.zeros((1, 4), dtype=np.int8)
+        pgd = PackedGenomicData(
+            packed_data,
+            original_length=4,
+            node_map={"a": 0},
+            base_map={0: "A", 1: "C", 2: "G", 3: "T"},
+        )
+        packed = SimulationSequenceSet(deterministic=pgd, stochastic=pgd)
+        raw: SimulationSequenceSet[np.ndarray] | None = None
+        if with_raw:
+            arr = np.zeros((1, 4), dtype=np.int8)
+            raw = SimulationSequenceSet(deterministic=arr, stochastic=arr)
+        return SimulationResult(packed=packed, raw=raw)
+
+    def test_getitem_packed_and_raw_return_correct_types(self) -> None:
+        result = self._make_result(with_raw=True)
+        self.assertIsInstance(result["packed"], SimulationSequenceSet)
+        self.assertIsInstance(result["raw"], SimulationSequenceSet)
+
+    def test_getitem_raw_none_when_not_requested(self) -> None:
+        result = self._make_result(with_raw=False)
+        self.assertIsNone(result["raw"])
+
+    def test_getitem_invalid_key_raises_key_error(self) -> None:
+        result = self._make_result()
+        with self.assertRaises(KeyError):
+            _ = result["missing"]
+
+    def test_iter_yields_packed_and_raw_keys(self) -> None:
+        result = self._make_result()
+        self.assertEqual(list(result), ["packed", "raw"])
+
+    def test_len_returns_two(self) -> None:
+        self.assertEqual(len(self._make_result()), 2)
+
+    def test_contains_valid_and_invalid_keys(self) -> None:
+        result = self._make_result()
+        self.assertIn("packed", result)
+        self.assertIn("raw", result)
+        self.assertNotIn("other", result)
+
+    def test_to_dict_with_raw(self) -> None:
+        result = self._make_result(with_raw=True)
+        d = result.to_dict()
+        self.assertIn("packed", d)
+        self.assertIn("raw", d)
+        self.assertIsInstance(d["packed"], dict)
+        self.assertIsInstance(d["raw"], dict)
+
+    def test_to_dict_without_raw(self) -> None:
+        result = self._make_result(with_raw=False)
+        d = result.to_dict()
+        self.assertIsNone(d["raw"])
+
+
 if __name__ == "__main__":
     unittest.main()

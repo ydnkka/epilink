@@ -11,11 +11,9 @@ from .parameters import NaturalHistoryParameters
 
 
 class _ContinuousFrozenDistribution(Protocol):
-    def pdf(self, x: np.typing.ArrayLike) -> np.ndarray:
-        ...
+    def pdf(self, x: np.typing.ArrayLike) -> np.ndarray: ...
 
-    def cdf(self, x: np.typing.ArrayLike) -> np.ndarray:
-        ...
+    def cdf(self, x: np.typing.ArrayLike) -> np.ndarray: ...
 
 
 class BaseTransmissionProfile:
@@ -80,25 +78,26 @@ class BaseTransmissionProfile:
         )
 
     def _ensure_numerical_cdf(self) -> tuple[np.ndarray, np.ndarray]:
-        if self._sampling_grid is None or self._cdf_grid is None:
-            x = np.linspace(self.grid_min_days, self.grid_max_days, num=max(2, self.grid_points))
-            y = np.clip(np.asarray(self.pdf(x), dtype=float), 0.0, np.inf)
+        if self._sampling_grid is not None and self._cdf_grid is not None:
+            return self._sampling_grid, self._cdf_grid
 
-            cdf = cumulative_trapezoid(y, x, initial=0)
-            total = float(cdf[-1])
+        x = np.linspace(self.grid_min_days, self.grid_max_days, num=max(2, self.grid_points))
+        y = np.clip(np.asarray(self.pdf(x), dtype=float), 0.0, np.inf)
 
-            if not np.isfinite(total) or total <= 0.0:
-                cdf = (x - x[0]) / (x[-1] - x[0])
-            else:
-                cdf /= total
-                cdf = np.maximum.accumulate(cdf)
-                cdf[0] = 0.0
-                cdf[-1] = 1.0
+        cdf = cumulative_trapezoid(y, x, initial=0)
+        total = float(cdf[-1])
 
-            self._sampling_grid = x
-            self._cdf_grid = cdf
+        if not np.isfinite(total) or total <= 0.0:
+            cdf = (x - x[0]) / (x[-1] - x[0])
+        else:
+            cdf /= total
+            cdf = np.maximum.accumulate(cdf)
+            cdf[0] = 0.0
+            cdf[-1] = 1.0
 
-        return self._sampling_grid, self._cdf_grid  # type: ignore[return-value]
+        self._sampling_grid = x
+        self._cdf_grid = cdf
+        return x, cdf
 
     def pdf(self, times_in_days: np.typing.ArrayLike) -> np.ndarray:
         """Evaluate the probability density function.
@@ -349,9 +348,9 @@ class InfectiousnessToTransmission(BaseTransmissionProfile):
     rng_seed : int, optional
         Seed used to initialize ``rng`` when no generator is supplied.
     integration_grid_points : int, default=2048
-         integration points used inside the PDF evaluation.
+        Integration points used inside the PDF evaluation.
     sampling_grid_points : int, default=1024
-         numerical grid points used for sampling from the profile.
+        Numerical grid points used for sampling from the profile.
     """
 
     def __init__(

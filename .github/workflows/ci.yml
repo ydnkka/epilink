@@ -11,7 +11,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        jit: ["on", "off"]
 
     steps:
       - name: Checkout
@@ -34,16 +33,9 @@ jobs:
           mypy src/epilink
 
       - name: Test
-        env:
-          NUMBA_DISABLE_JIT: ${{ matrix.jit == 'off' && '1' || '0' }}
         run: |
-          if [ "${{ matrix.jit }}" = "off" ]; then
-            THRESH=80
-          else
-            THRESH=70
-          fi
           pytest --cov=epilink --cov-report=xml --cov-report=term-missing \
-                 --cov-fail-under=$THRESH \
+                 --cov-fail-under=90 \
                  tests/ \
                  -W error::DeprecationWarning:epilink
 
@@ -52,8 +44,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
-          # Set a secret CODECOV_TOKEN for private repos; for public repos this can be omitted
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           flags: unittests
-          name: py${{ matrix.python-version }}-jit-${{ matrix.jit }}
+          name: py${{ matrix.python-version }}
