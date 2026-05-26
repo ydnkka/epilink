@@ -14,6 +14,12 @@ from .results import SimulationResult, SimulationSequenceSet
 
 logger = logging.getLogger(__name__)
 
+_PackedGenomicDataSource = (
+    SimulationResult
+    | Mapping[str, PackedGenomicData]
+    | SimulationSequenceSet[PackedGenomicData]
+)
+
 
 def simulate_epidemic_dates(
     transmission_profile: InfectiousnessToTransmission,
@@ -161,7 +167,7 @@ def simulate_genomic_sequences(
         ) % num_bases
         return mutated_sequence
 
-    roots = [node for node, degree in tree.in_degree(tree.nodes) if degree == 0]
+    roots = [node for node, degree in tree.in_degree() if degree == 0]
     for root in roots:
         root_index = node_to_index[root]
         max_root_drift = min(35, genome_length + 1)
@@ -224,15 +230,16 @@ def simulate_genomic_sequences(
 
 
 def build_pairwise_case_table(
-    packed_genomic_data: Mapping[str, PackedGenomicData] | SimulationSequenceSet[PackedGenomicData],
+    packed_genomic_data: _PackedGenomicDataSource,
     tree: nx.DiGraph,
 ) -> pd.DataFrame:
     """Generate a long-format pairwise distance table.
 
     Parameters
     ----------
-    packed_genomic_data : mapping
-        Mapping containing packed genomic data for the ``"deterministic"`` and
+    packed_genomic_data : SimulationResult or mapping
+        Simulation output from :func:`simulate_genomic_sequences`, or a mapping
+        containing packed genomic data for the ``"deterministic"`` and
         ``"stochastic"`` simulation outputs.
     tree : networkx.DiGraph
         Directed transmission tree with epidemic annotations.
@@ -243,6 +250,9 @@ def build_pairwise_case_table(
         Pairwise table of genetic distances, temporal distances, and simple
         topological relationships.
     """
+
+    if isinstance(packed_genomic_data, SimulationResult):
+        packed_genomic_data = packed_genomic_data.packed
 
     packed_deterministic = packed_genomic_data["deterministic"]
     packed_stochastic = packed_genomic_data["stochastic"]

@@ -338,6 +338,16 @@ class TestSimulationHelpers(unittest.TestCase):
         }
 
         table = build_pairwise_case_table(packed, tree)
+        sequence_set = SimulationSequenceSet(
+            deterministic=packed["deterministic"],
+            stochastic=packed["stochastic"],
+        )
+        table_from_result = build_pairwise_case_table(
+            SimulationResult(packed=sequence_set, raw=None),
+            tree,
+        )
+
+        self.assertEqual(table_from_result.to_dict("list"), table.to_dict("list"))
         rows = {(row.CaseA, row.CaseB): row for row in table.itertuples(index=False)}
 
         self.assertEqual(len(table), 6)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -24,7 +25,7 @@ class SimulationSequenceSet(Generic[T]):
             raise KeyError(key)
         return getattr(self, key)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(("deterministic", "stochastic"))
 
     def __len__(self) -> int:
@@ -44,12 +45,30 @@ class SimulationResult:
     packed: SimulationSequenceSet[PackedGenomicData]
     raw: SimulationSequenceSet[NDArrayInt8] | None
 
-    def __getitem__(self, key: str) -> object:
+    @overload
+    def __getitem__(
+        self, key: Literal["packed"]
+    ) -> SimulationSequenceSet[PackedGenomicData]:
+        ...
+
+    @overload
+    def __getitem__(self, key: Literal["raw"]) -> SimulationSequenceSet[NDArrayInt8] | None:
+        ...
+
+    @overload
+    def __getitem__(
+        self, key: str
+    ) -> SimulationSequenceSet[PackedGenomicData] | SimulationSequenceSet[NDArrayInt8] | None:
+        ...
+
+    def __getitem__(
+        self, key: str
+    ) -> SimulationSequenceSet[PackedGenomicData] | SimulationSequenceSet[NDArrayInt8] | None:
         if key not in {"packed", "raw"}:
             raise KeyError(key)
         return getattr(self, key)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(("packed", "raw"))
 
     def __len__(self) -> int:

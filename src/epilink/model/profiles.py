@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+from typing import Protocol, cast
+
 import numpy as np
 from numpy.random import Generator, default_rng
 from scipy import stats
 from scipy.integrate import cumulative_trapezoid
 
 from .parameters import NaturalHistoryParameters
+
+
+class _ContinuousFrozenDistribution(Protocol):
+    def pdf(self, x: np.typing.ArrayLike) -> np.ndarray:
+        ...
+
+    def cdf(self, x: np.typing.ArrayLike) -> np.ndarray:
+        ...
 
 
 class BaseTransmissionProfile:
@@ -52,12 +62,22 @@ class BaseTransmissionProfile:
 
         # Frozen gamma distributions.
         param = self.parameters
-        self.incubation = stats.gamma(a=param.incubation_shape, scale=param.incubation_scale)
-        self.latent = stats.gamma(a=param.latent_shape, scale=param.incubation_scale)
-        self.presymptomatic = stats.gamma(
-            a=param.presymptomatic_shape, scale=param.incubation_scale
+        self.incubation = cast(
+            _ContinuousFrozenDistribution,
+            stats.gamma(a=param.incubation_shape, scale=param.incubation_scale),
         )
-        self.symptomatic = stats.gamma(a=param.symptomatic_shape, scale=param.symptomatic_scale)
+        self.latent = cast(
+            _ContinuousFrozenDistribution,
+            stats.gamma(a=param.latent_shape, scale=param.incubation_scale),
+        )
+        self.presymptomatic = cast(
+            _ContinuousFrozenDistribution,
+            stats.gamma(a=param.presymptomatic_shape, scale=param.incubation_scale),
+        )
+        self.symptomatic = cast(
+            _ContinuousFrozenDistribution,
+            stats.gamma(a=param.symptomatic_shape, scale=param.symptomatic_scale),
+        )
 
     def _ensure_numerical_cdf(self) -> tuple[np.ndarray, np.ndarray]:
         if self._sampling_grid is None or self._cdf_grid is None:
@@ -78,7 +98,7 @@ class BaseTransmissionProfile:
             self._sampling_grid = x
             self._cdf_grid = cdf
 
-        return self._sampling_grid, self._cdf_grid
+        return self._sampling_grid, self._cdf_grid  # type: ignore[return-value]
 
     def pdf(self, times_in_days: np.typing.ArrayLike) -> np.ndarray:
         """Evaluate the probability density function.
