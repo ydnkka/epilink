@@ -289,7 +289,7 @@ def evaluate_scenario(
         tree=populated_tree,
         genome_length=synthetic_genome_length,
     )
-    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)  # type: ignore
+    pairwise = build_pairwise_case_table(genomic_outputs["packed"], populated_tree)
 
     pairs = pairwise.loc[pairwise[PAIRWISE_BOTH_SAMPLED_COLUMN]].copy()
     is_related = pairs[PAIRWISE_RELATED_COLUMN].astype(int).to_numpy()
