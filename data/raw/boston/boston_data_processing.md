@@ -11,14 +11,14 @@ In order to assign clades, Nextclade places sequences on a reference tree that i
 STEP 1
 
 ```aiignore
-nextclade dataset get --name "nextstrain/sars-cov-2/wuhan-hu-1/orfs" --output-dir "sars-cov-2"
+nextclade dataset get --name "nextstrain/sars-cov-2/wuhan-hu-1/orfs" --output-dir "data/sars-cov-2"
 ```
 
 STEP 2
 
 ```aiignore
 nextclade run \
-    --input-dataset "sars-cov-2" \
+    --input-dataset "data/sars-cov-2" \
     --output-fasta "MGH_DPH_98percent_772samples_aligned.fasta" \
     --output-tsv "MGH_DPH_98percent_772samples_nextclade.tsv" \
     --include-reference false \
