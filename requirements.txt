@@ -1,6 +1,8 @@
 epilink==0.1.5
 pyyaml
 bcubed
+treecluster
+phylo-treetime
 python-igraph
 networkx
 matplotlib

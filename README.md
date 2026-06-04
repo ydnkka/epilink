@@ -18,8 +18,9 @@ compatibility scores.
 
 This repository provides the full analysis pipeline — data preprocessing, sparsification
 analysis, synthetic robustness experiments, temporal stability analysis, baseline
-statistical evaluation, and empirical clustering on a published Boston SARS-CoV-2 dataset —
-along with the code to reproduce every manuscript figure.
+statistical evaluation, empirical clustering on a published Boston SARS-CoV-2 dataset, and
+TreeCluster phylogenetic comparisons — along with the code to reproduce every manuscript
+figure.
 
 ## Requirements
 
@@ -30,14 +31,34 @@ repository root:
 pip install -r requirements.txt
 ```
 
+The TreeCluster notebooks also call external phylogenetic command-line tools that are not
+installed by `pip`: `iqtree`, `fastme`, and `gotree`. One mamba/conda installation route is:
+
+```bash
+mamba install -c conda-forge -c bioconda iqtree fastme gotree
+```
+
+Replace `mamba` with `conda` if needed.
+
+Check that the phylogenetic tools are available on `PATH` before running the notebooks:
+
+```bash
+TreeCluster.py --help
+treetime --help
+iqtree -h
+fastme -h
+gotree --help
+```
+
 ## Data
 
-Raw inputs expected by the pipeline:
+Raw inputs expected by the pipeline and phylogenetic notebooks:
 
 | File | Description |
 | ---- | ----------- |
 | `data/raw/scovmod/InfectedIndividuals.1.csv` | SCoVMod individual infection records |
 | `data/raw/scovmod/TransmissionEvents.1.csv` | SCoVMod transmission event records |
+| `data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta` | Boston aligned SARS-CoV-2 consensus genomes for IQ-TREE and TreeTime |
 | `data/processed/boston/boston_metadata.parquet` | Boston sample metadata |
 | `data/processed/boston/boston_pairwise_distances.parquet` | Boston pairwise distances |
 
@@ -49,8 +70,8 @@ Treat `data/raw/` and `data/processed/` as read-only input directories.
 
 ## Reproducing results
 
-All outputs are written under `results/`. The pipeline is orchestrated by Snakemake and
-controlled entirely by `config.yaml`.
+Snakemake outputs are written under `results/`. The pipeline is orchestrated by Snakemake
+and controlled entirely by `config.yaml`.
 
 ### Dry run (check rule graph without executing)
 
@@ -102,6 +123,22 @@ PYTHONPATH=src:src/evaluation python3 -m evaluation.baseline
 PYTHONPATH=src:src/evaluation python3 -m evaluation.boston
 ```
 
+### TreeCluster phylogenetic comparisons
+
+TreeCluster comparisons are reproduced from notebooks rather than Snakemake rules:
+
+- `phylo_cluster_pipeline.ipynb` compares EpiLink-Leiden clusters with TreeCluster on the
+  Boston SARS-CoV-2 data. It builds an IQ-TREE maximum-likelihood tree from the aligned
+  FASTA, time-calibrates it with TreeTime, converts the dated tree to Newick with `gotree`,
+  and runs TreeCluster over a time-threshold grid.
+- `synthetic_treecluster_comparison.ipynb` compares EpiLink-Leiden, logistic regression, and
+  TreeCluster on the matched synthetic baseline. It builds FastME distance trees from the
+  simulated pairwise distances, time-calibrates them with TreeTime, and scores TreeCluster
+  partitions with BCubed F1.
+
+Both notebooks write cached phylogenetic outputs, TreeCluster partitions, similarity
+tables, and plots under `phylo/`.
+
 ## Pipeline execution order
 
 ```text
@@ -122,6 +159,7 @@ Rules `baseline` and `stability` are independent and can run in parallel.
 | `results/boston/` | Cluster composition, cluster sizes, cluster summary |
 | `results/figures/` | PDF and TIFF figure exports |
 | `results/logs/` | Per-rule log files and unified `pipeline.log` |
+| `phylo/` | IQ-TREE/FastME/TreeTime intermediates, TreeCluster partitions, and EpiLink-vs-TreeCluster comparison plots |
 
 ## Repository structure
 
@@ -135,6 +173,13 @@ Rules `baseline` and `stability` are independent and can run in parallel.
 | `experiments.py` | Runs the synthetic robustness experiment grid across all scenarios and conditions |
 | `baseline.py` | Runs the matched-baseline scenario and computes bootstrap AP CIs, PRG, and Brier score |
 | `figures.py` | Assembles all manuscript figures from completed evaluation outputs |
+
+### Phylogenetic comparison notebooks
+
+| Notebook | Description |
+| -------- | ----------- |
+| `phylo_cluster_pipeline.ipynb` | Boston dated-tree TreeCluster workflow and EpiLink-Leiden agreement heatmaps |
+| `synthetic_treecluster_comparison.ipynb` | Synthetic FastME/TreeTime/TreeCluster baseline comparison and method-agreement heatmaps |
 
 ### Shared library modules (`src/evaluation/`)
 
