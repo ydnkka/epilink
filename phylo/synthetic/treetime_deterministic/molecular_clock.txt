@@ -1,0 +1,4 @@
+Root-Tip-Regression:
+ --rate:	1.014e-02
+ --r^2:  	0.91
+
