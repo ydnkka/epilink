@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .snakemake/
-.claude/
+.history/
 .vscode/
 *.aux
 *.log
@@ -16,3 +16,4 @@ __pycache__/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+

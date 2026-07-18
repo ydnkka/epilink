@@ -12,6 +12,7 @@ Required inputs (resolved via config.yaml)
 - results/synthetic/baseline_scores.parquet
 - results/synthetic/baseline_summary.parquet
 - results/stability/temporal_stability_{model}.parquet  (one per model)
+- results/stability/stability_resolution_selection.parquet
 - results/boston/cluster_composition.parquet
 - results/boston/cluster_sizes.parquet
 
@@ -23,6 +24,7 @@ Generated outputs
     results/figures/f1_loss.tif  – sensitivity F1-loss lollipop
     results/figures/ap_loss.tif – sensitivity AP-loss lollipop
     results/figures/temporal.tif  – temporal stability
+    results/figures/resolution_regret.tif  – normalized resolution regret
     results/figures/boston.tif  – Boston cluster descriptives
 """
 
@@ -404,6 +406,88 @@ def make_fig_stability() -> Figure:
     )
     fig.supylabel("Temporal stability")
     fig.supxlabel("Epidemic week")
+    return fig
+
+
+# ─── Resolution choice regret plot ───────────────────────────────────────────
+
+
+def make_fig_resolution_regret() -> Figure:
+    """Mean regret from the per-model optimum, with IQR shading."""
+    selection = read_result_table("stability", "stability_resolution_selection.parquet")
+    best_f1 = selection.groupby("weight")["f1_score"].transform("max")
+    selection = selection.assign(regret=best_f1 - selection["f1_score"])
+
+    grouped = selection.groupby("resolution")["regret"]
+    summary = grouped.mean().rename("mean").to_frame()
+    summary["q25"] = grouped.quantile(0.25)
+    summary["q75"] = grouped.quantile(0.75)
+    summary = summary.reset_index()
+
+    fig, ax = plt.subplots(
+        figsize=(
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 0.58,
+        ),
+        constrained_layout=True,
+    )
+
+    x = summary["resolution"].to_numpy(dtype=float)
+    mean = summary["mean"].to_numpy(dtype=float)
+    q25 = summary["q25"].to_numpy(dtype=float)
+    q75 = summary["q75"].to_numpy(dtype=float)
+
+    ax.fill_between(
+        x,
+        q25,
+        q75,
+        color="#64748B",
+        alpha=0.20,
+        label="IQR across models",
+        zorder=2,
+    )
+    ax.plot(
+        x,
+        mean,
+        color="#1F2937",
+        marker="o",
+        markersize=3.2,
+        linewidth=1.8,
+        label="Mean regret",
+        zorder=3,
+    )
+
+    chosen_resolution = 0.3
+    chosen_mean = summary.loc[summary["resolution"] == chosen_resolution, "mean"]
+    if chosen_mean.empty:
+        raise ValueError("Resolution 0.3 is not present in the input table.")
+    chosen_mean_value = float(chosen_mean.iloc[0])
+
+    ax.axvline(
+        chosen_resolution,
+        color="#B45309",
+        linestyle="--",
+        linewidth=1.5,
+        label="Chosen default (0.3)",
+        zorder=4,
+    )
+    ax.scatter(
+        [chosen_resolution],
+        [chosen_mean_value],
+        color="#B45309",
+        s=18,
+        zorder=5,
+    )
+
+    ax.axhline(0.0, color="#111827", linewidth=0.8, alpha=0.25, zorder=1)
+    ax.set_xlim(0.08, 1.02)
+    ax.set_ylim(0.0, float(max(q75.max(), mean.max()) * 1.18))
+    ax.xaxis.set_major_locator(MultipleLocator(0.1))
+    ax.grid(True, axis="y", alpha=0.14, color="#6B7280")
+    ax.set_xlabel("Leiden resolution")
+    ax.set_ylabel("Regret from model-specific optimum")
+    ax.legend(loc="upper right")
+
     return fig
 
 
@@ -881,6 +965,16 @@ def main(*, save: bool = True, show: bool = False) -> None:
         plt.show()
 
     plt.close(temp)
+
+    # Resolution regret summary
+    regret = make_fig_resolution_regret()
+    if SAVE_FIGURES:
+        export_figure(regret, "resolution_regret")
+
+    if SHOW_PLOTS:
+        plt.show()
+
+    plt.close(regret)
 
     # AP-loss/F1-loss lollipop
     for metric in ("ap_loss", "f1_loss"):
