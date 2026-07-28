@@ -189,7 +189,7 @@ def save_plos_figure(
     height_cm: float | None = None,
     dpi: int = 600,
     save_pdf: bool = True,
-    save_png: bool = False,
+    save_png: bool = True,
     save_tiff: bool = True,
     save_eps: bool = False,
     close: bool = False,
