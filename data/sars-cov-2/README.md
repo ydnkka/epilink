@@ -4,7 +4,7 @@
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authors           | [Cornelius Roemer](https://neherlab.org), [Richard Neher](https://neherlab.org), [Nextstrain](https://nextstrain.org)                                            |
 | reference         | `Wuhan-Hu-1/2019`                                                                                                                                                |
-| workflow          | <https://github.com/neherlab/nextclade_data_workflows/tree/v3-sc2/sars-cov-2>                                                                                      |
+| workflow          | https://github.com/neherlab/nextclade_data_workflows/tree/v3-sc2/sars-cov-2                                                                                      |
 | path              | `nextstrain/sars-cov-2/orfs`                                                                                                                                     |
 | clade definitions | [Nextstrain clades](https://nextstrain.org/blog/2022-04-29-SARS-CoV-2-clade-naming-2022) and [Pango lineages](https://www.nature.com/articles/s41564-020-0770-5) |
 
@@ -45,4 +45,4 @@ Learn more about how Nextclade assigns clades in the [documentation](https://doc
 
 ## What are Nextclade datasets
 
-Read more about Nextclade datasets in the Nextclade documentation: <https://docs.nextstrain.org/projects/nextclade/en/stable/user/datasets.html>
+Read more about Nextclade datasets in the Nextclade documentation: https://docs.nextstrain.org/projects/nextclade/en/stable/user/datasets.html

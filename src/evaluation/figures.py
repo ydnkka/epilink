@@ -102,7 +102,7 @@ _SURFACE_TITLES: tuple[str, ...] = ("Deterministic", "Stochastic")
 # Exposure-count columns present in the Boston composition table.
 EXPOSURE_LABELS: dict[str, str] = {
     "count::BHCHP": "BHCHP",
-    "count::Other": "Other",
+    "count::Unlabeled": "Unlabeled",
     "count::City": "City",
     "count::Conference": "Conference",
     "count::SNF": "SNF",

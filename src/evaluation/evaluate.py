@@ -21,6 +21,12 @@ import igraph as ig
 import networkx as nx
 import numpy as np
 import pandas as pd
+from epilink import (
+    InfectiousnessToTransmission,
+    build_pairwise_case_table,
+    simulate_epidemic_dates,
+    simulate_genomic_sequences,
+)
 from leiden import build_weighted_graph, run_leiden_partition
 from metrics import bcubed_scores
 from models import (
@@ -42,13 +48,6 @@ from specs import (
     PAIRWISE_STOCHASTIC_DISTANCE_COLUMN,
     PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
     SCORE_METADATA,
-)
-
-from epilink import (
-    InfectiousnessToTransmission,
-    build_pairwise_case_table,
-    simulate_epidemic_dates,
-    simulate_genomic_sequences,
 )
 
 # ---------------------------------------------------------------------------
