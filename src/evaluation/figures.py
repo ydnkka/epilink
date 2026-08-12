@@ -35,12 +35,9 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
 from config import (
     configure_logging,
     get_pipeline_log_path,
@@ -48,6 +45,8 @@ from config import (
     outputs_root,
     project_root,
 )
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MultipleLocator
 from plotting import (
@@ -68,7 +67,6 @@ from plotting import (
     save_plos_figure,
     set_plos_theme,
 )
-from specs import MODEL_LABELS
 from sklearn.metrics import precision_recall_curve
 
 LOGGER = logging.getLogger(__name__)
@@ -252,7 +250,7 @@ def make_fig_baseline() -> Figure:
             color=MODEL_PALETTE[i],
             ls=MODEL_LINESTYLES[i],
             lw=1.6,
-            label=f"{model}\n({MODEL_LABELS.get(model)})",
+            label=f"{model}",
         )
 
     ax.axhline(
@@ -260,7 +258,7 @@ def make_fig_baseline() -> Figure:
         color="#555870",
         lw=1.0,
         ls="--",
-        label=f"No-skill baseline ($\\pi$={prevalence:.3f})",
+        label=f"Random ($\\pi$={prevalence:.3f})",
     )
 
     ax.set_xlabel("Recall")
