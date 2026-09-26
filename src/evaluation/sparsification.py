@@ -384,8 +384,8 @@ def main(config_path: str | Path = "config.yaml") -> None:
     )
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    snps = build_surface_axis(15, 0.1)
-    days = build_surface_axis(20, 0.1)
+    snps = build_surface_axis(15, 1.0)
+    days = build_surface_axis(20, 1.0)
 
     compatibility_surface = build_compatibility_surface(
         linkage_models,

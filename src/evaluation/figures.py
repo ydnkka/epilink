@@ -161,31 +161,54 @@ def export_figure(fig: Figure, stem: str, **kwargs) -> dict[str, Path]:
 
 
 def _surface_matrix(surface_frame: pd.DataFrame, score: str) -> pd.DataFrame:
-    """Pivot a long surface table into a days × SNP matrix."""
-    return (
-        surface_frame.pivot(index="days", columns="snp", values=score)
+    """Select scores at integer days and SNPs, including from older dense grids."""
+    coordinates = surface_frame[["days", "snp"]].to_numpy(dtype=float)
+    integer_rows = np.isclose(
+        coordinates, np.rint(coordinates), rtol=0.0, atol=1e-9
+    ).all(axis=1)
+    selected = surface_frame.loc[integer_rows, ["days", "snp", score]].copy()
+    selected[["days", "snp"]] = np.rint(
+        selected[["days", "snp"]]
+    ).astype(int)
+    pivot = (
+        selected.pivot(index="days", columns="snp", values=score)
         .sort_index()
         .sort_index(axis=1)
     )
+    if pivot.empty or pivot.isna().any().any():
+        raise ValueError("Compatibility surface must contain a complete integer grid.")
+    for axis in (pivot.index, pivot.columns):
+        if not np.array_equal(axis.to_numpy(), np.arange(axis.min(), axis.max() + 1)):
+            raise ValueError("Compatibility surface coordinates must have unit spacing.")
+    return pivot
 
 
 def _add_surface_panel(ax: Axes, surface_frame: pd.DataFrame, score: str):
     pivot = _surface_matrix(surface_frame, score)
-    filled = ax.contourf(
-        pivot.columns.to_numpy(dtype=float),
-        pivot.index.to_numpy(dtype=float),
+    filled = ax.imshow(
         pivot.to_numpy(dtype=float),
-        levels=np.linspace(0.0, 1.0, 11),
+        origin="lower",
+        extent=(
+            pivot.columns.min() - 0.5,
+            pivot.columns.max() + 0.5,
+            pivot.index.min() - 0.5,
+            pivot.index.max() + 0.5,
+        ),
+        aspect="equal",
+        interpolation="nearest",
+        resample=False,
         cmap="mako",
-        antialiased=True,
+        vmin=0.0,
+        vmax=1.0,
     )
     ax.xaxis.set_major_locator(MultipleLocator(3))
     ax.yaxis.set_major_locator(MultipleLocator(3))
+    ax.grid(False)
     return filled
 
 
 def make_fig_compatibility() -> Figure:
-    """Compatibility surfaces (deterministic vs stochastic mutation process)."""
+    """Integer-grid heatmaps with square one-day by one-SNP cells."""
     surfaces = read_result_table("sparsification", "score_surfaces.parquet")
 
     fig, axes = plt.subplots(
@@ -193,11 +216,11 @@ def make_fig_compatibility() -> Figure:
         2,
         figsize=(
             cm_to_inch(PLOS_WIDTHS_CM["text_column"]),
-            cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 0.5,
+            cm_to_inch(PLOS_WIDTHS_CM["text_column"]) * 0.65,
         ),
         sharex=True,
         sharey=True,
-        constrained_layout=True,
+        layout="compressed",
         gridspec_kw={"hspace": 0.1, "wspace": 0.1},
     )
     axes = np.atleast_1d(axes).flatten()
@@ -213,7 +236,7 @@ def make_fig_compatibility() -> Figure:
     colorbar = fig.colorbar(filled, ax=axes, location="right", shrink=0.95, pad=0.03)
     colorbar.set_label("Compatibility score")
     fig.supxlabel("Genetic distance (SNPs)")
-    fig.supylabel("Temporal gap (days)")
+    fig.supylabel("Sampling-time difference (days)")
     add_panel_labels(list(axes))
     return fig
 
@@ -451,7 +474,7 @@ def make_fig_resolution_regret() -> Figure:
         marker="o",
         markersize=3.2,
         linewidth=1.8,
-        label="Mean regret",
+        label="Mean difference",
         zorder=3,
     )
 
@@ -483,7 +506,7 @@ def make_fig_resolution_regret() -> Figure:
     ax.xaxis.set_major_locator(MultipleLocator(0.1))
     ax.grid(True, axis="y", alpha=0.14, color="#6B7280")
     ax.set_xlabel("Leiden resolution")
-    ax.set_ylabel("Regret from model-specific optimum")
+    ax.set_ylabel("Difference from model-specific best F1")
     ax.legend(loc="upper right")
 
     return fig
@@ -493,12 +516,12 @@ def make_fig_resolution_regret() -> Figure:
 
 _METRIC_META: dict[str, dict] = {
     "ap_loss": {
-        "label": "AP score loss relative to baseline",
+        "label": "Relative change in AP from baseline",
         "clamp": 1.1,
         "ticks": [-1.0, -0.5, 0.0, 0.5, 1.0],
     },
     "f1_loss": {
-        "label": "F1 score loss relative to baseline",
+        "label": "Relative change in best F1 score from baseline",
         "clamp": 0.3,
         "ticks": [-0.3, -0.15, 0.0, 0.15, 0.3],
     },
