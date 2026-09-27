@@ -725,7 +725,7 @@ def make_fig_sensitivity(df: pd.DataFrame, metric: str) -> Figure:
 
 
 def make_fig_boston() -> Figure:
-    """Cluster-size histogram paired with exposure-composition heatmap."""
+    """Cluster-size histogram paired with a plain exposure-count table."""
     boston_comp = read_result_table("boston", "cluster_composition.parquet")
     boston_sizes = read_result_table("boston", "cluster_sizes.parquet")
 
@@ -776,22 +776,24 @@ def make_fig_boston() -> Figure:
     )
     ax_bar.grid(True, alpha=0.12, color="#555870")
 
-    vmax = float(np.nanmax(exposure_counts.to_numpy(dtype=float)))
-    sns.heatmap(
-        exposure_counts.T,
-        vmin=0,
-        vmax=max(1.0, vmax),
-        cmap="YlOrBr",
-        annot=True,
-        fmt=".0f",
-        linewidths=0.01,
-        linecolor="black",
-        cbar=False,
-        ax=ax_map,
+    ax_map.set_axis_off()
+    cats = ["BHCHP", "Unlabeled", "City", "Conference", "SNF"]
+    counts = [[str(int(v)) for v in boston_comp[f"count::{c}"]] for c in cats]
+    counts.append([str(int(v)) for v in boston_comp["size"]])
+    table = ax_map.table(
+        cellText=counts, rowLabels=cats + ["Total"],
+        colLabels=boston_comp.cluster_id.astype(str).tolist(),
+        cellLoc="center", rowLoc="left", bbox=[0.17, 0.13, 0.83, 0.80],
     )
-    ax_map.tick_params(axis="y", rotation=0)
-    ax_map.set_xlabel("Focus cluster ID")
-    ax_map.set_ylabel("")
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    for (row, col), cell in table.get_celld().items():
+        cell.set_facecolor("white")
+        cell.set_edgecolor("#777777")
+        cell.set_linewidth(0.35)
+        if row == 0 or row == len(cats) + 1:
+            cell.set_text_props(weight="bold")
+    ax_map.text(0.5, 1.02, "Exposure counts by cluster", ha="center", transform=ax_map.transAxes, fontsize=8)
 
     add_panel_labels(list(axes))
     return fig

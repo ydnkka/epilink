@@ -1,0 +1,221 @@
+% Chapter 3 version: the two evaluated scenarios (M=0) and empirical-CDF notation.
+% Adapted from epilink/docs/chapter3_epilink_schematic.tex.
+% Build commands
+%   pdflatex -interaction=nonstopmode -halt-on-error -output-directory=docs/ docs/chapter3_epilink_schematic.tex
+%   Render the PDF at 300 dpi to update the companion PNG preview.
+
+\documentclass[tikz,border=2pt]{standalone}
+
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{microtype}
+\usepackage{newtxtext,newtxmath}
+\usepackage{xcolor}
+\usetikzlibrary{arrows.meta,calc,positioning,shapes.multipart}
+
+% Muted scientific palette used by the evaluation schematic asset.
+\definecolor{BaseInk}{HTML}{22313B}
+\definecolor{SharedColor}{HTML}{5F8C78}
+\definecolor{TemporalColor}{HTML}{B7793F}
+\definecolor{GeneticColor}{HTML}{3C7E85}
+\definecolor{ScenarioColor}{HTML}{8770B3}
+\definecolor{NeutralGrey}{HTML}{667685}
+\definecolor{BoxBg}{HTML}{F6F5F1}
+
+\tikzset{
+  connector/.style={draw=BaseInk, line width=0.75pt},
+  flow/.style={
+    connector,
+    -{Latex[length=2.1mm,width=1.4mm]},
+    shorten >= 1pt
+  },
+  scenario flow/.style={
+    -{Latex[length=1.5mm,width=1.0mm]},
+    draw=BaseInk,
+    line width=0.65pt,
+    shorten >= 1pt,
+    shorten <= 1pt
+  },
+  workflow box/.style={
+    rounded corners=3pt,
+    line width=0.75pt,
+    rectangle split,
+    rectangle split parts=2,
+    font=\scriptsize,
+    inner sep=4pt,
+    align=left,
+    text=BaseInk
+  },
+  neutral box/.style={
+    workflow box,
+    draw=NeutralGrey,
+    rectangle split part fill={white, BoxBg}
+  },
+  shared box/.style={
+    workflow box,
+    draw=SharedColor,
+    rectangle split part fill={SharedColor!12, white}
+  },
+  temporal box/.style={
+    workflow box,
+    draw=TemporalColor,
+    rectangle split part fill={TemporalColor!12, white}
+  },
+  genetic box/.style={
+    workflow box,
+    draw=GeneticColor,
+    rectangle split part fill={GeneticColor!12, white}
+  },
+  final box/.style={
+    workflow box,
+    draw=ScenarioColor,
+    rectangle split part fill={ScenarioColor!15, white}
+  },
+  scenario box/.style={
+    workflow box,
+    draw=ScenarioColor,
+    rectangle split part fill={ScenarioColor!12, white}
+  },
+  scenario column/.style={
+    minimum width=5.0cm,
+    minimum height=3.15cm,
+    inner sep=0pt,
+    anchor=south
+  },
+  sampled case/.style={
+    circle,
+    draw=BaseInk,
+    fill=white,
+    line width=0.75pt,
+    minimum size=4mm,
+    inner sep=0,
+    font=\scriptsize\bfseries
+  },
+  latent case/.style={
+    sampled case,
+    fill=NeutralGrey!15,
+    dash pattern=on 1.5pt off 1pt
+  }
+}
+
+\newcommand{\boxheader}[1]{{\centering\bfseries #1\par}}
+
+\begin{document}
+\begin{tikzpicture}[font=\sffamily, x=1cm, y=1cm]
+
+  % --- INPUT ---
+  \node[neutral box, text width=3.85cm] (input) at (6.25, 13.0) {%
+    \boxheader{Observed Pairwise Data}
+    \nodepart{second}
+    Testing-time difference: $t_{ij}$ \\
+    Consensus genetic distance: $g_{ij}$
+  };
+
+  % --- TRANSMISSION SCENARIOS ---
+  \node[scenario box, text width=10.5cm, anchor=north]
+    (scenarios_border) at ($(input.south)+(0,-0.55)$) {
+    \boxheader{Evaluated Transmission Scenarios ($\mathcal{S}_\star$, $M=0$)}
+    \nodepart{second}
+    \rule{0pt}{3.15cm}
+  };
+
+  \node[scenario column] (ad_col)
+    at ($(scenarios_border.south)+(-2.55,0.14)$) {};
+  \node[anchor=north, font=\bfseries\tiny, text=BaseInk, yshift=-4pt]
+    at (ad_col.north) {Direct Transmission $H_{\mathrm{AD}}(0)$};
+  \node[anchor=south, font=\tiny, text=BaseInk, yshift=3pt]
+    at (ad_col.south) {Case $i$ infects case $j$};
+
+  \node[scenario column] (ca_col)
+    at ($(scenarios_border.south)+(2.55,0.14)$) {};
+  \node[anchor=north, font=\bfseries\tiny, text=BaseInk, yshift=-4pt]
+    at (ca_col.north) {Shared Source $H_{\mathrm{CA}}(0,0)$};
+  \node[anchor=south, font=\tiny, text=BaseInk, yshift=3pt]
+    at (ca_col.south) {Source $a$ infects both sampled cases};
+
+  \node[sampled case] (adi) at ($(ad_col.center)+(0,0.75)$) {$i$};
+  \node[sampled case] (adj) at ($(ad_col.center)+(0,-0.75)$) {$j$};
+  \draw[scenario flow] (adi) -- (adj);
+
+  \node[latent case] (caa) at ($(ca_col.center)+(0,0.82)$) {$a$};
+  \node[sampled case] (cai) at ($(ca_col.center)+(-0.8,-0.78)$) {$i$};
+  \node[sampled case] (caj) at ($(ca_col.center)+(0.8,-0.78)$) {$j$};
+  \draw[scenario flow] (caa) -- (cai);
+  \draw[scenario flow] (caa) -- (caj);
+
+  % --- SHARED MODEL ---
+  \node[shared box, text width=4.5cm, anchor=north] (pb_model) at ($(scenarios_border.south)+(0,-0.55)$) {
+    \boxheader{Process-Based Model}
+    \nodepart{second}
+    Gamma stages ($E/P/I$) \\
+    \hspace{0.7em} Incubation period: $\tau_{\mathrm{inc}}=y_E+y_P$ \\
+    \hspace{0.7em} Generation time: $\tau_{\mathrm{gen}}=y_E+y_{\mathrm{toit}}$ \\
+    Observation interval: $\tau_{\mathrm{obs}}=\tau_{\mathrm{inc}}+x_{\mathrm{test}}$ \\
+    Clock rate: $\lambda=\nu L/365$ (strict or relaxed)
+  };
+
+  % Leave room above both branch boxes for horizontal routing and arrow stems.
+  \coordinate (split) at ($(pb_model.south)+(0,-0.35)$);
+
+  % --- TEMPORAL AND GENETIC BRANCHES ---
+  \node[temporal box, text width=5.75cm, anchor=north] (t_draws) at ($(split)+(-3.25,-0.45)$) {
+    \boxheader{Monte Carlo Time Draws}
+    \nodepart{second}
+    AD: $T_s=\tau_{\mathrm{gen}}+\tau_{\mathrm{obs},j}-\tau_{\mathrm{obs},i}$\\[2pt]
+    CA: $T_s=\tau_{\mathrm{gen}}^{(j)}-\tau_{\mathrm{gen}}^{(i)}$\\
+    \hspace{1.7em}$+\tau_{\mathrm{obs},j}-\tau_{\mathrm{obs},i}$\\[2pt]
+    \textit{Signed difference for temporal ordering}
+  };
+
+  \node[genetic box, text width=5.75cm, anchor=north] (g_draws) at ($(split)+(3.25,-0.45)$) {
+    \boxheader{Monte Carlo Genetic Draws}
+    \nodepart{second}
+    AD: $B_s=\max\{0,T_s\}$\\[2pt]
+    CA: $B_s=\tau_{\mathrm{gen}}^{(i)}+\tau_{\mathrm{gen}}^{(j)}+\tau_{\mathrm{obs},i}+\tau_{\mathrm{obs},j}$\\[2pt]
+    Deterministic: $G_s=\lambda B_s$\\[2pt]
+    Stochastic: $G_s\sim\operatorname{Poisson}(\lambda B_s)$
+  };
+
+  % Align the compatibility boxes below whichever draw box is taller.
+  \path let \p1=(t_draws.south), \p2=(g_draws.south) in
+    coordinate (compat_level) at (6.25,{min(\y1,\y2)-0.55cm});
+  \node[neutral box, text width=3.75cm, anchor=north] (t_comp) at ($(compat_level)+(-3.25,0)$) {
+    \boxheader{Temporal Compatibility}
+    \nodepart{second}
+    $C_{T,s}=1-2|\widehat F_{T,s}(t_{ij})-0.5|$
+  };
+
+  \node[neutral box, text width=3.75cm, anchor=north] (g_comp) at ($(compat_level)+(3.25,0)$) {
+    \boxheader{Genetic Compatibility}
+    \nodepart{second}
+    $C_{G,s}=1-2|\widehat F_{G,s}(g_{ij})-0.5|$
+  };
+
+  % Combine both scores before the final downward arrow.
+  \path let \p1=(t_comp.south), \p2=(g_comp.south) in
+    coordinate (merge) at (6.25,{min(\y1,\y2)-0.35cm});
+  \node[final box, text width=4.85cm, anchor=north] (final) at ($(merge)+(0,-0.45)$) {
+    \boxheader{Aggregated Compatibility Score}
+    \nodepart{second}
+    Scenario: $C_s(i,j)=C_{T,s}\cdot C_{G,s}$ \\
+    Target Set: $C_{\mathcal{S}_\star}(i,j)=\sum_{s\in\mathcal{S}_\star}C_s(i,j)$
+  };
+
+  % --- CONNECTIONS ---
+  \draw[flow] (input.south) -- (scenarios_border.north);
+  \draw[flow] (scenarios_border.south) -- (pb_model.north);
+
+  % Plain lines at junctions; arrowheads only at destination boxes.
+  \draw[connector] (pb_model.south) -- (split);
+  \draw[flow] (split) -| (t_draws.north);
+  \draw[flow] (split) -| (g_draws.north);
+
+  \draw[flow] (t_draws.south) -- (t_comp.north);
+  \draw[flow] (g_draws.south) -- (g_comp.north);
+
+  \draw[connector] (t_comp.south) |- (merge);
+  \draw[connector] (g_comp.south) |- (merge);
+  \draw[flow] (merge) -- (final.north);
+
+\end{tikzpicture}
+\end{document}
