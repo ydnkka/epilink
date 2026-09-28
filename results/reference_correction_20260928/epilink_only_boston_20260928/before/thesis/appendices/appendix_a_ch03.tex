@@ -1,0 +1,396 @@
+\chapter{Recent Transmission Compatibility}\label{app:epilink}
+
+\section{EpiLink Model Derivation}\label{sec:app_ch3_model_derivation}
+
+\subsection{Observed pair and target quantity}\label{sec:app_ch3_observed_pair}
+
+For a sampled pair of cases $(i,j)$, EpiLink uses two observed quantities:
+
+\[
+	t_{ij} = t_j - t_i,
+	\qquad
+	g_{ij} = \text{consensus genetic distance between } i \text{ and } j.
+\]
+
+The signed testing-time difference $t_{ij}$ is measured in days, while $g_{ij}$ is measured in substitutions or approximate single-nucleotide polymorphism (SNP) counts. The sign of $t_{ij}$ is retained because an ancestor-descendant scenario is directional: if $i$ infects $j$, the expected value of $t_j-t_i$ is usually positive, although observation delays can blur this relationship. Common-ancestor scenarios can support pairs sampled on either side of one another in time.
+
+The output is a compatibility score. It measures how centrally the observed pair lies within Monte Carlo distributions generated under explicit recent-transmission scenarios. It is not a posterior probability that two sampled cases are linked by a specific epidemiological scenario, and it does not attempt to infer a complete transmission tree.
+
+\subsection{Biological timing model}\label{sec:app_ch3_hart_model}
+
+The temporal component of EpiLink is built from a shared process-based model. The model separates infection into latent ($E$), presymptomatic infectious ($P$), and symptomatic infectious ($I$) stages, with Gamma-distributed durations ($y_E$, $y_P$, and $y_I$ respectively). This follows the variable-infectiousness framework used for SARS-CoV-2 generation-time modelling \citep{Hart2021,Hart2022}, and is consistent with evidence for incubation periods centred around five days and substantial presymptomatic transmission \citep{He2020,Ferretti2020,Lauer2020,McAloon2020}.
+
+\[
+	y_E \sim \Gamma(k_E,\theta_{\mathrm{inc}}),
+	\qquad
+	y_P \sim \Gamma(k_P,\theta_{\mathrm{inc}}),
+	\qquad
+	y_I \sim \Gamma(k_I,\theta_I).
+\]
+
+The presymptomatic shape parameter is defined by
+
+\[
+	k_P = k_{\mathrm{inc}} - k_E,
+\]
+
+so that the incubation period is
+
+\[
+	\tau_{\mathrm{inc}} = y_E + y_P
+	\sim \Gamma(k_{\mathrm{inc}},\theta_{\mathrm{inc}}).
+\]
+
+In the implementation used here, $k_I=1$ and
+
+\[
+	\theta_I = \frac{1}{k_I\mu} = \frac{1}{\mu},
+\]
+
+where $\mu$ is the symptomatic-stage removal rate. The constraint $0 < k_E < k_{\mathrm{inc}}$ ensures that the presymptomatic stage has positive duration.
+
+Transmission timing is then generated relative to the onset of infectiousness. Let $y_{\mathrm{toit}}$ denote the time from onset of infectiousness to transmission. The density used by the \texttt{InfectiousnessToTransmission} profile is \citep{Hart2021}
+
+\[
+	f_{\mathrm{toit}}(y) =
+	\begin{cases}
+		0, & y < 0, \\[6pt]
+		C\!\left[
+			\alpha\{1 - F_P(y)\}
+			+ \displaystyle\int_0^y
+			\{1 - F_I(y - u)\} f_P(u)\,du
+		\right], & y \ge 0,
+	\end{cases}
+\]
+
+where $f_P$ and $F_P$ are the presymptomatic density and cumulative distribution functions, $F_I$ is the symptomatic cumulative distribution function, and $\alpha$ is the ratio of presymptomatic to symptomatic transmission rates. The first term captures transmission before symptom onset; the integral captures transmission after symptom onset, averaged over possible presymptomatic durations ($u = y_P$).
+
+Writing $\lambda_{\mathrm{inc}} = 1/(k_{\mathrm{inc}}\theta_{\mathrm{inc}})$, the normalisation constant is
+
+\[
+	C =
+	\frac{k_{\mathrm{inc}}\lambda_{\mathrm{inc}}\mu}
+	{\alpha k_P \mu + k_{\mathrm{inc}}\lambda_{\mathrm{inc}}},
+\]
+
+and the implied presymptomatic transmission fraction is
+
+\[
+	q_P =
+	\frac{\alpha k_P \mu}
+	{\alpha k_P \mu + k_{\mathrm{inc}}\lambda_{\mathrm{inc}}}.
+\]
+
+Because $\alpha > 1$ in the baseline parameterisation, transmission intensity is higher before symptom onset than after symptom onset, although symptomatic transmission remains possible. The generation interval for a single transmission event is
+
+\[
+	\tau_{\mathrm{gen}} = y_E + y_{\mathrm{toit}},
+\]
+
+where $y_E$ is the time from infection to onset of infectiousness. This gives generation times on the same timescale as empirical SARS-CoV-2 transmission-pair estimates \citep{Ganyani2020,Hart2022}.
+
+The baseline biological timing parameters used in the EpiLink evaluation are
+
+\[
+	k_{\mathrm{inc}} = 5.807,\quad
+	\theta_{\mathrm{inc}} = 0.948\ \mathrm{days},\quad
+	k_E = 3.38,\quad
+	k_I = 1,
+\]
+
+\[
+	\mu = 0.37\ \mathrm{day}^{-1},\quad
+	\alpha = 2.29.
+\]
+
+These values imply $k_P = 2.427$, a mean incubation period of about 5.51 days, and a mean symptomatic-stage duration of about 2.70 days.
+
+\subsection{Observation model for testing times}\label{sec:app_ch3_testing_time_model}
+
+Observed case times are sampling or testing dates, not infection dates. EpiLink therefore models a delay from symptom onset to testing:
+
+\[
+	x_{\mathrm{test}} \sim
+	\Gamma(k_{\mathrm{test}}, \theta_{\mathrm{test}}),
+\]
+
+drawn independently for each sampled case. The exposure-to-testing observation interval is
+
+\[
+	\tau_{\mathrm{obs}} = \tau_{\mathrm{inc}} + x_{\mathrm{test}}.
+\]
+
+For a latent reference infection time $t_x$ and a scenario-specific elapsed time $A_k(s)$ from that reference point to the infection of sampled case $k \in \{i,j\}$,
+
+\[
+	t_{\mathrm{test},k} = t_x + A_k(s) + \tau_{\mathrm{obs},k}.
+\]
+
+Subtracting the two testing times cancels the unknown reference time and gives the scenario-implied testing-time difference
+
+\[
+	T_s = A_j(s) - A_i(s)
+	+ \tau_{\mathrm{obs},j} - \tau_{\mathrm{obs},i}.
+\]
+
+The baseline testing-delay parameters used in the EpiLink evaluation are mean 1.0 day and coefficient of variation 1.0, giving an exponential delay with $k_{\mathrm{test}} = 1$ and $\theta_{\mathrm{test}} = 1$ day.
+
+\subsection{Latent scenario space}\label{sec:app_ch3_latent_scenario_space}
+
+EpiLink compares each pair with candidate latent transmission histories while distinguishing the simulated scenario set from the scored target set. Let $M$ be the maximum number of unsampled intermediates, excluding the shared source in a common-ancestor scenario. This generalisation is included for completeness; the evaluations in Chapter~\ref{ch:epilink} use only $M=0$. The candidate scenario set is
+
+\[
+	\mathcal{S}_M =
+	\Bigl\{\, H_{\mathrm{AD}}(m) \mid m \in \{0,\dots,M\} \,\Bigr\}
+	\cup
+	\Bigl\{\, H_{\mathrm{CA}}(m_i,m_j) \mid m_i,m_j \in \mathbb{Z}_{\ge 0},\;
+	m_i+m_j \le M \,\Bigr\}.
+\]
+
+Here, $H_{\mathrm{AD}}(m)$ is an ancestor-descendant scenario in which case $j$ descends from sampled case $i$ through $m$ unsampled intermediates. $H_{\mathrm{CA}}(m_i,m_j)$ is a common-ancestor scenario in which both sampled cases descend from the same unsampled source through branch depths $m_i$ and $m_j$. The labels $H_{\mathrm{CA}}(m_i,m_j)$ and $H_{\mathrm{CA}}(m_j,m_i)$ are generally distinct because EpiLink scores the signed difference $t_{ij}$.
+
+In the baseline analyses, we set $M=0$ and use the deliberately narrow target
+
+\[
+	\mathcal{S}_\star =
+	\{H_{\mathrm{AD}}(0), H_{\mathrm{CA}}(0,0)\}
+	= \mathcal{S}_0.
+\]
+
+This target treats recent linkage as either direct transmission from $i$ to $j$ or co-primary infection from a shared recent source. The target subset $\mathcal{S}_\star\subseteq\mathcal{S}_M$ determines which scenario-level compatibilities are summed into the final score. Increasing $M$ admits longer unsampled chains into the candidate scenario space, but those histories affect the reported score only if included in $\mathcal{S}_\star$.
+
+\subsection{Scenario-specific temporal distributions}\label{sec:app_ch3_scenario_temporal_distributions}
+
+The elapsed infection times $A_i(s)$ and $A_j(s)$ are scenario-specific sums of generation intervals. For ancestor-descendant scenarios, the sampled ancestor $i$ is the reference case:
+
+\[
+	A_i(H_{\mathrm{AD}}(m)) = 0,
+	\qquad
+	A_j(H_{\mathrm{AD}}(m)) =
+	\sum_{r=0}^{m}\tau_{\mathrm{gen},r}.
+\]
+
+Substitution into the general testing-time contrast gives
+
+\[
+	T_{ij}(H_{\mathrm{AD}}(m)) =
+	\sum_{r=0}^{m}\tau_{\mathrm{gen},r}
+	+ \tau_{\mathrm{obs},j} - \tau_{\mathrm{obs},i}.
+\]
+
+For common-ancestor scenarios, both sampled cases descend from a shared unsampled source, which is treated as the reference point:
+
+\[
+	A_i(H_{\mathrm{CA}}(m_i,m_j)) =
+	\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)},
+	\qquad
+	A_j(H_{\mathrm{CA}}(m_i,m_j)) =
+	\sum_{r=1}^{m_j+1}\tau_{\mathrm{gen},r}^{(j)}.
+\]
+
+The corresponding testing-time difference is
+
+\[
+	T_{ij}(H_{\mathrm{CA}}(m_i,m_j)) =
+	\sum_{r=1}^{m_j+1}\tau_{\mathrm{gen},r}^{(j)}
+	- \sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
+	+ \tau_{\mathrm{obs},j} - \tau_{\mathrm{obs},i}.
+\]
+
+The $N_s$ simulated temporal draws under scenario $s$ are
+
+\[
+	\{T_s^{(r)} : r = 1,\ldots,N_s\}.
+\]
+
+\subsection{Branch length and genetic model}\label{sec:app_ch3_branch_length_genetic_model}
+
+The same latent transmission history defines an effective transmission-related branch length $B_s$ in days. This is the amount of evolutionary time separating the two sampled consensus genomes under scenario $s$.
+
+\subsubsection{Ancestor-descendant branch length}
+
+For ancestor-descendant scenarios,
+
+\[
+	\widetilde{B}_{ij}(H_{\mathrm{AD}}(m)) =
+	\sum_{r=0}^{m}\tau_{\mathrm{gen},r}
+	+ \tau_{\mathrm{obs},j} - \tau_{\mathrm{obs},i}.
+\]
+
+This equals the temporal contrast for the ancestor-descendant scenario. However, the contrast can become negative if the putative ancestor is tested substantially later than the descendant because of observation-delay variation. Since branch lengths cannot be negative, the implementation uses
+
+\[
+	B_{ij}(H_{\mathrm{AD}}(m)) =
+	\max\{0,\widetilde{B}_{ij}(H_{\mathrm{AD}}(m))\}.
+\]
+
+\subsubsection{Common-ancestor branch length}
+
+For common-ancestor scenarios, genetic separation accumulates along both descendant lineages from the shared unsampled source:
+
+\[
+	B_{ij}(H_{\mathrm{CA}}(m_i,m_j)) =
+	\sum_{r=1}^{m_i+1}\tau_{\mathrm{gen},r}^{(i)}
+	+ \sum_{r=1}^{m_j+1}\tau_{\mathrm{gen},r}^{(j)}
+	+ \tau_{\mathrm{obs},i} + \tau_{\mathrm{obs},j}.
+\]
+
+Unlike the ancestor-descendant contrast, this quantity is always non-negative and increases as additional unsampled intermediates are included.
+
+\subsubsection{Molecular clock and mutation model}
+
+Let $\nu$ be the substitution rate in substitutions per site per year and $L$ the genome length in sites. The corresponding per-genome daily rate is
+
+\[
+	\lambda = \frac{\nu L}{365}.
+\]
+
+Under a strict molecular clock, $\lambda$ is fixed across draws. Under the relaxed-clock option, EpiLink samples draw-specific rates from an uncorrelated log-normal distribution \citep{Drummond2006}. A mean-preserving parameterisation is
+
+\[
+	\nu^{(r)} \sim
+	\operatorname{LogNormal}\!\left(
+		\log \nu - \frac{1}{2}\sigma_\nu^2,\;
+		\sigma_\nu^2
+	\right),
+	\qquad
+	\lambda^{(r)} = \frac{\nu^{(r)} L}{365},
+\]
+
+where $\sigma_\nu$ is the clock-relaxation parameter. The baseline evaluation uses $\nu = 10^{-3}$ substitutions per site per year, $L = 29{,}903$ sites for rate scaling, and $\sigma_\nu = 0.33$ for the relaxed-clock variant. This rate scaling is used in both synthetic data generation and inference. The simulated sequences themselves contain 5,000 sites, a separate setting from $L$; the Boston alignment contains 29,903 nucleotides.
+
+Given a branch-length draw $B_s^{(r)}$, the deterministic genetic model maps elapsed evolutionary time to an expected consensus genetic distance:
+
+\[
+	G_s^{(r)} = \lambda^{(r)} B_s^{(r)}.
+\]
+
+The stochastic mutation model instead samples realised mutation counts around that expectation:
+
+\[
+	G_s^{(r)} \mid B_s^{(r)},\lambda^{(r)}
+	\sim \mathrm{Poisson}\!\left(\lambda^{(r)} B_s^{(r)}\right).
+\]
+
+Thus the deterministic model gives the expected number of substitutions for a branch length and clock rate, whereas the stochastic model adds Poisson variation around that expectation \citep{Jombart2010}.
+
+\subsection{Compatibility score}\label{sec:app_ch3_compatibility_score}
+
+For each scenario $s$, EpiLink caches $N_s$ Monte Carlo draws
+\[
+    \bigl\{(T_s^{(r)},B_s^{(r)},G_s^{(r)}):r=1,\ldots,N_s\bigr\}.
+\]
+The evaluation uses $N_s=10{,}000$ for each scenario. Superscript $r$ indexes a simulation draw, subscripts $i,j$ identify observed cases, and $s$ identifies a transmission scenario. For either quantity $X\in\{T,G\}$, define
+\[
+    \widehat F_{X,s}(x)
+    =\frac{1}{N_s}\sum_{r=1}^{N_s}\mathbf{1}\{X_s^{(r)}\le x\},
+    \qquad
+    c_{X,s}(x)=1-2\left|\widehat F_{X,s}(x)-\tfrac{1}{2}\right|.
+\]
+The indicator is one when the simulated value is at or below $x$ and zero otherwise. Thus $\widehat F$ denotes an empirical cumulative distribution function, while lowercase $c$ denotes its scalar compatibility transformation. Ties are included in the count, matching the implementation's right-inclusive empirical distribution. No midrank or randomised tie adjustment is applied.
+
+The transformation reaches one at an empirical percentile of one half and zero at percentiles zero and one. For a discrete distribution, an observed median need not have empirical percentile exactly one half. In particular, Poisson genetic draws contain ties, so it is not generally correct to say that compatibility equals one at the median. Symmetry of the transformation refers to the percentile scale, rather than equal distances on the original time or genetic scale.
+
+For the observed pair, the component and scenario scores are
+\begin{align*}
+    C_{T,s}(i,j)&=c_{T,s}(t_{ij}), &
+    C_{G,s}(i,j)&=c_{G,s}(g_{ij}),\\
+    C_s(i,j)&=C_{T,s}(i,j)\,C_{G,s}(i,j).
+\end{align*}
+The product is high only when both observations have high component scores under the same scenario. The temporal and genetic draws share an underlying simulated history, so this product should not be interpreted as a joint likelihood or as evidence that the two quantities are independent.
+
+For the selected target set,
+\[
+    C_{\mathcal{S}_\star}(i,j)
+    =\sum_{s\in\mathcal{S}_\star}C_s(i,j),
+    \qquad
+    0\le C_{\mathcal{S}_\star}(i,j)\le |\mathcal{S}_\star|.
+\]
+Here $|\mathcal{S}_\star|$ is the number of selected scenarios. The evaluated set contains two scenarios, so the sum can exceed one and has upper bound two. This bound need not be attained. The sum is a compatibility score, not a mixture probability, and its scale depends on the selected scenarios.
+
+\subsection{Evaluation measures and averaging}\label{sec:app_ch3_evaluation_definitions}
+
+For an undirected graph with pairwise weights $w_{ij}$, let $\mathcal{E}$ contain each scored unordered pair once. The total weight retained at threshold $\tau$ and its retained fraction are
+\[
+    W(\tau)=\sum_{\{i,j\}\in\mathcal{E}}w_{ij}\mathbf{1}\{w_{ij}\ge\tau\},
+    \qquad R_W(\tau)=\frac{W(\tau)}{W(0)}.
+\]
+The denominator is positive for the analysed graphs. This weights each edge by its score; the retained edge count instead counts each qualifying pair once. For Boston, the reference set comprises pairs reported by \texttt{tn93}, not every possible pair among the 772 sequences.
+
+\paragraph{Reference memberships and BCubed.}
+For case $u$, the reference neighbourhood is
+\[
+    \mathcal{R}_u=\{u\}\cup\operatorname{succ}(u),
+\]
+where $\operatorname{succ}(u)$ contains its direct infectees. Neighbourhoods overlap because a case can appear in its own neighbourhood and that of its infector. Extended BCubed evaluates agreement between sets of cluster labels assigned to each case \citep{Amigo2008}. For cases $i,j$, write $a_{ij}$ for the number of inferred cluster labels they share and $b_{ij}$ for the number of reference labels they share. The pair contributions are
+\[
+    p_{ij}=\frac{\min(a_{ij},b_{ij})}{a_{ij}}\quad(a_{ij}>0),
+    \qquad
+    r_{ij}=\frac{\min(a_{ij},b_{ij})}{b_{ij}}\quad(b_{ij}>0).
+\]
+For each case, precision averages $p_{ij}$ over cases sharing an inferred label, and recall averages $r_{ij}$ over cases sharing a reference label. Each includes the focal case itself. These case averages are then averaged equally over cases with non-empty memberships in both assignments. If the resulting precision and recall are $P$ and $R$, then $F_1=2PR/(P+R)$, with zero used when both are zero. The corrected reference builder implements this neighbourhood definition, with validation documented below.
+
+\paragraph{Temporal overlap.}
+Let $U_w$ be the cases available at cumulative update $w$, and let $K_w=U_w\cap U_{w+1}$. For shared case $k\in K_w$, let $A_{k,w}$ and $B_{k,w+1}$ be the full membership sets of its earlier and later clusters. With $|A|$ denoting the number of members in set $A$, the implemented measures are
+\begin{align*}
+    O^{\mathrm{forward}}_{k,w}
+      &=\frac{|A_{k,w}\cap B_{k,w+1}|}{|B_{k,w+1}|},\\
+    O^{\mathrm{backward}}_{k,w}
+      &=\frac{|A_{k,w}\cap B_{k,w+1}|}{|A_{k,w}|},\\
+    J_{k,w}
+      &=\frac{|A_{k,w}\cap B_{k,w+1}|}{|A_{k,w}\cup B_{k,w+1}|}.
+\end{align*}
+All denominators are non-zero because each set contains $k$. A weekly mean is computed over the shared cases, for example
+\[
+    \overline J_w=\frac{1}{|K_w|}\sum_{k\in K_w}J_{k,w}.
+\]
+The baseline temporal-stability summary averages $\overline J_w$ equally over the available weekly transitions. It is not an equal average over clusters: larger clusters can contribute through more shared cases. Although only shared cases anchor the comparisons, the later membership sets include newly arriving cases. Forward and Jaccard overlap can therefore decrease when new cases join an otherwise preserved cluster. No best-match search or one-to-one cluster assignment is performed.
+
+\subsection{Completed reference-membership correction}\label{sec:app_ch3_reference_audit}
+
+The reference builder previously used \texttt{set(node\_label)}, which split string identifiers into digits when adding the focal case. It now uses \texttt{\{node\_label\}}, with both entry points calling one shared implementation. Regression checks confirm exactly 4,990 reference cases, no missing or extra identifiers, one membership for root case 4537061, and two for every other case. They also cover integer and multi-digit string identifiers, roots, leaves, overlapping memberships, and invariance to consistent identifier renaming.
+
+The baseline and all twelve perturbations were recalculated under both inference conditions, together with early-case resolution selection, temporal stability, and all 60 synthetic TreeCluster settings. Historical F1 values reproduced under the previous reference; baseline pair labels and scores, all AP values, and resolution stability between fixed partitions also reproduced. AP summaries were therefore retained. Boston's corrected early-case selection gave $\gamma=0.2$, and its memberships, exposure summaries, and TreeCluster overlaps were regenerated. Earlier outputs, code versions, configuration, and seed 12345 were archived. The simulation design, grids, thresholds, restart counts, and dated trees were preserved.
+
+\section{Supplementary Evaluation}\label{sec:app_ch3_supplementary_evaluation}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{temporal}
+	\caption[Temporal stability of cluster partitions as the epidemic accumulates]{
+		\textbf{Temporal stability of cluster partitions as the epidemic accumulates.} Mean forward overlap, backward overlap, and Jaccard index across cases shared by consecutive cumulative weekly partitions (Section~\ref{sec:app_ch3_evaluation_definitions}), plotted against epidemic week for all six models. Most models were least stable during the first two transitions. EDS and ESS also showed lower overlap in later updates. LS was the only model whose weekly mean Jaccard index never fell below 0.7 across the 25 transitions.}\label{fig:app_s1_temporal_stability}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{treecluster_comparison}
+	\caption[Supplementary comparison with dated-tree TreeCluster on the synthetic baseline]{
+		\textbf{Supplementary comparison with dated-tree TreeCluster on the synthetic baseline.} Best BCubed F1 for TreeCluster over method and threshold grid, compared with EpiLink-Leiden and logistic-regression-Leiden models. TreeCluster assigns each sequence to one cluster and does not return pairwise scores, so AP was not calculated. All candidate TreeCluster partitions were rescored against the corrected reference memberships using the existing dated trees.}\label{fig:app_s2_treecluster_synthetic}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{perturbation}
+	\caption[Consistency of performance across perturbation scenarios]{\textbf{Consistency of performance across perturbation scenarios.} Performance metrics under matched and mismatched conditions, evaluated across all 12 perturbation scenarios. In the matched condition, inference parameters were updated to reflect each perturbed data-generation scenario. In the mismatched condition, inference parameters were held fixed at baseline while data-generation parameters varied. Bars show means across the twelve scenarios. LD had the highest mean AP and F1 under both conditions; ESD had the highest means among the EpiLink variants. (A) Average precision (AP). (B) Best F1 score across Leiden resolution sweep. (C) Mean resolution stability, defined as F1 between consecutive Leiden resolution steps and used to measure robustness to the choice of resolution parameter. (D) SD of resolution stability. Error bars show 95\% bootstrap confidence intervals across the twelve scenarios.}\label{fig:app_s3_perturbation_performance}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.8\textwidth]{ap_loss}
+	\caption[Sensitivity of average precision (AP) to perturbations of data-generating parameters]{
+		\textbf{Sensitivity of average precision (AP) to perturbations of data-generating parameters.} Relative change in AP compared with baseline, calculated as (scenario AP minus baseline AP) divided by baseline AP, for each model across twelve perturbation scenarios. In the matched condition, inference parameters were updated to reflect each scenario; in the mismatched condition, they were held fixed at baseline. Each row corresponds to a perturbation scenario. Positive values indicate improvement; negative values indicate reduced performance. Arrows indicate values exceeding the axis range.}\label{fig:app_s4_ap_sensitivity}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{epilink_vs_treecluster_similarity}
+	\caption[Partition agreement between EpiLink-Leiden and dated-tree TreeCluster in the Boston dataset]{
+		\textbf{Partition agreement between EpiLink-Leiden and dated-tree TreeCluster in the Boston dataset.} Adjusted Rand index and adjusted mutual information across TreeCluster \texttt{avg\_clade} thresholds and Leiden resolutions. The exported Boston TreeCluster partition used \texttt{avg\_clade} at 28 days.}\label{fig:app_s5_boston_treecluster}
+\end{figure}
+
+
+\begin{table}[htbp]
+    \centering
+    \caption[Sample overlap between Boston clusters]{\textbf{Sample overlap between Boston clusters.} For each EpiLink focus cluster, the TreeCluster group sharing the largest number of sequences is shown; ties are resolved by higher Jaccard overlap. EpiLink (EL) uses the corrected selected resolution $\gamma=0.2$ and TreeCluster (TC) uses \texttt{avg\_clade} at 28 days. EL and TC percentages divide the shared count by the corresponding full cluster size. Jaccard divides it by the union size. The comparison uses the same 772 sequence identifiers; each TreeCluster singleton is treated as a separate group. These are descriptive membership comparisons under fixed settings, not accuracy estimates.}\label{tab:app_ch3_boston_overlap}
+    \input{assets/epilink/ch3_descriptives/boston_overlap_table}
+\end{table}

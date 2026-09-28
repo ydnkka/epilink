@@ -4,17 +4,17 @@
   "saved_focus_composition_and_edge_summaries_reproduced": true,
   "samples": 772,
   "scored_pairs": 276056,
-  "non_singleton_clusters": 68,
-  "non_singleton_samples": 661,
-  "singletons": 111,
+  "non_singleton_clusters": 77,
+  "non_singleton_samples": 641,
+  "singletons": 131,
   "threshold": 0.0001,
-  "resolution": 0.2,
-  "modularity": 0.5303137224109461,
+  "resolution": 0.3,
+  "modularity": 0.4570936248039559,
   "retained_edges": 172953,
   "retained_weight_fraction": 0.9998979552355005,
   "settings": {
     "minimum_edge_weight": 0.0001,
-    "resolution": 0.2,
+    "resolution": 0.3,
     "min_cluster_size": 2,
     "focus_exposures": [
       "Conference",
@@ -41,36 +41,35 @@
   "named_overlaps": [
     {
       "exposure": "SNF",
-      "epilink_cluster": 7,
+      "epilink_cluster": 11,
       "treecluster_group": "cluster:40",
-      "epilink_size": 96,
+      "epilink_size": 84,
       "treecluster_size": 71,
       "shared": 69,
-      "epilink_overlap_percent": 71.875,
+      "epilink_overlap_percent": 82.14285714285714,
       "treecluster_overlap_percent": 97.1830985915493,
-      "jaccard": 0.7040816326530612
+      "jaccard": 0.8023255813953488
     },
     {
       "exposure": "Conference",
       "epilink_cluster": 21,
       "treecluster_group": "cluster:34",
-      "epilink_size": 31,
+      "epilink_size": 29,
       "treecluster_size": 12,
       "shared": 7,
-      "epilink_overlap_percent": 22.580645161290324,
+      "epilink_overlap_percent": 24.137931034482758,
       "treecluster_overlap_percent": 58.333333333333336,
-      "jaccard": 0.19444444444444445
+      "jaccard": 0.20588235294117646
     }
   ],
   "source_sha256": {
-    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/config.yaml": "01604fb3e6464cf3dff6b73995ed47e677ae334eff7c0d29ad96db449de15cf8",
-    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_composition.parquet": "0b5537503183bd6a73f8f4a37cb6ec6d64e1b1873caef29f69a0ff6eec7cdf51",
-    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_sizes.parquet": "275e62969bbfcc131b5962dad390f35242db56f2be0dcbdb9aeed09b2f2bb914",
+    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/config.yaml": "b766e494c118092ba210a64b0a0fc11d04174e7ae68e09aa00db0866436ec5b9",
+    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_composition.parquet": "62d84d828d2caf86b55d29c51d76dac0c9178d0459f2a4608774a229a83e7bad",
+    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_sizes.parquet": "28d9b69d680e014625cc7ba1d81e7445242d22cc03769bdd6e5e4dea9d498209",
     "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/phylo/clusters.tsv": "52be5c7de541fc70cff5ee7b35f44abf37d6aeae42920ee65d12dfacc3e13c74",
     "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/data/processed/boston/boston_metadata.parquet": "0290827f8020f3cf4fcb83d39816db9ac3fa8b52271c93f634f29b49f78d1f0f",
     "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/data/processed/boston/boston_pairwise_distances.parquet": "835e804c1dc453da1145c8df4c8a97ce9be9a335194bfdb16d993fbda6e501d9",
     "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/boston.py": "38fc4eaa8b5dd308894c1642800d4a82d55da95a16fbe87d7e1982ce7905c8b8",
-    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/leiden.py": "d20ffde481df56788688e126a5328d693414a8714566cc3dabca6e37485490e2",
-    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/chapter3_descriptives.py": "b7f7345e8349cb8285544512ab09aa16bc6864256f77ab013932b917eea999b7"
+    "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/leiden.py": "d20ffde481df56788688e126a5328d693414a8714566cc3dabca6e37485490e2"
   }
 }

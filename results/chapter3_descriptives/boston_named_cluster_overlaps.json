@@ -1,24 +1,24 @@
 [
   {
     "exposure": "SNF",
-    "epilink_cluster": 7,
+    "epilink_cluster": 11,
     "treecluster_group": "cluster:40",
-    "epilink_size": 96,
+    "epilink_size": 84,
     "treecluster_size": 71,
     "shared": 69,
-    "epilink_overlap_percent": 71.875,
+    "epilink_overlap_percent": 82.14285714285714,
     "treecluster_overlap_percent": 97.1830985915493,
-    "jaccard": 0.7040816326530612
+    "jaccard": 0.8023255813953488
   },
   {
     "exposure": "Conference",
     "epilink_cluster": 21,
     "treecluster_group": "cluster:34",
-    "epilink_size": 31,
+    "epilink_size": 29,
     "treecluster_size": 12,
     "shared": 7,
-    "epilink_overlap_percent": 22.580645161290324,
+    "epilink_overlap_percent": 24.137931034482758,
     "treecluster_overlap_percent": 58.333333333333336,
-    "jaccard": 0.19444444444444445
+    "jaccard": 0.20588235294117646
   }
 ]

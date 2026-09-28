@@ -68,6 +68,7 @@ from plotting import (
     set_plos_theme,
 )
 from sklearn.metrics import precision_recall_curve
+from stability import epilink_resolution_shortfalls
 
 LOGGER = logging.getLogger(__name__)
 
@@ -435,15 +436,12 @@ def make_fig_stability() -> Figure:
 
 
 def make_fig_resolution_regret() -> Figure:
-    """Mean regret from the per-model optimum, with IQR shading."""
+    """Mean EpiLink F1 shortfall, with IQR across its four configurations."""
     selection = read_result_table("stability", "stability_resolution_selection.parquet")
-    best_f1 = selection.groupby("weight")["f1_score"].transform("max")
-    selection = selection.assign(regret=best_f1 - selection["f1_score"])
-
-    grouped = selection.groupby("resolution")["regret"]
-    summary = grouped.mean().rename("mean").to_frame()
-    summary["q25"] = grouped.quantile(0.25)
-    summary["q75"] = grouped.quantile(0.75)
+    shortfalls = epilink_resolution_shortfalls(selection)
+    summary = shortfalls.mean(axis=1).rename("mean").to_frame()
+    summary["q25"] = shortfalls.quantile(0.25, axis=1)
+    summary["q75"] = shortfalls.quantile(0.75, axis=1)
     summary = summary.reset_index()
 
     fig, ax = plt.subplots(
@@ -465,7 +463,7 @@ def make_fig_resolution_regret() -> Figure:
         q75,
         color="#64748B",
         alpha=0.20,
-        label="IQR across models",
+        label="IQR across EpiLink configurations",
         zorder=2,
     )
     ax.plot(

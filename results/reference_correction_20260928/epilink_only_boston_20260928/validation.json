@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "selected_resolution": 0.3,
+  "selection_configurations": [
+    "EDD",
+    "EDS",
+    "ESD",
+    "ESS"
+  ],
+  "mean_f1_shortfall_at_selected_resolution": 0.012552863019840363,
+  "mean_f1_shortfall_at_0_2": 0.05955325661902561,
+  "figure_matches_selection_values": true,
+  "logistic_benchmark_models_retained": true,
+  "asset_files_matched": 25,
+  "manuscript_labels_preserved": true,
+  "correction_history_removed_from_thesis": true,
+  "archived_files_verified": 71,
+  "original_boston_0_3_memberships_and_three_summary_tables_exactly_reproduced": true,
+  "unchanged_other_result_and_figure_files": 36,
+  "regression_tests_passed": 11,
+  "scientific_audit": "../validation.json",
+  "workflow_dry_run": "passed",
+  "thesis_compile": "passed"
+}

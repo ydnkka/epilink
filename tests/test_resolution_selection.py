@@ -29,10 +29,23 @@ class ResolutionSelectionTests(unittest.TestCase):
         selection.loc[selection.resolution == 0.2, "f1_score"] = 0.8
         self.assertEqual(select_shared_resolution(selection), 0.2)
 
+    def test_logistic_comparators_do_not_influence_selection(self):
+        selection = self.selection()
+        logistic = selection.weight.isin(["LD", "LS"])
+        selection.loc[logistic, "f1_score"] = 0.0
+        selection.loc[logistic & (selection.resolution == 0.1), "f1_score"] = 1.0
+        self.assertEqual(select_shared_resolution(selection), 0.3)
+        self.assertEqual(select_shared_resolution(selection.loc[~logistic]), 0.3)
+
     def test_missing_or_nonfinite_scores_are_rejected(self):
-        selection = self.selection().iloc[1:]
-        with self.assertRaises(ValueError):
-            select_shared_resolution(selection)
+        selection = self.selection()
+        nonfinite = selection.copy()
+        nonfinite.loc[0, "f1_score"] = float("nan")
+        for invalid in [selection.iloc[1:], selection.loc[selection.weight != "ESS"],
+                        nonfinite, selection.iloc[:0]]:
+            with self.subTest(rows=len(invalid)):
+                with self.assertRaises(ValueError):
+                    select_shared_resolution(invalid)
 
 
 if __name__ == "__main__":

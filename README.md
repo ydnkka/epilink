@@ -267,8 +267,13 @@ PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction report
 These audit commands require the preserved archive and resume completed run
 checkpoints. Use the ordinary workflow for new experiments. The Boston setting
 is selected from the corrected initial-case resolution sweep by minimising the
-mean F1 shortfall across all six models, with ties choosing the lower resolution.
-The figure reads this setting from the configuration. TreeCluster sweep caches
+mean F1 shortfall across the four EpiLink configurations (EDD, EDS, ESD, ESS),
+with ties choosing the lower resolution. Logistic models remain in the benchmark
+and temporal analyses but do not tune the empirical EpiLink application. This
+criterion selects 0.3. The earlier six-model selection (0.2) is retained in the
+audit comparison and the `epilink_only_boston_20260928/` revision archive.
+The figure uses the same four-configuration calculation and reads the selected
+setting from the configuration. TreeCluster sweep caches
 include a reference fingerprint, so historical metric caches cannot silently be
 reused after a change to the reference map.
 Restart notebook kernels after changing evaluation modules to clear imported

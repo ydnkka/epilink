@@ -372,6 +372,9 @@ def write_report():
         "treecluster_best": tc_best.to_dict(orient="records"),
         "increased_incubation_cv_under_mismatch": cv_best.to_dict(orient="records"),
         "boston_resolution": chosen,
+        "boston_resolution_selection": json.loads(
+            (AUDIT / "boston_resolution_selection.json").read_text()
+        ),
         "baseline": summary,
         "boston": json.loads(
             (
@@ -379,7 +382,7 @@ def write_report():
                 / "results/chapter3_descriptives/boston_descriptive_validation.json"
             ).read_text()
         ),
-        "scope_note": "Chapter 4 now distinguishes the historical Scottish resolution 0.3 from the corrected Boston selection 0.2. Scottish results and their primary-resolution choice were not reanalysed in this correction.",
+        "scope_note": "Boston's empirical EpiLink tuning now uses the four EpiLink configurations and selects 0.3; the six-model criterion selecting 0.2 is retained in the audit. Scottish results and their primary resolution 0.3 were not reanalysed. The thesis describes the final methods without draft correction history.",
     }
     (AUDIT / "validation.json").write_text(json.dumps(report, indent=2) + "\n")
     lines = [
@@ -388,7 +391,7 @@ def write_report():
         "All 26 synthetic runs, the early-case sweep, temporal partitions, 60 TreeCluster settings, and Boston summaries have been recalculated.",
         "",
         "The corrected reference covers exactly 4,990 cases, including root 4537061. Historical F1 and reference-independent metrics were checked against archived outputs before accepting changes. Baseline pair labels and scores reproduced; AP summaries were retained.",
-        "The root has one membership and every other case has two. Input data, dated trees, EpiLink model sources, simulation settings, thresholds, resolution grids, and restart counts are unchanged. The sole analysis-configuration change is Boston's selected resolution.",
+        "The root has one membership and every other case has two. Input data, dated trees, EpiLink model sources, simulation settings, thresholds, resolution grids, and restart counts are unchanged. Boston's selection criterion now includes only EpiLink; its selected resolution returns to the original value 0.3.",
         "",
         "| Model | Previous F1 | Corrected F1 | Precision | Recall | Baseline resolution | Temporal resolution | Temporal Jaccard |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -399,7 +402,7 @@ def write_report():
     ]
     lines += [
         "",
-        f"Boston's minimum-mean-shortfall resolution changed from 0.3 to {chosen:g}. Its regenerated memberships and descriptive checks are recorded in validation.json.",
+        f"Boston's minimum-mean-shortfall resolution is {chosen:g} across EDD, EDS, ESD, and ESS. The earlier six-model criterion selected 0.2. The revised scope matches empirical EpiLink tuning, while logistic comparators remain in the synthetic and temporal benchmarks. Both selection criteria are recorded in boston_resolution_selection.json; the previous outputs are preserved in epilink_only_boston_20260928/before/. Regenerated memberships and descriptive checks are recorded in validation.json.",
         "",
         "| TreeCluster input | Selected method | Threshold (days) | Precision | Recall | F1 |",
         "| --- | --- | ---: | ---: | ---: | ---: |",
@@ -690,13 +693,14 @@ def main():
             stability.bcubed_scores = original
         return
     if args.stage == "select-boston":
-        from .stability import select_shared_resolution
+        from .stability import epilink_resolution_shortfalls, select_shared_resolution
         import re
 
         selection = pd.read_parquet(
             ROOT / "results/stability/stability_resolution_selection.parquet"
         )
         chosen = select_shared_resolution(selection)
+        previous_resolution = load_config()["workflows"]["boston"]["resolution"]
         config_path = ROOT / "config.yaml"
         source = config_path.read_text()
         source, count = re.subn(
@@ -709,14 +713,21 @@ def main():
         scores = selection.pivot(
             index="resolution", columns="weight", values="f1_score"
         ).sort_index()
-        regret = (scores.max() - scores).mean(axis=1)
+        all_model_regret = (scores.max() - scores).mean(axis=1)
+        shortfalls = epilink_resolution_shortfalls(selection)
+        regret = shortfalls.mean(axis=1)
         (AUDIT / "boston_resolution_selection.json").write_text(
             json.dumps(
                 {
-                    "previous_resolution": 0.3,
+                    "previous_resolution": previous_resolution,
                     "selected_resolution": chosen,
-                    "rule": "minimum mean F1 shortfall across six models on initial weekly cases; lower resolution breaks ties",
+                    "rule": "minimum equally weighted mean F1 shortfall across four EpiLink configurations on initial weekly cases; lower resolution breaks ties",
+                    "models": list(shortfalls.columns),
                     "mean_regret": {str(k): v for k, v in regret.items()},
+                    "all_six_model_comparison": {
+                        "selected_resolution": float(all_model_regret.idxmin()),
+                        "mean_regret": {str(k): v for k, v in all_model_regret.items()},
+                    },
                 },
                 indent=2,
             )

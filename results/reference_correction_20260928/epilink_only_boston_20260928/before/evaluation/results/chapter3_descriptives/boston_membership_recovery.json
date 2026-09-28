@@ -1,0 +1,38 @@
+{
+  "membership_origin": "reconstructed with current configuration and checked against saved Boston summaries",
+  "saved_cluster_sizes_reproduced": true,
+  "saved_focus_composition_and_edge_summaries_reproduced": true,
+  "samples": 772,
+  "scored_pairs": 276056,
+  "non_singleton_clusters": 68,
+  "non_singleton_samples": 661,
+  "singletons": 111,
+  "threshold": 0.0001,
+  "resolution": 0.2,
+  "modularity": 0.5303137224109461,
+  "retained_edges": 172953,
+  "retained_weight_fraction": 0.9998979552355005,
+  "settings": {
+    "minimum_edge_weight": 0.0001,
+    "resolution": 0.2,
+    "min_cluster_size": 2,
+    "focus_exposures": [
+      "Conference",
+      "SNF"
+    ],
+    "n_restarts": 10,
+    "schema": {
+      "metadata_id_col": "SeqID",
+      "metadata_date_col": "Date",
+      "metadata_clade_col": "Clade",
+      "exposure_col": "Exposure",
+      "pairwise_id_col_1": "SeqID1",
+      "pairwise_id_col_2": "SeqID2",
+      "temporal_col": "Temporal_Distance",
+      "genetic_col": "SNP_Distance",
+      "tn93_col": "TN93_Distance",
+      "weight_column": "EpiLinkStochasticScore"
+    }
+  },
+  "seed": 12345
+}

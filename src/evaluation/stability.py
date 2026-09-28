@@ -67,12 +67,27 @@ from specs import (
 LOGGER = logging.getLogger(__name__)
 
 
+def epilink_resolution_shortfalls(selection: pd.DataFrame) -> pd.DataFrame:
+    """Return F1 shortfalls for the four EpiLink configurations used in tuning.
+
+    Logistic models remain benchmark comparators but do not tune the empirical
+    EpiLink application. All four EpiLink configurations must cover the grid.
+    """
+    model_keys = [spec["key"] for spec in EPILINK_SPECS]
+    scores = (
+        selection.loc[selection["weight"].isin(model_keys)]
+        .pivot(index="resolution", columns="weight", values="f1_score")
+        .sort_index()
+    )
+    if (scores.empty or set(scores.columns) != set(model_keys)
+            or not np.isfinite(scores.to_numpy()).all()):
+        raise ValueError("Resolution selection requires finite scores for every EpiLink configuration and resolution.")
+    return scores.max(axis=0) - scores
+
+
 def select_shared_resolution(selection: pd.DataFrame) -> float:
-    """Minimise mean F1 shortfall across models; break ties by lower resolution."""
-    scores = selection.pivot(index="resolution", columns="weight", values="f1_score").sort_index()
-    if set(scores.columns) != set(MODEL_KEYS) or not np.isfinite(scores.to_numpy()).all():
-        raise ValueError("Resolution selection requires finite scores for every model and resolution.")
-    regret = (scores.max(axis=0) - scores).mean(axis=1)
+    """Minimise mean EpiLink F1 shortfall; break ties by lower resolution."""
+    regret = epilink_resolution_shortfalls(selection).mean(axis=1)
     return float(regret.idxmin())
 
 
@@ -313,7 +328,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     evaluation_metrics.to_parquet(
         results_dir / "stability_resolution_selection.parquet", index=False
     )
-    LOGGER.info("stability: selected model resolutions %s; shared resolution %.1f",
+    LOGGER.info("stability: selected model resolutions %s; shared EpiLink resolution %.1f",
                 model_resolution_map, select_shared_resolution(evaluation_metrics))
 
     case_counts = (

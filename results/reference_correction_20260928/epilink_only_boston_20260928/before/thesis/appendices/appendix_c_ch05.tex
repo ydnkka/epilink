@@ -1,0 +1,131 @@
+\chapter{Cluster Transition Screening}\label{app:cluster_transition_screening}
+
+\section{Supplementary Methods}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{rolling_window_schematic_alternate_retention}
+    \caption[Retained windows for superspreading screening.]{\textbf{Retained windows for superspreading screening.} We retained odd-indexed source windows, giving a 14-day step between their starting dates and a seven-day overlap. Excluded windows are marked with a red cross. This reduces repeated inclusion from at most three source windows to at most two retained windows per sequence, while allowing shared membership to connect consecutive cluster assignments.}\label{fig:alternate_window_retention}
+\end{figure}
+
+\subsection{Transition graph construction details}
+
+Let $G=(V,E)$ denote the directed transition graph, where $V$ contains the clusters defined separately in retained windows and $E$ contains their directed links. For cluster $v \in V$, let $S_v$ contain its unique sequences and $t_v$ its retained-window index. A link $u \rightarrow v$ was added when the clusters occupied consecutive retained windows and shared at least one sequence:
+
+\[
+    t_v = t_u + 1 \quad \text{and} \quad S_u \cap S_v \neq \varnothing.
+\]
+
+The edge weight was defined as
+
+\nopagebreak[4]
+\[
+    w_{uv} = |S_u \cap S_v|,
+\]
+
+representing the number of unique sequences shared by the two cluster assignments.
+
+For focal cluster $v$, let $\mathcal{P}_v=\{p:p\rightarrow v\}$ contain its directly linked earlier clusters, $\mathcal{C}_v=\{c:v\rightarrow c\}$ its directly linked later clusters, and $\mathcal{D}(v)$ all clusters reachable by following links forward, including $\mathcal{C}_v$. These are the graph's parent, child, and descendant sets. When an earlier link was observed, the upstream comparison set combined membership across all directly linked earlier clusters:
+
+\[
+    S_{\mathcal{P}_v}=\bigcup_{p\in\mathcal{P}_v} S_p,
+\]
+
+and upstream novelty was
+
+\[
+    U_v=\frac{|S_v\setminus S_{\mathcal{P}_v}|}{|S_v|}.
+\]
+
+Two quantities describe additional later membership. Direct downstream burden weights the additional membership in each directly linked later cluster by the focal link's share of its incoming shared membership:
+
+\[
+    A_v=\sum_{c:v\rightarrow c}
+    |S_c\setminus S_v|\,
+    \frac{w_{vc}}{\sum_{h:h\rightarrow c} w_{hc}} .
+\]
+
+Cumulative downstream burden counts unique sequences absent from $v$ but present in any later reachable cluster:
+
+\[
+    C_v=
+    \left|
+    \left(\bigcup_{d\in\mathcal{D}(v)} S_d\right)\setminus S_v
+    \right|.
+\]
+
+Sequences appearing in several later clusters are counted once. Both quantities describe sampled representation in the observed graph. The allocation weights do not attribute infections to an infector, and cumulative counts do not establish epidemiological descent.
+
+\subsection{Screening score formulas}
+
+For each size-eligible cluster, cluster size was transformed as $\log(1+n_v)$. The expected mean and standard deviation, $(\mu_{g(v)},\sigma_{g(v)})$, were estimated from the most specific suitable comparison set available: window-by-clade, then window, and finally all screened clusters. A comparison set was used only if it contained at least 20 screened clusters and had non-zero variance. Contextual excess size was then defined as
+
+\[
+    Z_v = \frac{\log(1+n_v)-\mu_{g(v)}}{\sigma_{g(v)}} ,
+\]
+
+where $g(v)$ denotes the selected comparison stratum for cluster $v$.
+
+For onward burden scoring, the direct and cumulative downstream burdens were first normalised by the starting cluster's size:
+
+\[
+    Q_v^{(A)} = \log(1+A_v)-\log(1+n_v),
+    \qquad
+    Q_v^{(C)} = \log(1+C_v)-\log(1+n_v).
+\]
+
+Within-window percentile ranks of these quantities were then combined to form the onward burden score described in the main text.
+
+\subsection{Permutation calibration details}\label{sec:app_ch5_permutation_calibration}
+
+Permutation calibration used $B=1{,}000$ replicates. In each replicate, the component values belonging to one cluster were reassigned together to another position in its comparison group, including any unavailable values. This preserves the relationships between the components in each observed profile. Percentile ranks within windows and composite scores were recomputed after reassignment. Local burst groups preserve whether novelty is observable and use window and clade where the group-size requirement is met. Onward burden groups contain only clusters with positive observed burden and use clade where available; profiles can move across windows within those groups.
+
+For cluster $v$ and score label $k\in\{\mathrm{LBS},\mathrm{OBS}\}$, write $s_{v,k}^{\mathrm{obs}}$ for the observed score. Let $s_{v,k}^{(b)}$, $b=1,\ldots,B_{v,k}$, denote the available permutation scores after omitting unavailable values, where $B_{v,k}\leq B$. Write $N_{v,k}^{>}$ and $N_{v,k}^{=}$ for the numbers of strict exceedances and exact ties, respectively.
+
+The indicator $\mathbf{1}\{\cdot\}$ equals one when the stated condition holds and zero otherwise. With an independent draw $\eta_{v,k}\sim\mathrm{Uniform}(0,1)$ for each cluster and score, these counts and the corresponding conservative and randomised upper-tail $p$-values were
+
+\begin{align*}
+    N_{v,k}^{>} &= \sum_{b=1}^{B_{v,k}}
+    \mathbf{1}\!\left\{s_{v,k}^{(b)}>s_{v,k}^{\mathrm{obs}}\right\}, \\
+    N_{v,k}^{=} &= \sum_{b=1}^{B_{v,k}}
+    \mathbf{1}\!\left\{s_{v,k}^{(b)}=s_{v,k}^{\mathrm{obs}}\right\}, \\[6pt]
+    p_{v,k}^{\mathrm{cons}} &=
+    \frac{1+N_{v,k}^{>}+N_{v,k}^{=}}{B_{v,k}+1}, \\
+    p_{v,k}^{\mathrm{rand}} &=
+    \frac{1+N_{v,k}^{>}+\eta_{v,k}N_{v,k}^{=}}{B_{v,k}+1}.
+\end{align*}
+
+No $p$-value was assigned if the observed score was unavailable or $B_{v,k}=0$. The fixed $1$ in each numerator is the add-one correction, which prevents zero Monte Carlo $p$-values; in the conservative expression, it counts the observed arrangement alongside the permutation scores \citep{Phipson2010,Hemerik2017}. Randomisation applies only to exact ties among the permutation scores, spreading their contribution across the attainable interval \citep{Habiger2010}. The two values coincide when there are no ties. Randomised values were used for classification, while conservative values were retained for audit.
+
+These expressions specify the computed reference probabilities. Their inferential validity additionally requires a null hypothesis under which the permitted profile reassignments are appropriate \citep{Hemerik2017}. The procedure preserves observed profiles rather than generating clusters from a model without superspreading. Dependence between linked clusters and the effect of moving burden profiles between windows with different sampling and follow-up remain methodological questions. Similarity to a uniform distribution does not settle these questions.
+
+\clearpage
+\section{Supplementary Results}
+
+\subsection{Within-cluster genetic and temporal distances}
+
+Within each combination of surveillance window and lineage containing at least ten within-cluster pairs, we calculated the median SNP distance and median collection-date difference. Table~\ref{tab:cluster_pairwise_distance_summary} summarises these medians with equal weighting and with weights proportional to the number of pairs. The latter gives more influence to groups contributing more comparisons; it does not pool all raw pairwise distances. The counts of groups, windows, and pairs are retained for audit. These are descriptions of the constructed clusters.
+
+\input{assets/scotland/tab_cluster_pairwise_distance_summary}
+
+\subsection{Candidate timing, linked neighbourhoods, and score distributions}
+
+The following figures show candidate timing (Figure~\ref{fig:app_candidate_timeline}), examples of linked cluster membership (Figure~\ref{fig:app_candidate_exemplars}), and the score and permutation-reference distributions (Figure~\ref{fig:app_sse_score_null_calibration}). All use the primary screening specification.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{fig_candidate_timeline}
+    \caption[Candidate cluster counts over time by screening dimension]{\textbf{Candidate cluster counts over time by screening dimension.} Counts are shown by retained-window midpoint for local burst and onward burden. Clusters meeting both criteria contribute to both curves. Each count refers to a cluster in a particular window, rather than a distinct outbreak.}\label{fig:app_candidate_timeline}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{fig_candidate_exemplars}
+    \caption[Representative candidates and linked background clusters]{\textbf{Representative candidates and linked background clusters.} Panels show the highest-scoring local burst candidate, highest-scoring onward burden candidate, highest-scoring possible-review cluster, and a matched background cluster with their directly linked neighbours. Each circle represents a cluster, and circle size represents its number of member sequences. Arrows connect shared membership in adjacent retained windows. These examples show why the scores differ; they do not establish transmission pathways.}\label{fig:app_candidate_exemplars}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{fig_sse_score_null_calibration}
+    \caption[Permutation reference and screening-score distributions]{\textbf{Permutation reference and screening-score distributions.} Left panels A and C show randomised upper-tail permutation $p$-values for local burst and onward burden; dashed lines show the bin counts for a uniform reference. Right panels B and D show the corresponding score distributions. Clusters meeting the criterion for the displayed dimension are highlighted in red, with the remaining screened clusters for that dimension in grey. Clusters below the size threshold are excluded, and onward burden includes only clusters with available burden scores. Near-uniform distributions describe the observed-profile reference and tie handling; they do not independently validate the permutation assumptions or the screen's epidemiological accuracy.}\label{fig:app_sse_score_null_calibration}
+\end{figure}
