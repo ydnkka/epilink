@@ -24,7 +24,7 @@ Generated outputs
     results/figures/f1_loss.tif  – sensitivity F1-loss lollipop
     results/figures/ap_loss.tif – sensitivity AP-loss lollipop
     results/figures/temporal.tif  – temporal stability
-    results/figures/resolution_regret.tif  – normalized resolution regret
+    results/figures/resolution_regret.tif  – absolute F1 resolution regret
     results/figures/boston.tif  – Boston cluster descriptives
 """
 
@@ -318,6 +318,7 @@ def _plot_metric_panel(
         palette=CONDITION_COLORS,
         hue_order=CONDITION_ORDER,
         errorbar=("ci", 95),
+        seed=int(CONFIG["rng_seed"]),
         capsize=0.2,
         err_kws={"linewidth": 1.2},
         width=0.75,
@@ -478,10 +479,10 @@ def make_fig_resolution_regret() -> Figure:
         zorder=3,
     )
 
-    chosen_resolution = 0.3
+    chosen_resolution = float(CONFIG["workflows"]["boston"]["resolution"])
     chosen_mean = summary.loc[summary["resolution"] == chosen_resolution, "mean"]
     if chosen_mean.empty:
-        raise ValueError("Resolution 0.3 is not present in the input table.")
+        raise ValueError(f"Resolution {chosen_resolution:g} is not present in the input table.")
     chosen_mean_value = float(chosen_mean.iloc[0])
 
     ax.axvline(
@@ -489,7 +490,7 @@ def make_fig_resolution_regret() -> Figure:
         color="#B45309",
         linestyle="--",
         linewidth=1.5,
-        label="Chosen default (0.3)",
+        label=f"Chosen default ({chosen_resolution:g})",
         zorder=4,
     )
     ax.scatter(
@@ -522,8 +523,8 @@ _METRIC_META: dict[str, dict] = {
     },
     "f1_loss": {
         "label": "Relative change in best F1 score from baseline",
-        "clamp": 0.3,
-        "ticks": [-0.3, -0.15, 0.0, 0.15, 0.3],
+        "clamp": 0.7,
+        "ticks": [-0.6, -0.3, 0.0, 0.3, 0.6],
     },
 }
 

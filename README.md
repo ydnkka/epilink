@@ -228,3 +228,48 @@ from evaluation.config import build_run_specs, load_config
 print(len(build_run_specs(load_config())), 'run specs')
 "
 ```
+
+## Chapter 3 reference correction
+
+The transmission reference assigns each case to its own neighbourhood and its
+infector's neighbourhood. `metrics.get_reference_memberships` is the shared
+builder; the file-based entry point in `evaluate` caches that result. Multi-digit
+case IDs are singleton members, never sets of characters. Extended BCubed uses
+sparse shared-label counts with the same self-pairs, overlap multiplicities, and
+equal case weighting as the `bcubed` package.
+
+Run the regression checks from the repository root:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The September 2026 correction is recorded under
+`results/reference_correction_20260928/`. Its archive manifest identifies the
+original results, code, package versions, and seed. The local `archive/` and
+classifier checkpoint are excluded from Git; retain them with the audit when
+moving this working copy. The correction runner checks historical AP and F1 on
+the regenerated partitions before publishing updated synthetic results:
+
+```bash
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction baseline
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction experiments --workers 2
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction stability
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction select-boston
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction treecluster
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction treecluster-figure
+PYTHONPATH=src:src/evaluation python3 -m evaluation.boston
+PYTHONPATH=src:src/evaluation python3 src/evaluation/chapter3_descriptives.py --output-dir results/chapter3_descriptives --recover-memberships
+PYTHONPATH=src:src/evaluation python3 -m evaluation.figures
+PYTHONPATH=src:src/evaluation python3 -m evaluation.reference_correction report
+```
+
+These audit commands require the preserved archive and resume completed run
+checkpoints. Use the ordinary workflow for new experiments. The Boston setting
+is selected from the corrected initial-case resolution sweep by minimising the
+mean F1 shortfall across all six models, with ties choosing the lower resolution.
+The figure reads this setting from the configuration. TreeCluster sweep caches
+include a reference fingerprint, so historical metric caches cannot silently be
+reused after a change to the reference map.
+Restart notebook kernels after changing evaluation modules to clear imported
+code and in-memory reference caches before rerunning the comparison.

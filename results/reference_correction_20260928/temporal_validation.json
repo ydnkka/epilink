@@ -1,0 +1,44 @@
+{
+  "EDD": {
+    "jaccard_mean": 0.8760626897315058,
+    "jaccard_min": 0.33517660910518055,
+    "transitions": 25,
+    "previous_mean": 0.9161210019047843,
+    "max_weekly_change": 0.2704081632653061
+  },
+  "EDS": {
+    "jaccard_mean": 0.7551774921221068,
+    "jaccard_min": 0.31111111111111117,
+    "transitions": 25,
+    "previous_mean": 0.8533737869226219,
+    "max_weekly_change": 0.6412698412698412
+  },
+  "ESD": {
+    "jaccard_mean": 0.8505890329656488,
+    "jaccard_min": 0.4117647058823529,
+    "transitions": 25,
+    "previous_mean": 0.8930714857758669,
+    "max_weekly_change": 0.5215686274509804
+  },
+  "ESS": {
+    "jaccard_mean": 0.8008740879980282,
+    "jaccard_min": 0.25170068027210885,
+    "transitions": 25,
+    "previous_mean": 0.8254609861379162,
+    "max_weekly_change": 0.29178102938812855
+  },
+  "LD": {
+    "jaccard_mean": 0.8873273618656845,
+    "jaccard_min": 0.42424242424242425,
+    "transitions": 25,
+    "previous_mean": 0.8873273618656845,
+    "max_weekly_change": 0.0
+  },
+  "LS": {
+    "jaccard_mean": 0.9264379310238805,
+    "jaccard_min": 0.7193023586246092,
+    "transitions": 25,
+    "previous_mean": 0.9264379310238805,
+    "max_weekly_change": 0.0
+  }
+}

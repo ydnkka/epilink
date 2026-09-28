@@ -86,11 +86,14 @@ def recover_memberships(root: Path, output: Path) -> tuple[pd.DataFrame, dict]:
         "epilink_cluster": partition.membership,
     })
     assert membership.SeqID.is_unique and len(membership) == 772
-    assert len(sizes) == 77 and sizes["size"].sum() == 641
+    membership_sizes = membership.groupby("epilink_cluster").size()
+    non_singletons = membership_sizes[membership_sizes >= settings["min_cluster_size"]]
+    assert len(sizes) == len(non_singletons)
+    assert sizes["size"].sum() == non_singletons.sum()
     membership.to_csv(output / "boston_epilink_memberships.csv", index=False)
     retained = pairs[weight] >= settings["minimum_edge_weight"]
     audit = {
-        "membership_origin": "reconstructed with original fixed configuration; saved memberships unavailable",
+        "membership_origin": "reconstructed with current configuration and checked against saved Boston summaries",
         "saved_cluster_sizes_reproduced": True,
         "saved_focus_composition_and_edge_summaries_reproduced": True,
         "samples": len(membership), "scored_pairs": len(pairs),
@@ -147,11 +150,13 @@ EL ID & EL size & TC ID & TC size & Shared & EL (\%) & TC (\%) & Jaccard \\
     (output / "boston_overlap_table.tex").write_text(table_start + "\n".join(
         f"{r.epilink_cluster} & {r.epilink_size} & {r.treecluster_group.split(':')[-1]} & {r.treecluster_size} & {r.shared} & {r.epilink_overlap_percent:.1f} & {r.treecluster_overlap_percent:.1f} & {r.jaccard:.3f} " + chr(92) * 2 for r in best.itertuples()
     ) + table_end)
-    # The named comparison follows the largest exposure-associated TreeCluster groups.
+    # Identify named outbreaks by exposure counts, independently of cluster IDs.
     named = []
-    for exposure, eid in [("SNF", 11), ("Conference", 21)]:
+    for exposure in ("SNF", "Conference"):
+        exposure_counts = joined.loc[joined.Exposure == exposure].groupby("epilink_cluster").size()
+        eid = max(exposure_counts.index, key=lambda x: (int(exposure_counts[x]), len(epi[x]), -int(x)))
         counts = joined.loc[(joined.ClusterNumber != -1) & (joined.Exposure == exposure)].groupby("tc_group").size()
-        tid = max(counts.index, key=lambda x: (len(tree[x]), int(counts[x])))
+        tid = max(counts.index, key=lambda x: (int(counts[x]), len(tree[x]), -int(x.split(":")[-1])))
         a, b = epi[eid], tree[tid]
         named.append({"exposure": exposure, "epilink_cluster": eid, "treecluster_group": tid, "epilink_size": len(a), "treecluster_size": len(b), "shared": len(a & b), "epilink_overlap_percent": 100*len(a & b)/len(a), "treecluster_overlap_percent": 100*len(a & b)/len(b), "jaccard": len(a & b)/len(a | b)})
     (output / "boston_named_cluster_overlaps.json").write_text(json.dumps(named, indent=2) + "\n")

@@ -11,7 +11,6 @@ dataclasses so they can safely cross process boundaries.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -28,7 +27,7 @@ from epilink import (
     simulate_genomic_sequences,
 )
 from leiden import build_weighted_graph, run_leiden_partition
-from metrics import bcubed_scores
+from metrics import bcubed_scores, get_reference_memberships
 from models import (
     build_linkage_models,
     build_natural_history_parameters,
@@ -96,15 +95,7 @@ def _load_tree_template(tree_path: str) -> nx.DiGraph:
 @cache
 def _reference_memberships(tree_path: str) -> dict[int, set[int]]:
     """Build and cache ground-truth cluster memberships from a GML transmission tree."""
-    tree = _load_tree_template(tree_path)
-    memberships: dict[int, set[int]] = defaultdict(set)
-
-    for cluster_id, node_label in enumerate(tree.nodes()):
-        cluster_members = set(node_label).union(tree.successors(node_label))
-        for member in cluster_members:
-            memberships[int(member)].add(cluster_id)
-
-    return dict(memberships)
+    return get_reference_memberships(_load_tree_template(tree_path))
 
 
 # ---------------------------------------------------------------------------

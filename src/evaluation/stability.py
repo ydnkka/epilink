@@ -6,8 +6,8 @@ time step.  Three overlap metrics — forward, backward, and Jaccard — are com
 between consecutive partitions for each model, capturing how stable cluster
 assignments remain as surveillance data accumulate.
 
-The module also selects the Leiden resolution parameter that maximises mean
-stability for each model and writes a resolution-selection summary.
+The module also selects the Leiden resolution parameter that maximises BCubed
+F1 on the initial cases for each model and writes a resolution-selection summary.
 
 The public entry-point is :func:`main`, which is called by the Snakemake
 ``stability`` rule and can also be run directly as
@@ -32,6 +32,12 @@ from config import (
     resolve_configured_output_path,
     resolve_generation_baseline_parameters,
     resolve_inference_baseline_parameters,
+)
+from epilink import (
+    InfectiousnessToTransmission,
+    build_pairwise_case_table,
+    simulate_epidemic_dates,
+    simulate_genomic_sequences,
 )
 from leiden import (
     build_weighted_graph,
@@ -58,14 +64,16 @@ from specs import (
     PAIRWISE_TEMPORAL_DISTANCE_COLUMN,
 )
 
-from epilink import (
-    InfectiousnessToTransmission,
-    build_pairwise_case_table,
-    simulate_epidemic_dates,
-    simulate_genomic_sequences,
-)
-
 LOGGER = logging.getLogger(__name__)
+
+
+def select_shared_resolution(selection: pd.DataFrame) -> float:
+    """Minimise mean F1 shortfall across models; break ties by lower resolution."""
+    scores = selection.pivot(index="resolution", columns="weight", values="f1_score").sort_index()
+    if set(scores.columns) != set(MODEL_KEYS) or not np.isfinite(scores.to_numpy()).all():
+        raise ValueError("Resolution selection requires finite scores for every model and resolution.")
+    regret = (scores.max(axis=0) - scores).mean(axis=1)
+    return float(regret.idxmin())
 
 
 # ---------------------------------------------------------------------------
@@ -282,11 +290,12 @@ def main(config_path: str | Path = "config.yaml") -> None:
                 )
             }
             try:
-                _, _, f1 = bcubed_scores(predicted, reference)
+                precision, recall, f1 = bcubed_scores(predicted, reference)
             except ValueError:
-                f1 = float("nan")
+                precision = recall = f1 = float("nan")
             metric_rows.append(
-                {"weight": key, "resolution": float(resolution), "f1_score": f1}
+                {"weight": key, "resolution": float(resolution),
+                 "precision": precision, "recall": recall, "f1_score": f1}
             )
 
     evaluation_metrics = pd.DataFrame(metric_rows)
@@ -301,6 +310,11 @@ def main(config_path: str | Path = "config.yaml") -> None:
     LOGGER.info("stability: evaluating cumulative partitions")
     results_dir = resolve_configured_output_path(config, "outputs.stability.directory")
     results_dir.mkdir(parents=True, exist_ok=True)
+    evaluation_metrics.to_parquet(
+        results_dir / "stability_resolution_selection.parquet", index=False
+    )
+    LOGGER.info("stability: selected model resolutions %s; shared resolution %.1f",
+                model_resolution_map, select_shared_resolution(evaluation_metrics))
 
     case_counts = (
         case_meta.groupby("available_time", as_index=False)
@@ -313,6 +327,7 @@ def main(config_path: str | Path = "config.yaml") -> None:
     for key in MODEL_KEYS:
         minimum_weight = optimal_thresholds.get(key, 0.0001)
         resolution = float(model_resolution_map.get(key, mid_resolution))
+        LOGGER.info("stability: cumulative partitions for %s at resolution %.1f", key, resolution)
 
         stability_frame = cumulative_stability(
             pairs,

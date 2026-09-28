@@ -17,6 +17,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from scipy.stats import chisquare
+from scipy.sparse import csr_matrix
 
 
 def get_reference_memberships(tree: nx.DiGraph) -> dict[int, set[int]]:
@@ -38,7 +39,7 @@ def get_reference_memberships(tree: nx.DiGraph) -> dict[int, set[int]]:
     memberships: dict[int, set[int]] = defaultdict(set)
 
     for cluster_id, node_label in enumerate(tree.nodes()):
-        cluster_members = set(node_label).union(tree.successors(node_label))
+        cluster_members = {node_label}.union(tree.successors(node_label))
         for member in cluster_members:
             memberships[int(member)].add(cluster_id)
 
@@ -74,8 +75,36 @@ def bcubed_scores(
     if not filtered_predicted or not filtered_reference:
         raise ValueError("No valid cases with non-empty memberships.")
 
-    precision = bcubed.precision(filtered_predicted, filtered_reference)
-    recall = bcubed.recall(filtered_predicted, filtered_reference)
+    # The bcubed package scans every case pair twice, even when almost all
+    # memberships are disjoint. Sparse co-membership counts compute the same
+    # extended BCubed definition, including self-pairs and equal case weights.
+    def shared_label_counts(memberships):
+        labels = {}
+        rows, columns = [], []
+        for row, values in enumerate(memberships.values()):
+            for label in values:
+                column = labels.setdefault(label, len(labels))
+                rows.append(row)
+                columns.append(column)
+        incidence = csr_matrix(
+            (np.ones(len(rows), dtype=np.float64), (rows, columns)),
+            shape=(len(memberships), len(labels)),
+        )
+        return (incidence @ incidence.T).tocsr()
+
+    inferred_counts = shared_label_counts(filtered_predicted)
+    reference_counts = shared_label_counts(filtered_reference)
+    common_counts = inferred_counts.minimum(reference_counts)
+
+    def average_contribution(counts):
+        neighbours = np.diff(counts.indptr)
+        reciprocal = counts.copy()
+        reciprocal.data = 1.0 / reciprocal.data
+        totals = np.asarray(common_counts.multiply(reciprocal).sum(axis=1)).ravel()
+        return float(np.mean(totals / neighbours))
+
+    precision = average_contribution(inferred_counts)
+    recall = average_contribution(reference_counts)
     f1_score = bcubed.fscore(precision, recall)
     return float(precision), float(recall), float(f1_score)
 

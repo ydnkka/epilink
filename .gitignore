@@ -17,3 +17,6 @@ __pycache__/
 *.fdb_latexmk
 *.synctex.gz
 
+# Preserved inputs and fitted classifiers for the reference-correction audit.
+results/reference_correction_20260928/archive/
+results/reference_correction_20260928/*.pkl

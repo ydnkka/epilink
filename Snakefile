@@ -8,6 +8,10 @@ from pathlib import Path
 
 WORKFLOW_ROOT = Path(workflow.basedir).resolve()
 SOURCE_ROOT = WORKFLOW_ROOT / "src"
+EVALUATION_SOURCES = [
+    str(SOURCE_ROOT / "evaluation" / name)
+    for name in ("config.py", "evaluate.py", "leiden.py", "metrics.py", "models.py", "specs.py")
+]
 
 # Both src/ (package root) and src/evaluation/ (bare-import root) must be
 # on sys.path so that Snakemake itself and the subprocesses it spawns can
@@ -175,7 +179,7 @@ rule sparsification:
 
 rule baseline:
     input:
-        SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+        SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT, str(SOURCE_ROOT / "evaluation/baseline.py")] + EVALUATION_SOURCES
     output:
         BASELINE_OUTPUTS
     log:
@@ -188,7 +192,7 @@ rule baseline:
 
 rule stability:
     input:
-        SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT]
+        SPARSIFICATION_OUTPUTS + [CONFIG_INPUT, TREE_INPUT, str(SOURCE_ROOT / "evaluation/stability.py")] + EVALUATION_SOURCES
     output:
         STABILITY_OUTPUTS
     log:
@@ -205,7 +209,8 @@ rule experiments:
             BASELINE_OUTPUTS
             + STABILITY_OUTPUTS
             + SPARSIFICATION_OUTPUTS
-            + [CONFIG_INPUT, TREE_INPUT]
+            + [CONFIG_INPUT, TREE_INPUT, str(SOURCE_ROOT / "evaluation/experiments.py")]
+            + EVALUATION_SOURCES
         )
     output:
         SYNTHETIC_OUTPUTS
@@ -219,7 +224,7 @@ rule experiments:
 
 rule boston:
     input:
-        SYNTHETIC_OUTPUTS + [CONFIG_INPUT] + BOSTON_INPUTS
+        SYNTHETIC_OUTPUTS + [CONFIG_INPUT, str(SOURCE_ROOT / "evaluation/boston.py")] + BOSTON_INPUTS + EVALUATION_SOURCES
     output:
         BOSTON_OUTPUTS
     log:

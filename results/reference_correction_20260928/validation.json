@@ -1,0 +1,244 @@
+{
+  "status": "validated",
+  "seed": 12345,
+  "reference_cases": 4990,
+  "root_case": 4537061,
+  "completed_synthetic_runs": 26,
+  "synthetic_result_rows": 156,
+  "max_reproduction_deltas": {
+    "ap_delta": 0.0,
+    "legacy_f1_delta": 0.0,
+    "resolution_stability_delta": 0.0
+  },
+  "baseline_pair_labels_and_scores_reproduced": true,
+  "ap_summaries_retained": true,
+  "inputs_and_model_sources_unchanged": true,
+  "simulation_design_thresholds_grid_and_restarts_unchanged": true,
+  "treecluster_settings_recomputed": 60,
+  "treecluster_best": [
+    {
+      "data_process": "deterministic",
+      "method": "max_clade",
+      "threshold_days": 35.0,
+      "threshold_years": 0.0958904109589041,
+      "bcubed_precision": 0.7465765549436917,
+      "bcubed_recall": 0.5997964143600338,
+      "bcubed_f1": 0.6651855777111583,
+      "n_clusters": 767,
+      "n_singletons": 586
+    },
+    {
+      "data_process": "stochastic",
+      "method": "avg_clade",
+      "threshold_days": 28.0,
+      "threshold_years": 0.07671232876712329,
+      "bcubed_precision": 0.6313563756979368,
+      "bcubed_recall": 0.6001282781956343,
+      "bcubed_f1": 0.615346384508311,
+      "n_clusters": 503,
+      "n_singletons": 1013
+    }
+  ],
+  "increased_incubation_cv_under_mismatch": [
+    {
+      "model": "EDD",
+      "resolution": 0.1,
+      "precision": 0.9959251837007349,
+      "recall": 0.11814897357641552,
+      "f1": 0.21123825096298776,
+      "f1_loss": -0.6198535380081112
+    },
+    {
+      "model": "EDS",
+      "resolution": 0.1,
+      "precision": 0.9852705410821643,
+      "recall": 0.11807756733645772,
+      "f1": 0.2108824001629001,
+      "f1_loss": -0.5574231567620326
+    },
+    {
+      "model": "ESD",
+      "resolution": 0.1,
+      "precision": 0.9925116900467602,
+      "recall": 0.12543578152341406,
+      "f1": 0.22272330798741852,
+      "f1_loss": -0.6293839050867013
+    },
+    {
+      "model": "ESS",
+      "resolution": 0.1,
+      "precision": 0.9789741387536978,
+      "recall": 0.13083707364052874,
+      "f1": 0.23082504493348383,
+      "f1_loss": -0.5674288627459102
+    },
+    {
+      "model": "LD",
+      "resolution": 0.1,
+      "precision": 0.9946158984635939,
+      "recall": 0.1343332359886133,
+      "f1": 0.2366979487896367,
+      "f1_loss": -0.6561767965453593
+    },
+    {
+      "model": "LS",
+      "resolution": 0.1,
+      "precision": 0.9969271877087507,
+      "recall": 0.11210235010800032,
+      "f1": 0.20154175667623506,
+      "f1_loss": -0.6466464552904607
+    }
+  ],
+  "boston_resolution": 0.2,
+  "baseline": [
+    {
+      "model": "EDD",
+      "old_f1": 0.6293473481351571,
+      "f1": 0.5556759619861856,
+      "precision": 0.479433885156287,
+      "recall": 0.6607522272062936,
+      "best_resolution": 0.1,
+      "temporal_resolution": 0.2,
+      "resolution_stability": 0.8711224757951569,
+      "temporal_jaccard_mean": 0.8760626897315058,
+      "temporal_jaccard_min": 0.33517660910518055
+    },
+    {
+      "model": "EDS",
+      "old_f1": 0.4953966862777414,
+      "f1": 0.4764876504157981,
+      "precision": 0.403137541893727,
+      "recall": 0.5824662818939655,
+      "best_resolution": 0.1,
+      "temporal_resolution": 0.1,
+      "resolution_stability": 0.8340510013748964,
+      "temporal_jaccard_mean": 0.7551774921221068,
+      "temporal_jaccard_min": 0.31111111111111117
+    },
+    {
+      "model": "ESD",
+      "old_f1": 0.6438408908858381,
+      "f1": 0.6009542247201165,
+      "precision": 0.6511741388319234,
+      "recall": 0.5579258166178412,
+      "best_resolution": 0.3,
+      "temporal_resolution": 0.3,
+      "resolution_stability": 0.8514128110967598,
+      "temporal_jaccard_mean": 0.8505890329656488,
+      "temporal_jaccard_min": 0.4117647058823529
+    },
+    {
+      "model": "ESS",
+      "old_f1": 0.5586963716476387,
+      "f1": 0.533611757822618,
+      "precision": 0.5400862562761981,
+      "recall": 0.5272906517590428,
+      "best_resolution": 0.3,
+      "temporal_resolution": 0.3,
+      "resolution_stability": 0.8300664250028237,
+      "temporal_jaccard_mean": 0.8008740879980282,
+      "temporal_jaccard_min": 0.25170068027210885
+    },
+    {
+      "model": "LD",
+      "old_f1": 0.6472900927304085,
+      "f1": 0.6884292462270172,
+      "precision": 0.7374681797726159,
+      "recall": 0.6455054945089391,
+      "best_resolution": 0.2,
+      "temporal_resolution": 0.2,
+      "resolution_stability": 0.8955121119579894,
+      "temporal_jaccard_mean": 0.8873273618656845,
+      "temporal_jaccard_min": 0.42424242424242425
+    },
+    {
+      "model": "LS",
+      "old_f1": 0.5720588375230669,
+      "f1": 0.5703685719126004,
+      "precision": 0.6564897938211731,
+      "recall": 0.5042224505773398,
+      "best_resolution": 0.1,
+      "temporal_resolution": 0.2,
+      "resolution_stability": 0.9273206121753232,
+      "temporal_jaccard_mean": 0.9264379310238805,
+      "temporal_jaccard_min": 0.7193023586246092
+    }
+  ],
+  "boston": {
+    "membership_origin": "reconstructed with current configuration and checked against saved Boston summaries",
+    "saved_cluster_sizes_reproduced": true,
+    "saved_focus_composition_and_edge_summaries_reproduced": true,
+    "samples": 772,
+    "scored_pairs": 276056,
+    "non_singleton_clusters": 68,
+    "non_singleton_samples": 661,
+    "singletons": 111,
+    "threshold": 0.0001,
+    "resolution": 0.2,
+    "modularity": 0.5303137224109461,
+    "retained_edges": 172953,
+    "retained_weight_fraction": 0.9998979552355005,
+    "settings": {
+      "minimum_edge_weight": 0.0001,
+      "resolution": 0.2,
+      "min_cluster_size": 2,
+      "focus_exposures": [
+        "Conference",
+        "SNF"
+      ],
+      "n_restarts": 10,
+      "schema": {
+        "metadata_id_col": "SeqID",
+        "metadata_date_col": "Date",
+        "metadata_clade_col": "Clade",
+        "exposure_col": "Exposure",
+        "pairwise_id_col_1": "SeqID1",
+        "pairwise_id_col_2": "SeqID2",
+        "temporal_col": "Temporal_Distance",
+        "genetic_col": "SNP_Distance",
+        "tn93_col": "TN93_Distance",
+        "weight_column": "EpiLinkStochasticScore"
+      }
+    },
+    "seed": 12345,
+    "shared_sample_universe": 772,
+    "treecluster_clusters": 111,
+    "treecluster_singletons": 230,
+    "named_overlaps": [
+      {
+        "exposure": "SNF",
+        "epilink_cluster": 7,
+        "treecluster_group": "cluster:40",
+        "epilink_size": 96,
+        "treecluster_size": 71,
+        "shared": 69,
+        "epilink_overlap_percent": 71.875,
+        "treecluster_overlap_percent": 97.1830985915493,
+        "jaccard": 0.7040816326530612
+      },
+      {
+        "exposure": "Conference",
+        "epilink_cluster": 21,
+        "treecluster_group": "cluster:34",
+        "epilink_size": 31,
+        "treecluster_size": 12,
+        "shared": 7,
+        "epilink_overlap_percent": 22.580645161290324,
+        "treecluster_overlap_percent": 58.333333333333336,
+        "jaccard": 0.19444444444444445
+      }
+    ],
+    "source_sha256": {
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/config.yaml": "01604fb3e6464cf3dff6b73995ed47e677ae334eff7c0d29ad96db449de15cf8",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_composition.parquet": "0b5537503183bd6a73f8f4a37cb6ec6d64e1b1873caef29f69a0ff6eec7cdf51",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/results/boston/cluster_sizes.parquet": "275e62969bbfcc131b5962dad390f35242db56f2be0dcbdb9aeed09b2f2bb914",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/phylo/clusters.tsv": "52be5c7de541fc70cff5ee7b35f44abf37d6aeae42920ee65d12dfacc3e13c74",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/data/processed/boston/boston_metadata.parquet": "0290827f8020f3cf4fcb83d39816db9ac3fa8b52271c93f634f29b49f78d1f0f",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/data/processed/boston/boston_pairwise_distances.parquet": "835e804c1dc453da1145c8df4c8a97ce9be9a335194bfdb16d993fbda6e501d9",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/boston.py": "38fc4eaa8b5dd308894c1642800d4a82d55da95a16fbe87d7e1982ce7905c8b8",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/leiden.py": "d20ffde481df56788688e126a5328d693414a8714566cc3dabca6e37485490e2",
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/src/evaluation/chapter3_descriptives.py": "b7f7345e8349cb8285544512ab09aa16bc6864256f77ab013932b917eea999b7"
+    }
+  },
+  "scope_note": "Chapter 4 now distinguishes the historical Scottish resolution 0.3 from the corrected Boston selection 0.2. Scottish results and their primary-resolution choice were not reanalysed in this correction."
+}
