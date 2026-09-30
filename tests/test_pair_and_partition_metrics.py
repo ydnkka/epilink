@@ -17,19 +17,31 @@ def test_tied_precision_recall_matches_sklearn(higher_is_better):
     frame = relationship_table(tree)
     truth = PairTruth(frame)
     values = np.array([0, 0, 1, 2, 0, 1, 2, 1, 1, 2], dtype=float)
-    spec = ScoreSpec("test", "genetic", "deterministic", higher_is_better=higher_is_better)
+    spec = ScoreSpec(
+        "test", "genetic", "deterministic", higher_is_better=higher_is_better
+    )
     curve, summary = precision_recall_curve(values, spec, truth)
     assert len(curve) == len(np.unique(values))
     assert curve.ties_at_threshold.sum() == len(values)
     for endpoint, horizon in (("M0", 0), ("Mle1", 1), ("Mle2", 2)):
         target = frame.M.le(horizon).to_numpy(bool)
         oriented = values if higher_is_better else -values
-        assert summary[f"{endpoint}_AP"] == pytest.approx(average_precision_score(target, oriented))
+        assert summary[f"{endpoint}_AP"] == pytest.approx(
+            average_precision_score(target, oriented)
+        )
         for row in curve.to_dict("records"):
-            selected = values >= row["threshold"] if higher_is_better else values <= row["threshold"]
+            selected = (
+                values >= row["threshold"]
+                if higher_is_better
+                else values <= row["threshold"]
+            )
             assert row["selected_pairs"] == selected.sum()
-            assert row[f"{endpoint}_precision"] == pytest.approx(target[selected].mean())
-            assert row[f"{endpoint}_recall"] == pytest.approx(target[selected].sum() / target.sum())
+            assert row[f"{endpoint}_precision"] == pytest.approx(
+                target[selected].mean()
+            )
+            assert row[f"{endpoint}_recall"] == pytest.approx(
+                target[selected].sum() / target.sum()
+            )
 
 
 def test_false_positives_include_close_non_targets_and_separate_introductions():
@@ -52,7 +64,9 @@ def test_partitions_evaluate_transitive_pairs_not_only_graph_edges():
         columns={"node_a": "a", "node_b": "b"}
     )
     cases = pd.DataFrame({"case_id": list(tree)})
-    evaluator = PartitionEvaluator(observations, cases, truth, reference_memberships(tree))
+    evaluator = PartitionEvaluator(
+        observations, cases, truth, reference_memberships(tree)
+    )
     summary, clusters = evaluator.evaluate([0, 0, 0, 0])
     # Three true transmission edges induce six within-cluster pairs.
     assert summary["within_pairs"] == 6
@@ -67,7 +81,9 @@ def test_partitions_evaluate_transitive_pairs_not_only_graph_edges():
     assert singleton["M0_recall"] == 0
 
 
-@pytest.mark.parametrize("labels", [[0, 0, 0, 0], [0, 1, 2, 3], [0, 0, 1, 1], [7, 3, 7, 7]])
+@pytest.mark.parametrize(
+    "labels", [[0, 0, 0, 0], [0, 1, 2, 3], [0, 0, 1, 1], [7, 3, 7, 7]]
+)
 def test_extended_bcubed_matches_independent_package(labels):
     reference = {"a": {0}, "b": {0, 1}, "c": {0, 2}, "d": {1, 3}}
     predicted = {case: {label} for case, label in zip(reference, labels)}
@@ -76,4 +92,6 @@ def test_extended_bcubed_matches_independent_package(labels):
     actual = ReferenceIndex(list(reference), reference).score(labels)
     assert actual["bcubed_precision"] == pytest.approx(expected_precision)
     assert actual["bcubed_recall"] == pytest.approx(expected_recall)
-    assert actual["bcubed_f1"] == pytest.approx(bcubed.fscore(expected_precision, expected_recall))
+    assert actual["bcubed_f1"] == pytest.approx(
+        bcubed.fscore(expected_precision, expected_recall)
+    )

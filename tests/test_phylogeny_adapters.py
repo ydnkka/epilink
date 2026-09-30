@@ -8,11 +8,17 @@ from epilink_evaluation.phylogeny.external import executable
 from epilink_evaluation.provenance import read_json
 
 
-def test_dated_tree_preserves_named_nodes_dates_and_year_lengths(small_config, tmp_path, monkeypatch):
+def test_dated_tree_preserves_named_nodes_dates_and_year_lengths(
+    small_config, tmp_path, monkeypatch
+):
     raw = tmp_path / "raw.nwk"
     raw.write_text("((a:0.001,b:0.001):0.002,c:0.003);\n")
     cases = pd.DataFrame({"case_id": ["a", "b", "c"], "sample_date": [0, 1, 2]})
-    monkeypatch.setattr(trees, "command_identity", lambda _: {"path": "/fake/treetime", "sha256": "test"})
+    monkeypatch.setattr(
+        trees,
+        "command_identity",
+        lambda _: {"path": "/fake/treetime", "sha256": "test"},
+    )
 
     def export_treetime(argv, directory, name, timeout):
         output = directory / "treetime"
@@ -39,7 +45,9 @@ def test_dated_tree_preserves_named_nodes_dates_and_year_lengths(small_config, t
     assert not manifest["root_changed"]
     assert manifest["signature"]["rng_seed"] == small_config["treecluster"]["rng_seed"]
     argv = manifest["command"]
-    assert argv[argv.index("--rng-seed") + 1] == str(small_config["treecluster"]["rng_seed"])
+    assert argv[argv.index("--rng-seed") + 1] == str(
+        small_config["treecluster"]["rng_seed"]
+    )
     dates = pd.read_csv(path.parent / "dates.csv")
     assert dates.date.tolist() == ["2020-01-01", "2020-01-02", "2020-01-03"]
 
@@ -53,6 +61,15 @@ def test_treecluster_preserves_each_unclustered_case(small_config, tmp_path):
     path.write_text("((a:0.001,b:0.001):0.1,c:0.1,d:0.2);\n")
     # Reordered case IDs exercise adapter alignment as well as singleton handling.
     cases = pd.DataFrame({"case_id": ["d", "b", "c", "a"]})
-    labels, _ = treecluster(path, cases, "max_clade", 0.003, small_config["treecluster"], tmp_path / "cluster")
+    labels, _ = treecluster(
+        path,
+        cases,
+        "max_clade",
+        0.003,
+        small_config["treecluster"],
+        tmp_path / "cluster",
+    )
     expected = np.array([0, 1, 2, 1])
-    np.testing.assert_array_equal(labels[:, None] == labels, expected[:, None] == expected)
+    np.testing.assert_array_equal(
+        labels[:, None] == labels, expected[:, None] == expected
+    )

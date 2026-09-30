@@ -16,19 +16,31 @@ def test_development_freeze_and_heldout_replay(small_config):
     development = pd.read_csv(baseline.directory / "development/metrics.csv")
     assert set(development.setting_id) == set(baseline.definitions)
     assert not (baseline.directory / "evaluation").exists()
-    assert set(baseline.datasets) == set(small_config["splits"]["train"] + small_config["splits"]["development"])
+    assert set(baseline.datasets) == set(
+        small_config["splits"]["train"] + small_config["splits"]["development"]
+    )
     training_model = baseline.root / "artifacts/models" / baseline.training_id[:20]
-    assert read_json(training_model / "manifest.json")["seeds"] == small_config["splits"]["train"]
+    assert (
+        read_json(training_model / "manifest.json")["seeds"]
+        == small_config["splits"]["train"]
+    )
 
     frozen = baseline.select()
-    selected = {point["setting_id"] for point in frozen["operating_points"] if point["status"] == "selected"}
+    selected = {
+        point["setting_id"]
+        for point in frozen["operating_points"]
+        if point["status"] == "selected"
+    }
     assert selected
     assert baseline.run("evaluate")
     evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
     assert set(evaluation.setting_id) == selected
     assert set(evaluation.seed) == set(small_config["splits"]["evaluation"])
     assert read_json(baseline.directory / "evaluation/selection_used.json") == frozen
-    assert "Held-out fixed-setting performance" in (baseline.directory / "report.md").read_text()
+    assert (
+        "Held-out fixed-setting performance"
+        in (baseline.directory / "report.md").read_text()
+    )
 
     # A fresh process-equivalent context reuses completed observations unchanged.
     resumed = Baseline(deepcopy(small_config))
@@ -53,8 +65,12 @@ def test_subsampling_keeps_full_backbone_truth(small_config):
     assert len(cases) == 9
     assert len(observations) == 9 * 8 // 2
     assert observations.pair_id.equals(truth.pair_id)
-    assert (truth.node_a.to_numpy() == cases.node_index.to_numpy()[observations.a]).all()
-    assert (truth.node_b.to_numpy() == cases.node_index.to_numpy()[observations.b]).all()
+    assert (
+        truth.node_a.to_numpy() == cases.node_index.to_numpy()[observations.a]
+    ).all()
+    assert (
+        truth.node_b.to_numpy() == cases.node_index.to_numpy()[observations.b]
+    ).all()
     assert read_json(baseline.truth_directory / "manifest.json")["n_cases"] == 15
     saved = read_json(directory / "manifest.json")
     assert valid_artifact(directory, saved["signature"])
