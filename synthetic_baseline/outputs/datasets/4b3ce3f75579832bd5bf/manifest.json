@@ -1,0 +1,63 @@
+{
+  "fingerprint": "4b3ce3f75579832bd5bf1b0a1f30ae83a5857e578a23dc33dd075a98eabd54a5",
+  "signature": {
+    "schema": 2,
+    "tree_sha256": "79a020a28e54e65a4f15cd7ce4653e5dddb93b334d9a8ca09691769f0375cbb7",
+    "parameters": {
+      "latent_shape": 3.38,
+      "symptomatic_rate": 0.37,
+      "symptomatic_shape": 1.0,
+      "transmission_rate_ratio": 2.29,
+      "fraction_sampled": 1.0,
+      "genome_length": 29903,
+      "synthetic_genome_length": 5000,
+      "num_simulations": 10000,
+      "target": [
+        "ad(0)",
+        "ca(0,0)"
+      ],
+      "maximum_depth": 0,
+      "incubation_shape": 5.806999999723634,
+      "incubation_scale": 0.9480000000451171,
+      "testing_delay_shape": 1.0,
+      "testing_delay_scale": 1.0,
+      "substitution_rate": 0.001,
+      "relaxation": 0.33
+    },
+    "seed": 54321,
+    "versions": {
+      "epilink": "0.1.5",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "scipy": "1.17.1",
+      "igraph": "1.0.0",
+      "scikit-learn": "1.8.0",
+      "pyarrow": "24.0.0"
+    },
+    "implementation": {
+      "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/synthetic_exploration/data.py": "34b17f17a1936a7344d94bf86df01b7c297d9d3518b9ced43301d42ed6b2b9e1",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/__init__.py": "36cd0f8a4ed72c67b95a9a94b30a7815090c76472502fad9b7f4139d3e7f7ecb",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/cli.py": "2b8ccf57c73602c1fabe7277bd73250c821f5d4d9da2885e7104124035abf907",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/simulation/results.py": "ed2dba3a712917105e23a9b924ef49b1bfa031b13961b86046935a23cf596054",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/simulation/__init__.py": "9ccb42d914e048cf5b1799de6e85082da7e8840f66fa7d4f3902b5ed0063ea8a",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/simulation/outbreak.py": "dddc14eba15a01955d62917be13086035e3b1c0b4dbe52cc7ba4b08c7178361d",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/simulation/genome.py": "f3af67ebbd58653193d418d975a69f7c949a038811aaf91e6073e069c87479d9",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/results.py": "226856f31945aa4cde8033e8e043ac4e50c89f97d5eee490d09a157696cfddce",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/__init__.py": "547fe40bc451de0f9ace36e2aa9cd0e93fd91f52ad39b1aea0939c73ce582d12",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/parameters.py": "97b32734bce0bf036fee0cef38cb961e01757f025eb357f9a5bc76fbb25ad8f1",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/exceptions.py": "c85bea190e15cec6d83f1cbe454e60092d6e8f8d684d0cc90a29fc23c4a107a3",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/epilink.py": "fb15a43ee3f3596b630a31915e6593951177d6e436313c25d8d166d421d6a2b5",
+      "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/lib/python3.14/site-packages/epilink/model/profiles.py": "638d3a668c80d2b4ded5bded71c2bd2bf7e49d77f2d9bbcbe759944e8932a5b6"
+    }
+  },
+  "n_pairs": 12447555,
+  "truth_directory": "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/synthetic_baseline/outputs/trees/59aebd6fd898f48e8fdf",
+  "n_cases": 4990,
+  "sampled_cases": 4990,
+  "components": 1,
+  "target_prevalence": 0.0014467901527649406,
+  "files": {
+    "pairs.parquet": "092c972298770febf1b7bf175c5332e8a057acb804ba04623a729964b3f82b76",
+    "cases.parquet": "0fd169a6825f7606060cb25db1e2bb2ad22f53d51c776ac618186d71a052cae1"
+  }
+}
