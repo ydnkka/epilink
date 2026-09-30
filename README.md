@@ -1,6 +1,6 @@
 # EpiLink evaluation
 
-Baseline-first evaluation of EpiLink compatibility scores, genetic-distance
+Evaluation of EpiLink compatibility scores, genetic-distance
 rankings, logistic probabilities, and graph/phylogenetic clustering.
 
 **Start with the [operational guide](OPERATIONS.md)** for setup, configuration,
@@ -39,8 +39,9 @@ directory numbers express the study presentation order.
 | Boston input preparation      | Available: `epilink-evaluate boston --stage prepare`.                                                           |
 | Boston frozen transfer        | Available: `epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster. |
 | Boston clustering exploration | Available: `epilink-evaluate boston --stage explore`, with separate descriptive grid outputs.                   |
+| Output cleanup                | Available: `epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.         |
 
-See the guide for [perturbation and Boston execution](OPERATIONS.md#11-perturbation-and-boston-application).
+See the guide for [perturbation and Boston execution](OPERATIONS.md#12-perturbation-and-boston-application) and [clearing outputs](OPERATIONS.md#11-clear-outputs-with-reset-outputs).
 
 ## Install and run
 
@@ -141,3 +142,7 @@ scientific signatures remain tied to their original execution.
 
 The EpiLink model package is maintained separately at
 <https://github.com/ydnkka/epilink>.
+
+## Acknowledge
+
+This project utilised AI-assisted development. AI tools were used to help with code implementation, documentation improvements, and the creation of utility commands.

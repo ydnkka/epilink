@@ -47,7 +47,7 @@ def smoke_config(config):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation", "boston")
+        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation", "boston", "reset-outputs")
     )
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
@@ -58,6 +58,17 @@ def main(argv=None):
         help="64-case pipeline validation in a separate output namespace",
     )
     parser.add_argument("--output", type=Path, help="Override output root")
+    parser.add_argument(
+        "--evaluations",
+        nargs="+",
+        choices=("baseline", "perturbation", "boston", "all"),
+        help="Evaluations to clear outputs for (default: all)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be deleted without actually deleting",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -183,6 +194,97 @@ def main(argv=None):
         render_report(directory)
         print(directory / "report.html")
         return 0
+    if args.command == "reset-outputs":
+        return _reset_outputs(args)
     from .workflows.baseline import Baseline
 
     return 0 if Baseline(config).run(args.stage) else 1
+
+
+def _reset_outputs(args):
+    """Clear outputs from selected evaluations."""
+    evaluations = args.evaluations or ["all"]
+    if "all" in evaluations:
+        evaluations = ["baseline", "perturbation", "boston"]
+    
+    dry_run = args.dry_run
+    total_removed = 0
+    
+    for eval_name in evaluations:
+        if eval_name == "baseline":
+            output_roots = [
+                Path("evaluation/01_synthetic_baseline/outputs/baseline"),
+                Path("evaluation/01_synthetic_baseline/outputs/baseline_smoke"),
+            ]
+        elif eval_name == "perturbation":
+            output_roots = [
+                Path("evaluation/02_synthetic_perturbation/outputs/perturbation"),
+                Path("evaluation/02_synthetic_perturbation/outputs/perturbation_smoke"),
+            ]
+        elif eval_name == "boston":
+            output_roots = [
+                Path("evaluation/03_boston_application/outputs/boston"),
+            ]
+        else:
+            continue
+        
+        for output_root in output_roots:
+            if not output_root.exists():
+                continue
+            
+            removed_count = 0
+            if dry_run:
+                runs_dir = output_root / "runs"
+                artifacts_dir = output_root / "artifacts"
+                current_json = output_root / "current.json"
+                
+                if runs_dir.exists():
+                    runs = list(runs_dir.iterdir())
+                    if runs:
+                        print(f"Would remove {len(runs)} run(s) from {output_root}")
+                        for run in runs:
+                            print(f"  - {run}")
+                        removed_count += len(runs)
+                
+                if artifacts_dir.exists():
+                    import shutil
+                    size = sum(f.stat().st_size for f in artifacts_dir.rglob('*') if f.is_file())
+                    print(f"Would remove artifacts from {output_root} ({size / 1024 / 1024:.1f} MB)")
+                    removed_count += 1
+                
+                if current_json.exists():
+                    print(f"Would remove {current_json}")
+            else:
+                import shutil
+                
+                runs_dir = output_root / "runs"
+                artifacts_dir = output_root / "artifacts"
+                current_json = output_root / "current.json"
+                
+                if runs_dir.exists():
+                    runs = list(runs_dir.iterdir())
+                    if runs:
+                        shutil.rmtree(runs_dir)
+                        print(f"Removed {len(runs)} run(s) from {output_root}")
+                        removed_count += len(runs)
+                
+                if artifacts_dir.exists():
+                    shutil.rmtree(artifacts_dir)
+                    print(f"Removed artifacts from {output_root}")
+                    removed_count += 1
+                
+                if current_json.exists():
+                    current_json.unlink()
+                    print(f"Removed {current_json}")
+                    removed_count += 1
+            
+            total_removed += removed_count
+    
+    if total_removed == 0:
+        print("No outputs found to remove")
+    elif dry_run:
+        print(f"\nTotal: would remove {total_removed} items (dry run)")
+    else:
+        print(f"\nTotal: removed {total_removed} items")
+    
+    return 0

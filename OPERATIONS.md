@@ -30,7 +30,8 @@ Use this guide to configure and run the project, locate results, and resume inte
   - [8. Choose and freeze operating criteria](#8-choose-and-freeze-operating-criteria)
   - [9. Resume work and understand caching](#9-resume-work-and-understand-caching)
   - [10. Troubleshooting](#10-troubleshooting)
-  - [11. Perturbation and Boston application](#11-perturbation-and-boston-application)
+  - [11. Clear outputs with reset-outputs](#11-clear-outputs-with-reset-outputs)
+  - [12. Perturbation and Boston application](#12-perturbation-and-boston-application)
 
 ## 1. How the pipeline works
 
@@ -399,7 +400,33 @@ Changing `target_component_size` can change the run ID while an existing `tree_p
 | A rerun writes a different run ID                              | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                          |
 | Incubation parameter error                                     | The Gamma incubation shape is `1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                   |
 
-## 11. Perturbation and Boston application
+## 11. Clear outputs with reset-outputs
+
+To clear evaluation outputs and start fresh, use the `reset-outputs` command. This removes runs, artifacts, and the current.json pointer from the specified evaluation directories.
+
+```bash
+# Preview what would be deleted (recommended first)
+epilink-evaluate reset-outputs --dry-run
+
+# Clear all evaluation outputs (baseline, perturbation, boston)
+epilink-evaluate reset-outputs
+
+# Clear only baseline outputs (includes baseline_smoke)
+epilink-evaluate reset-outputs --evaluations baseline
+
+# Clear perturbation and boston outputs
+epilink-evaluate reset-outputs --evaluations perturbation boston
+```
+
+The command removes:
+
+- All run directories under `runs/`
+- All artifact directories under `artifacts/`
+- The `current.json` pointer file
+
+Always use `--dry-run` first to verify what will be deleted. Derived inputs (such as Boston's prepared tables) are not affected.
+
+## 12. Perturbation and Boston application
 
 **Parameter sensitivity is available after baseline evaluation completes.** Use the separate perturbation entry point, which loads the baseline's frozen models/settings rather than fitting and selecting again:
 
