@@ -19,11 +19,11 @@ record the tests and artifacts from those executions.
 
 ## Three evaluation studies
 
-| Study | Purpose | Main evidence |
-| --- | --- | --- |
-| [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md) | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings. |
-| [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points. | Paired performance differences from fresh unperturbed controls. |
-| [03 — Boston application](evaluation/03_boston_application/README.md) | Examine empirical transfer, exposure concentration/recovery, and sensitivity to clustering settings. | Descriptive exposure summaries and graph/phylogenetic partition agreement. |
+| Study                                                                         | Purpose                                                                                                           | Main evidence                                                              |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings. |
+| [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.            |
+| [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and sensitivity to clustering settings.              | Descriptive exposure summaries and graph/phylogenetic partition agreement. |
 
 The completed baseline supplies the reference for both downstream studies.
 Perturbation and Boston can run independently after baseline evaluation; the
@@ -31,14 +31,14 @@ directory numbers express the study presentation order.
 
 ## Implementation status
 
-| Capability | Active implementation |
-| --- | --- |
-| SCoVMod tree preparation | Available: `epilink-evaluate prepare-tree`. Existing trees are retained. |
-| Synthetic baseline | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports. |
-| Parameter sensitivity | Available: `epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings. |
-| Boston input preparation | Available: `epilink-evaluate boston --stage prepare`. |
-| Boston frozen transfer | Available: `epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster. |
-| Boston clustering exploration | Available: `epilink-evaluate boston --stage explore`, with separate descriptive grid outputs. |
+| Capability                    | Active implementation                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| SCoVMod tree preparation      | Available: `epilink-evaluate prepare-tree`. Existing trees are retained.                                        |
+| Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.    |
+| Parameter sensitivity         | Available: `epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.   |
+| Boston input preparation      | Available: `epilink-evaluate boston --stage prepare`.                                                           |
+| Boston frozen transfer        | Available: `epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster. |
+| Boston clustering exploration | Available: `epilink-evaluate boston --stage explore`, with separate descriptive grid outputs.                   |
 
 See the guide for [perturbation and Boston execution](OPERATIONS.md#11-perturbation-and-boston-application).
 
@@ -103,8 +103,8 @@ Fresh-environment and Git LFS instructions are in the
 
 | Location                                           | Role                                                                        |
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
-| `evaluation/01_synthetic_baseline/`                 | Method-comparison protocol, configuration, and entry point                   |
-| `evaluation/02_synthetic_perturbation/`             | Frozen-reference sensitivity protocol, configuration, and entry point       |
+| `evaluation/01_synthetic_baseline/`                | Method-comparison protocol, configuration, and entry point                  |
+| `evaluation/02_synthetic_perturbation/`            | Frozen-reference sensitivity protocol, configuration, and entry point       |
 | `evaluation/03_boston_application/`                | Empirical transfer and clustering exploration                               |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                  |

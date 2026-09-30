@@ -31,11 +31,11 @@ and simulation design.
 
 ### How the three studies fit together
 
-| Study | Scientific role | Main evidence |
-| --- | --- | --- |
-| **Synthetic baseline** (this study) | Compare methods, select settings, and evaluate them on held-out observations. | Truth-based performance and frozen models/operating points. |
-| [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test sensitivity to changed biological parameters and EpiLink parameter mismatch. | Paired performance changes with baseline-selected operating points held fixed. |
-| [**Boston application**](../03_boston_application/README.md) | Examine empirical transfer and sensitivity to clustering settings on real data. | Exposure composition/recovery, partition agreement, and descriptive parameter sweeps. |
+| Study                                                                | Scientific role                                                                   | Main evidence                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.     | Truth-based performance and frozen models/operating points.                           |
+| [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test sensitivity to changed biological parameters and EpiLink parameter mismatch. | Paired performance changes with baseline-selected operating points held fixed.        |
+| [**Boston application**](../03_boston_application/README.md)         | Examine empirical transfer and sensitivity to clustering settings on real data.   | Exposure composition/recovery, partition agreement, and descriptive parameter sweeps. |
 
 The completed baseline supplies the reference for both downstream studies.
 Perturbation and Boston each consume that reference directly; Boston does not
@@ -63,14 +63,14 @@ measure of distant relationships, not the complete false-positive fraction.
 
 ## 2. Does EpiLink improve pairwise identification beyond genetic distance?
 
-| Scorer | Inference genetics | Observed genetics | Output |
-|---|---|---|---|
-| EDD | Deterministic | Deterministic | Raw target compatibility |
-| EDS | Deterministic | Stochastic | Raw target compatibility |
-| ESD | Stochastic | Deterministic | Raw target compatibility |
-| ESS | Stochastic | Stochastic | Raw target compatibility |
-| GD_D / GD_S | None | Deterministic / stochastic | Genetic distance, lower is better |
-| LOGIT_D / LOGIT_S | Supervised | Deterministic / stochastic | P(M=0 given GD, TD) |
+| Scorer            | Inference genetics | Observed genetics          | Output                            |
+| ----------------- | ------------------ | -------------------------- | --------------------------------- |
+| EDD               | Deterministic      | Deterministic              | Raw target compatibility          |
+| EDS               | Deterministic      | Stochastic                 | Raw target compatibility          |
+| ESD               | Stochastic         | Deterministic              | Raw target compatibility          |
+| ESS               | Stochastic         | Stochastic                 | Raw target compatibility          |
+| GD_D / GD_S       | None               | Deterministic / stochastic | Genetic distance, lower is better |
+| LOGIT_D / LOGIT_S | Supervised         | Deterministic / stochastic | P(M=0 given GD, TD)               |
 
 Compare scorers within the same observed process, on identical cases/pairs/seeds.
 Logistic regression uses an intercept and standardized GD and absolute TD, with
@@ -90,12 +90,12 @@ as a calibrated probability, clipped to [0,1], or normalized into one.
 
 ## 3. What relationships do clusters contain?
 
-| Approach | Input | Sweep |
-|---|---|---|
-| Connected components | Thresholded pair-score graph | Score or genetic threshold |
-| Leiden | Same graph, declared weights | Graph threshold × resolution |
-| TreeCluster, raw | FastME genetic-distance tree | Method × substitutions/site threshold |
-| TreeCluster, dated | TreeTime-dated version | Method × day threshold |
+| Approach             | Input                        | Sweep                                 |
+| -------------------- | ---------------------------- | ------------------------------------- |
+| Connected components | Thresholded pair-score graph | Score or genetic threshold            |
+| Leiden               | Same graph, declared weights | Graph threshold × resolution          |
+| TreeCluster, raw     | FastME genetic-distance tree | Method × substitutions/site threshold |
+| TreeCluster, dated   | TreeTime-dated version       | Method × day threshold                |
 
 All clusterers return one membership per sampled case, including isolates and
 distinct TreeCluster `-1` singletons. Evaluate **all within-cluster pairs**, not
