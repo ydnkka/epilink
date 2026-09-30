@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epilink-evaluation"
+version = "0.2.0"
+description = "Baseline-first, relationship-aware evaluation of EpiLink"
+requires-python = ">=3.10"
+dependencies = [
+  "epilink==0.1.5", "PyYAML>=6", "numpy>=1.24", "pandas>=2",
+  "scipy>=1.10", "scikit-learn>=1.3", "networkx>=3", "igraph>=0.11",
+  "pyarrow>=12", "matplotlib>=3.7", "biopython>=1.81",
+  "TreeCluster>=1.0.5", "phylo-treetime>=0.11",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "bcubed>=1.5"]
+
+[project.scripts]
+epilink-evaluate = "epilink_evaluation.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,57 +1,68 @@
-# Comprehensive baseline assessment configuration.
-# Paths are relative to this file unless absolute.
-source_config: ../config.yaml
-output_directory: outputs
-condition: matched
-scenario: baseline
-seeds: [12345]
-training_seed: 54321
-models: [EDD, EDS, ESD, ESS]
-
-# Pairwise analysis settings
+schema_version: 1
+name: matched_baseline
+output_directory: outputs/baseline
+inputs:
+  tree_path: ../data/derived/scovmod/transmission_tree.gml
+  infection_path: ../data/raw/scovmod/InfectedIndividuals.1.csv
+  transmission_path: ../data/raw/scovmod/TransmissionEvents.1.csv
+  target_component_size: 500
+  tree_seed: 12345
+  smoke_cases: null
+splits:
+  train: [61001, 61002]
+  development: [62001, 62002, 62003]
+  evaluation: [63001, 63002, 63003]
+generation: &natural_history
+  incubation: {mean: 5.505036, cv: 0.4149770576}
+  testing_delay: {mean: 1.0, cv: 1.0}
+  latent_shape: 3.38
+  symptomatic_rate: 0.37
+  symptomatic_shape: 1.0
+  transmission_rate_ratio: 2.29
+  substitution_rate: 0.001
+  relaxation: 0.33
+  genome_length: 29903
+inference: *natural_history
+simulation:
+  fraction_sampled: 1.0
+  # Sequence length controls simulated sites; natural_history.genome_length
+  # controls expected mutation counts in epilink 0.1.5 (legacy convention).
+  sequence_length: 5000
+scorer:
+  mc_samples: 10000
+  seed: 64001
+  logistic_C: 1.0
+scorers: [EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S]
+thresholds:
+  epilink: [0.0, 0.0001, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+  genetic: [0, 1, 2, 3, 4, 5, 8, 12, 20, 60]
+  logistic: [0.0, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
 pairwise:
   selected_fractions: [0.0005, 0.001, 0.005, 0.01]
-  recall_levels: [0.5, 0.7, 0.9]
-
-# Cluster analysis settings
-clusters:
-  selected_fractions: [0.005]
+clustering:
   algorithms: [components, leiden]
-  leiden_resolutions: [0.3]
-  n_restarts: 10
-  null_replicates: 20
-  temporal_block_days: 7
-
-# TreeCluster settings
+  leiden:
+    objective: CPM
+    weight_policies: [binary, native]
+    resolutions: [0.0001, 0.001, 0.01, 0.05, 0.1, 0.3, 0.5, 0.75, 1.0, 1.5]
+    restarts: 5
+    seed: 65001
 treecluster:
   enabled: true
-  resume_existing: false
-  max_runtime_seconds: 600
-  command_timeout_seconds: 120
   methods: [max_clade, avg_clade, single_linkage]
-  threshold_days: [7, 14, 21, 28, 35, 42, 49, 56, 63, 70]
-  genetic_thresholds: [0.0002, 0.0005, 0.001, 0.002, 0.003, 0.005]
-  raw_trees:
-    deterministic: ../phylo/synthetic/fastme_deterministic/fastme.nwk
-    stochastic: ../phylo/synthetic/fastme_stochastic/fastme.nwk
-  dated_trees:
-    deterministic: ../phylo/synthetic/treetime_deterministic/timetree.nwk
-    stochastic: ../phylo/synthetic/treetime_stochastic/timetree.nwk
-
-# Validation settings
-validation:
-  compare_historical_baseline: true
-  historical_scores: ../results/synthetic/baseline_scores.parquet
-  lookup_prior_strength: 100.0
-
-# Figure settings
-figures:
-  primary_selection_fraction: 0.005
-  primary_cluster_fraction: 0.005
-  max_time_days: 30
-  max_genetic_distance: 15
-
-# Full sweep mode (use --full-sweep flag to enable)
-full_sweep:
-  clusters_resolutions: [0.1, 0.3, 0.5, 0.7, 1.0]
-  pairwise_thresholds: [0.0001, 0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
+  genetic_thresholds: [0, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.02]
+  threshold_days: [0, 7, 14, 21, 28, 42, 56, 70, 140, 365]
+  days_per_year: 365.25
+  fastme_method: N
+  raw_rooting: midpoint
+  negative_branches: clip_zero
+  clock_filter: 0
+  command_timeout_seconds: 1800
+  executables: {fastme: fastme, treetime: treetime, treecluster: TreeCluster.py}
+selection:
+  # Candidate criterion, not a previously selected operating point.
+  # Add scientifically justified constraints after inspecting development curves.
+  criteria:
+    - name: balanced_M0
+      objective: M0_f1
+      constraints: {}

@@ -1,154 +1,209 @@
-# Synthetic Baseline Assessment
+# Synthetic baseline: questions, comparisons, and operating criteria
 
-Comprehensive evaluation of EpiLink compatibility scores, genetic distance, and logistic probabilities on the matched-baseline synthetic epidemic.
+## Purpose and study sequence
 
-## Scientific Questions
+First establish what EpiLink adds at the **pairwise level**, then evaluate what
+different clustering procedures recover and how their tuning parameters change
+the result. Use development evidence to choose operating criteria and evaluate
+frozen settings on held-out observation realizations. The next studies are
+parameter-perturbation sensitivity and then empirical application.
 
-This baseline assessment addresses four interconnected questions:
+This is the active protocol. Historical workflows and results are preserved in
+[`archive/pre_reset_2026-09-30`](../archive/pre_reset_2026-09-30/ARCHIVE.md).
 
-### 1. Which true relationships generate identical observations?
+## 1. What are we trying to recover?
 
-Two pairs with the same genetic distance and sampling-time difference cannot be distinguished by any scorer using only those inputs. We quantify this **identifiability ceiling** by grouping pairs into identical `(GD, TD)` cells and measuring the fraction of cells containing both target and non-target relationships.
+The primary target is **M=0: direct transmission AD(0) or shared infector
+CA(0,0)**. Keep those two relationships separate in descriptive summaries.
+Secondary endpoints are M≤1 and M≤2. For AD, M=m is the number of intermediates;
+for CA, M=m1+m2 excludes the shared ancestor. Tree edge distance is M+1 for AD
+and M+2 for CA. Inactive counts are null, not zero. CA(a,b) and CA(b,a) have the
+same relationship interpretation; CA(0,2) and CA(1,1) remain distinguishable.
 
-### 2. How much does a high score change what we know?
+All observed unordered pairs are evaluated exactly once, excluding self-pairs.
+Unsampled intermediates remain in the full-tree truth. Cross-introduction pairs,
+if present in a future forest, are negative for every endpoint and reported
+separately from finite M≥3 pairs. Missing truth within a connected tree is an error.
 
-We compare three scoring families across three near-transmission horizons:
+For M=0, **all M>0 pairs are false positives**. M≥3 contamination is an additional
+measure of distant relationships, not the complete false-positive fraction.
 
-- **Compatibility scores (CS)**: Raw summed EpiLink target compatibility
-- **Genetic-only (-GD)**: Negative genetic distance ranking
-- **Logistic probabilities**: Supervised `P(M ≤ h | GD, TD)` trained on independent observations
+## 2. Does EpiLink improve pairwise identification beyond genetic distance?
 
-For each endpoint (`M==0`, `M≤1`, `M≤2`), we report average precision, enrichment, and the **M≥3 contamination fraction** at fixed operating points.
+| Scorer | Inference genetics | Observed genetics | Output |
+|---|---|---|---|
+| EDD | Deterministic | Deterministic | Raw target compatibility |
+| EDS | Deterministic | Stochastic | Raw target compatibility |
+| ESD | Stochastic | Deterministic | Raw target compatibility |
+| ESS | Stochastic | Stochastic | Raw target compatibility |
+| GD_D / GD_S | None | Deterministic / stochastic | Genetic distance, lower is better |
+| LOGIT_D / LOGIT_S | Supervised | Deterministic / stochastic | P(M=0 given GD, TD) |
 
-### 3. What epidemiological structure do clusters capture?
+Compare scorers within the same observed process, on identical cases/pairs/seeds.
+Logistic regression uses an intercept and standardized GD and absolute TD, with
+training-only standardization and prevalence-preserving count weights. Its
+regularization is fixed in configuration. Identical feature cells are compressed
+without changing their statistical weight. Neither case IDs nor truth geometry
+are model inputs. M≤1/M≤2 evaluate the same M=0-trained score; a future
+horizon-specific classifier must declare its distinct target.
 
-Direct/shared-infector relatedness is **not transitive**, but cluster membership is. Even with perfect pairwise information, partitioning methods cannot recover overlapping transmission neighborhoods without error. We quantify this **structural ceiling** by running Leiden on the oracle graph containing only true `M=0` edges.
+**Evidence:** full tie-aware precision–recall curves, AP, absolute precision,
+recall, F1, enrichment over prevalence, selected counts, and AD/CA/M composition.
+Candidate budgets retain whole ties and report requested and achieved sizes.
+Genetic ties are not broken using time or truth. Empty selections have undefined
+precision and zero recall when positive pairs exist. Calibration curves, Brier
+score, and log loss apply to logistic probabilities. Compatibility is not treated
+as a calibrated probability, clipped to [0,1], or normalized into one.
 
-### 4. Do scorer assumptions and benchmarks hold?
+## 3. What relationships do clusters contain?
 
-We validate the evaluation machinery by:
+| Approach | Input | Sweep |
+|---|---|---|
+| Connected components | Thresholded pair-score graph | Score or genetic threshold |
+| Leiden | Same graph, declared weights | Graph threshold × resolution |
+| TreeCluster, raw | FastME genetic-distance tree | Method × substitutions/site threshold |
+| TreeCluster, dated | TreeTime-dated version | Method × day threshold |
 
-- Reproducing historical baseline scores
-- Comparing scorer draws against observed target pairs
-- Training logistic/lookup benchmarks on independent observation realizations
+All clusterers return one membership per sampled case, including isolates and
+distinct TreeCluster `-1` singletons. Evaluate **all within-cluster pairs**, not
+only retained graph edges. Report M=0 precision/recall/F1, broader endpoint
+recovery, M≥3 contamination, direct-transmission retention, shared-infector
+retention, singleton fraction, cluster-size distribution, largest-cluster fraction,
+and extended BCubed against overlapping parent/child neighborhoods. Pair metrics
+exclude self-pairs; extended BCubed retains its published self-pair convention.
+ARI between methods, if added, would measure agreement rather than truth accuracy.
 
-## Usage
+Binary Leiden graphs provide a common edge-weight convention for all scorers.
+Native-weighted variants use unmodified positive EpiLink/logistic values. Genetic
+Leiden uses binary edges; there is no threshold-dependent distance offset.
+Connected components use inclusive thresholds, including zero-valued edges at
+threshold zero. Native weighted graphs omit zero-weight edges and record this
+distinction. Leiden's objective is explicit (default CPM), and restarts are
+selected by that same objective, never by truth metrics. Resolution scales are
+specific to their weight policy and scorer.
 
-### Run Full Baseline Assessment
+TreeCluster compares `max_clade`, `avg_clade`, and `single_linkage`. Raw trees
+are midpoint-rooted using genetics alone; dated trees are rooted by TreeTime.
+Negative genetic branches are handled by the declared `clip_zero` policy and
+their count is recorded. Dating can change rooting/topology, so this comparison
+measures the complete raw/dating pipelines. Threshold units and root changes are
+recorded. Temporal thresholds denote tree branch distances, not simply the span
+between sampling dates.
+
+## 4. How do tuning parameters change the key metrics?
+
+Use the declared broad grids in `config.yaml`, including empty selections,
+strict settings and permissive settings. Inspect threshold curves, Leiden
+threshold–resolution heatmaps, precision–recall/contamination frontiers, and
+cluster-size behavior. Broaden a grid on development data when the useful region
+touches its boundary; freeze the grid and selection rule before evaluation.
+
+Observed feature overlap and partitions of a true-target graph can be useful
+diagnostics. Neither an observed mixed feature cell nor a particular oracle-graph
+partition establishes a universal population performance ceiling.
+
+## 5. Which operating criteria should be carried forward?
+
+1. Fit logistic scorers on **training** realizations only.
+2. Sweep and inspect methods on **development** realizations.
+3. Define a common operating criterion: e.g. balanced M=0 F1, or highest recall
+   subject to precision, contamination, or workload constraints.
+4. Select method-specific settings using that criterion, then freeze them.
+5. Apply those settings unchanged on **held-out evaluation** realizations.
+
+The supplied `balanced_M0` criterion is an executable starting comparison, not
+an established epidemiological recommendation. Configurable constraints use
+explicit `min`/`max` bounds, for example `M0_precision: {min: 0.5}`. Choose such
+values from the intended use and development evidence. Bounds must hold on
+every development realization. Among feasible settings, maximize the mean
+objective, then prefer lower between-realization SD, then the stable setting ID.
+Infeasible methods remain labeled infeasible; criteria are never silently relaxed.
+TreeCluster methods are displayed separately and selected jointly within each
+raw/dated observed-process pipeline. Pairwise thresholds and cluster settings
+are selected independently. Frozen files contain criteria, development evidence
+fingerprints, training identity and complete method definitions.
+
+## Baseline design and provenance
+
+The fixed backbone has 4,990 cases. Training, development and evaluation use
+distinct seeds; historical seeds 12345/54321 are not held-out replicates. All
+conclusions are conditional on this backbone, not independent-epidemic
+generalization. Summaries use equal realization weights and report SD/range;
+millions of dependent pairs are not used as independent uncertainty replicates.
+Three evaluation realizations are a starting descriptive assessment, not precise
+population confidence intervals. Scorer Monte Carlo and Leiden seeds are separate.
+
+Generation and inference parameters are matched. EDD/EDS/ESD/ESS still distinguish
+genetic process assumptions. Preserve the legacy EpiLink 0.1.5 convention explicitly:
+`generation.genome_length=29903` controls mutation-count expectations, whereas
+`simulation.sequence_length=5000` controls simulated sequence sites. Tree distances
+divide observed Hamming counts by the latter. The dated clock is estimated, not
+fixed to the nominal 29903-site mutation parameter. TD is absolute and rounded to
+days for all scorers; TreeTime receives dates rounded by the same convention.
+
+Input, implementation, package, parameter, seed, score, tree and membership hashes
+protect artifact reuse. Stages load validated prerequisites and checkpoint their
+outputs. Failed/missing TreeCluster results remain visible; a partial comparator
+sweep cannot be frozen as a complete baseline.
+
+## Run
+
+From the repository root after `python -m pip install -e '.[test]'`:
 
 ```bash
-cd /Users/ydnkka/Desktop/PhD\ Project/Projects/epilink-evaluation
-/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/python -m synthetic_baseline.run
-```
+# Dependency checks and experiment size; no simulation.
+epilink-evaluate check --config synthetic_baseline/config.yaml
 
-### Run Specific Stages
-
-```bash
-# Data preparation only
+# Prepare training/development observations and shared truth only.
 python -m synthetic_baseline.run --stage prepare
 
-# Observations and pairwise only
-python -m synthetic_baseline.run --stage 01 --stage 02
+# Fit and compare scorers, then clustering, with a development report.
+python -m synthetic_baseline.run --stage pairwise
+python -m synthetic_baseline.run --stage clusters
+# Equivalent dependency-aware development workflow:
+python -m synthetic_baseline.run --stage develop
 
-# Full assessment
-python -m synthetic_baseline.run --stage all
+# After reviewing development evidence and configuring criteria:
+python -m synthetic_baseline.run --stage select
+python -m synthetic_baseline.run --stage evaluate
+
+# Rebuild the report from saved tables.
+python -m synthetic_baseline.run --stage report
+
+# Small end-to-end validation, in a separate smoke output directory.
+python -m synthetic_baseline.run --smoke --stage all
+python -m pytest
 ```
 
-### Full Sweep Mode
+FastME and TreeTime are used for tree construction/dating, and TreeCluster for
+tree partitions. Tools are discovered on PATH or beside the active Python
+interpreter; commands can also be configured explicitly. Reports list failures.
+Raw/processed source inputs are preserved. `prepare-tree` regenerates a missing
+backbone from raw SCoVMod data; an existing backbone is validated and retained.
 
-```bash
-# Extended resolution/threshold sweeps (slower, more comprehensive)
-python -m synthetic_baseline.run --full-sweep
-```
+## Outputs and extension points
 
-## Output Structure
+`outputs/baseline/` contains shared `artifacts/` (truth, observations, fitted models,
+scores, trees), and fingerprinted `runs/<id>/` directories. `current.json` points
+to the current run. Each run contains `development/` (pairwise curves and clustering sweeps),
+`selection/operating_points.json`, `evaluation/` (fixed-setting results), and
+`report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after
+accessing evaluation data requires fresh evaluation seeds. Smoke outputs use
+`outputs/baseline_smoke/` and are labeled as pipeline validation.
 
-```text
-synthetic_baseline/outputs/runs/matched/baseline/seed_12345/
-├── manifest.json                    # Run provenance and settings
-├── 01_observations/
-│   ├── relationship_prevalence.csv  # AD/CA/M distributions
-│   ├── ambiguity_summary.csv        # Mixed feature cell statistics
-│   └── feature_cells.csv            # Joint (GD, TD) distributions
-├── 02_pairwise/
-│   ├── ranking_summary.csv          # AP by endpoint and score family
-│   ├── operating_points.csv         # Precision/recall at fixed budgets
-│   └── contamination_summary.csv    # M≥3 fraction at operating points
-├── 03_clusters/
-│   ├── partition_summary.csv        # Cluster composition and metrics
-│   ├── oracle_target_partition.csv  # Structural ceiling benchmark
-│   ├── null_replicates.csv          # Size/time-preserving randomizations
-│   └── treecluster_partition_summary.csv  # TreeCluster results
-├── 04_validation/
-│   ├── scorer_generator_checks.csv  # Draw vs observed comparisons
-│   ├── benchmark_ranking.csv        # Logistic/lookup AP comparison
-│   └── historical_reproduction.json # Legacy score reproduction status
-├── figures/                         # PNG figures for report
-├── report.md                        # Markdown report
-└── report.html                      # HTML report
-```
+Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs,
+phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do
+not compute evaluation metrics; clusterers do not access truth; reporting reads
+saved result tables. `inputs.synthetic.analysis_table` provides an optional
+joined view without duplicating stored truth for every model.
 
-## Key Metrics
+## Next studies
 
-### Pairwise Informativeness
-
-| Metric                     | Interpretation                                           |
-| -------------------------- | -------------------------------------------------------- |
-| **Average Precision (AP)** | Area under precision-recall curve; 1.0 = perfect ranking |
-| **Target Enrichment**      | Precision / prevalence; >1 indicates informative scoring |
-| **M≥3 Contamination**      | Fraction of selected pairs with ≥3 intermediates         |
-
-### Cluster Structure
-
-| Metric                    | Interpretation                                              |
-| ------------------------- | ----------------------------------------------------------- |
-| **M≤2 Pair Precision**    | Fraction of within-cluster pairs that are near-transmission |
-| **M≤2 Pair Recall**       | Fraction of all M≤2 pairs captured in clusters              |
-| **Direct Edge Retention** | Fraction of true AD(0)/CA(0,0) edges within clusters        |
-| **Oracle BCubed F1**      | Structural ceiling for partition-based recovery             |
-
-## Interpretation Guidelines
-
-### High Enrichment ≠ High Precision
-
-A score can show 100× enrichment over baseline while having only 30% precision if the target prevalence is 0.3%. Always report **absolute precision** alongside enrichment.
-
-### Oracle Ceiling Reveals Structural Limits
-
-If the oracle (perfect M=0 edges) achieves only 15% M≤2 recall at a given resolution, no method using that clustering approach can exceed 15% recall—regardless of pairwise accuracy.
-
-### M≥3 Contamination Is Critical
-
-A method selecting 1000 pairs with 40% M≥3 contamination is including 400 epidemiologically distant pairs. For outbreak investigation, this may be unacceptable even with 70% target recall.
-
-### Null Baselines Separate Signal from Structure
-
-If size-preserving randomization achieves 80% of the observed cluster composition, the method is primarily capturing cluster-size structure rather than transmission signal.
-
-## Configuration
-
-Edit `config.yaml` to modify:
-
-- `seeds`: Evaluation seeds (must differ from `training_seed`)
-- `clusters.selected_fractions`: Top-score fractions for graph construction
-- `treecluster.threshold_days`: Temporal thresholds for TreeCluster
-- `figures.primary_selection_fraction`: Operating point for main report tables
-
-## Dependencies
-
-Requires the `epilik_evaluation` conda environment with:
-
-- `epilink` (synthetic epidemic simulator)
-- `igraph`, `networkx` (graph algorithms)
-- `scikit-learn` (logistic regression)
-- `pandas`, `numpy`, `scipy` (numerical operations)
-- `matplotlib` (figures)
-- `TreeCluster.py` (optional, for TreeCluster comparisons)
-
-## Citation Notes
-
-This baseline assessment uses the relationship encoding and ambiguity analysis from `synthetic_exploration/` and the informativeness comparisons from `synthetic_informativeness/`. The oracle cluster benchmark and 8-category relationship composition are new additions.
-
-## License
-
-Part of the EpiLink evaluation framework.
+Once baseline operating criteria are settled, parameter perturbations compare
+matched inference with baseline-fixed inference and logistic training, carrying
+the baseline operating settings forward. Any retuning is a separate adaptation
+analysis. Empirical application then reuses these definitions and records input
+availability and external epidemiological evidence; exposure groups are not
+complete transmission truth. Boston's preserved TN93 table is distance-censored
+at 0.0005/site, so full-pair comparators require regenerated distances or an
+explicitly restricted candidate universe.

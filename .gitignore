@@ -18,5 +18,13 @@ __pycache__/
 *.synctex.gz
 
 # Preserved inputs and fitted classifiers for the reference-correction audit.
-results/reference_correction_20260928/archive/
-results/reference_correction_20260928/*.pkl
+archive/pre_reset_2026-09-30/results/reference_correction_20260928/archive/
+archive/pre_reset_2026-09-30/results/reference_correction_20260928/*.pkl
+
+# Fresh, regenerable artifacts. Compact reports are explicitly published on demand.
+synthetic_baseline/outputs/
+data/derived/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
