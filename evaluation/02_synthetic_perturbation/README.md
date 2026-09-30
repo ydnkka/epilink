@@ -1,9 +1,41 @@
 # Parameter perturbation with frozen baseline settings
 
-This study evaluates how parameter changes affect pairwise ranking and clustering
-performance after a completed synthetic baseline. It reuses the baseline's
-logistic models and selected operating points, with fresh paired observation
-realizations. All commands run from the repository root in the installed environment.
+## Purpose and study sequence
+
+**Main question:** How sensitive are baseline-selected methods to changes in
+natural-history and mutation parameters, and how does performance differ when
+EpiLink uses matching versus baseline-fixed parameter values?
+
+This is the **biological-parameter sensitivity and model-mismatch study**. It
+starts from the completed [synthetic baseline](../01_synthetic_baseline/README.md),
+retains its transmission backbone and known relationship truth, and generates
+fresh observations with one generation parameter changed at a time.
+
+The study has three objectives:
+
+1. **Measure sensitivity to changed observations:** compare each perturbed
+   scenario with an unperturbed control generated using the same fresh seeds.
+2. **Examine EpiLink parameter mismatch:** score the same perturbed observations
+   using both `matched` inference (the scenario's parameter values) and
+   `baseline_fixed` inference (the baseline values).
+3. **Measure robustness of the selected operating points:** replay the baseline's
+   pairwise thresholds, graph settings, and TreeCluster rules across scenarios.
+   Logistic models remain baseline-fitted in both inference modes.
+
+**Evidence produced:** absolute pairwise and clustering performance against known
+truth, plus paired changes in AP, recovery, contamination, and cluster structure.
+The matched/fixed comparison shows the effect of updating EpiLink's parameter
+inputs while keeping operating points fixed. Threshold reselection and classifier
+retraining would answer a separate adaptation question.
+
+**Role in the study sequence:** the baseline establishes performance and selects
+settings; this study assesses their sensitivity under controlled changes. The
+[Boston application](../03_boston_application/README.md) independently applies the
+baseline reference to empirical observations. Boston's clustering-parameter
+exploration varies thresholds/resolutions on fixed real data; this study varies
+the observation-generation parameters on synthetic data.
+
+All commands run from the repository root in the installed environment.
 
 ## Run a smoke study
 
@@ -11,21 +43,21 @@ After the reference baseline's `--stage evaluate` has completed:
 
 ```bash
 conda activate epilik_evaluation
-python -m synthetic_perturbation.run --smoke
+python evaluation/02_synthetic_perturbation/run.py --smoke
 ```
 
 The equivalent installed CLI command is:
 
 ```bash
-epilink-evaluate perturbation --config synthetic_perturbation/config.yaml --smoke
+epilink-evaluate perturbation --config evaluation/02_synthetic_perturbation/config.yaml --smoke
 ```
 
 The default config resolves
-`synthetic_baseline/outputs/baseline/current.json` once at startup. To pin a
+`evaluation/01_synthetic_baseline/outputs/baseline/current.json` once at startup. To pin a
 particular completed baseline, use its run directory:
 
 ```bash
-python -m synthetic_perturbation.run --smoke --baseline-run synthetic_baseline/outputs/baseline/runs/91a6a1370408b0849567
+python evaluation/02_synthetic_perturbation/run.py --smoke --baseline-run evaluation/01_synthetic_baseline/outputs/baseline/runs/91a6a1370408b0849567
 ```
 
 `--baseline-run` also accepts a baseline `current.json`. The resolved reference,
@@ -37,10 +69,10 @@ and held-out artifacts. The source output directory is read-only to this workflo
 
 ```bash
 # Use the entire frozen backbone, all configured perturbations, and study seeds.
-python -m synthetic_perturbation.run
+python evaluation/02_synthetic_perturbation/run.py
 
 # Re-render saved smoke tables; no simulations or baseline reload.
-python -m synthetic_perturbation.run --smoke --stage report
+python evaluation/02_synthetic_perturbation/run.py --smoke --stage report
 ```
 
 Only `--stage all` (the default) and `--stage report` apply here. There is no
@@ -84,7 +116,9 @@ latent random draws after changing distributions. All realizations share one
 backbone; SD/range describe conditional observation variation.
 
 Retraining logistic models or retuning thresholds under a changed parameter is a
-separate adaptation study and is not performed here.
+separate adaptation study and is not performed here. Empirical transfer to real
+Boston data is handled by the Boston application, which uses the same baseline
+reference but has no synthetic transmission truth.
 
 ## Configuration
 
@@ -136,15 +170,15 @@ study. A smoke baseline can be used as a reference for smoke validation only.
 Default roots:
 
 ```text
-synthetic_perturbation/outputs/perturbation/
-synthetic_perturbation/outputs/perturbation_smoke/
+evaluation/02_synthetic_perturbation/outputs/perturbation/
+evaluation/02_synthetic_perturbation/outputs/perturbation_smoke/
 ```
 
 Each has `current.json`, shared `artifacts/`, and fingerprinted `runs/<id>/`.
 Print the pointer to locate the report:
 
 ```bash
-python -m json.tool synthetic_perturbation/outputs/perturbation_smoke/current.json
+python -m json.tool evaluation/02_synthetic_perturbation/outputs/perturbation_smoke/current.json
 ```
 
 Inside the run, inspect these files in order:
@@ -163,7 +197,7 @@ Inside the run, inspect these files in order:
 
 `scenarios/<scenario>/<mode>/evaluation/seed_<seed>/` retains the baseline-style
 pairwise tables, cluster memberships, setting-level metrics, status, and tool
-logs. The field reference is in [OUTPUTS.md](../OUTPUTS.md#12-perturbation-study-outputs).
+logs. The field reference is in [OUTPUTS.md](../../OUTPUTS.md#12-perturbation-study-outputs).
 
 Missing controls remain explicit: `control_available` is false and paired deltas
 are missing. A present control can itself have undefined metrics, so inspect
@@ -193,7 +227,10 @@ environment or deliberately create a new baseline reference.
 
 ## Validation checkpoint — 2026-09-30
 
-- **47 tests pass**, including frozen-model replay, independent paired-delta
+This is a dated record of the implementation at that checkpoint. Commands and
+links use the current directory names; the recorded counts are not a new test run.
+
+- **47 tests passed**, including frozen-model replay, independent paired-delta
   arithmetic, missing controls, source-integrity checks, and cache reuse.
 - Reference baseline: `91a6a1370408b0849567`, with a 1,002-case backbone.
 - Smoke run: `455c87d2dc1d53e6c7b8`, with 64 cases and seed 91001.

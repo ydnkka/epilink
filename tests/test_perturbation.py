@@ -56,7 +56,7 @@ def study_config(tmp_path, reference, *, smoke=False):
 
 def test_default_scenarios_are_valid_one_parameter_changes(small_config):
     root = Path(__file__).resolve().parents[1]
-    config = load_study_config(root / "synthetic_perturbation/config.yaml")
+    config = load_study_config(root / "evaluation/02_synthetic_perturbation/config.yaml")
     before = deepcopy(small_config["generation"])
     expanded = scenarios(config, before)
     assert len(expanded) == 13

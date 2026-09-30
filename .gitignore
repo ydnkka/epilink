@@ -22,9 +22,9 @@ archive/pre_reset_2026-09-30/results/reference_correction_20260928/archive/
 archive/pre_reset_2026-09-30/results/reference_correction_20260928/*.pkl
 
 # Fresh, regenerable artifacts. Compact reports are explicitly published on demand.
-synthetic_baseline/outputs/
-synthetic_perturbation/outputs/
-boston_application/outputs/
+evaluation/01_synthetic_baseline/outputs/
+evaluation/02_synthetic_perturbation/outputs/
+evaluation/03_boston_application/outputs/
 data/derived/
 *.egg-info/
 .pytest_cache/

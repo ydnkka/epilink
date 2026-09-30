@@ -1,12 +1,55 @@
 # Boston empirical application
 
-Empirical clustering analysis of SARS-CoV-2 sequences from Boston outbreaks (March-May 2020), using frozen operating settings from the synthetic baseline evaluation.
+Empirical clustering analysis of SARS-CoV-2 sequences from Boston outbreaks
+(March-May 2020), using frozen operating settings from the synthetic baseline
+evaluation.
 
-## Overview
+## Purpose and study sequence
 
-This workflow applies EpiLink compatibility scores, genetic distances, and logistic probabilities to observed Boston TN93 distances. All scoring rules and graph clustering thresholds are frozen from a completed synthetic baseline—nothing is refitted or reselected. The workflow:
+**Main question:** Do methods selected on synthetic data identify clusters
+concentrated for the Conference and SNF exposures in Boston, how much of each
+exposure group do they recover, and how sensitive are these patterns to
+clustering settings?
 
-Do synthetic-selected operating points transfer to real Boston data?
+This is the **empirical transfer and descriptive application study**. It applies
+EpiLink compatibility scores, genetic distances, and baseline-fitted logistic
+models to observed Boston genetic distances and sampling dates. It also compares
+graph partitions with TreeCluster partitions built from the Boston alignment.
+
+The study has three objectives:
+
+1. **Assess transfer of frozen settings:** apply the synthetic baseline's selected
+   graph and TreeCluster settings directly to empirical observations.
+2. **Characterize epidemiological coherence:** describe exposure concentration,
+   the fraction of each focus-exposure group captured, cluster sizes and
+   singletons, and agreement between graph and phylogenetic partitions.
+3. **Explore clustering sensitivity:** vary graph thresholds, Leiden resolutions,
+   and TreeCluster methods/thresholds on the same Boston data to examine how
+   exposure composition and partition structure change.
+
+These questions are addressed by two explicitly separate analyses:
+
+| Analysis | Settings | Evidence |
+| --- | --- | --- |
+| **Frozen transfer** (`--stage all`) | Baseline-selected operating points applied directly. | Empirical partition and focus-exposure summaries at the prespecified settings. |
+| **Exploration** (`--stage explore`) | Configured graph and TreeCluster grids, with scorer parameters and fitted models fixed. | Descriptive sensitivity across clustering settings, saved under `exploration/`. |
+
+**Evidence produced:** cluster memberships, exposure composition and recovery,
+cluster-size summaries, and partition agreement. Exposure concentration and
+recovery should be interpreted together: a small pure cluster can capture few
+exposed cases, while a very large cluster can capture many with little
+concentration. Complete transmission truth is unavailable, so these summaries
+describe external epidemiological evidence rather than transmission accuracy.
+
+**Role in the study sequence:** the [synthetic baseline](../01_synthetic_baseline/README.md)
+compares methods against known truth and supplies the primary operating points.
+The [perturbation study](../02_synthetic_perturbation/README.md) examines biological
+parameter changes and inference mismatch in simulation. Boston uses the baseline
+reference directly for real-data application; its exploration characterizes
+clustering sensitivity without selecting a new primary setting from exposure
+labels.
+
+## Workflow overview
 
 1. **Prepares inputs** from raw Boston metadata, Nextclade results, and TN93 distances
 2. **Scores observed pairs** using eight frozen inference rules (EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D)
@@ -23,22 +66,29 @@ Do synthetic-selected operating points transfer to real Boston data?
 python -m pip install -e '.[test]'
 
 # Prepare Boston input tables (cases.parquet, observed_pairs.parquet)
-python -m boston_application.run --stage prepare
+python evaluation/03_boston_application/run.py --stage prepare
 
 # Build trees from the Boston alignment and run TreeCluster
-python -m boston_application.run --stage trees
+python evaluation/03_boston_application/run.py --stage trees
 
 # Run the full empirical analysis (scoring, clustering, trees, assessment)
-python -m boston_application.run --stage all
+python evaluation/03_boston_application/run.py --stage all
 
 # Run descriptive threshold/resolution sweeps without changing the frozen result
-python -m boston_application.run --stage explore
+python evaluation/03_boston_application/run.py --stage explore
 
 # Re-render the report from saved results
-python -m boston_application.run --stage report
+python evaluation/03_boston_application/run.py --stage report
 ```
 
-The equivalent installed CLI command is `epilink-evaluate boston --config boston_application/config.yaml --stage all`.
+The equivalent installed CLI command is `epilink-evaluate boston --config evaluation/03_boston_application/config.yaml --stage all`.
+
+`--stage all` runs frozen scoring, graph clustering, enabled TreeCluster, and
+assessment. The exploratory sweep is requested separately with `--stage explore`.
+`--stage trees` only builds/reuses trees and applies the frozen TreeCluster rules.
+Boston does not support `--smoke`. Input preparation can run before baseline
+evaluation; computational stages need the baseline's frozen selection and
+held-out evaluation provenance.
 
 ## Configuration
 
@@ -58,7 +108,11 @@ Edit [`config.yaml`](config.yaml) to change:
 | `trees.tn93_executable` | Optional path to `tn93` for all-pair distances (default: `tn93` on PATH). |
 | `exploration` | Optional descriptive grid for `--stage explore`. It can set scorer subsets, graph thresholds/resolutions, and TreeCluster methods/thresholds. |
 
-The baseline's EpiLink inference parameters, Monte Carlo settings, clustering thresholds, Leiden resolutions/objectives/restarts, and TreeCluster methods/thresholds are all frozen from the reference.
+For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo
+settings, fitted logistic models, graph thresholds, Leiden settings, and
+TreeCluster methods/thresholds come from the baseline reference. For exploration,
+the `exploration` block supplies the clustering grid; EpiLink inference parameters,
+Monte Carlo settings, and fitted logistic models still come from the baseline.
 
 ## Inputs
 
@@ -75,7 +129,7 @@ The `prepare` stage derives `cases.parquet` and `observed_pairs.parquet` with pr
 
 ## Outputs
 
-Default root: `boston_application/outputs/boston/`
+Default root: `evaluation/03_boston_application/outputs/boston/`
 
 ```text
 boston/
@@ -90,7 +144,6 @@ boston/
     selection.json                      # Frozen operating points used
     settings.json                       # Method definitions by setting ID
     inputs.json                         # Input paths and checksums
-    scores/                             # Score artifacts and provenance
     clusters/                           # Graph clustering results by setting
       metrics.csv, status.json
     trees/                              # TreeCluster results by setting
@@ -99,7 +152,7 @@ boston/
       summary.csv                       # Partition sizes and coverage
       cluster_composition.csv           # Exposure/clade/mutation counts per cluster
       named_cluster_overlaps.csv        # Named exposure group summaries
-      best_cluster_overlaps.csv         # Best overlap per focus cluster
+      best_cluster_overlaps.csv         # Optional external-comparator overlaps
       tree_agreement.csv                # ARI/AMI between graph and tree partitions
       named_tree_overlaps.csv           # Named exposure overlaps with tree clusters
     exploration/                        # Optional --stage explore sensitivity sweep
@@ -114,18 +167,10 @@ boston/
 - **Synthetic D/S labels** (e.g., EDS, GD_S, LOGIT_D) identify the source operating rules or fitted classifiers from the baseline, not separate Boston measurements. All scorers use the same observed Boston GD and TD vectors.
 - **LOGIT_S/LOGIT_D** reuse the baseline's fitted logistic classifiers without retraining.
 - **Raw trees** are built from uncensored TN93 all-pair distances (FastME, midpoint rooted). **Dated trees** use TreeTime with real collection dates.
-- **TreeCluster partitions** on raw trees often collapse into few clusters; dated trees typically yield finer structure due to temporal signal.
+- **TreeCluster thresholds** use substitutions/site for raw trees and days of tree branch distance for dated trees. Cluster sizes depend on the method and cutoff; neither tree type guarantees finer or more accurate partitions.
 - **Exploration outputs** are descriptive stability checks across thresholds/resolutions. They are not Boston-selected operating points because complete transmission truth is unavailable.
 - **Exposure labels and TreeCluster agreement** are descriptive external evidence, not transmission truth. The Boston dataset lacks complete transmission links for precision/recall evaluation.
 - **Candidate coverage** is less than 1.0 because the TN93 source is distance-censored; missing pairs are not imputed.
-
-## Method Scope
-
-The workflow:
-- Uses **all eight baseline-frozen scorers** with their selected operating points
-- Builds trees from the Boston alignment
-- Adds an optional **exploratory threshold/resolution sweep** reported separately from the frozen transfer analysis
-- Reports **partition agreement metrics** (Adjusted Rand, Adjusted Mutual Information) between graph and tree clusters
 
 ## Troubleshooting
 
@@ -139,13 +184,17 @@ The workflow:
 
 ## Scientific notes
 
-The Boston empirical application demonstrates how frozen operating settings from a synthetic baseline transfer to real outbreak data. It does **not** claim transmission truth recovery, as complete epidemiological links are unavailable. The analysis is descriptive: it reports cluster sizes, exposure composition, and method agreement, without asserting correctness.
+The Boston empirical application demonstrates how frozen operating settings from
+a synthetic baseline transfer to real outbreak data. It does **not** claim
+transmission truth recovery, as complete epidemiological links are unavailable.
+The analysis is descriptive: it reports cluster sizes, exposure composition, and
+method agreement, without asserting correctness.
 
 For sensitivity to natural-history parameters, use the **perturbation workflow** on synthetic data. Adaptation (retraining or retuning) under changed parameters is a separate analysis not performed here.
 
 ## See also
 
-- [Operational guide](../OPERATIONS.md) for setup, configuration, and troubleshooting
-- [Synthetic baseline protocol](../synthetic_baseline/README.md) for metric definitions and operating criteria
-- [Perturbation study](../synthetic_perturbation/README.md) for parameter sensitivity with frozen settings
-- [Output reference](../OUTPUTS.md) for column definitions and worked joins
+- [Operational guide](../../OPERATIONS.md) for setup, configuration, and troubleshooting
+- [Synthetic baseline protocol](../01_synthetic_baseline/README.md) for metric definitions and operating criteria
+- [Perturbation study](../02_synthetic_perturbation/README.md) for parameter sensitivity with frozen settings
+- [Output reference](../../OUTPUTS.md#10-boston-inputs-and-results) for column definitions and worked joins

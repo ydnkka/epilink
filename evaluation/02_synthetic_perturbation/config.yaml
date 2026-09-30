@@ -1,7 +1,7 @@
 schema_version: 1
 name: natural_history_perturbation
 # Resolved once at startup; alternatively specify a runs/<id> directory.
-baseline_run: ../synthetic_baseline/outputs/baseline/current.json
+baseline_run: ../01_synthetic_baseline/outputs/baseline/current.json
 output_directory: outputs/perturbation
 # Fresh observations, paired across all scenarios and inference modes.
 seeds: [81001, 81002, 81003]

@@ -68,7 +68,7 @@ def main(argv=None):
         if args.stage not in (None, "all", "report"):
             parser.error("Perturbation supports --stage all or report; settings are already frozen")
         config = load_study_config(
-            args.config or "synthetic_perturbation/config.yaml", smoke=args.smoke,
+            args.config or "evaluation/02_synthetic_perturbation/config.yaml", smoke=args.smoke,
             output=args.output, baseline_run=args.baseline_run,
         )
         if args.stage == "report":
@@ -89,7 +89,7 @@ def main(argv=None):
         if args.smoke:
             parser.error("Boston does not support --smoke")
         config = load_study_config(
-            config_path=args.config or "boston_application/config.yaml",
+            config_path=args.config or "evaluation/03_boston_application/config.yaml",
             output=args.output, baseline_run=args.baseline_run,
         )
         if args.stage == "prepare":
@@ -116,7 +116,7 @@ def main(argv=None):
         return 0 if BostonEmpirical(config).run(args.stage or "all") else 1
     if args.baseline_run:
         parser.error("--baseline-run applies to perturbation or boston only")
-    args.config = args.config or Path("synthetic_baseline/config.yaml")
+    args.config = args.config or Path("evaluation/01_synthetic_baseline/config.yaml")
     args.stage = args.stage or "develop"
     if args.stage == "trees":
         parser.error("--stage trees applies to boston only")

@@ -1,9 +1,9 @@
 schema_version: 1
 name: boston_empirical
-baseline_run: ../synthetic_baseline/outputs/baseline/current.json
+baseline_run: ../01_synthetic_baseline/outputs/baseline/current.json
 output_directory: outputs/boston
 inputs:
-  data_root: ../data
+  data_root: ../../data
   # Prepared tables default to <output_directory>/boston_inputs/.
 # All four EpiLink inference/observation rules, two genetic rules and two
 # pretrained logistic rules are replayed on the same observed Boston GD/TD.
@@ -17,7 +17,7 @@ assessment:
 trees:
   enabled: true
   # Trees are built from the Boston alignment.
-  alignment_path: ../data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta
+  alignment_path: ../../data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta
 exploration:
   # Descriptive sensitivity grid for --stage explore. These settings are not
   # selected on Boston truth; they summarize partition stability across plausible

@@ -24,7 +24,7 @@ def load_study_config(
         baseline_run = args.baseline_run
         output = args.output
 
-    config_path = Path(config_path or "boston_application/config.yaml").resolve()
+    config_path = Path(config_path or "evaluation/03_boston_application/config.yaml").resolve()
     config = yaml.safe_load(config_path.read_text())
     if config.get("schema_version") != 1:
         raise ValueError("Expected Boston schema_version: 1")

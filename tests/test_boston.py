@@ -262,7 +262,7 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
 
 def test_default_boston_config_covers_expanded_models():
     root = Path(__file__).resolve().parents[1]
-    config = load_study_config(config_path=root / "boston_application/config.yaml")
+    config = load_study_config(config_path=root / "evaluation/03_boston_application/config.yaml")
     assert config["schema_version"] == 1
     assert config["scorers"] == [
         "EDD",

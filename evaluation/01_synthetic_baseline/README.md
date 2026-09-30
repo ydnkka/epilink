@@ -2,16 +2,47 @@
 
 ## Purpose and study sequence
 
-First establish what EpiLink adds at the **pairwise level**, then evaluate what
-different clustering procedures recover and how their tuning parameters change
-the result. Use development evidence to choose operating criteria and evaluate
-frozen settings on held-out observation realizations. The next studies are
-parameter-perturbation sensitivity and then empirical application.
+**Main question:** How well do EpiLink and its comparators identify close
+transmission relationships, and which clustering settings provide useful
+recovery–contamination trade-offs under baseline simulation conditions?
 
-This is the active protocol. Historical workflows and results are preserved in
-[`archive/pre_reset_2026-09-30`](../archive/pre_reset_2026-09-30/ARCHIVE.md).
+This is the **method-comparison and operating-point selection study**. It uses
+simulated genetic distances and sampling times on a fixed transmission backbone,
+where the true relationships between cases are known. Natural-history parameter
+values are matched between generation and EpiLink inference; deterministic and
+stochastic genetic-process assumptions are compared explicitly.
+
+The study has three objectives:
+
+1. **Measure pairwise discrimination:** compare EpiLink with genetic distance and
+   logistic regression for identifying M=0 pairs (direct transmission or a shared
+   infector), with broader relationships as secondary endpoints.
+2. **Measure the effect of clustering:** compare connected components, Leiden,
+   and raw/dated TreeCluster, including how thresholds, weights, and resolutions
+   affect all within-cluster relationships and cluster sizes.
+3. **Establish a reusable reference:** fit logistic models on training
+   realizations, select operating points on development realizations, and measure
+   their performance on held-out observation realizations.
+
+**Evidence produced:** pairwise ranking curves, clustering parameter sweeps,
+truth-based recovery and contamination metrics, and held-out results for frozen
+settings. These results quantify performance conditional on the chosen backbone
+and simulation design.
+
+### How the three studies fit together
+
+| Study | Scientific role | Main evidence |
+| --- | --- | --- |
+| **Synthetic baseline** (this study) | Compare methods, select settings, and evaluate them on held-out observations. | Truth-based performance and frozen models/operating points. |
+| [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test sensitivity to changed biological parameters and EpiLink parameter mismatch. | Paired performance changes with baseline-selected operating points held fixed. |
+| [**Boston application**](../03_boston_application/README.md) | Examine empirical transfer and sensitivity to clustering settings on real data. | Exposure composition/recovery, partition agreement, and descriptive parameter sweeps. |
+
+The completed baseline supplies the reference for both downstream studies.
+Perturbation and Boston each consume that reference directly; Boston does not
+select its primary settings from perturbation results.
+
 For setup, configuration fields, tree regeneration, stage behavior, saved
-results, and troubleshooting, see the [operational guide](../OPERATIONS.md).
+results, and troubleshooting, see the [operational guide](../../OPERATIONS.md).
 
 ## 1. What are we trying to recover?
 
@@ -127,12 +158,11 @@ fingerprints, training identity and complete method definitions.
 
 ## Baseline design and provenance
 
-The preserved reference backbone has 4,990 cases. Each experiment uses one fixed
-backbone from `inputs.tree_path`; regenerated trees may have a different size.
+Each experiment uses one fixed backbone from `inputs.tree_path`; reconstructed
+trees can have a different size from the requested target component.
 Read the tree provenance or the run's truth artifact manifest for the actual
-case count; see [tree preparation](../OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree).
-Training, development and evaluation use distinct seeds; historical seeds
-12345/54321 are not held-out replicates. All conclusions are conditional on the
+case count; see [tree preparation](../../OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree).
+Training, development and evaluation use distinct observation seeds. All conclusions are conditional on the
 chosen backbone, not independent-epidemic generalization. Summaries use equal
 realization weights and report SD/range;
 millions of dependent pairs are not used as independent uncertainty replicates.
@@ -142,7 +172,7 @@ are separate. `treecluster.rng_seed` controls TreeTime's stochastic choices and 
 included in both the command and the tree artifact signature.
 
 Generation and inference parameters are matched. EDD/EDS/ESD/ESS still distinguish
-genetic process assumptions. Preserve the legacy EpiLink 0.1.5 convention explicitly:
+genetic process assumptions. The EpiLink 0.1.5 configuration uses:
 `generation.genome_length=29903` controls mutation-count expectations, whereas
 `simulation.sequence_length=5000` controls simulated sequence sites. Tree distances
 divide observed Hamming counts by the latter. The dated clock is estimated, not
@@ -160,26 +190,26 @@ From the repository root after `python -m pip install -e '.[test]'`:
 
 ```bash
 # Dependency checks and experiment size; no simulation.
-epilink-evaluate check --config synthetic_baseline/config.yaml
+epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
 
 # Prepare training/development observations and shared truth only.
-python -m synthetic_baseline.run --stage prepare
+python evaluation/01_synthetic_baseline/run.py --stage prepare
 
 # Fit and compare scorers, then clustering, with a development report.
-python -m synthetic_baseline.run --stage pairwise
-python -m synthetic_baseline.run --stage clusters
+python evaluation/01_synthetic_baseline/run.py --stage pairwise
+python evaluation/01_synthetic_baseline/run.py --stage clusters
 # Equivalent dependency-aware development workflow:
-python -m synthetic_baseline.run --stage develop
+python evaluation/01_synthetic_baseline/run.py --stage develop
 
 # After reviewing development evidence and configuring criteria:
-python -m synthetic_baseline.run --stage select
-python -m synthetic_baseline.run --stage evaluate
+python evaluation/01_synthetic_baseline/run.py --stage select
+python evaluation/01_synthetic_baseline/run.py --stage evaluate
 
 # Rebuild the report from saved tables.
-python -m synthetic_baseline.run --stage report
+python evaluation/01_synthetic_baseline/run.py --stage report
 
 # Small end-to-end validation, in a separate smoke output directory.
-python -m synthetic_baseline.run --smoke --stage all
+python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 python -m pytest
 ```
 
@@ -195,7 +225,7 @@ backbone from raw SCoVMod data; an existing backbone is validated and retained.
 ## Outputs and extension points
 
 Column definitions, formulas, missing-value conventions, metadata fields, and
-analysis joins are documented in the [output reference](../OUTPUTS.md).
+analysis joins are documented in the [output reference](../../OUTPUTS.md).
 
 `outputs/baseline/` contains shared `artifacts/` (truth, observations, fitted models,
 scores, trees), and fingerprinted `runs/<id>/` directories. `current.json` points
@@ -213,16 +243,18 @@ joined view without duplicating stored truth for every model.
 
 ## Next studies
 
-After baseline evaluation, the [perturbation workflow](../synthetic_perturbation/README.md)
+After baseline evaluation, the [perturbation workflow](../02_synthetic_perturbation/README.md)
 replays frozen models and operating settings on paired new observations. Start
-with `python -m synthetic_perturbation.run --smoke`, then omit `--smoke` for all
+with `python evaluation/02_synthetic_perturbation/run.py --smoke`, then omit `--smoke` for all
 configured parameter levels. Matched and baseline-fixed modes differ in EpiLink
 inference; logistic training stays baseline-fixed in both. Any retuning or
 retraining is a separate adaptation analysis.
 
-The rebuilt empirical evaluation workflow remains planned; a Boston input
-adapter is available. Empirical application will reuse these definitions and record input
-availability and external epidemiological evidence; exposure groups are not
-complete transmission truth. Boston's preserved TN93 table is distance-censored
-at 0.0005/site, so full-pair comparators require regenerated distances or an
-explicitly restricted candidate universe.
+The [Boston empirical application](../03_boston_application/README.md) applies the
+same frozen definitions to observed Boston outbreak data. It tests transfer and
+describes exposure composition, recovery, and method agreement. Its separate
+`--stage explore` analysis varies clustering settings on those same observations
+to characterize sensitivity. Complete transmission truth is unavailable, so the
+Boston summaries provide descriptive evidence rather than truth-validated
+operating-point selection. Boston's TN93 table is distance-censored at 0.0005/site,
+so missing pairs are treated as unobserved rather than zero distance.

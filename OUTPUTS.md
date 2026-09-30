@@ -1,13 +1,18 @@
 # Output reference
 
-Column definitions and JSON fields for the active `epilink_evaluation` workflow.
+Column definitions and JSON fields for the three `epilink_evaluation` studies.
 For commands, directory layout, and which figures to inspect, use the
 [operational guide](OPERATIONS.md#7-find-and-interpret-results). Scientific
-interpretation is defined in the [baseline protocol](synthetic_baseline/README.md).
+interpretation is defined in the [baseline protocol](evaluation/01_synthetic_baseline/README.md),
+[perturbation guide](evaluation/02_synthetic_perturbation/README.md), and
+[Boston guide](evaluation/03_boston_application/README.md).
 
 Paths below use `<root>` for the configured output directory, `<run>` for
 `<root>/runs/<run-id>`, and `<split>` for `development` or `evaluation`.
-The archived workflows have their own historical schemas.
+Sections 1–9 describe synthetic-baseline outputs; perturbation reuses their
+metric schemas as described in section 12. Boston's empirical schemas are in
+section 10. Boston has descriptive exposure summaries rather than synthetic
+truth metrics, observation seeds, or train/development/evaluation splits.
 
 ## Contents
 
@@ -20,7 +25,7 @@ The archived workflows have their own historical schemas.
 7. [Setting definitions and frozen decisions](#7-setting-definitions-and-frozen-decisions)
 8. [Manifests, status, and provenance](#8-manifests-status-and-provenance)
 9. [Phylogenetic artifacts](#9-phylogenetic-artifacts)
-10. [Boston derived inputs](#10-boston-derived-inputs)
+10. [Boston inputs and results](#10-boston-inputs-and-results)
 11. [Worked joins in Python](#11-worked-joins-in-python)
 12. [Perturbation study outputs](#12-perturbation-study-outputs)
 
@@ -567,9 +572,7 @@ requested stage rather than every possible stage in the study.
 
 `<tree-stem>.source.json` contains `inputs` (input paths and SHA-256 hashes),
 `tree_sha256`, actual `n_cases`, requested `target_size`, reconstruction `seed`,
-`implementation_sha256`, and the `tie_order` description. The historical
-promotion utility instead writes `source.json` with `source`, `sha256`, `role`,
-`git_revision`, and `regeneration` fields.
+`implementation_sha256`, and the `tie_order` description.
 
 ## 9. Phylogenetic artifacts
 
@@ -607,10 +610,16 @@ TreeCluster stdout is saved per setting as `treecluster.stdout.log`, containing
 an unclustered case; use normalized memberships for analysis so those cases
 remain distinct singletons.
 
-## 10. Boston derived inputs
+## 10. Boston inputs and results
 
-Directory: `<root>/boston_inputs/`, produced by `prepare-boston`. These tables
-contain empirical observations and metadata, without synthetic M truth labels.
+Here `<root>` defaults to `evaluation/03_boston_application/outputs/boston/`.
+The input tables live under `<root>/boston_inputs/`, produced by
+`python evaluation/03_boston_application/run.py --stage prepare` or automatically
+by computational stages with the default input configuration. They contain
+empirical observations and metadata, without synthetic M truth labels.
+
+The separate `epilink-evaluate prepare-boston` command uses a **baseline** config
+and writes under that config's output root; it is not the Boston study entry point.
 
 ### `cases.parquet`
 
@@ -657,8 +666,8 @@ The manifest adds `n_cases`, `n_observed_pairs`, `n_all_pairs`, and
 
 ### Boston empirical run outputs
 
-Directory: `boston_application/outputs/boston/runs/<run-id>/`, produced by
-`python -m boston_application.run --stage all`, `trees`, or `explore`.
+Directory: `<root>/runs/<run-id>/`, initialized by
+`python evaluation/03_boston_application/run.py --stage all`, `trees`, or `explore`.
 
 The frozen transfer analysis writes `settings.json`, `selection.json`,
 `clusters/`, `trees/`, and `assessment/` using baseline-selected operating
@@ -666,6 +675,94 @@ points. `clusters/status.json` and `trees/status.json` record configured,
 completed, and failed partitions. `assessment/summary.csv` gives descriptive
 cluster-size and candidate-coverage summaries; Boston has no synthetic truth
 precision/recall columns.
+
+`manifest.json` records the requested stage and its status; `inputs.json` records
+case/pair counts, input hashes/paths, and `trees_enabled`. A complete `trees` run
+does not imply graph scoring or clustering completed. The `all` stage runs frozen
+transfer, while `explore` writes a separate sweep. `report` renders saved tables.
+
+#### Scores and settings
+
+- `<root>/artifacts/scores/<id>/scores.parquet` has `CaseID1`, `CaseID2`, and one
+  column per configured scorer for every observed pair. It has no synthetic
+  `pair_id` column. A frozen `all` run records `score_id` in its manifest; graph
+  artifact signatures also record the score ID used.
+- `<run>/settings.json` contains adapted frozen definitions, including their
+  `baseline_setting_id`, `baseline_score_name`, and `baseline_data_process`.
+  Boston's `data_process` is `empirical`, and tree rows use `score_name: TREE`.
+  Pairwise operating definitions are retained as reference metadata; the workflow
+  writes scores and partitions, not Boston pairwise truth-metric tables.
+- `<run>/selection.json` contains adapted baseline operating decisions and their
+  criterion names; it is not a selection performed using Boston exposures.
+- All scorers use the same empirical GD/TD observations. The synthetic D/S labels
+  identify source operating rules or fitted classifiers. Graph pipelines keep
+  names such as `leiden/ESS/native`; frozen tree pipelines use
+  `treecluster/empirical/<baseline-process>/<raw-or-dated>`.
+
+#### Partition artifacts
+
+`clusters/<setting-id>/` and `trees/<setting-id>/` contain `memberships.parquet`,
+`clusters.parquet`, `metrics.json`, `algorithm.json`, and a completion manifest.
+TreeCluster additionally saves its stdout/stderr logs. Each membership table has
+one row per case, including isolates/singletons, with `case_id` and `cluster_id`.
+
+The per-cluster table has `cluster_id`, `n_cases`, `within_pairs`, and
+`n_<field>_<label>` counts for available `Exposure`, `Clade`, and `Mutation` labels.
+`within_pairs` counts all co-clustered unordered pairs, including pairs absent
+from the censored scoring table. The graph/tree `metrics.csv` tables give one row
+per completed setting with source identifiers and these metrics:
+
+| Metric | Definition |
+| --- | --- |
+| `n_cases`, `n_clusters` | Total cases and clusters, including singletons. |
+| `size_mean`, `size_std` | Unweighted mean and sample SD of cluster sizes; SD is set to zero for a one-cluster partition. |
+| `largest_cluster` | Number of cases in the largest cluster. |
+
+#### Assessment tables
+
+The following tables appear under `assessment/`, and under
+`exploration/assessment/` for exploratory settings. Identifiers include
+`setting_id`, `pipeline`, and `score_name`; source setting IDs are populated for
+frozen partitions and null for exploratory partitions.
+
+| Table | Row unit and interpretation |
+| --- | --- |
+| `summary.csv` | One row per completed partition: cluster counts, singleton cases, largest cluster, and input coverage. `n_non_singleton_clusters` counts clusters with size **at least `assessment.min_cluster_size`**; the default is 2. |
+| `cluster_composition.csv` | One row per observed cluster/metadata-field/label combination: `n_evidence` and `fraction_in_cluster = n_evidence / n_cases`. Zero-count combinations are omitted. |
+| `named_cluster_overlaps.csv` | One representative cluster per setting/focus exposure, chosen by the greatest number of exposed cases among eligible clusters; ties prefer larger clusters, then smaller cluster ID. No row is written if no eligible cluster contains the exposure. |
+| `tree_agreement.csv` | One row per completed graph/TreeCluster setting pair: `adjusted_rand` and `adjusted_mutual_information` across all cases. These compare generated partitions, not transmission truth. |
+| `named_tree_overlaps.csv` | Membership overlap of the representative exposure clusters in each graph/TreeCluster setting pair. |
+| `cluster_overlaps.csv` | When an external comparator is configured, nonzero overlaps of eligible focus clusters with its groups. Otherwise header-only. |
+| `best_cluster_overlaps.csv` | The external group with the most shared cases for each setting/exposure/cluster; ties prefer larger Jaccard, then group ID. Otherwise header-only. |
+
+For `named_cluster_overlaps.csv`:
+
+| Column | Meaning |
+| --- | --- |
+| `n_cases`, `n_exposure` | Representative cluster size and number of its cases carrying the focus-exposure label. |
+| `exposure_total` | Number of cases with that label in the entire Boston case table. |
+| `exposure_fraction` | `n_exposure / n_cases`: concentration within the representative cluster. |
+| `exposure_recovery` | `n_exposure / exposure_total`: fraction of the exposure group in that one cluster, not recovery summed across all clusters. |
+| `treecluster_group`, `treecluster_size`, `shared`, `model_overlap_percent`, `treecluster_overlap_percent`, `jaccard` | Optional comparison with a representative group from `assessment.treecluster_path`; blank when no external comparator is supplied. |
+
+For any two compared membership sets A and B, `shared = |A ∩ B|` and
+`jaccard = |A ∩ B| / |A ∪ B|`. Overlap-percent columns divide the shared count by
+the respective set size and multiply by 100; exposure fractions and Jaccard are
+on a 0–1 scale. `named_tree_overlaps.csv` uses `model_size`, `tree_size`, and
+`tree_overlap_percent` for the generated TreeCluster counterpart.
+
+Descriptive **fold enrichment** can be calculated as
+`exposure_fraction / (exposure_total / total_Boston_cases)`. It is not currently
+a saved assessment column or a significance test. Interpret it together with
+`exposure_recovery`. Exposure labels are mutually exclusive as defined above;
+these summaries do not establish transmission precision/recall.
+
+`candidate_coverage = n_observed_pairs / n_all_pairs`, where
+`n_all_pairs = total_Boston_cases * (total_Boston_cases - 1) / 2`. It describes the
+censored input table and is repeated on tree rows for context; Boston trees use
+separately generated all-pair distances from the alignment.
+
+#### Exploration outputs
 
 The exploratory sensitivity stage writes under `exploration/`:
 
@@ -676,10 +773,28 @@ The exploratory sensitivity stage writes under `exploration/`:
 | `clusters/` | Graph partitions for exploratory components/Leiden settings. |
 | `trees/` | TreeCluster partitions for exploratory raw/dated thresholds. |
 | `assessment/` | Same descriptive partition summaries and exposure/agreement tables as the frozen analysis, scoped to exploratory settings. |
-| `status.json` | Overall exploratory configured counts and completion state. |
+| `status.json` | Overall exploratory completion state and counts `configured`, `graph_configured`, and `treecluster_configured`. Completed counts and errors are in each graph/tree `status.json`. |
 
 Exploration outputs are descriptive stability checks, not selected Boston
 operating points.
+
+Exploratory pipeline names begin with `explore/`. Trees use one empirical raw and
+one dated input, with all configured methods/cutoffs rather than duplicated
+synthetic-source rules. Graph grids include explicit empty-selection settings.
+Join assessment rows to `setting_metadata.csv` by `setting_id` to inspect the
+threshold/resolution response. The report shows minimum/median/maximum partition
+sizes across settings; these ranges are not replicate-based uncertainty intervals.
+
+#### Boston tree artifacts
+
+Boston trees live under `<root>/artifacts/trees/<id>/`. The raw-tree artifact
+includes `all_pairs_tn93.csv`, `distances.phy`, `fastme.nwk`, `raw.nwk`, and tool
+logs. Its distance matrix contains TN93 substitutions/site, rather than synthetic
+Hamming counts divided by simulated sequence length. The dated artifact includes
+`dates.csv` with real collection dates, TreeTime outputs, and `dated.nwk` with
+calendar-year branches. `trees/inputs.json` records the tree paths and hashes used
+for that analysis. Dated TreeCluster cutoffs in days are divided by
+`days_per_year` before applying them to the tree.
 
 ## 11. Worked joins in Python
 
@@ -695,7 +810,7 @@ from pathlib import Path
 
 import pandas as pd
 
-root = Path("synthetic_baseline/outputs/baseline_smoke")
+root = Path("evaluation/01_synthetic_baseline/outputs/baseline_smoke")
 run = Path(json.loads((root / "current.json").read_text())["run_directory"])
 definitions = pd.DataFrame.from_dict(
     json.loads((run / "settings.json").read_text()), orient="index"
@@ -768,8 +883,8 @@ run, split, seed, and setting identity when combining multiple partitions.
 
 ## 12. Perturbation study outputs
 
-The [perturbation runner](synthetic_perturbation/README.md) has a separate
-`<root>` under `synthetic_perturbation/outputs/perturbation/` or
+The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a separate
+`<root>` under `evaluation/02_synthetic_perturbation/outputs/perturbation/` or
 `perturbation_smoke/`. Its `current.json` and `runs/<id>/` naming follow the
 baseline convention. In this section, `<run>` is a perturbation run.
 

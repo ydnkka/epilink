@@ -1,8 +1,10 @@
 # Validation checkpoint — 2026-09-30
 
-This records the completed smoke validation on the preserved reference backbone.
+This records the completed smoke validation on the reference backbone at that
+checkpoint. Counts and run IDs describe that execution, not the current test
+suite or latest run. Commands and links below use the current directory names.
 For current configuration, tree regeneration, stages, and troubleshooting, use
-the [operational guide](../OPERATIONS.md).
+the [operational guide](../../OPERATIONS.md).
 
 ## Completed
 
@@ -10,9 +12,9 @@ the [operational guide](../OPERATIONS.md).
   `epilik_evaluation` environment.
 - The installed CLI's configuration/dependency check passes: FastME, TreeTime,
   TreeCluster, and the canonical transmission backbone are available.
-- **31 tests pass** with `python -m pytest -q`.
+- **31 tests passed** with `python -m pytest -q`.
 - **The 64-case smoke workflow completes** with
-  `python -m synthetic_baseline.run --smoke --stage all`.
+  `python evaluation/01_synthetic_baseline/run.py --smoke --stage all`.
 
 The tests cover full-tree AD/CA truth against independent graph paths,
 unsampled infectors, separate introductions, tie-aware AP against scikit-learn,
@@ -63,23 +65,23 @@ From the repository root, using the same environment:
 
 ```bash
 conda activate epilik_evaluation
-python -m synthetic_baseline.run --stage develop
+python evaluation/01_synthetic_baseline/run.py --stage develop
 ```
 
 The configuration at this checkpoint used training seeds 61001/61002,
 development seeds 62001/62002/62003, and 2,044 operating definitions per
 development realization.
-Artifacts and reports are written under `synthetic_baseline/outputs/baseline/`;
+Artifacts and reports are written under `evaluation/01_synthetic_baseline/outputs/baseline/`;
 `current.json` identifies the run. Repeating a stage reuses validated artifacts
 and resumes missing work.
 
 Review the development precision–recall curves, clustering sweeps, comparator
 completeness, and grid boundaries. Set the intended operating criteria in
-`synthetic_baseline/config.yaml`, then freeze and replay:
+`evaluation/01_synthetic_baseline/config.yaml`, then freeze and replay:
 
 ```bash
-python -m synthetic_baseline.run --stage select
-python -m synthetic_baseline.run --stage evaluate
+python evaluation/01_synthetic_baseline/run.py --stage select
+python evaluation/01_synthetic_baseline/run.py --stage evaluate
 ```
 
 Full evaluation seeds 63001/63002/63003 have not been used at this checkpoint.

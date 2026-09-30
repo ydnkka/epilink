@@ -2,9 +2,9 @@ schema_version: 1
 name: matched_baseline
 output_directory: outputs/baseline
 inputs:
-  tree_path: ../data/derived/scovmod/transmission_tree.gml
-  infection_path: ../data/raw/scovmod/InfectedIndividuals.1.csv
-  transmission_path: ../data/raw/scovmod/TransmissionEvents.1.csv
+  tree_path: ../../data/derived/scovmod/transmission_tree.gml
+  infection_path: ../../data/raw/scovmod/InfectedIndividuals.1.csv
+  transmission_path: ../../data/raw/scovmod/TransmissionEvents.1.csv
   target_component_size: 1000
   tree_seed: 12345
   smoke_cases: null
