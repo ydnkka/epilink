@@ -7,26 +7,25 @@ from pathlib import Path
 import yaml
 
 from ..provenance import implementation_signature
+from .boston_scoring import BASELINE_SCORES, validate_scorers
 
 
 def load_study_config(
-    argv=None, config_path=None, baseline_run=None, output=None, seeds=None
+    argv=None, config_path=None, baseline_run=None, output=None
 ):
     if argv is not None:
         import argparse
 
         parser = argparse.ArgumentParser(description="Boston empirical clustering")
         parser.add_argument("--config", type=Path, default=config_path)
-        parser.add_argument("--baseline-run", type=Path, dest="baseline_run")
+        parser.add_argument("--baseline-run", type=Path, default=baseline_run)
         parser.add_argument("--output", type=Path, default=output)
-        parser.add_argument("--seeds", type=int, nargs="+", default=seeds)
         args = parser.parse_args(argv)
         config_path = args.config
         baseline_run = args.baseline_run
         output = args.output
-        seeds = args.seeds
 
-    config_path = Path(config_path or "synthetic_baseline/boston_config.yaml").resolve()
+    config_path = Path(config_path or "boston_application/config.yaml").resolve()
     config = yaml.safe_load(config_path.read_text())
     if config.get("schema_version") != 1:
         raise ValueError("Expected Boston schema_version: 1")
@@ -42,18 +41,17 @@ def load_study_config(
         if output is None
         else Path(output).resolve()
     )
+    inputs = config["inputs"]
+    if "data_root" in inputs:
+        inputs["data_root"] = str((config_path.parent / inputs["data_root"]).resolve())
+    prepared = Path(config["output_directory"]) / "boston_inputs"
+    for key, filename in (("cases_path", "cases.parquet"), ("pairs_path", "observed_pairs.parquet")):
+        inputs[key] = str(
+            (config_path.parent / inputs[key]).resolve() if key in inputs
+            else prepared / filename
+        )
 
-    if seeds is not None:
-        config["seeds"] = seeds
-    if (
-        not config["seeds"]
-        or any(type(s) is not int or s < 0 for s in config["seeds"])
-        or len(set(config["seeds"])) != len(config["seeds"])
-    ):
-        raise ValueError("Seeds must be distinct nonnegative integers")
-
+    config["scorers"] = config.get("scorers", list(BASELINE_SCORES))
+    validate_scorers(config["scorers"])
     config["implementation"] = implementation_signature()
-    config["scorers"] = config.get(
-        "scorers", ["EDD", "EDS", "ESD", "ESS", "GD_D", "GD_S", "LOGIT_D", "LOGIT_S"]
-    )
     return config

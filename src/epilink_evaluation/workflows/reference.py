@@ -20,7 +20,14 @@ def checked_artifact(directory, expected=None):
     return saved
 
 
-class BaselineReference:
+class OperatingReference:
+    """Frozen operating rules and inference parameters, without fitted models.
+
+    Validate run identity, selection evidence and held-out selection provenance.
+    Consumers using training-free scores do not need training artifacts, the
+    synthetic truth topology, or local phylogenetic executables.
+    """
+
     def __init__(self, path, implementation):
         path = Path(path).resolve()
         if path.is_file():
@@ -60,13 +67,6 @@ class BaselineReference:
                    and implementation["evaluation"].get(name) != checksum]
         if changed or old["epilink"] != implementation["epilink"] or old["versions"] != implementation["versions"]:
             raise ValueError(f"Scientific implementation/dependencies differ from baseline: {changed}")
-        self.tools = {}
-        if self.config["treecluster"]["enabled"]:
-            for name, executable in self.config["treecluster"]["executables"].items():
-                self.tools[name] = command_identity(executable)
-                if self.tools[name]["sha256"] != signature["tools"][name].get("sha256"):
-                    raise ValueError(f"Reference executable changed: {name}")
-
         definitions = read_json(path / "settings.json")
         self.selected = {}
         for point in self.frozen["operating_points"]:
@@ -77,6 +77,28 @@ class BaselineReference:
                 self.selected[key] = definition
         if not self.selected:
             raise ValueError("Reference has no selected operating points")
+        self.identity = {
+            "run_directory": str(path), "run_fingerprint": run_id,
+            "selection_fingerprint": fingerprint(self.frozen),
+            "baseline_implementation": old,
+        }
+
+
+class BaselineReference(OperatingReference):
+    """Full reference, including fitted models and completed held-out artifacts."""
+
+    def __init__(self, path, implementation):
+        super().__init__(path, implementation)
+        path = self.directory
+        signature = self.manifest["signature"]
+        run_id = self.identity["run_fingerprint"]
+        old = signature["implementation"]
+        self.tools = {}
+        if self.config["treecluster"]["enabled"]:
+            for name, executable in self.config["treecluster"]["executables"].items():
+                self.tools[name] = command_identity(executable)
+                if self.tools[name]["sha256"] != signature["tools"][name].get("sha256"):
+                    raise ValueError(f"Reference executable changed: {name}")
         self.training_id = self.frozen["training_fingerprint"]
         self.model_directory = self.root / "artifacts/models" / self.training_id[:20]
         model_manifest = checked_artifact(self.model_directory)

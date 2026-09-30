@@ -1,0 +1,13 @@
+schema_version: 1
+name: boston_empirical
+baseline_run: ../synthetic_baseline/outputs/baseline/current.json
+output_directory: outputs/boston
+inputs:
+  data_root: ../data
+  # Prepared tables default to <output_directory>/boston_inputs/.
+# ES/ED use stochastic/deterministic EpiLink inference on observed Boston GD.
+# Frozen operating rules: ES <- ESS, ED <- EDS; GD_S/GD_D retain their source
+# rules while sharing the same observed distances. No classifiers are fitted
+# or loaded. Inference parameters, Monte Carlo seed, and graph settings are
+# inherited from the reference baseline.
+scorers: [ES, ED, GD_S, GD_D]

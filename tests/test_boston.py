@@ -2,29 +2,108 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import pytest
 import yaml
 
-from epilink_evaluation.provenance import read_json
-from epilink_evaluation.workflows.boston import BostonEmpirical
+from epilink_evaluation.provenance import fingerprint, read_json
+from epilink_evaluation.workflows.boston import BostonEmpirical, load_boston_inputs, build_observations
 from epilink_evaluation.workflows.boston_config import load_study_config
+from epilink_evaluation.workflows.boston_scoring import (
+    BASELINE_SCORES, operating_settings, score_observations,
+)
+
+
+def test_load_boston_inputs_valid(tmp_path):
+    cases = pd.DataFrame({
+        "case_id": ["A", "B", "C"],
+        "sample_date": pd.date_range("2020-03-01", periods=3),
+        "Exposure": ["Conference", "SNF", "BHCHP"],
+    })
+    cases_path = tmp_path / "cases.parquet"
+    cases.to_parquet(cases_path, index=False)
+
+    pairs = pd.DataFrame({
+        "CaseID1": ["A", "B"],
+        "CaseID2": ["B", "C"],
+        "TD": [1.0, 2.0],
+        "GD": [2.0, 5.0],
+        "TN93_distance": [2.0 / 29903, 5.0 / 29903],
+    })
+    pairs_path = tmp_path / "pairs.parquet"
+    pairs.to_parquet(pairs_path, index=False)
+
+    cases_out, pairs_out = load_boston_inputs(cases_path, pairs_path)
+    assert len(cases_out) == 3
+    assert len(pairs_out) == 2
+
+
+def test_load_boston_inputs_missing_metadata(tmp_path):
+    cases = pd.DataFrame({
+        "case_id": ["A", "B"],
+        "sample_date": pd.date_range("2020-03-01", periods=2),
+    })
+    cases_path = tmp_path / "cases.parquet"
+    cases.to_parquet(cases_path, index=False)
+
+    pairs = pd.DataFrame({
+        "CaseID1": ["A", "C"],
+        "CaseID2": ["B", "D"],
+        "TD": [1.0, 2.0],
+        "GD": [2.0, 5.0],
+        "TN93_distance": [2.0 / 29903, 5.0 / 29903],
+    })
+    pairs_path = tmp_path / "pairs.parquet"
+    pairs.to_parquet(pairs_path, index=False)
+
+    with pytest.raises(ValueError, match="lack metadata"):
+        load_boston_inputs(cases_path, pairs_path)
+
+
+def test_build_observations(tmp_path):
+    cases = pd.DataFrame({
+        "case_id": ["A", "B", "C"],
+        "sample_date": pd.date_range("2020-03-01", periods=3),
+    })
+    cases_path = tmp_path / "cases.parquet"
+    cases.to_parquet(cases_path, index=False)
+
+    pairs = pd.DataFrame({
+        "CaseID1": ["A", "B"],
+        "CaseID2": ["B", "C"],
+        "TD": [1.0, 2.0],
+        "GD": [2.0, 5.0],
+        "TN93_distance": [2.0 / 29903, 5.0 / 29903],
+    })
+    pairs_path = tmp_path / "pairs.parquet"
+    pairs.to_parquet(pairs_path, index=False)
+
+    cases_df, pairs_df = load_boston_inputs(cases_path, pairs_path)
+    observations, case_index = build_observations(cases_df, pairs_df)
+    assert len(observations) == 2
+    assert list(observations.columns) == ["a", "b", "TD", "GD", "tn93"]
+    assert case_index["A"] == 0
+    assert case_index["B"] == 1
+    assert case_index["C"] == 2
 
 
 @pytest.fixture
 def evaluated_baseline(small_config, tmp_path):
     from epilink_evaluation.workflows.baseline import Baseline
 
-    small_config["scorers"] = ["EDD", "GD_D"]
-    small_config["clustering"]["algorithms"] = ["components"]
+    small_config["scorers"] = ["ESS", "EDS", "GD_S", "GD_D", "LOGIT_S"]
+    small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["treecluster"]["enabled"] = False
     baseline = Baseline(small_config)
     assert baseline.run("all")
     return baseline
 
 
-def boston_config(tmp_path, reference, *, smoke=False):
+def boston_config(tmp_path, reference):
     cases_path = tmp_path / "boston_cases.parquet"
     pairs_path = tmp_path / "boston_pairs.parquet"
 
@@ -38,7 +117,7 @@ def boston_config(tmp_path, reference, *, smoke=False):
     pairs = pd.DataFrame({
         "CaseID1": ["A", "A", "B", "B", "C"],
         "CaseID2": ["B", "C", "C", "D", "D"],
-        "TD": [1.0, 2.0, 1.0, 3.0, 1.0],
+        "TD": [1.0, 2.0, 1.0, 2.0, 1.0],
         "GD": [2.0, 5.0, 3.0, 8.0, 1.0],
         "TN93_distance": [2.0 / 29903, 5.0 / 29903, 3.0 / 29903, 8.0 / 29903, 1.0 / 29903],
     })
@@ -53,24 +132,36 @@ def boston_config(tmp_path, reference, *, smoke=False):
             "cases_path": str(cases_path),
             "pairs_path": str(pairs_path),
         },
-        "seeds": [82001],
-        "scorers": ["EDD", "GD_D"],
-        "clustering": {
-            "algorithms": ["components"],
-            "leiden": {"objective": "CPM", "weight_policies": ["binary"], "resolutions": [0.1], "restarts": 2, "seed": 65001},
-        },
-        "treecluster": {"enabled": False},
+        "scorers": ["ES", "ED", "GD_S", "GD_D"],
     }
     path = tmp_path / "boston.yaml"
     path.write_text(yaml.safe_dump(config))
     return load_study_config(argv=[], config_path=path)
 
 
-def test_boston_workflow_runs_smoke(evaluated_baseline, tmp_path):
-    config = boston_config(tmp_path, evaluated_baseline, smoke=True)
+def test_boston_runs_without_training_artifacts_and_reuses_scores(evaluated_baseline, tmp_path, monkeypatch):
+    from epilink_evaluation.scorers.registry import LogisticScorer
+    from epilink_evaluation.workflows import baseline as baseline_module
+    from epilink_evaluation.workflows import reference as reference_module
+
+    config = boston_config(tmp_path, evaluated_baseline)
+    # Boston must run even when the synthetic fitted classifiers are absent.
+    shutil.rmtree(evaluated_baseline.root / "artifacts/models")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Boston must not fit, select, load training artifacts, or predict logistic scores")
+
+    monkeypatch.setattr(baseline_module, "fit_logistic", forbidden)
+    monkeypatch.setattr(baseline_module, "select_operating_points", forbidden)
+    monkeypatch.setattr(LogisticScorer, "predict", forbidden)
+    monkeypatch.setattr(reference_module, "checked_artifact", forbidden)
+    monkeypatch.setattr(reference_module, "command_identity", forbidden)
     study = BostonEmpirical(config)
     assert study.n_cases == 5
     assert study.n_observed_pairs == 5
+    assert study.context.logistic_models == {}
+    assert study.scoring_config["inference"] == evaluated_baseline.config["inference"]
+    assert study.scoring_config["scorer"] == evaluated_baseline.config["scorer"]
     assert study.run()
     assert read_json(study.directory / "manifest.json")["status"] == "complete"
     assert (study.directory / "clusters" / "status.json").exists()
@@ -78,17 +169,98 @@ def test_boston_workflow_runs_smoke(evaluated_baseline, tmp_path):
     assert cluster_status["status"] == "complete"
     assert (study.directory / "report.md").exists()
     assert (study.directory / "report.html").exists()
+    definitions = read_json(study.directory / "settings.json")
+    assert {d["score_name"] for d in definitions.values()} == set(BASELINE_SCORES)
+    original = read_json(evaluated_baseline.directory / "settings.json")
+    for key, definition in definitions.items():
+        assert key == fingerprint(definition)[:20]
+        source = original[definition["baseline_setting_id"]]
+        assert definition["baseline_score_name"] == BASELINE_SCORES[definition["score_name"]]
+        for field in ("threshold", "empty", "weight_policy", "resolution", "restarts", "algorithm_seed"):
+            assert definition.get(field) == source.get(field)
+        if definition["kind"] != "pairwise":
+            membership = pd.read_parquet(study.directory / "clusters" / key / "memberships.parquet")
+            assert set(membership.case_id) == {"A", "B", "C", "D", "E"}
+            # E has no observed pairs and is retained as an isolated vertex.
+            cluster = membership.loc[membership.case_id == "E", "cluster_id"].iloc[0]
+            assert membership.cluster_id.eq(cluster).sum() == 1
+    scores, score_id = study.score()
+    assert list(scores.columns) == ["CaseID1", "CaseID2", "ES", "ED", "GD_S", "GD_D"]
+    np.testing.assert_array_equal(scores.GD_S, scores.GD_D)
+    assert len(scores) == 5  # Missing pairs have not been imputed or scored.
+    first = pd.read_csv(study.directory / "clusters/metrics.csv")
+    assert pd.api.types.is_numeric_dtype(first.size_mean)
+    resumed = BostonEmpirical(config)
+    monkeypatch.setattr(resumed.context, "epilink", forbidden)
+    assert resumed.run()
+    repeated, repeated_id = resumed.score()
+    assert score_id == repeated_id
+    pd.testing.assert_frame_equal(scores, repeated)
+    pd.testing.assert_frame_equal(first, pd.read_csv(resumed.directory / "clusters/metrics.csv"))
+    assert not (study.root / "artifacts/models").exists()
 
 
-def test_boston_config_validation(evaluated_baseline, tmp_path):
-    config = boston_config(tmp_path, evaluated_baseline)
+def test_default_boston_config_is_training_free():
+    root = Path(__file__).resolve().parents[1]
+    config = load_study_config(config_path=root / "boston_application/config.yaml")
     assert config["schema_version"] == 1
-    assert len(config["seeds"]) == 1
-    assert config["seeds"][0] == 82001
+    assert config["scorers"] == ["ES", "ED", "GD_S", "GD_D"]
+    assert "seeds" not in config
+    assert Path(config["inputs"]["cases_path"]) == Path(config["output_directory"]) / "boston_inputs/cases.parquet"
 
 
-def test_boston_requires_fresh_seeds(evaluated_baseline, tmp_path):
-    config = boston_config(tmp_path, evaluated_baseline)
-    config["seeds"] = evaluated_baseline.config["splits"]["train"]
-    with pytest.raises(ValueError, match="fresh"):
-        BostonEmpirical(config)
+@pytest.mark.parametrize("names", [["LOGIT_S"], ["LOGIT_D"], ["ESS"], [], ["ES", "ES"]])
+def test_boston_rejects_unsupported_scorers(tmp_path, names):
+    path = tmp_path / "boston.yaml"
+    path.write_text(yaml.safe_dump({
+        "schema_version": 1, "baseline_run": "baseline/current.json",
+        "output_directory": "outputs", "inputs": {}, "scorers": names,
+    }))
+    with pytest.raises(ValueError, match="ES, ED, GD_S, GD_D"):
+        load_study_config(config_path=path)
+
+
+def test_training_free_scores_use_one_observed_distance_vector():
+    observations = pd.DataFrame({"GD": [0.25, 4.5], "TD": [1.0, 3.0]})
+    calls = []
+
+    class Context:
+        def epilink(self, process):
+            def score_target(*, sample_time_difference, genetic_distance):
+                calls.append(process)
+                np.testing.assert_array_equal(genetic_distance, [0.25, 4.5])
+                np.testing.assert_array_equal(sample_time_difference, [1.0, 3.0])
+                return [0.8, 0.2] if process == "stochastic" else [0.9, 0.1]
+            return SimpleNamespace(score_target=score_target)
+
+    scores = score_observations(observations, Context(), list(BASELINE_SCORES))
+    assert calls == ["stochastic", "deterministic"]
+    np.testing.assert_array_equal(scores.ES, [0.8, 0.2])
+    np.testing.assert_array_equal(scores.ED, [0.9, 0.1])
+    np.testing.assert_array_equal(scores.GD_S, observations.GD)
+    np.testing.assert_array_equal(scores.GD_D, observations.GD)
+    empty = score_observations(observations.iloc[:0], Context(), list(BASELINE_SCORES))
+    assert empty.empty and list(empty.columns) == list(BASELINE_SCORES)
+    assert len(calls) == 2
+
+
+def test_genetic_rules_retain_distinct_synthetic_thresholds():
+    definitions, points = {}, []
+    for name, threshold in (("GD_S", 2.0), ("GD_D", 5.0), ("LOGIT_S", 0.5)):
+        definition = {"kind": "components", "pipeline": f"components/{name}",
+                      "score_name": name, "data_process": "deterministic" if name == "GD_D" else "stochastic",
+                      "threshold": threshold, "empty": False, "weight_policy": "binary"}
+        key = fingerprint(definition)[:20]
+        definitions[key] = definition
+        points.append({"pipeline": definition["pipeline"], "status": "selected",
+                       "criterion": "frozen", "setting_id": key, "definition": definition})
+    reference = SimpleNamespace(
+        config={"scorers": ["GD_S", "GD_D", "LOGIT_S"]}, selected=definitions,
+        frozen={"criteria": [], "operating_points": points}, identity={"selection_fingerprint": "source"},
+    )
+    adapted, selection = operating_settings(reference, ["GD_S", "GD_D"])
+    assert {d["score_name"]: d["threshold"] for d in adapted.values()} == {"GD_S": 2.0, "GD_D": 5.0}
+    assert len(selection["operating_points"]) == 2
+    assert all(d["data_process"] == "empirical" for d in adapted.values())
+    with pytest.raises(ValueError, match="source scorers"):
+        operating_settings(reference, ["ES"])

@@ -28,7 +28,8 @@ def render_report(directory):
         f"Reference baseline: {reference['run_directory']}.",
         f"Cases: {inputs['n_cases']}, Observed pairs: {inputs['n_observed_pairs']:,} / {inputs['n_all_pairs']:,} possible.",
         "The TN93 table is distance-censored at 0.0005/site; missing pairs are unobserved, not zero.",
-        "All operating settings and logistic models are frozen from the reference baseline.",
+        "ES and ED use stochastic and deterministic EpiLink inference on the observed Boston distances. Inference parameters and operating settings are frozen from the reference baseline. No fitted classifiers or training pairs are required.",
+        "ES inherits ESS operating rules; ED inherits EDS rules. GD_S and GD_D share the observed TN93-derived distances but retain operating rules selected on stochastic and deterministic synthetic data, respectively.",
     ]
     text = [f"# {title}", *paragraphs]
     body = [f"<h1>{html.escape(title)}</h1>", *[f"<p>{html.escape(p)}</p>" for p in paragraphs]]
@@ -42,11 +43,13 @@ def render_report(directory):
 
     section("Input summary", pd.DataFrame([inputs]))
     section("Frozen reference decisions", pd.DataFrame([
-        {k: p.get(k) for k in ("pipeline", "criterion", "status", "setting_id")}
+        {k: p.get(k) for k in ("pipeline", "criterion", "status", "setting_id", "baseline_setting_id")}
         for p in selection["operating_points"]
     ]))
 
-    cluster_status = read_json(directory / "clusters" / "status.json")
+    status_path = directory / "clusters" / "status.json"
+    cluster_status = (read_json(status_path) if status_path.exists()
+                      else {"status": "not_run", "configured": 0, "completed": 0})
     section("Clustering status", pd.DataFrame([cluster_status]))
 
     metrics_path = directory / "clusters" / "metrics.csv"
@@ -58,7 +61,6 @@ def render_report(directory):
             output = directory / "figures"
             output.mkdir(exist_ok=True)
 
-            size_col = "size_mean" if "size_mean" in metrics.columns else "size"
             if "size_mean" in metrics.columns:
                 size_metrics = ["size_mean", "size_std", "n_clusters"]
             else:

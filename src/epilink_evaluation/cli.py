@@ -49,7 +49,7 @@ def main(argv=None):
     )
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
-    parser.add_argument("--baseline-run", type=Path, help="Perturbation reference: runs/<id> or current.json")
+    parser.add_argument("--baseline-run", type=Path, help="Frozen baseline reference: runs/<id> or current.json")
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -79,8 +79,41 @@ def main(argv=None):
         from .workflows.perturbation import PerturbationStudy
 
         return 0 if PerturbationStudy(config).run() else 1
+    if args.command == "boston":
+        from .workflows.boston_config import load_study_config
+
+        if args.stage not in (None, "prepare", "all", "report"):
+            parser.error("Boston supports --stage prepare, all or report")
+        if args.smoke:
+            parser.error("Boston does not support --smoke")
+        config = load_study_config(
+            config_path=args.config or "boston_application/config.yaml",
+            output=args.output, baseline_run=args.baseline_run,
+        )
+        if args.stage == "prepare":
+            from .inputs.boston import prepare_boston
+
+            inputs = config["inputs"]
+            if "data_root" not in inputs:
+                parser.error("Boston preparation requires inputs.data_root")
+            directory = Path(inputs["cases_path"]).parent
+            if (Path(inputs["cases_path"]) != directory / "cases.parquet"
+                    or Path(inputs["pairs_path"]) != directory / "observed_pairs.parquet"):
+                parser.error("Boston preparation requires cases.parquet and observed_pairs.parquet in one directory")
+            print(prepare_boston(inputs["data_root"], directory))
+            return 0
+        if args.stage == "report":
+            from .reporting.boston import render_report
+
+            directory = Path(read_json(Path(config["output_directory"]) / "current.json")["run_directory"])
+            render_report(directory)
+            print(directory / "report.html")
+            return 0
+        from .workflows.boston import BostonEmpirical
+
+        return 0 if BostonEmpirical(config).run() else 1
     if args.baseline_run:
-        parser.error("--baseline-run applies to perturbation only")
+        parser.error("--baseline-run applies to perturbation or boston only")
     args.config = args.config or Path("synthetic_baseline/config.yaml")
     args.stage = args.stage or "develop"
     config = load_config(args.config)
@@ -133,14 +166,6 @@ def main(argv=None):
         root = Path(config["inputs"]["infection_path"]).parents[2]
         print(prepare_boston(root, Path(config["output_directory"]) / "boston_inputs"))
         return 0
-    if args.command == "boston":
-        from .workflows.boston import main as boston_main
-
-        return boston_main([
-            "--config", str(args.config or Path("synthetic_baseline/boston_config.yaml")),
-            "--baseline-run", str(args.baseline_run) if args.baseline_run else "current.json",
-            *(["--output", str(args.output)] if args.output else []),
-        ])
     if args.stage == "report":
         from .reporting.report import render_report
 
