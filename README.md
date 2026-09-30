@@ -70,6 +70,22 @@ Treat `data/raw/` and `data/processed/` as read-only input directories.
 
 ## Reproducing results
 
+### Relationship-aware synthetic exploration
+
+The separate [synthetic exploration workflow](synthetic_exploration/README.md)
+investigates observation overlap, pairwise score informativeness, cluster
+composition, and simulator/scorer assumptions. Its baseline outputs include a
+single analysis table with EpiLink relationship encoding (`AD`, `CA`, `m`, `m1`,
+`m2`), total intermediates (`M`), genetic distance (`GD`), temporal distance (`TD`), and compatibility score
+(`CS`), identified by case pair, model, condition, scenario, and seed.
+
+```bash
+python3 -m synthetic_exploration.run
+```
+
+This workflow writes only under `synthetic_exploration/outputs/`; the historical
+evaluation outputs below remain unchanged. See the [baseline report](synthetic_exploration/outputs/runs/matched/baseline/seed_12345/report.md).
+
 Snakemake outputs are written under `results/`. The pipeline is orchestrated by Snakemake
 and controlled entirely by `config.yaml`.
 

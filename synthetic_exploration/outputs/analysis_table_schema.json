@@ -1,0 +1,40 @@
+{
+  "format": "Hive-partitioned Parquet; read the root directory as one table",
+  "row_key": [
+    "condition",
+    "scenario",
+    "seed",
+    "model",
+    "pair_id"
+  ],
+  "partition_columns": [
+    "condition",
+    "scenario",
+    "seed",
+    "model"
+  ],
+  "required_columns": [
+    "CaseID1",
+    "CaseID2",
+    "AD",
+    "CA",
+    "m",
+    "m1",
+    "m2",
+    "M",
+    "GD",
+    "TD",
+    "CS"
+  ],
+  "GD": "Observed genetic distance, for this row's data_process",
+  "TD": "Absolute sampling-date difference, rounded to days as in the original pipeline",
+  "CS": "Unmodified summed EpiLink target compatibility, not a probability",
+  "m": "Number of AD intermediates; null when AD=0",
+  "m1": "CA intermediates on branch to CaseID1; null when CA=0",
+  "m2": "CA intermediates on branch to CaseID2; null when CA=0",
+  "M": "Total intermediates: m for AD, m1+m2 for CA; null for separate trees",
+  "edge_distance": "tree_hops = M+1 for AD and M+2 for CA",
+  "case_order": "Unordered pair in tree input order; AD ancestor can be either case",
+  "null_counts": "Inactive depths are null, never encoded as zero",
+  "relationship_grouping": "CA(a,b)=CA(b,a). Summary counts use m1<=m2; pair tables and case examples retain case-aligned depths."
+}

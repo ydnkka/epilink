@@ -1,0 +1,41 @@
+# Fresh analysis focused on pairwise and cluster informativeness at matched baseline.
+# Paths are relative to this file unless absolute.
+source_config: ../config.yaml
+output_directory: outputs
+# Reuse the large dates/genomes/truth caches created by synthetic_exploration.
+# Analysis tables and reports still go under output_directory above.
+data_cache_directory: ../synthetic_exploration/outputs
+condition: matched
+scenario: baseline
+seed: 12345
+training_seed: 54321
+models: [EDD, EDS, ESD, ESS]
+
+scores:
+  selected_fractions: [0.0005, 0.001, 0.005, 0.01]
+  recall_levels: [0.5, 0.7, 0.9]
+
+clusters:
+  selected_fractions: [0.001, 0.005, 0.01]
+  algorithms: [components, leiden]
+  leiden_resolutions: [0.3]
+  n_restarts: 10
+
+treecluster:
+  enabled: true
+  resume_existing: true
+  max_runtime_seconds: 300
+  command_timeout_seconds: 120
+  methods: [max_clade, avg_clade, single_linkage]
+  threshold_days: [7, 14, 21, 28, 35, 42, 49, 56, 63, 70]
+  genetic_thresholds: [0.0002, 0.0005, 0.001, 0.002, 0.003, 0.005]
+  raw_trees:
+    deterministic: ../phylo/synthetic/fastme_deterministic/fastme.nwk
+    stochastic: ../phylo/synthetic/fastme_stochastic/fastme.nwk
+  dated_trees:
+    deterministic: ../phylo/synthetic/treetime_deterministic/timetree.nwk
+    stochastic: ../phylo/synthetic/treetime_stochastic/timetree.nwk
+
+figures:
+  primary_selection_fraction: 0.005
+  primary_cluster_fraction: 0.005

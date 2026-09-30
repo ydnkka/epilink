@@ -1,0 +1,8 @@
+{
+  "status": "complete",
+  "command": "/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/TreeCluster.py",
+  "completed_partitions": 96,
+  "configured_partitions": 96,
+  "max_runtime_seconds": 300,
+  "errors": []
+}

@@ -1,0 +1,141 @@
+{
+  "positive_band_width": 0.05,
+  "positive_band_closure": "(lower, upper]",
+  "zero_scores": "separate score_band=0",
+  "bands": [
+    {
+      "score_band": 0,
+      "score_lower": 0.0,
+      "score_upper": 0.0,
+      "band_label": "0"
+    },
+    {
+      "score_band": 1,
+      "score_lower": 0.0,
+      "score_upper": 0.05,
+      "band_label": "(0, 0.05]"
+    },
+    {
+      "score_band": 2,
+      "score_lower": 0.05,
+      "score_upper": 0.1,
+      "band_label": "(0.05, 0.1]"
+    },
+    {
+      "score_band": 3,
+      "score_lower": 0.1,
+      "score_upper": 0.15000000000000002,
+      "band_label": "(0.1, 0.15]"
+    },
+    {
+      "score_band": 4,
+      "score_lower": 0.15000000000000002,
+      "score_upper": 0.2,
+      "band_label": "(0.15, 0.2]"
+    },
+    {
+      "score_band": 5,
+      "score_lower": 0.2,
+      "score_upper": 0.25,
+      "band_label": "(0.2, 0.25]"
+    },
+    {
+      "score_band": 6,
+      "score_lower": 0.25,
+      "score_upper": 0.30000000000000004,
+      "band_label": "(0.25, 0.3]"
+    },
+    {
+      "score_band": 7,
+      "score_lower": 0.30000000000000004,
+      "score_upper": 0.35000000000000003,
+      "band_label": "(0.3, 0.35]"
+    },
+    {
+      "score_band": 8,
+      "score_lower": 0.35000000000000003,
+      "score_upper": 0.4,
+      "band_label": "(0.35, 0.4]"
+    },
+    {
+      "score_band": 9,
+      "score_lower": 0.4,
+      "score_upper": 0.45,
+      "band_label": "(0.4, 0.45]"
+    },
+    {
+      "score_band": 10,
+      "score_lower": 0.45,
+      "score_upper": 0.5,
+      "band_label": "(0.45, 0.5]"
+    },
+    {
+      "score_band": 11,
+      "score_lower": 0.5,
+      "score_upper": 0.55,
+      "band_label": "(0.5, 0.55]"
+    },
+    {
+      "score_band": 12,
+      "score_lower": 0.55,
+      "score_upper": 0.6000000000000001,
+      "band_label": "(0.55, 0.6]"
+    },
+    {
+      "score_band": 13,
+      "score_lower": 0.6000000000000001,
+      "score_upper": 0.65,
+      "band_label": "(0.6, 0.65]"
+    },
+    {
+      "score_band": 14,
+      "score_lower": 0.65,
+      "score_upper": 0.7000000000000001,
+      "band_label": "(0.65, 0.7]"
+    },
+    {
+      "score_band": 15,
+      "score_lower": 0.7000000000000001,
+      "score_upper": 0.75,
+      "band_label": "(0.7, 0.75]"
+    },
+    {
+      "score_band": 16,
+      "score_lower": 0.75,
+      "score_upper": 0.8,
+      "band_label": "(0.75, 0.8]"
+    },
+    {
+      "score_band": 17,
+      "score_lower": 0.8,
+      "score_upper": 0.8500000000000001,
+      "band_label": "(0.8, 0.85]"
+    },
+    {
+      "score_band": 18,
+      "score_lower": 0.8500000000000001,
+      "score_upper": 0.9,
+      "band_label": "(0.85, 0.9]"
+    },
+    {
+      "score_band": 19,
+      "score_lower": 0.9,
+      "score_upper": 0.9500000000000001,
+      "band_label": "(0.9, 0.95]"
+    },
+    {
+      "score_band": 20,
+      "score_lower": 0.9500000000000001,
+      "score_upper": 1.0,
+      "band_label": "(0.95, 1]"
+    }
+  ],
+  "normalisation": "P(M | score band, relationship class, connected pair)",
+  "pair_weights": "n_pairs from exact score/relationship count tables",
+  "undefined_M_pairs": {
+    "EDD": 0,
+    "EDS": 0,
+    "ESD": 0,
+    "ESS": 0
+  }
+}

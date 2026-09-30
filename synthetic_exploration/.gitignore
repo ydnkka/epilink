@@ -1,0 +1,6 @@
+outputs/datasets/
+outputs/trees/
+outputs/analysis_table/
+outputs/runs/**/scores.parquet
+outputs/runs/**/04_validation/benchmark_scores.parquet
+__pycache__/

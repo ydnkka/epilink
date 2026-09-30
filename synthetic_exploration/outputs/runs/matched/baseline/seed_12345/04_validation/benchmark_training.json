@@ -1,0 +1,66 @@
+{
+  "training_seed": 54321,
+  "evaluation_seed": 12345,
+  "training_dataset": "/Users/ydnkka/Desktop/PhD Project/Projects/epilink-evaluation/synthetic_exploration/outputs/datasets/10c8a15a428312c8309f",
+  "training_source": "scenario",
+  "training_parameters": {
+    "latent_shape": 3.38,
+    "symptomatic_rate": 0.37,
+    "symptomatic_shape": 1.0,
+    "transmission_rate_ratio": 2.29,
+    "fraction_sampled": 1.0,
+    "genome_length": 29903,
+    "synthetic_genome_length": 5000,
+    "num_simulations": 10000,
+    "target": [
+      "ad(0)",
+      "ca(0,0)"
+    ],
+    "maximum_depth": 0,
+    "incubation_shape": 5.806999999723634,
+    "incubation_scale": 0.9480000000451171,
+    "testing_delay_shape": 1.0,
+    "testing_delay_scale": 1.0,
+    "substitution_rate": 0.001,
+    "relaxation": 0.33
+  },
+  "models": {
+    "deterministic": {
+      "training_prevalence": 0.0014467901527649406,
+      "test_pair_fraction_in_unseen_cells": 0.0008947941985393918,
+      "logistic_coefficients_standardised": [
+        -4.717034690705178,
+        -11.411719533124053
+      ],
+      "logistic_intercept": -31.893192065824476,
+      "feature_mean": [
+        35.83084396895615,
+        17.48613514862959
+      ],
+      "feature_scale": [
+        28.957238215394312,
+        6.9950290370877735
+      ],
+      "lookup_prior_strength": 100.0
+    },
+    "stochastic": {
+      "training_prevalence": 0.0014467901527649406,
+      "test_pair_fraction_in_unseen_cells": 0.00042112687993746563,
+      "logistic_coefficients_standardised": [
+        -5.4766534290486275,
+        -7.414031754789944
+      ],
+      "logistic_intercept": -22.651299446313676,
+      "feature_mean": [
+        35.83084396895615,
+        16.308275882291742
+      ],
+      "feature_scale": [
+        28.957238215394295,
+        7.468686830761068
+      ],
+      "lookup_prior_strength": 100.0
+    }
+  },
+  "limitation": "Independent dates and genomes on the same transmission topology, not independent epidemic trees."
+}
