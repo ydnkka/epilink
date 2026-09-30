@@ -5,9 +5,17 @@ output_directory: outputs/boston
 inputs:
   data_root: ../data
   # Prepared tables default to <output_directory>/boston_inputs/.
-# ES/ED use stochastic/deterministic EpiLink inference on observed Boston GD.
-# Frozen operating rules: ES <- ESS, ED <- EDS; GD_S/GD_D retain their source
-# rules while sharing the same observed distances. No classifiers are fitted
-# or loaded. Inference parameters, Monte Carlo seed, and graph settings are
-# inherited from the reference baseline.
-scorers: [ES, ED, GD_S, GD_D]
+# All four EpiLink inference/observation rules, two genetic rules and two
+# pretrained logistic rules are replayed on the same observed Boston GD/TD.
+# S/D in synthetic source names denotes the original observation process;
+# Boston has only one empirical distance vector. Nothing is refitted.
+scorers: [EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D]
+assessment:
+  # Optional historical comparator: ../archive/pre_reset_2026-09-30/phylo/clusters.tsv
+  treecluster_path: null
+  focus_exposures: [Conference, SNF]
+  min_cluster_size: 2
+trees:
+  enabled: true
+  # New trees are built from the Boston alignment, independent of the archive.
+  alignment_path: ../data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta

@@ -51,7 +51,28 @@ def load_study_config(
             else prepared / filename
         )
 
-    config["scorers"] = config.get("scorers", list(BASELINE_SCORES))
+    config["scorers"] = config.get("scorers", [name for name in BASELINE_SCORES if name not in ("ES", "ED")])
     validate_scorers(config["scorers"])
+    assessment = config.setdefault("assessment", {})
+    if "treecluster_path" in assessment and assessment["treecluster_path"] is not None:
+        assessment["treecluster_path"] = str(
+            (config_path.parent / assessment["treecluster_path"]).resolve()
+        )
+    assessment.setdefault("treecluster_path", None)
+    assessment.setdefault("focus_exposures", ["Conference", "SNF"])
+    assessment.setdefault("min_cluster_size", 2)
+    if (not isinstance(assessment["focus_exposures"], list)
+            or not assessment["focus_exposures"]
+            or any(not isinstance(x, str) or not x for x in assessment["focus_exposures"])
+            or len(set(assessment["focus_exposures"])) != len(assessment["focus_exposures"])):
+        raise ValueError("Boston focus_exposures must be unique nonempty strings")
+    if not isinstance(assessment["min_cluster_size"], int) or assessment["min_cluster_size"] < 2:
+        raise ValueError("Boston min_cluster_size must be an integer >= 2")
+    trees = config.setdefault("trees", {})
+    trees.setdefault("enabled", False)
+    if trees["enabled"]:
+        if not trees.get("alignment_path"):
+            raise ValueError("Boston trees.alignment_path is required when trees are enabled")
+        trees["alignment_path"] = str((config_path.parent / trees["alignment_path"]).resolve())
     config["implementation"] = implementation_signature()
     return config

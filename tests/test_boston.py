@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from epilink_evaluation.provenance import fingerprint, read_json
+from epilink_evaluation.workflows.boston_assessment import assess_partitions, load_treecluster
 from epilink_evaluation.workflows.boston import (
     BostonEmpirical,
     build_observations,
@@ -114,7 +115,7 @@ def test_build_observations(tmp_path):
 def evaluated_baseline(small_config, tmp_path):
     from epilink_evaluation.workflows.baseline import Baseline
 
-    small_config["scorers"] = ["ESS", "EDS", "GD_S", "GD_D", "LOGIT_S"]
+    small_config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["treecluster"]["enabled"] = False
     baseline = Baseline(small_config)
@@ -203,7 +204,7 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
     assert (study.directory / "report.md").exists()
     assert (study.directory / "report.html").exists()
     definitions = read_json(study.directory / "settings.json")
-    assert {d["score_name"] for d in definitions.values()} == set(BASELINE_SCORES)
+    assert {d["score_name"] for d in definitions.values()} == set(config["scorers"])
     original = read_json(evaluated_baseline.directory / "settings.json")
     for key, definition in definitions.items():
         assert key == fingerprint(definition)[:20]
@@ -247,19 +248,20 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
     assert not (study.root / "artifacts/models").exists()
 
 
-def test_default_boston_config_is_training_free():
+def test_default_boston_config_covers_expanded_models():
     root = Path(__file__).resolve().parents[1]
     config = load_study_config(config_path=root / "boston_application/config.yaml")
     assert config["schema_version"] == 1
-    assert config["scorers"] == ["ES", "ED", "GD_S", "GD_D"]
+    assert config["scorers"] == ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
     assert "seeds" not in config
+    assert Path(config["assessment"]["treecluster_path"]).exists()
     assert (
         Path(config["inputs"]["cases_path"])
         == Path(config["output_directory"]) / "boston_inputs/cases.parquet"
     )
 
 
-@pytest.mark.parametrize("names", [["LOGIT_S"], ["LOGIT_D"], ["ESS"], [], ["ES", "ES"]])
+@pytest.mark.parametrize("names", [["LOGIT"], ["FOO"], [], ["ES", "ES"], ["ES", "ESS"]])
 def test_boston_rejects_unsupported_scorers(tmp_path, names):
     path = tmp_path / "boston.yaml"
     path.write_text(
@@ -273,7 +275,7 @@ def test_boston_rejects_unsupported_scorers(tmp_path, names):
             }
         )
     )
-    with pytest.raises(ValueError, match="ES, ED, GD_S, GD_D"):
+    with pytest.raises(ValueError, match="Boston scorer"):
         load_study_config(config_path=path)
 
 
@@ -291,14 +293,15 @@ def test_training_free_scores_use_one_observed_distance_vector():
 
             return SimpleNamespace(score_target=score_target)
 
-    scores = score_observations(observations, Context(), list(BASELINE_SCORES))
+    names = ["ES", "ED", "GD_S", "GD_D"]
+    scores = score_observations(observations, Context(), names)
     assert calls == ["stochastic", "deterministic"]
     np.testing.assert_array_equal(scores.ES, [0.8, 0.2])
     np.testing.assert_array_equal(scores.ED, [0.9, 0.1])
     np.testing.assert_array_equal(scores.GD_S, observations.GD)
     np.testing.assert_array_equal(scores.GD_D, observations.GD)
-    empty = score_observations(observations.iloc[:0], Context(), list(BASELINE_SCORES))
-    assert empty.empty and list(empty.columns) == list(BASELINE_SCORES)
+    empty = score_observations(observations.iloc[:0], Context(), names)
+    assert empty.empty and list(empty.columns) == names
     assert len(calls) == 2
 
 
@@ -340,3 +343,87 @@ def test_genetic_rules_retain_distinct_synthetic_thresholds():
     assert all(d["data_process"] == "empirical" for d in adapted.values())
     with pytest.raises(ValueError, match="source scorers"):
         operating_settings(reference, ["ES"])
+
+
+def test_current_boston_reference_does_not_depend_on_adapter_hash(evaluated_baseline, tmp_path):
+    from copy import deepcopy
+
+    from epilink_evaluation.workflows.reference import OperatingReference
+
+    config = boston_config(tmp_path, evaluated_baseline)
+    changed = deepcopy(config["implementation"])
+    changed["evaluation"]["inputs/boston.py"] = "new empirical adapter"
+    assert OperatingReference(evaluated_baseline.directory, changed).directory == evaluated_baseline.directory
+    changed["evaluation"]["scorers/logistic.py"] = "changed baseline scorer"
+    with pytest.raises(ValueError, match="Scientific implementation"):
+        OperatingReference(evaluated_baseline.directory, changed)
+
+
+def test_expanded_boston_scores_and_archived_comparator(evaluated_baseline, tmp_path):
+    from epilink_evaluation.scorers.logistic import predict_logistic
+
+    config = boston_config(tmp_path, evaluated_baseline)
+    config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
+    tree = tmp_path / "treecluster.tsv"
+    tree.write_text("SequenceName\tClusterNumber\nA\t1\nB\t1\nC\t-1\nD\t2\nE\t-1\n")
+    config["assessment"] = {"treecluster_path": str(tree), "focus_exposures": ["Conference", "SNF"],
+                            "min_cluster_size": 2}
+    study = BostonEmpirical(config)
+    assert study.run()
+    scores, _ = study.score()
+    assert list(scores.columns[2:]) == config["scorers"]
+    np.testing.assert_allclose(scores.EDD, scores.EDS)
+    np.testing.assert_allclose(scores.ESD, scores.ESS)
+    np.testing.assert_allclose(scores.GD_S, scores.GD_D)
+    for scorer, process in (("LOGIT_S", "stochastic"), ("LOGIT_D", "deterministic")):
+        expected = predict_logistic(
+            study.observations.assign(**{f"GD_{process}": study.observations.GD}),
+            process, study.context.logistic_models[process],
+        )
+        np.testing.assert_allclose(scores[scorer], expected)
+    assert (scores.LOGIT_S != scores.LOGIT_D).any()
+    report = (study.directory / "report.md").read_text()
+    assert "Named exposure groups" in report
+    assert "transmission truth" in report
+    assessment = study.directory / "assessment"
+    summary = pd.read_csv(assessment / "summary.csv")
+    assert len(summary) == read_json(study.directory / "clusters/status.json")["completed"]
+    assert (summary.n_observed_pairs == 5).all()
+    assert (summary.candidate_coverage == 0.5).all()
+    assert (assessment / "cluster_composition.csv").exists()
+    assert (assessment / "named_cluster_overlaps.csv").exists()
+    assert (assessment / "best_cluster_overlaps.csv").exists()
+    assert not (study.root / "artifacts/models").exists()
+
+
+def test_archive_style_assessment_counts_singletons_and_overlap(tmp_path):
+    from epilink_evaluation.provenance import complete_artifact
+
+    cases = pd.DataFrame({"case_id": ["A", "B", "C", "D", "E"],
+                          "Exposure": ["SNF", "SNF", "SNF", "Conference", "Conference"],
+                          "Clade": ["A", "A", "B", "B", "B"]})
+    tree = tmp_path / "archive.tsv"
+    tree.write_text("SequenceName\tClusterNumber\nA\t1\nB\t1\nC\t-1\nD\t2\nE\t-1\n")
+    comparator = load_treecluster(tree, cases)
+    assert comparator.treecluster_group.nunique() == 4  # the two -1 rows do not merge
+    definitions = {"setting": {"kind": "components", "pipeline": "components/ESS",
+                               "score_name": "ESS", "baseline_setting_id": "source"}}
+    artifact = tmp_path / "clusters/setting"
+    artifact.mkdir(parents=True)
+    pd.DataFrame({"case_id": cases.case_id, "cluster_id": [0, 0, 0, 1, 2]}).to_parquet(
+        artifact / "memberships.parquet", index=False,
+    )
+    complete_artifact(artifact, {"test": "assessment"}, ["memberships.parquet"])
+    assess_partitions(tmp_path, cases, definitions, ["SNF", "Conference"], 2, comparator, 3, 10)
+    summary = pd.read_csv(tmp_path / "assessment/summary.csv")
+    assert summary.loc[0, "n_singleton_cases"] == 2
+    named = pd.read_csv(tmp_path / "assessment/named_cluster_overlaps.csv")
+    snf = named.loc[named.exposure == "SNF"].iloc[0]
+    assert snf.n_cases == 3 and snf.n_exposure == 3
+    assert snf.treecluster_group == "cluster:1"
+    assert snf.shared == 2 and snf.jaccard == pytest.approx(2 / 3)
+    assert (named.exposure == "Conference").sum() == 0  # no non-singleton focus cluster
+    best = pd.read_csv(tmp_path / "assessment/best_cluster_overlaps.csv")
+    assert best.loc[best.treecluster_group == "cluster:1", "shared"].iloc[0] == 2
+    with pytest.raises(ValueError, match="same unique sample IDs"):
+        load_treecluster(tree, cases.iloc[:-1])

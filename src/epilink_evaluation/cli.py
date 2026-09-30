@@ -15,6 +15,7 @@ STAGES = (
     "prepare",
     "pairwise",
     "clusters",
+    "trees",
     "develop",
     "select",
     "evaluate",
@@ -82,8 +83,8 @@ def main(argv=None):
     if args.command == "boston":
         from .workflows.boston_config import load_study_config
 
-        if args.stage not in (None, "prepare", "all", "report"):
-            parser.error("Boston supports --stage prepare, all or report")
+        if args.stage not in (None, "prepare", "trees", "all", "report"):
+            parser.error("Boston supports --stage prepare, trees, all or report")
         if args.smoke:
             parser.error("Boston does not support --smoke")
         config = load_study_config(
@@ -111,11 +112,13 @@ def main(argv=None):
             return 0
         from .workflows.boston import BostonEmpirical
 
-        return 0 if BostonEmpirical(config).run() else 1
+        return 0 if BostonEmpirical(config).run(args.stage or "all") else 1
     if args.baseline_run:
         parser.error("--baseline-run applies to perturbation or boston only")
     args.config = args.config or Path("synthetic_baseline/config.yaml")
     args.stage = args.stage or "develop"
+    if args.stage == "trees":
+        parser.error("--stage trees applies to boston only")
     config = load_config(args.config)
     if args.output:
         config["output_directory"] = str(args.output.resolve())

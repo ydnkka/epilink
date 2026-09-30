@@ -14,7 +14,10 @@ import numpy as np
 import pandas as pd
 
 from ..clusterers.graph import components, leiden
+from ..clusterers.treecluster import treecluster
 from ..graphs.construction import build_graph
+from ..phylogeny.boston import dated_boston_tree, raw_boston_tree
+from ..phylogeny.external import command_identity
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -25,9 +28,10 @@ from ..provenance import (
     write_json,
 )
 from ..scorers import ScoringContext
+from .boston_assessment import assess_partitions, load_treecluster
 from .boston_config import load_study_config
 from .boston_scoring import BOSTON_SPECS, operating_settings, score_observations, validate_scorers
-from .reference import OperatingReference
+from .reference import OperatingReference, checked_artifact
 
 LOG = logging.getLogger(__name__)
 
@@ -73,9 +77,17 @@ class BostonEmpirical:
         source = self.reference.root.resolve()
         if self.root == source or self.root.is_relative_to(source) or source.is_relative_to(self.root):
             raise ValueError("Boston output must be separate from baseline outputs")
-        self.definitions, self.selection = operating_settings(self.reference, config["scorers"])
+        self.trees_enabled = config.get("trees", {}).get("enabled", False)
+        self.definitions, self.selection = operating_settings(
+            self.reference, config["scorers"], include_trees=self.trees_enabled,
+        )
         self.cases_path = Path(config["inputs"]["cases_path"])
         self.pairs_path = Path(config["inputs"]["pairs_path"])
+        prepared = self.root / "boston_inputs"
+        if ("data_root" in config["inputs"] and self.cases_path == prepared / "cases.parquet"
+                and self.pairs_path == prepared / "observed_pairs.parquet"):
+            from ..inputs.boston import prepare_boston
+            prepare_boston(config["inputs"]["data_root"], prepared)
         if not self.cases_path.exists():
             raise FileNotFoundError(f"Boston cases not found: {self.cases_path}")
         if not self.pairs_path.exists():
@@ -84,15 +96,46 @@ class BostonEmpirical:
         self.observations, self.case_index = build_observations(self.cases, self.pairs)
         self.n_cases, self.n_observed_pairs = len(self.cases), len(self.pairs)
         self.n_all_pairs = self.n_cases * (self.n_cases - 1) // 2
+        self.tree_paths, self.tree_tools = {}, {}
+        if self.trees_enabled:
+            if not any(d["kind"] == "treecluster" for d in self.definitions.values()):
+                raise ValueError("Reference has no selected raw or dated TreeCluster settings")
+            self.alignment_path = Path(config["trees"]["alignment_path"])
+            for tool in ("tn93", "fastme", "treetime", "treecluster"):
+                executable = (config["trees"].get("tn93_executable", "tn93") if tool == "tn93"
+                              else self.reference.config["treecluster"]["executables"][tool])
+                self.tree_tools[tool] = command_identity(executable)
+        assessment = config.get("assessment", {})
+        self.comparator_path = assessment.get("treecluster_path")
+        self.comparator = load_treecluster(self.comparator_path, self.cases)
+        self.focus_exposures = assessment.get("focus_exposures", ["Conference", "SNF"])
+        self.min_cluster_size = assessment.get("min_cluster_size", 2)
         self.scoring_config = {
             key: deepcopy(self.reference.config[key]) for key in ("inference", "scorer")
         }
-        self.context = ScoringContext(self.scoring_config, logistic_models={})
+        logistic_models = {}
+        if any(BOSTON_SPECS[name].family == "logistic" for name in config["scorers"]):
+            training_id = self.reference.frozen["training_fingerprint"]
+            model_dir = self.reference.root / "artifacts/models" / training_id[:20]
+            model_manifest = checked_artifact(model_dir)
+            if (model_manifest["fingerprint"] != training_id
+                    or model_manifest["seeds"] != self.reference.config["splits"]["train"]):
+                raise ValueError("Reference fitted classifiers differ from frozen training identity")
+            logistic_models = read_json(model_dir / "models.json")
+            self.models_sha256 = digest_file(model_dir / "models.json")
+        else:
+            self.models_sha256 = None
+        self.context = ScoringContext(self.scoring_config, logistic_models=logistic_models)
         self.signature = {
-            "kind": "boston-training-free-v2",
+            "kind": "boston-empirical-v3",
             "reference": self.reference.identity,
             "boston_cases_sha256": digest_file(self.cases_path),
             "boston_pairs_sha256": digest_file(self.pairs_path),
+            "treecluster_sha256": digest_file(self.comparator_path) if self.comparator_path else None,
+            "models_sha256": self.models_sha256,
+            "alignment_sha256": digest_file(self.alignment_path) if self.trees_enabled else None,
+            "tree_tools": self.tree_tools,
+            "tree_settings": self.reference.config["treecluster"] if self.trees_enabled else None,
             "implementation": config["implementation"],
             "scorers": {name: BOSTON_SPECS[name].metadata() for name in config["scorers"]},
             "scoring_config": self.scoring_config,
@@ -101,6 +144,7 @@ class BostonEmpirical:
             "n_observed_pairs": self.n_observed_pairs,
             "n_all_pairs": self.n_all_pairs,
             "candidate_universe": "TN93-censored; missing pairs are unobserved, not zero",
+            "assessment": assessment,
         }
         self.directory = self.root / "runs" / fingerprint(self.signature)[:20]
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -113,6 +157,10 @@ class BostonEmpirical:
             "n_cases": self.n_cases,
             "n_observed_pairs": self.n_observed_pairs,
             "n_all_pairs": self.n_all_pairs,
+            "treecluster_path": str(self.comparator_path) if self.comparator_path else None,
+            "treecluster_sha256": self.signature["treecluster_sha256"],
+            "alignment_path": str(self.alignment_path) if self.trees_enabled else None,
+            "alignment_sha256": self.signature["alignment_sha256"],
         })
         write_json(self.root / "current.json", {
             "run_directory": str(self.directory),
@@ -256,7 +304,80 @@ class BostonEmpirical:
                     clusters[f"n_{col}_{val}"] = positive
         return clusters
 
-    def run(self):
+    def trees(self):
+        """Apply the selected baseline raw/dated TreeCluster rules to Boston trees."""
+        if not self.trees_enabled:
+            raise ValueError("Boston TreeCluster requires trees.enabled and an alignment_path")
+        directory = self.directory / "trees"
+        directory.mkdir(exist_ok=True)
+        rows, errors = [], []
+        settings = self.reference.config["treecluster"]
+        if "raw" not in self.tree_paths:
+            self.tree_paths["raw"], length = raw_boston_tree(
+                self.root, self.alignment_path, self.cases, self.tree_tools, settings,
+            )
+            self.tree_paths["dated"] = dated_boston_tree(
+                self.root, self.tree_paths["raw"], self.cases, length, self.tree_tools, settings,
+            )
+        write_json(directory / "inputs.json", {
+            kind: {"path": str(path), "sha256": digest_file(path)} for kind, path in self.tree_paths.items()
+        })
+        for key, definition in self.definitions.items():
+            if definition["kind"] != "treecluster":
+                continue
+            artifact = directory / key
+            kind = definition["tree_kind"]
+            signature = {"run": fingerprint(self.signature), "definition": definition,
+                         "tree_sha256": digest_file(self.tree_paths[kind]),
+                         "executable": self.tree_tools["treecluster"]}
+            base = {"setting_id": key, "pipeline": definition["pipeline"],
+                    "score_name": "TREE", "baseline_setting_id": definition["baseline_setting_id"],
+                    "baseline_data_process": definition["baseline_data_process"],
+                    "tree_kind": kind, "method": definition["method"],
+                    "threshold": definition["threshold"], "threshold_units": definition["threshold_units"]}
+            if valid_artifact(artifact, signature):
+                rows.append({**base, **read_json(artifact / "metrics.json")})
+                continue
+            artifact.mkdir(parents=True, exist_ok=True)
+            try:
+                threshold = definition["threshold"]
+                if kind == "dated":
+                    threshold /= definition["days_per_year"]
+                labels, metadata = treecluster(
+                    self.tree_paths[kind], self.cases, definition["method"], threshold,
+                    settings, artifact,
+                )
+                _, labels = np.unique(labels, return_inverse=True)
+                memberships = pd.DataFrame({"case_id": self.cases.case_id, "cluster_id": labels})
+                clusters = self._summarize_partition(memberships)
+                memberships.to_parquet(artifact / "memberships.parquet", index=False)
+                clusters.to_parquet(artifact / "clusters.parquet", index=False)
+                metrics = {"n_cases": self.n_cases, "n_clusters": len(clusters),
+                           "size_mean": float(clusters.n_cases.mean()),
+                           "size_std": float(clusters.n_cases.std()) if len(clusters) > 1 else 0.0,
+                           "largest_cluster": int(clusters.n_cases.max())}
+                write_json(artifact / "metrics.json", metrics)
+                write_json(artifact / "algorithm.json", metadata)
+                complete_artifact(
+                    artifact, signature,
+                    ["memberships.parquet", "clusters.parquet", "metrics.json", "algorithm.json",
+                     "treecluster.stdout.log", "treecluster.stderr.log"],
+                )
+                rows.append({**base, **metrics})
+            except Exception as exc:
+                LOG.error("TreeCluster failed setting=%s: %s", key, exc)
+                error = {**base, "definition": definition, "error": repr(exc)}
+                write_json(artifact / "manifest.json", {"status": "failed", **error})
+                errors.append(error)
+        pd.DataFrame(rows).to_csv(directory / "metrics.csv", index=False)
+        write_json(directory / "status.json", {
+            "status": "partial" if errors else "complete", "configured": sum(
+                d["kind"] == "treecluster" for d in self.definitions.values()),
+            "completed": len(rows), "errors": errors,
+        })
+        return not errors
+
+    def run(self, stage="all"):
         manifest = {
             "status": "running",
             "config": self.config,
@@ -266,10 +387,20 @@ class BostonEmpirical:
         }
         write_json(self.directory / "manifest.json", manifest)
         try:
-            scores, score_id = self.score()
-            manifest["score_id"] = score_id
-            self.directory.mkdir(parents=True, exist_ok=True)
-            complete = self.clusters(scores, score_id)
+            if stage not in ("all", "trees"):
+                raise ValueError("Boston supports all or trees as computational stages")
+            if stage == "all":
+                scores, score_id = self.score()
+                manifest["score_id"] = score_id
+                complete = self.clusters(scores, score_id)
+            else:
+                complete = True
+            if self.trees_enabled:
+                complete = self.trees() and complete
+            assess_partitions(
+                self.directory, self.cases, self.definitions, self.focus_exposures,
+                self.min_cluster_size, self.comparator, self.n_observed_pairs, self.n_all_pairs,
+            )
             manifest["status"] = "complete" if complete else "partial"
         except Exception as exc:
             manifest.update(status="failed", error=repr(exc))
