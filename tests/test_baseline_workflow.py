@@ -1,0 +1,75 @@
+from copy import deepcopy
+
+import pandas as pd
+import pytest
+
+from epilink_evaluation.inputs.synthetic import load_observations, load_truth
+from epilink_evaluation.provenance import read_json, valid_artifact
+from epilink_evaluation.workflows.baseline import Baseline
+
+
+def test_development_freeze_and_heldout_replay(small_config):
+    baseline = Baseline(small_config)
+    with pytest.raises(ValueError, match="freeze development settings"):
+        baseline.evaluate()
+    assert baseline.run("develop")
+    development = pd.read_csv(baseline.directory / "development/metrics.csv")
+    assert set(development.setting_id) == set(baseline.definitions)
+    assert not (baseline.directory / "evaluation").exists()
+    assert set(baseline.datasets) == set(small_config["splits"]["train"] + small_config["splits"]["development"])
+    training_model = baseline.root / "artifacts/models" / baseline.training_id[:20]
+    assert read_json(training_model / "manifest.json")["seeds"] == small_config["splits"]["train"]
+
+    frozen = baseline.select()
+    selected = {point["setting_id"] for point in frozen["operating_points"] if point["status"] == "selected"}
+    assert selected
+    assert baseline.run("evaluate")
+    evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
+    assert set(evaluation.setting_id) == selected
+    assert set(evaluation.seed) == set(small_config["splits"]["evaluation"])
+    assert read_json(baseline.directory / "evaluation/selection_used.json") == frozen
+    assert "Held-out fixed-setting performance" in (baseline.directory / "report.md").read_text()
+
+    # A fresh process-equivalent context reuses completed observations unchanged.
+    resumed = Baseline(deepcopy(small_config))
+    seed = small_config["splits"]["development"][0]
+    original = baseline.dataset(seed)
+    before = (original / "pairs.parquet").stat().st_mtime_ns
+    assert resumed.dataset(seed) == original
+    assert (original / "pairs.parquet").stat().st_mtime_ns == before
+    assert resumed.select() == frozen
+
+    resumed.config["selection"]["criteria"][0]["name"] = "revised_after_evaluation"
+    with pytest.raises(ValueError, match="fresh evaluation seeds"):
+        resumed.select()
+
+
+def test_subsampling_keeps_full_backbone_truth(small_config):
+    small_config["simulation"]["fraction_sampled"] = 0.6
+    baseline = Baseline(small_config)
+    directory = baseline.dataset(small_config["splits"]["train"][0])
+    observations, cases = load_observations(directory)
+    truth = load_truth(baseline.truth_directory, observations.pair_id)
+    assert len(cases) == 9
+    assert len(observations) == 9 * 8 // 2
+    assert observations.pair_id.equals(truth.pair_id)
+    assert (truth.node_a.to_numpy() == cases.node_index.to_numpy()[observations.a]).all()
+    assert (truth.node_b.to_numpy() == cases.node_index.to_numpy()[observations.b]).all()
+    assert read_json(baseline.truth_directory / "manifest.json")["n_cases"] == 15
+    saved = read_json(directory / "manifest.json")
+    assert valid_artifact(directory, saved["signature"])
+    # Corrupted cached data must be regenerated rather than trusted.
+    (directory / "pairs.parquet").write_bytes(b"interrupted write")
+    assert not valid_artifact(directory, saved["signature"])
+    baseline.datasets.clear()
+    assert baseline.dataset(small_config["splits"]["train"][0]) == directory
+    pd.testing.assert_frame_equal(load_observations(directory)[0], observations)
+
+
+def test_failed_comparator_prevents_freezing(small_config, monkeypatch):
+    baseline = Baseline(small_config)
+    monkeypatch.setattr(baseline, "pairwise", lambda: None)
+    monkeypatch.setattr(baseline, "clusters", lambda: False)
+    with pytest.raises(RuntimeError, match="partial"):
+        baseline.select()
+    assert not (baseline.directory / "selection/operating_points.json").exists()

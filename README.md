@@ -7,6 +7,11 @@ rankings, logistic probabilities, and graph/phylogenetic clustering.
 It defines the scientific questions, primary M=0 target, comparison matrix,
 metrics, development sweeps, and held-out operating-point evaluation.
 
+**Validation checkpoint (2026-09-30):** 31 tests pass and the 64-case workflow
+completes through held-out replay, including raw and dated TreeCluster comparisons.
+See [validation and resumption notes](synthetic_baseline/VALIDATION.md) for the
+report location and next full-scale development commands.
+
 ## Study order
 
 1. **Synthetic baseline:** pairwise comparisons → clustering sweeps → operating

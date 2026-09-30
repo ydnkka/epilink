@@ -37,7 +37,7 @@ def smoke_config(config):
     }
     config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
     config["treecluster"].update(
-        genetic_thresholds=[0.0002, 0.002], threshold_days=[14, 56]
+        genetic_thresholds=[0.0002, 0.002], threshold_days=[14, 56], rng_seed=76001
     )
     return config
 

@@ -131,7 +131,9 @@ conclusions are conditional on this backbone, not independent-epidemic
 generalization. Summaries use equal realization weights and report SD/range;
 millions of dependent pairs are not used as independent uncertainty replicates.
 Three evaluation realizations are a starting descriptive assessment, not precise
-population confidence intervals. Scorer Monte Carlo and Leiden seeds are separate.
+population confidence intervals. Scorer Monte Carlo, Leiden, and TreeTime seeds
+are separate. `treecluster.rng_seed` controls TreeTime's stochastic choices and is
+included in both the command and the tree artifact signature.
 
 Generation and inference parameters are matched. EDD/EDS/ESD/ESS still distinguish
 genetic process assumptions. Preserve the legacy EpiLink 0.1.5 convention explicitly:
@@ -174,6 +176,9 @@ python -m synthetic_baseline.run --stage report
 python -m synthetic_baseline.run --smoke --stage all
 python -m pytest
 ```
+
+The completed 64-case run, test coverage, and full-scale resumption steps are
+recorded in [VALIDATION.md](VALIDATION.md).
 
 FastME and TreeTime are used for tree construction/dating, and TreeCluster for
 tree partitions. Tools are discovered on PATH or beside the active Python

@@ -130,6 +130,7 @@ def dated_tree(config, raw_path, cases, process, dataset_id, implementation):
         "raw_sha256": digest_file(raw_path),
         "treetime": tool,
         "clock_filter": settings["clock_filter"],
+        "rng_seed": settings["rng_seed"],
         "sequence_length": config["simulation"]["sequence_length"],
         "implementation": implementation,
     }
@@ -163,11 +164,22 @@ def dated_tree(config, raw_path, cases, process, dataset_id, implementation):
         str(config["simulation"]["sequence_length"]),
         "--clock-filter",
         str(settings["clock_filter"]),
+        "--rng-seed",
+        str(settings["rng_seed"]),
         "--outdir",
         str(directory / "treetime"),
     ]
     run_command(argv, directory, "treetime", settings["command_timeout_seconds"])
     tree = Phylo.read(directory / "treetime/timetree.nexus", "nexus")
+    for node in tree.find_clades():
+        # Bio.Nexus places named internal nodes with date comments in the
+        # confidence field. Restore their names before the Newick writer tries
+        # to format them as numeric support; leave branch lengths unchanged.
+        if isinstance(node.confidence, str):
+            node.name, node.confidence = node.confidence, None
+        # Nexus retains comment brackets; Newick's writer supplies its own.
+        if node.comment and node.comment.startswith("[") and node.comment.endswith("]"):
+            node.comment = node.comment[1:-1]
     Phylo.write(tree, path, "newick", format_branch_length="%.12g")
     validate_tree(path, cases.case_id)
     original = validate_tree(raw_path, cases.case_id)

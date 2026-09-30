@@ -67,6 +67,9 @@ def validate(config):
     for name in ("genetic_thresholds", "threshold_days"):
         if any(not np.isfinite(t) or t < 0 for t in config["treecluster"][name]):
             raise ValueError("TreeCluster thresholds must be finite and nonnegative")
+    tree_seed = config["treecluster"]["rng_seed"]
+    if type(tree_seed) is not int or tree_seed < 0:
+        raise ValueError("TreeTime rng_seed must be a nonnegative integer")
     if len(set(config["scorers"])) != len(config["scorers"]):
         raise ValueError("Duplicate scorer identifiers")
     ids = [criterion["name"] for criterion in config["selection"]["criteria"]]
