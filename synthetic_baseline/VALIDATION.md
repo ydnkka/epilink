@@ -1,5 +1,9 @@
 # Validation checkpoint — 2026-09-30
 
+This records the completed smoke validation on the preserved reference backbone.
+For current configuration, tree regeneration, stages, and troubleshooting, use
+the [operational guide](../OPERATIONS.md).
+
 ## Completed
 
 - Installed the editable package and test dependencies in the documented
@@ -49,7 +53,9 @@ Successful run: `bf25d2f5f9615762cd6a`.
 The partial first run remains under `e95476354ea66c432385` for diagnosis. Output
 directories are ignored by Git; these report links refer to local generated
 artifacts. Smoke results establish pipeline functionality. Full-baseline
-scientific conclusions require the 4,990-case development and evaluation runs.
+scientific conclusions require development and evaluation on the configured
+backbone. The source backbone for this checkpoint had 4,990 cases; subsequent
+regenerated trees can have different sizes.
 
 ## Resume full-scale development
 
@@ -60,8 +66,9 @@ conda activate epilik_evaluation
 python -m synthetic_baseline.run --stage develop
 ```
 
-The full configuration uses training seeds 61001/61002, development seeds
-62001/62002/62003, and 2,044 operating definitions per development realization.
+The configuration at this checkpoint used training seeds 61001/61002,
+development seeds 62001/62002/62003, and 2,044 operating definitions per
+development realization.
 Artifacts and reports are written under `synthetic_baseline/outputs/baseline/`;
 `current.json` identifies the run. Repeating a stage reuses validated artifacts
 and resumes missing work.

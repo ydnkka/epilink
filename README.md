@@ -3,23 +3,32 @@
 Baseline-first evaluation of EpiLink compatibility scores, genetic-distance
 rankings, logistic probabilities, and graph/phylogenetic clustering.
 
-**Start with the [synthetic baseline protocol](synthetic_baseline/README.md).**
-It defines the scientific questions, primary M=0 target, comparison matrix,
-metrics, development sweeps, and held-out operating-point evaluation.
+**Start with the [operational guide](OPERATIONS.md)** for setup, configuration,
+tree regeneration, stage execution, result interpretation, and troubleshooting.
+The [synthetic baseline protocol](synthetic_baseline/README.md) defines the
+scientific questions, primary M=0 target, comparison matrix, metrics, and
+held-out operating-point evaluation.
+Use the [output reference](OUTPUTS.md) for column definitions, metric formulas,
+artifact provenance, and worked analysis joins.
 
 **Validation checkpoint (2026-09-30):** 31 tests pass and the 64-case workflow
 completes through held-out replay, including raw and dated TreeCluster comparisons.
 See [validation and resumption notes](synthetic_baseline/VALIDATION.md) for the
 report location and next full-scale development commands.
 
-## Study order
+## Implementation status and study order
 
-1. **Synthetic baseline:** pairwise comparisons → clustering sweeps → operating
-   criteria → held-out evaluation on new observation realizations.
-2. **Parameter perturbations:** carry baseline operating rules forward and
-   measure matched and baseline-fixed inference sensitivity.
-3. **Empirical application:** reuse the same scoring/clustering definitions and
-   assess available epidemiological evidence.
+| Capability | Active implementation |
+| --- | --- |
+| SCoVMod tree preparation | Available: `epilink-evaluate prepare-tree`. Existing trees are retained. |
+| Synthetic baseline | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports. |
+| Parameter sensitivity | Planned; no active sensitivity command. Historical code is archived. |
+| Boston input preparation | Available: `epilink-evaluate prepare-boston`. |
+| Empirical scoring/evaluation | Planned in the rebuilt workflow. |
+
+The study sequence is synthetic baseline → parameter perturbations with baseline
+operating rules → empirical application. See the guide for
+[sensitivity and Boston support](OPERATIONS.md#11-sensitivity-analysis-and-boston-inputs).
 
 ## Install and run
 
@@ -31,8 +40,14 @@ epilink-evaluate check --config synthetic_baseline/config.yaml
 python -m synthetic_baseline.run --smoke --stage all
 python -m pytest
 
-# Full-scale development, then explicit operating-point selection/evaluation:
+# Full development on the configured backbone:
 python -m synthetic_baseline.run --stage develop
+```
+
+Review the development report and configure operating criteria before selection
+and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria).
+
+```bash
 python -m synthetic_baseline.run --stage select
 python -m synthetic_baseline.run --stage evaluate
 ```
@@ -46,6 +61,8 @@ The existing local environment is
 `/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/python`.
 Use that interpreter consistently for installation and execution if working in
 this checkout. No machine-specific path is embedded in the implementation.
+Fresh-environment and Git LFS instructions are in the
+[setup section](OPERATIONS.md#2-environment-and-source-inputs).
 
 ## Layout
 
@@ -73,10 +90,13 @@ paths, checksums, tracking status and Git revision. Raw data remain in place;
 Git LFS continues to manage tracked data formats. Local ignored archive assets
 must accompany the checkout when it is moved.
 
-The canonical backbone was promoted with `python tools/promote_legacy_tree.py`.
-If no tree exists, `epilink-evaluate prepare-tree` regenerates a backbone from
-the SCoVMod raw inputs with explicit ordering and provenance. The selected tree's
-hash defines the experiment; historical reconstruction details are archived.
+The preserved 4,990-case reference backbone was promoted with
+`python tools/promote_legacy_tree.py`. The active experiment uses the tree at
+`inputs.tree_path`, which may be a regenerated backbone with a different size.
+`epilink-evaluate prepare-tree` constructs a missing tree from the SCoVMod raw
+inputs and retains an existing tree. Its hash defines the experiment. Follow
+the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree)
+to change the target component and check the actual case count.
 
 Boston source files and `data/boston_data_processing.py` are preserved. The new
 `epilink-evaluate prepare-boston` adapter produces derived tables and provenance

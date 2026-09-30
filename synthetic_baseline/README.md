@@ -10,6 +10,8 @@ parameter-perturbation sensitivity and then empirical application.
 
 This is the active protocol. Historical workflows and results are preserved in
 [`archive/pre_reset_2026-09-30`](../archive/pre_reset_2026-09-30/ARCHIVE.md).
+For setup, configuration fields, tree regeneration, stage behavior, saved
+results, and troubleshooting, see the [operational guide](../OPERATIONS.md).
 
 ## 1. What are we trying to recover?
 
@@ -125,10 +127,14 @@ fingerprints, training identity and complete method definitions.
 
 ## Baseline design and provenance
 
-The fixed backbone has 4,990 cases. Training, development and evaluation use
-distinct seeds; historical seeds 12345/54321 are not held-out replicates. All
-conclusions are conditional on this backbone, not independent-epidemic
-generalization. Summaries use equal realization weights and report SD/range;
+The preserved reference backbone has 4,990 cases. Each experiment uses one fixed
+backbone from `inputs.tree_path`; regenerated trees may have a different size.
+Read the tree provenance or the run's truth artifact manifest for the actual
+case count; see [tree preparation](../OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree).
+Training, development and evaluation use distinct seeds; historical seeds
+12345/54321 are not held-out replicates. All conclusions are conditional on the
+chosen backbone, not independent-epidemic generalization. Summaries use equal
+realization weights and report SD/range;
 millions of dependent pairs are not used as independent uncertainty replicates.
 Three evaluation realizations are a starting descriptive assessment, not precise
 population confidence intervals. Scorer Monte Carlo, Leiden, and TreeTime seeds
@@ -188,6 +194,9 @@ backbone from raw SCoVMod data; an existing backbone is validated and retained.
 
 ## Outputs and extension points
 
+Column definitions, formulas, missing-value conventions, metadata fields, and
+analysis joins are documented in the [output reference](../OUTPUTS.md).
+
 `outputs/baseline/` contains shared `artifacts/` (truth, observations, fitted models,
 scores, trees), and fingerprinted `runs/<id>/` directories. `current.json` points
 to the current run. Each run contains `development/` (pairwise curves and clustering sweeps),
@@ -203,6 +212,11 @@ saved result tables. `inputs.synthetic.analysis_table` provides an optional
 joined view without duplicating stored truth for every model.
 
 ## Next studies
+
+Parameter sensitivity and the rebuilt empirical evaluation workflow are planned;
+the current CLI provides the matched synthetic baseline and a Boston input
+adapter. There is no active sensitivity command. See the
+[implementation status and commands](../OPERATIONS.md#11-sensitivity-analysis-and-boston-inputs).
 
 Once baseline operating criteria are settled, parameter perturbations compare
 matched inference with baseline-fixed inference and logistic training, carrying
