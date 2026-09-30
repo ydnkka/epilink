@@ -145,8 +145,7 @@ def investigate_clusters(pairs: pd.DataFrame, cases: pd.DataFrame, candidate_sco
         }
         result = summarise_partition(
             target_labels, oracle_base, pairs, cases, lookup, reference,
-            np.ones(target_graph.ecount(), dtype=float) if target_graph.ecount() else np.array([], dtype=float),
-            1.0 if target_graph.ecount() else 0.0)
+            None, None)
         summaries.append(result[0]); cluster_tables.append(result[1]); compositions.extend(result[2]); memberships.append(result[3])
     save_table(directory, "oracle_target_partition", [s for s in summaries if s["score_name"] == "oracle_target_edges"])
     ig.set_random_number_generator(None)

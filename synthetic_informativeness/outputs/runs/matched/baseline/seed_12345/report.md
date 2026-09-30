@@ -64,6 +64,14 @@ Connected components and Leiden communities are built from top-score pairwise gr
 
 ![02_cluster_frontier](figures/02_cluster_frontier.png)
 
+## Oracle Target-Edge Graph
+
+Leiden clustering on the graph containing only true M=0 edges reveals the structural ceiling for any method using this partition-based approach. Perfect pairwise information cannot overcome the non-transitivity of direct/shared-infector relationships.
+
+| score_name | algorithm | Mle2_pair_recall | Mle2_pair_precision | Mge3_contamination_fraction | n_clusters | n_singletons | bcubed_f1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| oracle_target_edges | leiden | 0.1424 | 1 | 0 | 1250 | 333 | 0.8279 |
+
 ## TreeCluster
 
 TreeCluster status: complete. Raw genetic FastME trees and temporal dated TreeTime trees are evaluated when TreeCluster.py is available.

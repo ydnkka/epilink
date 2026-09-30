@@ -374,6 +374,34 @@
 </table></div>
 <img src='figures/02_cluster_frontier.png' alt='02_cluster_frontier'>
 </section>
+<section><h2>Oracle Target-Edge Graph</h2><p>Leiden clustering on the graph containing only true M=0 edges reveals the structural ceiling for any method using this partition-based approach. Perfect pairwise information cannot overcome the non-transitivity of direct/shared-infector relationships.</p>
+<div class='table'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>score_name</th>
+      <th>algorithm</th>
+      <th>Mle2_pair_recall</th>
+      <th>Mle2_pair_precision</th>
+      <th>Mge3_contamination_fraction</th>
+      <th>n_clusters</th>
+      <th>n_singletons</th>
+      <th>bcubed_f1</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>oracle_target_edges</td>
+      <td>leiden</td>
+      <td>0.1424</td>
+      <td>1</td>
+      <td>0</td>
+      <td>1250</td>
+      <td>333</td>
+      <td>0.8279</td>
+    </tr>
+  </tbody>
+</table></div>
+</section>
 <section><h2>TreeCluster</h2><p>TreeCluster status: complete. Raw genetic FastME trees and temporal dated TreeTime trees are evaluated when TreeCluster.py is available.</p>
 <div class='table'><table class="dataframe">
   <thead>

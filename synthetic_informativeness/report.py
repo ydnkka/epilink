@@ -143,10 +143,16 @@ def make_report(directory, pairs, cases, settings) -> None:
             "endpoint", "score_name", "precision", "recall", "selected_pairs",
             "Mge3_contamination_fraction", "median_M_connected", "p90_M_connected"]]
     primary_clusters = pd.DataFrame()
+    oracle_row = pd.DataFrame()
     if not clusters.empty:
         fraction = float(settings["figures"]["primary_cluster_fraction"])
         primary_clusters = clusters.loc[np.isclose(clusters.requested, fraction)].sort_values(
             ["Mge3_contamination_fraction", "Mle2_pair_recall"], ascending=[True, False])[[
+                "score_name", "algorithm", "Mle2_pair_recall", "Mle2_pair_precision",
+                "Mge3_contamination_fraction", "n_clusters", "n_singletons", "bcubed_f1"]]
+        oracle_row = clusters.loc[clusters.score_name == "oracle_target_edges"]
+        if not oracle_row.empty:
+            oracle_row = oracle_row[[
                 "score_name", "algorithm", "Mle2_pair_recall", "Mle2_pair_precision",
                 "Mge3_contamination_fraction", "n_clusters", "n_singletons", "bcubed_f1"]]
     treecluster_best = pd.DataFrame()
@@ -169,6 +175,9 @@ def make_report(directory, pairs, cases, settings) -> None:
         ("Graph Clusters",
          "Connected components and Leiden communities are built from top-score pairwise graphs. Every pair sharing a cluster is evaluated, not only retained graph edges.",
          primary_clusters, ("02_cluster_frontier",)),
+        ("Oracle Target-Edge Graph",
+         "Leiden clustering on the graph containing only true M=0 edges reveals the structural ceiling for any method using this partition-based approach. Perfect pairwise information cannot overcome the non-transitivity of direct/shared-infector relationships.",
+         oracle_row if not oracle_row.empty else None, ()),
         ("TreeCluster",
          f"TreeCluster status: {tc_status.get('status')}. Raw genetic FastME trees and temporal dated TreeTime trees are evaluated when TreeCluster.py is available.",
          treecluster_best, ("03_treecluster_frontier",) if not treecluster.empty else ()),
