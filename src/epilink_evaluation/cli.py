@@ -45,7 +45,7 @@ def smoke_config(config):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation")
+        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation", "boston")
     )
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
@@ -130,10 +130,17 @@ def main(argv=None):
     if args.command == "prepare-boston":
         from .inputs.boston import prepare_boston
 
-        # The baseline config anchors the repository input directory.
         root = Path(config["inputs"]["infection_path"]).parents[2]
         print(prepare_boston(root, Path(config["output_directory"]) / "boston_inputs"))
         return 0
+    if args.command == "boston":
+        from .workflows.boston import main as boston_main
+
+        return boston_main([
+            "--config", str(args.config or Path("synthetic_baseline/boston_config.yaml")),
+            "--baseline-run", str(args.baseline_run) if args.baseline_run else "current.json",
+            *(["--output", str(args.output)] if args.output else []),
+        ])
     if args.stage == "report":
         from .reporting.report import render_report
 
