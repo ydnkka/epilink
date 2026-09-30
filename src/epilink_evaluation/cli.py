@@ -45,10 +45,11 @@ def smoke_config(config):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston")
+        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation")
     )
-    parser.add_argument("--config", default="synthetic_baseline/config.yaml", type=Path)
-    parser.add_argument("--stage", choices=STAGES, default="develop")
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--stage", choices=STAGES)
+    parser.add_argument("--baseline-run", type=Path, help="Perturbation reference: runs/<id> or current.json")
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -59,6 +60,29 @@ def main(argv=None):
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    if args.command == "perturbation":
+        from .workflows.perturbation_config import load_study_config
+
+        if args.stage not in (None, "all", "report"):
+            parser.error("Perturbation supports --stage all or report; settings are already frozen")
+        config = load_study_config(
+            args.config or "synthetic_perturbation/config.yaml", smoke=args.smoke,
+            output=args.output, baseline_run=args.baseline_run,
+        )
+        if args.stage == "report":
+            from .reporting.perturbation import render_report
+
+            directory = Path(read_json(Path(config["output_directory"]) / "current.json")["run_directory"])
+            render_report(directory)
+            print(directory / "report.html")
+            return 0
+        from .workflows.perturbation import PerturbationStudy
+
+        return 0 if PerturbationStudy(config).run() else 1
+    if args.baseline_run:
+        parser.error("--baseline-run applies to perturbation only")
+    args.config = args.config or Path("synthetic_baseline/config.yaml")
+    args.stage = args.stage or "develop"
     config = load_config(args.config)
     if args.output:
         config["output_directory"] = str(args.output.resolve())

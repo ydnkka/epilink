@@ -1,0 +1,25 @@
+schema_version: 1
+name: natural_history_perturbation
+# Resolved once at startup; alternatively specify a runs/<id> directory.
+baseline_run: ../synthetic_baseline/outputs/baseline/current.json
+output_directory: outputs/perturbation
+# Fresh observations, paired across all scenarios and inference modes.
+seeds: [81001, 81002, 81003]
+modes: [matched, baseline_fixed]
+perturbations:
+  - parameter: incubation.mean
+    multipliers: [0.75, 1.25]
+  - parameter: incubation.cv
+    multipliers: [0.75, 1.25]
+  - parameter: testing_delay.mean
+    multipliers: [0.75, 1.25]
+  - parameter: testing_delay.cv
+    multipliers: [0.75, 1.25]
+  - parameter: substitution_rate
+    multipliers: [0.75, 1.25]
+  - parameter: relaxation
+    values: [0.0, 0.66]
+smoke:
+  cases: 64
+  seed: 91001
+  parameters: [incubation.mean]

@@ -22,6 +22,7 @@ The archived workflows have their own historical schemas.
 9. [Phylogenetic artifacts](#9-phylogenetic-artifacts)
 10. [Boston derived inputs](#10-boston-derived-inputs)
 11. [Worked joins in Python](#11-worked-joins-in-python)
+12. [Perturbation study outputs](#12-perturbation-study-outputs)
 
 ## 1. Conventions and identifiers
 
@@ -738,3 +739,108 @@ print(case_clusters.groupby("cluster_id").size().rename("n_cases"))
 
 The same `cluster_id` can join this partition's `clusters.parquet`. Keep the
 run, split, seed, and setting identity when combining multiple partitions.
+
+## 12. Perturbation study outputs
+
+The [perturbation runner](synthetic_perturbation/README.md) has a separate
+`<root>` under `synthetic_perturbation/outputs/perturbation/` or
+`perturbation_smoke/`. Its `current.json` and `runs/<id>/` naming follow the
+baseline convention. In this section, `<run>` is a perturbation run.
+
+### Identity, scenarios, and coverage
+
+| File | Fields / purpose |
+| --- | --- |
+| `manifest.json` | Study `status`, normalized `config`, full `signature`, `git_revision`, actual study `n_cases`, `run_directory`, and optional caught `error`. Status is running/complete/partial/failed. |
+| `reference.json` | Source `run_directory`, `run_fingerprint`, `selection_fingerprint`, `training_fingerprint`, `truth_fingerprint`, reference `n_cases`, `model_sha256`, and `baseline_implementation`. |
+| `selection.json` | Exact frozen baseline selection document, including infeasible decisions. |
+| `settings.json` | Only the selected setting definitions; definitions and setting IDs are unchanged from baseline. |
+| `scenarios.json` | List of `name`, `parameter`, absolute `value`, `baseline_value`, `multiplier` (null for absolute levels), and complete scenario `generation` parameters. The unperturbed scenario is named `baseline` and its parameter metadata is null. |
+| `coverage.csv` | One row per `scenario`, `mode`: replay `status`, `completed` metric rows, `expected` rows, and `error` when a whole replay failed. Expected count is unique selected settings times effective observation seeds, before duplicating rows for multiple criteria. |
+
+Study signatures include effective configuration, resolved reference identity,
+scenarios, current implementation/tool identities, and study truth ID. Each
+`scenarios/<scenario>/<mode>/manifest.json` records replay `status`, its exact
+configuration and signature, and an optional whole-replay error. A partial replay
+can contribute completed rows; failed/not-run replays contribute none to the
+top-level result tables. Study status remains partial until all requested
+scenario/mode comparisons have complete coverage.
+
+### Absolute results and rankings
+
+`results.csv` contains baseline-style operating metric rows joined to frozen
+`criterion` names. `rankings.csv` contains the scorer ranking/calibration summaries
+from section 3. Both add:
+
+| Column | Definition |
+| --- | --- |
+| `scenario` | Resolved scenario name from `scenarios.json`, including the `baseline` control. |
+| `mode` | `matched` or `baseline_fixed`. |
+| `parameter` | Changed natural-history field, such as `incubation.mean`; blank for controls. |
+| `value` | Absolute perturbed value in the parameter's native units. |
+| `baseline_value` | Original natural-history parameter value, not a performance metric. |
+| `multiplier` | Requested relative multiplier, or blank for absolute levels and controls. |
+
+`split` is `evaluation` throughout these replays; `seed` is a fresh study seed,
+rather than an original baseline evaluation seed. Results retain `pipeline` and
+`setting_id`; rankings retain `score_name`, `data_process`, and `score_family`.
+Multiple criteria choosing the same setting duplicate its operating rows by
+criterion, while ranking summaries are independent of operating criteria.
+
+### Paired deltas
+
+`results_deltas.csv` and `rankings_deltas.csv` contain perturbed rows only. They
+retain original row columns and add, for every numeric performance/count metric:
+
+| Column pattern | Meaning |
+| --- | --- |
+| `baseline_<metric>` | Unperturbed control's metric on the same seed, mode, and comparison identity. |
+| `delta_<metric>` | `metric - baseline_<metric>`, in the original metric's units. |
+| `control_available` | Whether a matching control row exists; true does not guarantee every metric is defined. |
+
+Operating comparisons match on `(mode, seed, criterion, pipeline, setting_id)`;
+rankings match on `(mode, seed, score_name, data_process, score_family)`.
+Parameter values and seeds are identifiers/metadata and are not differenced.
+Missing controls are retained via a left join, with missing control metrics and
+deltas. Missing metrics in an otherwise present control also yield missing deltas.
+Negative AP/F1 changes indicate worse recovery; positive contamination changes
+indicate more distant selected pairs. These deltas compare fresh paired controls,
+not the reference baseline's old held-out scores.
+
+### Summary tables
+
+| File | Groups and values |
+| --- | --- |
+| `results_summary.csv` | Absolute metrics by `(scenario, mode, criterion, pipeline, setting_id)`. Includes controls. |
+| `rankings_summary.csv` | Absolute ranking metrics by `(scenario, mode, score_name, data_process, score_family)`. Includes controls. |
+| `results_delta_summary.csv` | Delta metrics grouped like operating results, excluding control scenarios. |
+| `rankings_delta_summary.csv` | Delta metrics grouped like rankings, excluding control scenarios. |
+
+Each metric receives `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes.
+Means give each nonmissing realization equal weight; SD is sample SD (`ddof=1`),
+undefined with fewer than two valid values. `_count` is the number of nonmissing
+values for that specific metric. `n_realizations` counts group rows; delta
+summaries additionally report `n_controls`, the number with a matching control
+row. For example, `delta_M0_f1_count` can be smaller than `n_controls` when F1 is
+undefined. Join `scenario` to `scenarios.json` for absolute parameter values.
+
+### Detailed artifacts and reports
+
+`scenarios/<scenario>/<mode>/evaluation/seed_<seed>/` contains the same pairwise,
+membership, cluster, algorithm, and status schemas as sections 3–4. Per-seed
+pairwise and per-setting cluster manifests point to shared score artifacts under
+the perturbation root. Their run fingerprint identifies that frozen replay.
+Modes reuse an observation artifact within each scenario/seed; raw/dated tree
+artifacts also reuse the same observations independently of EpiLink inference.
+
+`artifacts/backbones/<id>/transmission_tree.gml` stores the frozen reference
+topology, or its smoke prefix. Its manifest signature has `kind`, `reference_truth`,
+`nodes`, and `edges`, with normal completion checksums. Frozen logistic model
+bytes/manifests are copied to `artifacts/models/<training-id-prefix>/`; their
+original training dataset IDs still refer to artifacts in the reference baseline.
+
+`report.md` and `report.html` show coverage, parameter levels, frozen decisions,
+paired AP changes, and fixed-setting metric changes. `figures/paired_f1_<index>.png`
+contains a paired F1 heatmap for each criterion in sorted criterion-name order.
+Each heatmap has one panel per mode, pipelines as rows, and perturbations as
+columns. Smoke reports are explicitly labeled pipeline validation.

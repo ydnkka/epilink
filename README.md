@@ -11,10 +11,10 @@ held-out operating-point evaluation.
 Use the [output reference](OUTPUTS.md) for column definitions, metric formulas,
 artifact provenance, and worked analysis joins.
 
-**Validation checkpoint (2026-09-30):** 31 tests pass and the 64-case workflow
-completes through held-out replay, including raw and dated TreeCluster comparisons.
-See [validation and resumption notes](synthetic_baseline/VALIDATION.md) for the
-report location and next full-scale development commands.
+**Validation checkpoint (2026-09-30):** 47 tests pass. Baseline and frozen-setting
+perturbation smoke workflows complete, including raw and dated TreeCluster
+comparisons. See the [baseline checkpoint](synthetic_baseline/VALIDATION.md) and
+[perturbation checkpoint](synthetic_perturbation/README.md#validation-checkpoint--2026-09-30).
 
 ## Implementation status and study order
 
@@ -22,7 +22,7 @@ report location and next full-scale development commands.
 | --- | --- |
 | SCoVMod tree preparation | Available: `epilink-evaluate prepare-tree`. Existing trees are retained. |
 | Synthetic baseline | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports. |
-| Parameter sensitivity | Planned; no active sensitivity command. Historical code is archived. |
+| Parameter sensitivity | Available: `epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings. |
 | Boston input preparation | Available: `epilink-evaluate prepare-boston`. |
 | Empirical scoring/evaluation | Planned in the rebuilt workflow. |
 
@@ -52,6 +52,17 @@ python -m synthetic_baseline.run --stage select
 python -m synthetic_baseline.run --stage evaluate
 ```
 
+After completing baseline evaluation, run the perturbation smoke study:
+
+```bash
+python -m synthetic_perturbation.run --smoke
+# Full perturbation study:
+python -m synthetic_perturbation.run
+```
+
+See the [perturbation guide](synthetic_perturbation/README.md) for reference-run
+selection, parameter levels, and paired-result interpretation.
+
 FastME is an external executable (e.g. `conda install -c bioconda fastme`).
 TreeCluster and TreeTime are Python dependencies. Executables are discovered on
 PATH or alongside the active Python interpreter; override their paths in the
@@ -69,6 +80,7 @@ Fresh-environment and Git LFS instructions are in the
 | Location                                           | Role                                                                        |
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
 | `synthetic_baseline/`                              | Scientific protocol, configuration, thin entry point                        |
+| `synthetic_perturbation/`                           | Frozen-reference sensitivity protocol, configuration, and entry point       |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                  |
 | `data/derived/`                                    | Regenerable input artifacts, including the fixed transmission backbone      |

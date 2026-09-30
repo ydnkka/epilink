@@ -534,16 +534,33 @@ when the scientific intention is a new backbone.
 
 ## 11. Sensitivity analysis and Boston inputs
 
-**Parameter sensitivity is planned and has no command in the active CLI.** The
-baseline validator requires matched generation/inference values. Editing both
-blocks produces another matched baseline with newly fitted logistic models;
-it does not carry frozen operating settings into a perturbation study.
+**Parameter sensitivity is available after baseline evaluation completes.**
+Use the separate perturbation entry point, which loads the baseline's frozen
+models/settings rather than fitting and selecting again:
 
-The planned study will load baseline models/settings, perturb parameters using
-paired observation seeds on the same backbone, and compare matched inference
-with baseline-fixed inference and logistic training. Retuning will be a separate
-adaptation analysis. Historical sensitivity code is preserved in
-[`archive/pre_reset_2026-09-30/src/evaluation/sensitivity_analysis.py`](archive/pre_reset_2026-09-30/src/evaluation/sensitivity_analysis.py).
+```bash
+python -m synthetic_perturbation.run --smoke
+python -m synthetic_perturbation.run
+```
+
+The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default
+configuration is `synthetic_perturbation/config.yaml`; the baseline `check`
+command expects a baseline configuration. Perturbation validates its reference
+and levels at startup. Use `--baseline-run` to pin a completed run directory
+instead of the default current-baseline pointer.
+
+The workflow compares `matched` EpiLink inference with `baseline_fixed` inference
+on paired observations. Both logistic models and every operating setting stay
+fixed. Fresh unperturbed controls provide paired metric differences. Smoke uses
+64 cases and the incubation-mean levels; full mode uses all six configured
+parameter families on the frozen backbone. Outputs are separate under
+`synthetic_perturbation/outputs/perturbation[_smoke]/`.
+
+See the [perturbation guide](synthetic_perturbation/README.md) for all configuration
+fields, resumption, reference compatibility, and the validation checkpoint, and
+the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results.
+Retuning or retraining under changed parameters remains a separate adaptation
+analysis. Historical sensitivity code remains in the pre-reset archive.
 
 **Boston input preparation is available; the rebuilt empirical evaluation
 workflow is planned.** Run the input adapter with:

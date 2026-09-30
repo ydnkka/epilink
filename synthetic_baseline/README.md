@@ -213,15 +213,15 @@ joined view without duplicating stored truth for every model.
 
 ## Next studies
 
-Parameter sensitivity and the rebuilt empirical evaluation workflow are planned;
-the current CLI provides the matched synthetic baseline and a Boston input
-adapter. There is no active sensitivity command. See the
-[implementation status and commands](../OPERATIONS.md#11-sensitivity-analysis-and-boston-inputs).
+After baseline evaluation, the [perturbation workflow](../synthetic_perturbation/README.md)
+replays frozen models and operating settings on paired new observations. Start
+with `python -m synthetic_perturbation.run --smoke`, then omit `--smoke` for all
+configured parameter levels. Matched and baseline-fixed modes differ in EpiLink
+inference; logistic training stays baseline-fixed in both. Any retuning or
+retraining is a separate adaptation analysis.
 
-Once baseline operating criteria are settled, parameter perturbations compare
-matched inference with baseline-fixed inference and logistic training, carrying
-the baseline operating settings forward. Any retuning is a separate adaptation
-analysis. Empirical application then reuses these definitions and records input
+The rebuilt empirical evaluation workflow remains planned; a Boston input
+adapter is available. Empirical application will reuse these definitions and record input
 availability and external epidemiological evidence; exposure groups are not
 complete transmission truth. Boston's preserved TN93 table is distance-censored
 at 0.0005/site, so full-pair comparators require regenerated distances or an
