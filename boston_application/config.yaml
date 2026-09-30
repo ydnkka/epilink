@@ -11,11 +11,33 @@ inputs:
 # Boston has only one empirical distance vector. Nothing is refitted.
 scorers: [EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D]
 assessment:
-  # Optional historical comparator: ../archive/pre_reset_2026-09-30/phylo/clusters.tsv
   treecluster_path: null
   focus_exposures: [Conference, SNF]
   min_cluster_size: 2
 trees:
   enabled: true
-  # New trees are built from the Boston alignment, independent of the archive.
+  # Trees are built from the Boston alignment.
   alignment_path: ../data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta
+exploration:
+  # Descriptive sensitivity grid for --stage explore. These settings are not
+  # selected on Boston truth; they summarize partition stability across plausible
+  # thresholds/resolutions.
+  scorers: [EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D]
+  graph:
+    thresholds:
+      epilink: [0.1, 0.25, 0.5, 0.75, 1.0]
+      genetic: [0, 1, 2, 3, 4]
+      logistic: [0.01, 0.1, 0.25, 0.5, 0.75]
+    clustering:
+      algorithms: [components, leiden]
+      leiden:
+        objective: CPM
+        weight_policies: [binary, native]
+        resolutions: [0.05, 0.1, 0.3, 0.5, 0.75]
+        restarts: 5
+        seed: 65001
+  treecluster:
+    enabled: true
+    methods: [max_clade, avg_clade, single_linkage]
+    genetic_thresholds: [0, 0.0001, 0.0005, 0.001, 0.002]
+    threshold_days: [7, 14, 28, 42, 56, 70]

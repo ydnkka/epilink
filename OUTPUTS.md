@@ -655,6 +655,32 @@ The manifest adds `n_cases`, `n_observed_pairs`, `n_all_pairs`, and
 `candidate_universe`. Its signature records `kind`, input hashes,
 `implementation`, `distance_cutoff_per_site`, and `reference_length`.
 
+### Boston empirical run outputs
+
+Directory: `boston_application/outputs/boston/runs/<run-id>/`, produced by
+`python -m boston_application.run --stage all`, `trees`, or `explore`.
+
+The frozen transfer analysis writes `settings.json`, `selection.json`,
+`clusters/`, `trees/`, and `assessment/` using baseline-selected operating
+points. `clusters/status.json` and `trees/status.json` record configured,
+completed, and failed partitions. `assessment/summary.csv` gives descriptive
+cluster-size and candidate-coverage summaries; Boston has no synthetic truth
+precision/recall columns.
+
+The exploratory sensitivity stage writes under `exploration/`:
+
+| Path | Definition |
+| --- | --- |
+| `settings.json` | Complete exploratory graph and TreeCluster definitions. |
+| `setting_metadata.csv` | Flat setting metadata: kind, pipeline, scorer, threshold, resolution, TreeCluster method, and threshold units. |
+| `clusters/` | Graph partitions for exploratory components/Leiden settings. |
+| `trees/` | TreeCluster partitions for exploratory raw/dated thresholds. |
+| `assessment/` | Same descriptive partition summaries and exposure/agreement tables as the frozen analysis, scoped to exploratory settings. |
+| `status.json` | Overall exploratory configured counts and completion state. |
+
+Exploration outputs are descriptive stability checks, not selected Boston
+operating points.
+
 ## 11. Worked joins in Python
 
 Run these examples from the repository root in the installed environment. They

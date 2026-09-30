@@ -12,11 +12,14 @@ import pytest
 import yaml
 
 from epilink_evaluation.provenance import fingerprint, read_json
-from epilink_evaluation.workflows.boston_assessment import assess_partitions, load_treecluster
 from epilink_evaluation.workflows.boston import (
     BostonEmpirical,
     build_observations,
     load_boston_inputs,
+)
+from epilink_evaluation.workflows.boston_assessment import (
+    assess_partitions,
+    load_treecluster,
 )
 from epilink_evaluation.workflows.boston_config import load_study_config
 from epilink_evaluation.workflows.boston_scoring import (
@@ -115,7 +118,16 @@ def test_build_observations(tmp_path):
 def evaluated_baseline(small_config, tmp_path):
     from epilink_evaluation.workflows.baseline import Baseline
 
-    small_config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
+    small_config["scorers"] = [
+        "EDD",
+        "EDS",
+        "ESD",
+        "ESS",
+        "GD_S",
+        "GD_D",
+        "LOGIT_S",
+        "LOGIT_D",
+    ]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["treecluster"]["enabled"] = False
     baseline = Baseline(small_config)
@@ -252,13 +264,63 @@ def test_default_boston_config_covers_expanded_models():
     root = Path(__file__).resolve().parents[1]
     config = load_study_config(config_path=root / "boston_application/config.yaml")
     assert config["schema_version"] == 1
-    assert config["scorers"] == ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
+    assert config["scorers"] == [
+        "EDD",
+        "EDS",
+        "ESD",
+        "ESS",
+        "GD_S",
+        "GD_D",
+        "LOGIT_S",
+        "LOGIT_D",
+    ]
     assert "seeds" not in config
-    assert Path(config["assessment"]["treecluster_path"]).exists()
+    assert config["assessment"]["treecluster_path"] is None
+    assert config["trees"]["enabled"] is True
+    assert Path(config["trees"]["alignment_path"]).exists()
     assert (
         Path(config["inputs"]["cases_path"])
         == Path(config["output_directory"]) / "boston_inputs/cases.parquet"
     )
+
+def test_boston_report_includes_tree_only_results(tmp_path):
+    from epilink_evaluation.provenance import write_json
+    from epilink_evaluation.reporting.boston import render_report
+
+    write_json(tmp_path / "manifest.json", {"status": "complete", "requested_stage": "trees"})
+    write_json(tmp_path / "reference.json", {"run_directory": "baseline/run"})
+    write_json(
+        tmp_path / "inputs.json",
+        {
+            "cases_path": "cases.parquet",
+            "pairs_path": "pairs.parquet",
+            "n_cases": 3,
+            "n_observed_pairs": 2,
+            "n_all_pairs": 3,
+            "treecluster_path": None,
+            "treecluster_sha256": None,
+            "alignment_path": "alignment.fasta",
+            "alignment_sha256": "abc",
+            "trees_enabled": True,
+        },
+    )
+    write_json(tmp_path / "selection.json", {"operating_points": []})
+    trees = tmp_path / "trees"
+    trees.mkdir()
+    write_json(trees / "status.json", {"status": "complete", "configured": 1, "completed": 1})
+    pd.DataFrame(
+        {
+            "setting_id": ["tree"],
+            "pipeline": ["treecluster/empirical/stochastic/dated"],
+            "n_clusters": [2],
+        }
+    ).to_csv(trees / "metrics.csv", index=False)
+
+    render_report(tmp_path)
+    report = (tmp_path / "report.md").read_text()
+    assert "requested stage: trees" in report
+    assert "Raw and dated TreeCluster status" in report
+    assert "Frozen TreeCluster settings on Boston trees" in report
 
 
 @pytest.mark.parametrize("names", [["LOGIT"], ["FOO"], [], ["ES", "ES"], ["ES", "ESS"]])
@@ -345,7 +407,9 @@ def test_genetic_rules_retain_distinct_synthetic_thresholds():
         operating_settings(reference, ["ES"])
 
 
-def test_current_boston_reference_does_not_depend_on_adapter_hash(evaluated_baseline, tmp_path):
+def test_current_boston_reference_does_not_depend_on_adapter_hash(
+    evaluated_baseline, tmp_path
+):
     from copy import deepcopy
 
     from epilink_evaluation.workflows.reference import OperatingReference
@@ -353,21 +417,36 @@ def test_current_boston_reference_does_not_depend_on_adapter_hash(evaluated_base
     config = boston_config(tmp_path, evaluated_baseline)
     changed = deepcopy(config["implementation"])
     changed["evaluation"]["inputs/boston.py"] = "new empirical adapter"
-    assert OperatingReference(evaluated_baseline.directory, changed).directory == evaluated_baseline.directory
+    assert (
+        OperatingReference(evaluated_baseline.directory, changed).directory
+        == evaluated_baseline.directory
+    )
     changed["evaluation"]["scorers/logistic.py"] = "changed baseline scorer"
     with pytest.raises(ValueError, match="Scientific implementation"):
         OperatingReference(evaluated_baseline.directory, changed)
 
 
-def test_expanded_boston_scores_and_archived_comparator(evaluated_baseline, tmp_path):
+def test_expanded_boston_scores_and_external_comparator(evaluated_baseline, tmp_path):
     from epilink_evaluation.scorers.logistic import predict_logistic
 
     config = boston_config(tmp_path, evaluated_baseline)
-    config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_S", "GD_D", "LOGIT_S", "LOGIT_D"]
+    config["scorers"] = [
+        "EDD",
+        "EDS",
+        "ESD",
+        "ESS",
+        "GD_S",
+        "GD_D",
+        "LOGIT_S",
+        "LOGIT_D",
+    ]
     tree = tmp_path / "treecluster.tsv"
     tree.write_text("SequenceName\tClusterNumber\nA\t1\nB\t1\nC\t-1\nD\t2\nE\t-1\n")
-    config["assessment"] = {"treecluster_path": str(tree), "focus_exposures": ["Conference", "SNF"],
-                            "min_cluster_size": 2}
+    config["assessment"] = {
+        "treecluster_path": str(tree),
+        "focus_exposures": ["Conference", "SNF"],
+        "min_cluster_size": 2,
+    }
     study = BostonEmpirical(config)
     assert study.run()
     scores, _ = study.score()
@@ -378,7 +457,8 @@ def test_expanded_boston_scores_and_archived_comparator(evaluated_baseline, tmp_
     for scorer, process in (("LOGIT_S", "stochastic"), ("LOGIT_D", "deterministic")):
         expected = predict_logistic(
             study.observations.assign(**{f"GD_{process}": study.observations.GD}),
-            process, study.context.logistic_models[process],
+            process,
+            study.context.logistic_models[process],
         )
         np.testing.assert_allclose(scores[scorer], expected)
     assert (scores.LOGIT_S != scores.LOGIT_D).any()
@@ -387,7 +467,9 @@ def test_expanded_boston_scores_and_archived_comparator(evaluated_baseline, tmp_
     assert "transmission truth" in report
     assessment = study.directory / "assessment"
     summary = pd.read_csv(assessment / "summary.csv")
-    assert len(summary) == read_json(study.directory / "clusters/status.json")["completed"]
+    assert (
+        len(summary) == read_json(study.directory / "clusters/status.json")["completed"]
+    )
     assert (summary.n_observed_pairs == 5).all()
     assert (summary.candidate_coverage == 0.5).all()
     assert (assessment / "cluster_composition.csv").exists()
@@ -396,25 +478,38 @@ def test_expanded_boston_scores_and_archived_comparator(evaluated_baseline, tmp_
     assert not (study.root / "artifacts/models").exists()
 
 
-def test_archive_style_assessment_counts_singletons_and_overlap(tmp_path):
+def test_external_treecluster_assessment_counts_singletons_and_overlap(tmp_path):
     from epilink_evaluation.provenance import complete_artifact
 
-    cases = pd.DataFrame({"case_id": ["A", "B", "C", "D", "E"],
-                          "Exposure": ["SNF", "SNF", "SNF", "Conference", "Conference"],
-                          "Clade": ["A", "A", "B", "B", "B"]})
-    tree = tmp_path / "archive.tsv"
+    cases = pd.DataFrame(
+        {
+            "case_id": ["A", "B", "C", "D", "E"],
+            "Exposure": ["SNF", "SNF", "SNF", "Conference", "Conference"],
+            "Clade": ["A", "A", "B", "B", "B"],
+        }
+    )
+    tree = tmp_path / "treecluster.tsv"
     tree.write_text("SequenceName\tClusterNumber\nA\t1\nB\t1\nC\t-1\nD\t2\nE\t-1\n")
     comparator = load_treecluster(tree, cases)
     assert comparator.treecluster_group.nunique() == 4  # the two -1 rows do not merge
-    definitions = {"setting": {"kind": "components", "pipeline": "components/ESS",
-                               "score_name": "ESS", "baseline_setting_id": "source"}}
+    definitions = {
+        "setting": {
+            "kind": "components",
+            "pipeline": "components/ESS",
+            "score_name": "ESS",
+            "baseline_setting_id": "source",
+        }
+    }
     artifact = tmp_path / "clusters/setting"
     artifact.mkdir(parents=True)
     pd.DataFrame({"case_id": cases.case_id, "cluster_id": [0, 0, 0, 1, 2]}).to_parquet(
-        artifact / "memberships.parquet", index=False,
+        artifact / "memberships.parquet",
+        index=False,
     )
     complete_artifact(artifact, {"test": "assessment"}, ["memberships.parquet"])
-    assess_partitions(tmp_path, cases, definitions, ["SNF", "Conference"], 2, comparator, 3, 10)
+    assess_partitions(
+        tmp_path, cases, definitions, ["SNF", "Conference"], 2, comparator, 3, 10
+    )
     summary = pd.read_csv(tmp_path / "assessment/summary.csv")
     assert summary.loc[0, "n_singleton_cases"] == 2
     named = pd.read_csv(tmp_path / "assessment/named_cluster_overlaps.csv")

@@ -16,6 +16,7 @@ STAGES = (
     "pairwise",
     "clusters",
     "trees",
+    "explore",
     "develop",
     "select",
     "evaluate",
@@ -83,8 +84,8 @@ def main(argv=None):
     if args.command == "boston":
         from .workflows.boston_config import load_study_config
 
-        if args.stage not in (None, "prepare", "trees", "all", "report"):
-            parser.error("Boston supports --stage prepare, trees, all or report")
+        if args.stage not in (None, "prepare", "trees", "explore", "all", "report"):
+            parser.error("Boston supports --stage prepare, trees, explore, all or report")
         if args.smoke:
             parser.error("Boston does not support --smoke")
         config = load_study_config(
@@ -119,6 +120,8 @@ def main(argv=None):
     args.stage = args.stage or "develop"
     if args.stage == "trees":
         parser.error("--stage trees applies to boston only")
+    if args.stage == "explore":
+        parser.error("--stage explore applies to boston only")
     config = load_config(args.config)
     if args.output:
         config["output_directory"] = str(args.output.resolve())

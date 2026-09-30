@@ -24,20 +24,26 @@ def render_report(directory):
     selection = read_json(directory / "selection.json")
 
     title = "Boston empirical clustering"
+    requested = manifest.get("requested_stage")
+    status = f"Status: {manifest['status']}"
+    if requested:
+        status += f" (requested stage: {requested})"
+    status += "."
     paragraphs = [
-        f"Status: {manifest['status']}.",
+        status,
         f"Reference baseline: {reference['run_directory']}.",
         f"Cases: {inputs['n_cases']}, Observed pairs: {inputs['n_observed_pairs']:,} / {inputs['n_all_pairs']:,} possible.",
         "The TN93 table is distance-censored at 0.0005/site; missing pairs are unobserved, not zero.",
         "All scorers use the same observed Boston GD and TD. EpiLink inference, Monte Carlo settings, and graph operating points are frozen from the synthetic baseline. LOGIT_S/LOGIT_D, when selected, reuse its fitted classifiers without retraining.",
         "Synthetic D/S labels identify the source operating rules or fitted classifiers, not separate Boston measurements. Raw and dated trees are rebuilt from the full Boston alignment; their TreeCluster partitions and exposure flags are descriptive comparators, not transmission truth.",
     ]
+    if requested == "trees":
+        paragraphs.append(
+            "This was a tree-only run; graph scoring and clustering were not requested."
+        )
     if inputs.get("treecluster_path"):
         paragraphs.append(
-            f"Archive TreeCluster comparator: {inputs['treecluster_path']} (SHA-256 {inputs['treecluster_sha256']}). Each unclustered -1 is a separate singleton."
-        )
-        paragraphs.append(
-            "Historic archive overlap numbers use different EpiLink settings and must not be copied to the new partitions."
+            f"External TreeCluster comparator: {inputs['treecluster_path']} (SHA-256 {inputs['treecluster_sha256']}). Each unclustered -1 is a separate singleton."
         )
     text = [f"# {title}", *paragraphs]
     body = [
@@ -89,7 +95,7 @@ def render_report(directory):
         if tree_status_path.exists()
         else {"status": "not_run", "configured": 0, "completed": 0}
     )
-    if inputs.get("trees"):
+    if inputs.get("trees_enabled") or tree_status_path.exists():
         section("Raw and dated TreeCluster status", pd.DataFrame([tree_status]))
         tree_metrics = read_table(directory / "trees/metrics.csv")
         if not tree_metrics.empty:
@@ -152,7 +158,7 @@ def render_report(directory):
         section("Empirical partition summary", summary)
     named = read_table(assessment / "named_cluster_overlaps.csv")
     if not named.empty:
-        section("Named exposure groups and archive TreeCluster overlap", named)
+        section("Named exposure groups", named)
         if "jaccard" in named.columns and named.jaccard.notna().any():
             fig, ax = plt.subplots(figsize=(max(9, len(named) * 0.65), 5))
             ax.bar(np.arange(len(named)), named.jaccard.fillna(0))
@@ -163,7 +169,7 @@ def render_report(directory):
                 ha="right",
                 fontsize=8,
             )
-            ax.set_ylabel("Jaccard overlap with archived TreeCluster group")
+            ax.set_ylabel("Jaccard overlap with external TreeCluster group")
             ax.set_ylim(0, 1)
             fig.tight_layout()
             (directory / "figures").mkdir(exist_ok=True)
@@ -185,6 +191,41 @@ def render_report(directory):
         )
         text.append(paragraphs[-1])
         body.append(f"<p>{html.escape(paragraphs[-1])}</p>")
+
+    exploration = directory / "exploration"
+    exploration_status_path = exploration / "status.json"
+    if exploration_status_path.exists():
+        section("Exploration status", pd.DataFrame([read_json(exploration_status_path)]))
+        for label, path in (
+            ("Exploration graph status", exploration / "clusters/status.json"),
+            ("Exploration TreeCluster status", exploration / "trees/status.json"),
+        ):
+            if path.exists():
+                section(label, pd.DataFrame([read_json(path)]))
+        exploration_summary = read_table(exploration / "assessment/summary.csv")
+        exploration_settings = read_table(exploration / "setting_metadata.csv")
+        if not exploration_summary.empty and not exploration_settings.empty:
+            combined = exploration_summary.merge(
+                exploration_settings, on=["setting_id", "pipeline", "score_name"], how="left",
+            )
+            ranges = combined.groupby("pipeline", as_index=False).agg(
+                settings=("setting_id", "count"),
+                n_clusters_min=("n_clusters", "min"),
+                n_clusters_median=("n_clusters", "median"),
+                n_clusters_max=("n_clusters", "max"),
+                largest_cluster_min=("largest_cluster", "min"),
+                largest_cluster_median=("largest_cluster", "median"),
+                largest_cluster_max=("largest_cluster", "max"),
+                singleton_cases_min=("n_singleton_cases", "min"),
+                singleton_cases_median=("n_singleton_cases", "median"),
+                singleton_cases_max=("n_singleton_cases", "max"),
+            )
+            section("Exploration partition ranges", ranges)
+            paragraphs.append(
+                "Exploration sweeps are descriptive sensitivity analyses. Full setting metadata, partition summaries, exposure composition, and TreeCluster agreement are saved under exploration/."
+            )
+            text.append(paragraphs[-1])
+            body.append(f"<p>{html.escape(paragraphs[-1])}</p>")
 
     coverage = pd.DataFrame(
         [

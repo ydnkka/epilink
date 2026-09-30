@@ -81,6 +81,7 @@ class BostonEmpirical:
         self.definitions, self.selection = operating_settings(
             self.reference, config["scorers"], include_trees=self.trees_enabled,
         )
+        self.exploration = self._resolve_exploration_config(config.get("exploration", {}))
         self.cases_path = Path(config["inputs"]["cases_path"])
         self.pairs_path = Path(config["inputs"]["pairs_path"])
         prepared = self.root / "boston_inputs"
@@ -140,6 +141,7 @@ class BostonEmpirical:
             "scorers": {name: BOSTON_SPECS[name].metadata() for name in config["scorers"]},
             "scoring_config": self.scoring_config,
             "definitions": self.definitions,
+            "exploration": self.exploration,
             "n_cases": self.n_cases,
             "n_observed_pairs": self.n_observed_pairs,
             "n_all_pairs": self.n_all_pairs,
@@ -161,6 +163,7 @@ class BostonEmpirical:
             "treecluster_sha256": self.signature["treecluster_sha256"],
             "alignment_path": str(self.alignment_path) if self.trees_enabled else None,
             "alignment_sha256": self.signature["alignment_sha256"],
+            "trees_enabled": self.trees_enabled,
         })
         write_json(self.root / "current.json", {
             "run_directory": str(self.directory),
@@ -186,15 +189,122 @@ class BostonEmpirical:
             score_frame = pd.read_parquet(score_dir / "scores.parquet")
         return score_frame, score_id
 
-    def clusters(self, scores, score_id):
-        cluster_definitions = {k: v for k, v in self.definitions.items()
+    def _resolve_exploration_config(self, exploration):
+        exploration = deepcopy(exploration or {})
+        exploration.setdefault("scorers", list(self.config["scorers"]))
+        validate_scorers(exploration["scorers"])
+        unknown = set(exploration["scorers"]) - set(self.config["scorers"])
+        if unknown:
+            raise ValueError(
+                f"Boston exploration scorers must be included in scorers: {sorted(unknown)}"
+            )
+
+        graph = exploration.get("graph", {})
+        if isinstance(graph, bool):
+            graph = {"enabled": graph}
+        elif graph is None:
+            graph = {"enabled": False}
+        elif not isinstance(graph, dict):
+            raise ValueError("Boston exploration.graph must be a mapping or boolean")
+        graph.setdefault("enabled", True)
+        graph.setdefault("thresholds", deepcopy(self.reference.config["thresholds"]))
+        graph.setdefault("clustering", deepcopy(self.reference.config["clustering"]))
+
+        treecluster = exploration.get("treecluster", {})
+        if isinstance(treecluster, bool):
+            treecluster = {"enabled": treecluster}
+        elif treecluster is None:
+            treecluster = {"enabled": False}
+        elif not isinstance(treecluster, dict):
+            raise ValueError("Boston exploration.treecluster must be a mapping or boolean")
+        reference_treecluster = self.reference.config["treecluster"]
+        treecluster.setdefault("enabled", self.trees_enabled)
+        treecluster.setdefault("methods", list(reference_treecluster["methods"]))
+        treecluster.setdefault("genetic_thresholds", list(reference_treecluster["genetic_thresholds"]))
+        treecluster.setdefault("threshold_days", list(reference_treecluster["threshold_days"]))
+        return {"scorers": exploration["scorers"], "graph": graph, "treecluster": treecluster}
+
+    def exploration_definitions(self):
+        definitions = {}
+
+        def add(definition):
+            definitions[fingerprint(definition)[:20]] = definition
+
+        graph = self.exploration["graph"]
+        if graph.get("enabled", True):
+            clustering = graph["clustering"]
+            thresholds = graph["thresholds"]
+            for name in self.exploration["scorers"]:
+                spec = BOSTON_SPECS[name]
+                values = [None, *sorted(set(thresholds[spec.family]))]
+                for threshold in values:
+                    base = {
+                        "score_name": name,
+                        "data_process": "empirical",
+                        "threshold": threshold,
+                        "empty": threshold is None,
+                        "baseline_setting_id": None,
+                        "baseline_score_name": name,
+                        "baseline_data_process": spec.data_process,
+                        "exploration": True,
+                    }
+                    if "components" in clustering["algorithms"]:
+                        add({**base, "kind": "components", "weight_policy": "binary",
+                             "pipeline": f"explore/components/{name}"})
+                    if "leiden" in clustering["algorithms"]:
+                        leiden_config = clustering["leiden"]
+                        for policy in leiden_config["weight_policies"]:
+                            if policy == "native" and spec.family == "genetic":
+                                continue
+                            for resolution in leiden_config["resolutions"]:
+                                add({
+                                    **base,
+                                    "kind": "leiden",
+                                    "weight_policy": policy,
+                                    "objective": leiden_config["objective"],
+                                    "resolution": float(resolution),
+                                    "restarts": leiden_config["restarts"],
+                                    "algorithm_seed": leiden_config["seed"],
+                                    "pipeline": f"explore/leiden/{name}/{policy}",
+                                })
+
+        treecluster = self.exploration["treecluster"]
+        if treecluster.get("enabled", self.trees_enabled):
+            settings = self.reference.config["treecluster"]
+            for kind, thresholds, units in (
+                ("raw", treecluster["genetic_thresholds"], "substitutions_per_site"),
+                ("dated", treecluster["threshold_days"], "days"),
+            ):
+                for method in treecluster["methods"]:
+                    for threshold in thresholds:
+                        add({
+                            "kind": "treecluster",
+                            "tree_kind": kind,
+                            "data_process": "empirical",
+                            "method": method,
+                            "threshold": float(threshold),
+                            "threshold_units": units,
+                            "days_per_year": settings["days_per_year"],
+                            "pipeline": f"explore/treecluster/empirical/{kind}",
+                            "baseline_setting_id": None,
+                            "baseline_score_name": "TREE",
+                            "baseline_data_process": "empirical",
+                            "score_name": "TREE",
+                            "exploration": True,
+                        })
+        return definitions
+
+    def clusters(self, scores, score_id, definitions=None, directory=None):
+        definitions = self.definitions if definitions is None else definitions
+        directory = self.directory / "clusters" if directory is None else Path(directory)
+        cluster_definitions = {k: v for k, v in definitions.items()
                                if v["kind"] in ("components", "leiden")}
-        (self.directory / "clusters").mkdir(parents=True, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
         all_complete = True
         rows, errors = [], []
         graphs, partitions = {}, {}
         for key, definition in cluster_definitions.items():
-            artifact = self.directory / "clusters" / key
+            artifact = directory / key
             signature = {
                 "run": fingerprint(self.signature),
                 "score_id": score_id,
@@ -203,8 +313,8 @@ class BostonEmpirical:
             base = {
                 "setting_id": key, "pipeline": definition["pipeline"],
                 "score_name": definition["score_name"], "data_process": "empirical",
-                "baseline_setting_id": definition["baseline_setting_id"],
-                "baseline_score_name": definition["baseline_score_name"],
+                "baseline_setting_id": definition.get("baseline_setting_id"),
+                "baseline_score_name": definition.get("baseline_score_name"),
             }
             if valid_artifact(artifact, signature):
                 rows.append({**base, **read_json(artifact / "metrics.json")})
@@ -273,9 +383,9 @@ class BostonEmpirical:
                 error = {**base, "definition": definition, "error": repr(exc)}
                 write_json(artifact / "manifest.json", {"status": "failed", **error})
                 errors.append(error)
-        pd.DataFrame(rows).to_csv(self.directory / "clusters" / "metrics.csv", index=False)
+        pd.DataFrame(rows).to_csv(directory / "metrics.csv", index=False)
         write_json(
-            self.directory / "clusters" / "status.json",
+            directory / "status.json",
             {
                 "status": "partial" if errors else "complete",
                 "configured": len(cluster_definitions),
@@ -304,12 +414,13 @@ class BostonEmpirical:
                     clusters[f"n_{col}_{val}"] = positive
         return clusters
 
-    def trees(self):
+    def trees(self, definitions=None, directory=None):
         """Apply the selected baseline raw/dated TreeCluster rules to Boston trees."""
         if not self.trees_enabled:
             raise ValueError("Boston TreeCluster requires trees.enabled and an alignment_path")
-        directory = self.directory / "trees"
-        directory.mkdir(exist_ok=True)
+        definitions = self.definitions if definitions is None else definitions
+        directory = self.directory / "trees" if directory is None else Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
         rows, errors = [], []
         settings = self.reference.config["treecluster"]
         if "raw" not in self.tree_paths:
@@ -322,7 +433,7 @@ class BostonEmpirical:
         write_json(directory / "inputs.json", {
             kind: {"path": str(path), "sha256": digest_file(path)} for kind, path in self.tree_paths.items()
         })
-        for key, definition in self.definitions.items():
+        for key, definition in definitions.items():
             if definition["kind"] != "treecluster":
                 continue
             artifact = directory / key
@@ -331,8 +442,8 @@ class BostonEmpirical:
                          "tree_sha256": digest_file(self.tree_paths[kind]),
                          "executable": self.tree_tools["treecluster"]}
             base = {"setting_id": key, "pipeline": definition["pipeline"],
-                    "score_name": "TREE", "baseline_setting_id": definition["baseline_setting_id"],
-                    "baseline_data_process": definition["baseline_data_process"],
+                    "score_name": "TREE", "baseline_setting_id": definition.get("baseline_setting_id"),
+                    "baseline_data_process": definition.get("baseline_data_process"),
                     "tree_kind": kind, "method": definition["method"],
                     "threshold": definition["threshold"], "threshold_units": definition["threshold_units"]}
             if valid_artifact(artifact, signature):
@@ -372,14 +483,62 @@ class BostonEmpirical:
         pd.DataFrame(rows).to_csv(directory / "metrics.csv", index=False)
         write_json(directory / "status.json", {
             "status": "partial" if errors else "complete", "configured": sum(
-                d["kind"] == "treecluster" for d in self.definitions.values()),
+                d["kind"] == "treecluster" for d in definitions.values()),
             "completed": len(rows), "errors": errors,
         })
         return not errors
 
+    def explore(self):
+        """Run descriptive threshold/resolution sweeps separate from frozen transfer."""
+        definitions = self.exploration_definitions()
+        directory = self.directory / "exploration"
+        directory.mkdir(exist_ok=True)
+        write_json(directory / "settings.json", definitions)
+        metadata = []
+        for key, definition in definitions.items():
+            metadata.append({
+                "setting_id": key,
+                "kind": definition["kind"],
+                "pipeline": definition["pipeline"],
+                "score_name": definition.get("score_name"),
+                "threshold": definition.get("threshold"),
+                "weight_policy": definition.get("weight_policy"),
+                "resolution": definition.get("resolution"),
+                "tree_kind": definition.get("tree_kind"),
+                "method": definition.get("method"),
+                "threshold_units": definition.get("threshold_units"),
+            })
+        pd.DataFrame(metadata).to_csv(directory / "setting_metadata.csv", index=False)
+
+        complete = True
+        graph_definitions = {k: v for k, v in definitions.items()
+                             if v["kind"] in ("components", "leiden")}
+        if graph_definitions:
+            scores, score_id = self.score()
+            complete = self.clusters(
+                scores, score_id, graph_definitions, directory / "clusters",
+            ) and complete
+        tree_definitions = {k: v for k, v in definitions.items() if v["kind"] == "treecluster"}
+        if tree_definitions:
+            complete = self.trees(tree_definitions, directory / "trees") and complete
+
+        assess_partitions(
+            directory, self.cases, definitions, self.focus_exposures,
+            self.min_cluster_size, self.comparator, self.n_observed_pairs, self.n_all_pairs,
+        )
+        status = {
+            "status": "complete" if complete else "partial",
+            "configured": len(definitions),
+            "graph_configured": len(graph_definitions),
+            "treecluster_configured": len(tree_definitions),
+        }
+        write_json(directory / "status.json", status)
+        return complete
+
     def run(self, stage="all"):
         manifest = {
             "status": "running",
+            "requested_stage": stage,
             "config": self.config,
             "signature": self.signature,
             "git_revision": git_revision(),
@@ -387,20 +546,23 @@ class BostonEmpirical:
         }
         write_json(self.directory / "manifest.json", manifest)
         try:
-            if stage not in ("all", "trees"):
-                raise ValueError("Boston supports all or trees as computational stages")
+            if stage not in ("all", "trees", "explore"):
+                raise ValueError("Boston supports all, trees, or explore as computational stages")
             if stage == "all":
                 scores, score_id = self.score()
                 manifest["score_id"] = score_id
                 complete = self.clusters(scores, score_id)
+            elif stage == "explore":
+                complete = self.explore()
             else:
                 complete = True
-            if self.trees_enabled:
+            if stage != "explore" and self.trees_enabled:
                 complete = self.trees() and complete
-            assess_partitions(
-                self.directory, self.cases, self.definitions, self.focus_exposures,
-                self.min_cluster_size, self.comparator, self.n_observed_pairs, self.n_all_pairs,
-            )
+            if stage != "explore":
+                assess_partitions(
+                    self.directory, self.cases, self.definitions, self.focus_exposures,
+                    self.min_cluster_size, self.comparator, self.n_observed_pairs, self.n_all_pairs,
+                )
             manifest["status"] = "complete" if complete else "partial"
         except Exception as exc:
             manifest.update(status="failed", error=repr(exc))

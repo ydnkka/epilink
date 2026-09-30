@@ -14,7 +14,7 @@ from ..scorers.logistic import predict_logistic
 BASELINE_SCORES = {
     "EDD": "EDD", "EDS": "EDS", "ESD": "ESD", "ESS": "ESS",
     "GD_S": "GD_S", "GD_D": "GD_D", "LOGIT_S": "LOGIT_S", "LOGIT_D": "LOGIT_D",
-    # Legacy empirical names remain available for training-free studies.
+    # Empirical aliases remain available for training-free studies.
     "ES": "ESS", "ED": "EDS",
 }
 BOSTON_SPECS = {

@@ -1,4 +1,4 @@
-"""Descriptive Boston evidence and archived TreeCluster membership comparisons.
+"""Descriptive Boston evidence and optional TreeCluster membership comparisons.
 
 Exposure flags and an independently constructed phylogenetic partition are
 external evidence, not complete transmission links or pairwise ground truth.

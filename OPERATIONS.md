@@ -562,17 +562,27 @@ the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results
 Retuning or retraining under changed parameters remains a separate adaptation
 analysis. Historical sensitivity code remains in the pre-reset archive.
 
-**Boston input preparation is available; the rebuilt empirical evaluation
-workflow is planned.** Run the input adapter with:
+**Boston empirical analysis is available after baseline selection/evaluation.**
+Prepare only the derived Boston input tables with:
 
 ```bash
-epilink-evaluate prepare-boston --config synthetic_baseline/config.yaml
+python -m boston_application.run --stage prepare
 ```
 
-The adapter derives the data root from the configured SCoVMod infection path's
-standard `data/raw/scovmod/` layout and reads metadata, Nextclade, and TN93 files
-under `data/raw/boston/`. It writes `boston_inputs/cases.parquet`,
-`boston_inputs/observed_pairs.parquet`, and a manifest inside the configured
-output root. These are derived inputs; this command does not score or cluster
-Boston cases. The TN93 table is censored at 0.0005/site. Its missing pairs remain
-unobserved, so the empirical study must define candidate coverage explicitly.
+Run the frozen transfer analysis with:
+
+```bash
+python -m boston_application.run --stage all
+```
+
+Run the separate descriptive threshold/resolution sensitivity sweep with:
+
+```bash
+python -m boston_application.run --stage explore
+```
+
+Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under
+`data/raw/boston/`. Outputs are under `boston_application/outputs/boston/`. The
+TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero.
+The exploration stage is descriptive and must not be treated as Boston truth-based
+operating-point selection.
