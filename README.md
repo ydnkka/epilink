@@ -11,12 +11,6 @@ held-out operating-point evaluation.
 Use the [output reference](OUTPUTS.md) for column definitions, metric formulas,
 artifact provenance, and worked analysis joins.
 
-**Recorded validation (2026-09-30):** baseline and frozen-setting perturbation
-smoke workflows completed, including raw and dated TreeCluster comparisons.
-The [baseline checkpoint](evaluation/01_synthetic_baseline/VALIDATION.md) and
-[perturbation checkpoint](evaluation/02_synthetic_perturbation/README.md#validation-checkpoint--2026-09-30)
-record the tests and artifacts from those executions.
-
 ## Three evaluation studies
 
 | Study                                                                         | Purpose                                                                                                           | Main evidence                                                              |
@@ -148,10 +142,6 @@ computes all-pair TN93 distances from the alignment. See the
 Saved manifests record paths at execution time. After relocating study
 directories, use the updated `current.json` pointers to locate results; recorded
 scientific signatures remain tied to their original execution.
-
-READMEs under `archive/pre_reset_2026-09-30/` document the archived workflow.
-The dated validation checkpoints record historical executions; their generated
-report links require the corresponding local output artifacts.
 
 The EpiLink model package is maintained separately at
 <https://github.com/ydnkka/epilink>.
