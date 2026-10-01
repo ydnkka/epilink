@@ -7,7 +7,6 @@ Use this guide to configure and run the project, locate results, and resume inte
 - [Perturbation study](evaluation/02_synthetic_perturbation/README.md)
 - [Boston empirical application](evaluation/03_boston_application/README.md)
 - [Column-level output reference](OUTPUTS.md)
-- [Recorded validation checkpoint](evaluation/01_synthetic_baseline/VALIDATION.md)
 
 ## Contents
 
@@ -71,15 +70,9 @@ conda activate epilik_evaluation
 python -m pip install -e '.[test]'
 ```
 
-The environment name is spelled `epilik_evaluation`. The local interpreter used for the recorded validation is:
-
-```text
-/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/python
-```
-
 ### Fresh environment
 
-The package declares Python \>=3.10; the recorded validation used Python 3.14. For a new Conda environment:
+The package declares Python \>=3.10; For a new Conda environment:
 
 ```bash
 conda create -n epilik_evaluation -c conda-forge python=3.14 pip

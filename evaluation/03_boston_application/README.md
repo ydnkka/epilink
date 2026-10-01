@@ -96,20 +96,20 @@ held-out evaluation provenance.
 
 Edit [`config.yaml`](config.yaml) to change:
 
-| Field                         | Meaning                                                                                                                                                   |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseline_run`                | Completed synthetic baseline run directory or `current.json` pointer.                                                                                     |
-| `output_directory`            | Boston output root (separate from baseline outputs).                                                                                                      |
-| `inputs.data_root`            | Root containing `raw/boston/` source files.                                                                                                               |
-| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables, defaulting to `outputs/inputs/` beside the config. Paths are independent of the run output root.                                            |
-| `scorers`                     | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. Aliases ES→ESS and ED→EDS are accepted but cannot be combined.                                |
-| `assessment.treecluster_path` | Optional external TreeCluster partition for comparison (TSV with `SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
-| `assessment.focus_exposures`  | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                   |
-| `assessment.min_cluster_size` | Minimum cluster size for focus-cluster analysis (default: 2).                                                                                             |
-| `trees.enabled`               | Whether to build raw/dated trees and run TreeCluster (default: true).                                                                                     |
-| `trees.alignment_path`        | Boston FASTA alignment for tree building (required when `trees.enabled` is true).                                                                         |
-| `trees.tn93_executable`       | Optional path to `tn93` for all-pair distances (default: `tn93` on PATH).                                                                                 |
-| `exploration`                 | Optional descriptive grid for `--stage explore`. It can set scorer subsets, graph thresholds/resolutions, and TreeCluster methods/thresholds.             |
+| Field                                    | Meaning                                                                                                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseline_run`                           | Completed synthetic baseline run directory or `current.json` pointer.                                                                                     |
+| `output_directory`                       | Boston output root (separate from baseline outputs).                                                                                                      |
+| `inputs.data_root`                       | Root containing `raw/boston/` source files.                                                                                                               |
+| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables, defaulting to `outputs/inputs/` beside the config. Paths are independent of the run output root.                                         |
+| `scorers`                                | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. Aliases ES→ESS and ED→EDS are accepted but cannot be combined.                                |
+| `assessment.treecluster_path`            | Optional external TreeCluster partition for comparison (TSV with `SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
+| `assessment.focus_exposures`             | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                   |
+| `assessment.min_cluster_size`            | Minimum cluster size for focus-cluster analysis (default: 2).                                                                                             |
+| `trees.enabled`                          | Whether to build raw/dated trees and run TreeCluster (default: true).                                                                                     |
+| `trees.alignment_path`                   | Boston FASTA alignment for tree building (required when `trees.enabled` is true).                                                                         |
+| `trees.tn93_executable`                  | Optional path to `tn93` for all-pair distances (default: `tn93` on PATH).                                                                                 |
+| `exploration`                            | Optional descriptive grid for `--stage explore`. It can set scorer subsets, graph thresholds/resolutions, and TreeCluster methods/thresholds.             |
 
 For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo
 settings, fitted logistic models, graph thresholds, Leiden settings, and

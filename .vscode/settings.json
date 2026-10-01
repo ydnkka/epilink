@@ -1,4 +1,29 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "cSpell.words": [
+        "bcubed",
+        "bioconda",
+        "biosample",
+        "clusterers",
+        "coef",
+        "ddof",
+        "differenced",
+        "dtype",
+        "epilik",
+        "fastme",
+        "genbank",
+        "geoloc",
+        "groupby",
+        "heldout",
+        "iloc",
+        "PHYLIP",
+        "pytest",
+        "scovmod",
+        "timetree",
+        "tolist",
+        "treecluster",
+        "treetime",
+        "unclustered"
+    ]
 }
