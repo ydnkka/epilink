@@ -8,11 +8,13 @@ import logging
 from copy import deepcopy
 from pathlib import Path
 
-from .config import load_config
+from .config import load_config, load_diagnostics_config
 from .provenance import read_json, versions
 
 STAGES = (
     "prepare",
+    "observations",
+    "graphs",
     "pairwise",
     "clusters",
     "trees",
@@ -29,8 +31,13 @@ def smoke_config(config):
     config = deepcopy(config)
     config["name"] += "_smoke"
     config["output_directory"] += "_smoke"
+    config["experiment_root"] += "_smoke"
     config["inputs"]["smoke_cases"] = 64
     config["splits"] = {"train": [71001], "development": [72001], "evaluation": [73001]}
+    if "diagnostics" in config:
+        config["diagnostics"]["leiden"].update(resolutions=[0.1, 0.5], restarts=2)
+        config["diagnostics"]["treecluster"]["threshold_hops"] = [0, 1, 2, 4]
+        return config
     config["scorer"]["mc_samples"] = 1024
     config["thresholds"] = {
         "epilink": [0.1, 0.5],
@@ -48,11 +55,24 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("baseline", "check", "scovmod", "prepare-boston", "perturbation", "boston", "reset-outputs"),
+        choices=(
+            "diagnostics",
+            "baseline",
+            "check",
+            "scovmod",
+            "prepare-boston",
+            "perturbation",
+            "boston",
+            "reset-outputs",
+        ),
     )
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
-    parser.add_argument("--baseline-run", type=Path, help="Frozen baseline reference: runs/<id> or current.json")
+    parser.add_argument(
+        "--baseline-run",
+        type=Path,
+        help="Frozen baseline reference: runs/<id> or current.json",
+    )
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -62,7 +82,7 @@ def main(argv=None):
     parser.add_argument(
         "--evaluations",
         nargs="+",
-        choices=("baseline", "perturbation", "boston", "all"),
+        choices=("diagnostics", "baseline", "perturbation", "boston", "all"),
         help="Evaluations to clear outputs for (default: all)",
     )
     parser.add_argument(
@@ -74,19 +94,67 @@ def main(argv=None):
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    if args.command == "reset-outputs":
+        return _reset_outputs(args)
+    if args.command == "diagnostics":
+        if args.baseline_run:
+            parser.error(
+                "Diagnostics use a shared synthetic experiment, not a frozen baseline"
+            )
+        if args.stage not in (
+            None,
+            "prepare",
+            "observations",
+            "graphs",
+            "trees",
+            "report",
+            "all",
+        ):
+            parser.error(
+                "Diagnostics supports prepare, observations, graphs, trees, report or all"
+            )
+        config = load_diagnostics_config(
+            args.config or "evaluation/00_synthetic_diagnostics/config.yaml"
+        )
+        if args.output:
+            config["output_directory"] = str(args.output.resolve())
+        if args.smoke:
+            config = smoke_config(config)
+        if args.stage == "report":
+            from .reporting.diagnostics import render_report
+
+            directory = Path(
+                read_json(Path(config["output_directory"]) / "current.json")[
+                    "run_directory"
+                ]
+            )
+            render_report(directory)
+            print(directory / "report.html")
+            return 0
+        from .workflows.diagnostics import Diagnostics
+
+        return 0 if Diagnostics(config).run(args.stage or "all") else 1
     if args.command == "perturbation":
         from .workflows.perturbation_config import load_study_config
 
         if args.stage not in (None, "all", "report"):
-            parser.error("Perturbation supports --stage all or report; settings are already frozen")
+            parser.error(
+                "Perturbation supports --stage all or report; settings are already frozen"
+            )
         config = load_study_config(
-            args.config or "evaluation/02_synthetic_perturbation/config.yaml", smoke=args.smoke,
-            output=args.output, baseline_run=args.baseline_run,
+            args.config or "evaluation/02_synthetic_perturbation/config.yaml",
+            smoke=args.smoke,
+            output=args.output,
+            baseline_run=args.baseline_run,
         )
         if args.stage == "report":
             from .reporting.perturbation import render_report
 
-            directory = Path(read_json(Path(config["output_directory"]) / "current.json")["run_directory"])
+            directory = Path(
+                read_json(Path(config["output_directory"]) / "current.json")[
+                    "run_directory"
+                ]
+            )
             render_report(directory)
             print(directory / "report.html")
             return 0
@@ -101,12 +169,15 @@ def main(argv=None):
                 parser.error("prepare-boston only supports --stage prepare")
             args.stage = "prepare"
         if args.stage not in (None, "prepare", "trees", "explore", "all", "report"):
-            parser.error("Boston supports --stage prepare, trees, explore, all or report")
+            parser.error(
+                "Boston supports --stage prepare, trees, explore, all or report"
+            )
         if args.smoke:
             parser.error("Boston does not support --smoke")
         config = load_study_config(
             config_path=args.config or "evaluation/03_boston_application/config.yaml",
-            output=args.output, baseline_run=args.baseline_run,
+            output=args.output,
+            baseline_run=args.baseline_run,
         )
         if args.stage == "prepare":
             from .inputs.boston import prepare_boston
@@ -115,15 +186,23 @@ def main(argv=None):
             if "data_root" not in inputs:
                 parser.error("Boston preparation requires inputs.data_root")
             directory = Path(inputs["cases_path"]).parent
-            if (Path(inputs["cases_path"]) != directory / "cases.parquet"
-                    or Path(inputs["pairs_path"]) != directory / "observed_pairs.parquet"):
-                parser.error("Boston preparation requires cases.parquet and observed_pairs.parquet in one directory")
+            if (
+                Path(inputs["cases_path"]) != directory / "cases.parquet"
+                or Path(inputs["pairs_path"]) != directory / "observed_pairs.parquet"
+            ):
+                parser.error(
+                    "Boston preparation requires cases.parquet and observed_pairs.parquet in one directory"
+                )
             print(prepare_boston(inputs["data_root"], directory))
             return 0
         if args.stage == "report":
             from .reporting.boston import render_report
 
-            directory = Path(read_json(Path(config["output_directory"]) / "current.json")["run_directory"])
+            directory = Path(
+                read_json(Path(config["output_directory"]) / "current.json")[
+                    "run_directory"
+                ]
+            )
             render_report(directory)
             print(directory / "report.html")
             return 0
@@ -142,6 +221,8 @@ def main(argv=None):
         parser.error("--stage trees applies to boston only")
     if args.stage == "explore":
         parser.error("--stage explore applies to boston only")
+    if args.stage in ("observations", "graphs"):
+        parser.error("--stage observations/graphs applies to diagnostics only")
     config = load_config(args.config)
     if args.output:
         config["output_directory"] = str(args.output.resolve())
@@ -208,13 +289,18 @@ def _reset_outputs(args):
     """Clear outputs from selected evaluations."""
     evaluations = args.evaluations or ["all"]
     if "all" in evaluations:
-        evaluations = ["baseline", "perturbation", "boston"]
-    
+        evaluations = ["diagnostics", "baseline", "perturbation", "boston"]
+
     dry_run = args.dry_run
     total_removed = 0
-    
+
     for eval_name in evaluations:
-        if eval_name == "baseline":
+        if eval_name == "diagnostics":
+            output_roots = [
+                Path("evaluation/00_synthetic_diagnostics/outputs/diagnostics"),
+                Path("evaluation/00_synthetic_diagnostics/outputs/diagnostics_smoke"),
+            ]
+        elif eval_name == "baseline":
             output_roots = [
                 Path("evaluation/01_synthetic_baseline/outputs/baseline"),
                 Path("evaluation/01_synthetic_baseline/outputs/baseline_smoke"),
@@ -230,17 +316,17 @@ def _reset_outputs(args):
             ]
         else:
             continue
-        
+
         for output_root in output_roots:
             if not output_root.exists():
                 continue
-            
+
             removed_count = 0
             if dry_run:
                 runs_dir = output_root / "runs"
                 artifacts_dir = output_root / "artifacts"
                 current_json = output_root / "current.json"
-                
+
                 if runs_dir.exists():
                     runs = list(runs_dir.iterdir())
                     if runs:
@@ -248,46 +334,53 @@ def _reset_outputs(args):
                         for run in runs:
                             print(f"  - {run}")
                         removed_count += len(runs)
-                
+
                 if artifacts_dir.exists():
                     import shutil
-                    size = sum(f.stat().st_size for f in artifacts_dir.rglob('*') if f.is_file())
-                    print(f"Would remove artifacts from {output_root} ({size / 1024 / 1024:.1f} MB)")
+
+                    size = sum(
+                        f.stat().st_size
+                        for f in artifacts_dir.rglob("*")
+                        if f.is_file()
+                    )
+                    print(
+                        f"Would remove artifacts from {output_root} ({size / 1024 / 1024:.1f} MB)"
+                    )
                     removed_count += 1
-                
+
                 if current_json.exists():
                     print(f"Would remove {current_json}")
             else:
                 import shutil
-                
+
                 runs_dir = output_root / "runs"
                 artifacts_dir = output_root / "artifacts"
                 current_json = output_root / "current.json"
-                
+
                 if runs_dir.exists():
                     runs = list(runs_dir.iterdir())
                     if runs:
                         shutil.rmtree(runs_dir)
                         print(f"Removed {len(runs)} run(s) from {output_root}")
                         removed_count += len(runs)
-                
+
                 if artifacts_dir.exists():
                     shutil.rmtree(artifacts_dir)
                     print(f"Removed artifacts from {output_root}")
                     removed_count += 1
-                
+
                 if current_json.exists():
                     current_json.unlink()
                     print(f"Removed {current_json}")
                     removed_count += 1
-            
+
             total_removed += removed_count
-    
+
     if total_removed == 0:
         print("No outputs found to remove")
     elif dry_run:
         print(f"\nTotal: would remove {total_removed} items (dry run)")
     else:
         print(f"\nTotal: removed {total_removed} items")
-    
+
     return 0

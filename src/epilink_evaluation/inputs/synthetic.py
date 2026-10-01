@@ -14,8 +14,14 @@ from epilink import (
     simulate_genomic_sequences,
 )
 
-from ..config import natural_history
-from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
+from ..natural_history import natural_history
+from ..provenance import (
+    complete_artifact,
+    digest_file,
+    fingerprint,
+    generation_signature,
+    valid_artifact,
+)
 from ..schemas import validate_pairs
 from ..truth import TreeIndex, relationship_table
 from .scovmod import prepare_tree
@@ -67,12 +73,12 @@ def prepare_truth(config, tree, implementation):
 
 def prepare_observations(config, tree, truth_directory, seed, implementation):
     signature = {
-        "kind": "observations-v1",
+        "kind": "observations-v2",
         "truth": Path(truth_directory).name,
         "generation": config["generation"],
         "simulation": config["simulation"],
         "seed": seed,
-        "implementation": implementation,
+        "implementation": generation_signature(implementation),
     }
     directory = (
         Path(config["output_directory"])

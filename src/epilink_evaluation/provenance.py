@@ -95,6 +95,58 @@ def implementation_signature():
     }
 
 
+def generation_signature(implementation):
+    """Observation producers only; analysis and presentation cannot change data IDs."""
+    paths = (
+        "inputs/synthetic.py",
+        "truth/relationships.py",
+        "schemas.py",
+        "natural_history.py",
+    )
+    return {
+        "evaluation": {p: implementation["evaluation"][p] for p in paths},
+        "epilink": implementation["epilink"],
+        "versions": {
+            p: implementation["versions"].get(p)
+            for p in (
+                "epilink",
+                "numpy",
+                "pandas",
+                "networkx",
+                "pyarrow",
+                "scipy",
+            )
+        },
+    }
+
+
+def baseline_signature(implementation):
+    """Comparison code identity, excluding independent studies and presentation."""
+    excluded = ("reporting/", "diagnostics/")
+    independent = {
+        "cli.py",
+        "__main__.py",
+        "workflows/diagnostics.py",
+        "workflows/boston.py",
+        "workflows/boston_config.py",
+        "workflows/boston_scoring.py",
+        "workflows/boston_assessment.py",
+        "workflows/perturbation.py",
+        "workflows/perturbation_config.py",
+        "workflows/reference.py",
+        "inputs/boston.py",
+        "phylogeny/boston.py",
+    }
+    return {
+        **implementation,
+        "evaluation": {
+            p: h
+            for p, h in implementation["evaluation"].items()
+            if not p.startswith(excluded) and p not in independent
+        },
+    }
+
+
 def git_revision():
     try:
         return subprocess.check_output(

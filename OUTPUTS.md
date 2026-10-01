@@ -1,9 +1,10 @@
 # Output reference
 
-Column definitions and JSON fields for the three `epilink_evaluation` studies.
+Column definitions and JSON fields for the `epilink_evaluation` studies.
 For commands, directory layout, and which figures to inspect, use the
 [operational guide](OPERATIONS.md#7-find-and-interpret-results). Scientific
-interpretation is defined in the [baseline protocol](evaluation/01_synthetic_baseline/README.md),
+interpretation is defined in the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md),
+[baseline protocol](evaluation/01_synthetic_baseline/README.md),
 [perturbation guide](evaluation/02_synthetic_perturbation/README.md), and
 [Boston guide](evaluation/03_boston_application/README.md).
 
@@ -13,18 +14,22 @@ Sections 1–9 describe synthetic-baseline outputs; perturbation reuses their
 metric schemas as described in section 12. Boston's empirical schemas are in
 section 10. Boston has descriptive exposure summaries rather than synthetic
 truth metrics, observation seeds, or train/development/evaluation splits.
+Section 13 covers the shared synthetic experiment and diagnostics. For baseline,
+`<shared-root>` is resolved from its run's `experiment.json`; it defaults to
+`evaluation/shared_synthetic/outputs/synthetic/` (or `synthetic_smoke/`).
 
 Prepared inputs are shared outside the run roots:
 
 | Directory | Files |
 | --- | --- |
-| `evaluation/01_synthetic_baseline/outputs/inputs/` | `transmission_tree.gml`, `transmission_tree.source.json`, `manifest.json` |
+| `evaluation/shared_synthetic/outputs/inputs/` | `transmission_tree.gml`, `transmission_tree.source.json`, `manifest.json` |
 | `evaluation/03_boston_application/outputs/inputs/` | `cases.parquet`, `observed_pairs.parquet`, `manifest.json` |
 
-Both preparation commands and computational workflows use these locations.
-Changing `--output` or using baseline `--smoke` leaves configured input paths
-unchanged. Matching input artifacts are validated and reused. Each baseline or Boston run's
-`inputs.json` records the inputs used by that run.
+SCoVMod preparation and diagnostics use the shared input location; baseline reads
+the experiment's immutable backbone copy. Boston uses its own prepared inputs.
+Changing study `--output` leaves shared input/experiment paths unchanged; `--smoke`
+suffixes study and shared experiment roots, but leaves prepared input paths unchanged.
+Each baseline or Boston run's `inputs.json` records its input provenance.
 
 ## Contents
 
@@ -40,6 +45,7 @@ unchanged. Matching input artifacts are validated and reused. Each baseline or B
 10. [Boston inputs and results](#10-boston-inputs-and-results)
 11. [Worked joins in Python](#11-worked-joins-in-python)
 12. [Perturbation study outputs](#12-perturbation-study-outputs)
+13. [Shared experiments and diagnostics](#13-shared-experiments-and-diagnostics)
 
 ## 1. Conventions and identifiers
 
@@ -356,8 +362,11 @@ frozen decisions to recover coverage and definitions.
 
 ## 6. Truth, observations, scores, and fitted models
 
-These artifacts live under `<root>/artifacts/`. A hash-named directory identifies
-a particular set of inputs and parameters; use manifests to establish lineage.
+Baseline truth and observations live under `<shared-root>/artifacts/`; models,
+scores, and inferred trees live under the baseline `<root>/artifacts/`. A hash-named
+directory identifies a particular set of inputs and parameters; use the run's
+`experiment.json` and artifact manifests to establish lineage. Perturbation keeps
+its own truth and observation artifacts (section 12).
 
 ### `truth/<id>/nodes.parquet`
 
@@ -506,6 +515,10 @@ before held-out access are preserved as `operating_points_<fingerprint>.json`.
 the latter hashes the complete frozen selection document. The access record is
 written before scoring evaluation observations, so it can exist after a failed
 evaluation attempt.
+The durable shared ledger is `<shared-root>/heldout_access/seed_<seed>.json`,
+written before evaluation observation generation with `seed`, `experiment`
+identity, and `selection_fingerprint`. It survives study resets and enforces
+fresh evaluation seeds for revised analyses across replacement runs.
 
 ## 8. Manifests, status, and provenance
 
@@ -514,6 +527,9 @@ evaluation attempt.
 `<root>/current.json` contains `run_directory` (absolute path) and `fingerprint`
 (full run fingerprint). It points to the most recently initialized run in that
 root, including incomplete runs.
+The shared experiment pointer instead contains `experiment_directory` and
+`fingerprint`; see section 13. Baseline's `<run>/experiment.json` pins that identity,
+and `<run>/diagnostics.json` records the validated completion reference.
 
 `<run>/manifest.json` fields:
 
@@ -521,7 +537,7 @@ root, including incomplete runs.
 | ----------------- | --------------------------------------------------------------------------------------------------- |
 | `status`          | `running`, `complete`, `partial`, or `failed` for the last requested computational stage.           |
 | `requested_stage` | Stage responsible for this manifest; rebuilding a report does not change it.                        |
-| `signature`       | `schema` version, scientific `config`, `implementation`, `tools`, and truth artifact ID in `truth`. |
+| `signature`       | `schema` version, scientific `config`, `implementation`, `tools`, truth artifact ID in `truth`, and shared `experiment` identity. |
 | `git_revision`    | Git HEAD at execution; null if unavailable. Implementation hashes capture working-copy code.        |
 | `config`          | Full resolved configuration, including selection rules and paths.                                   |
 | `run_directory`   | Absolute path to the run.                                                                           |
@@ -583,7 +599,7 @@ requested stage rather than every possible stage in the study.
 ### Reconstructed SCoVMod tree provenance
 
 The prepared input directory defaults to
-`evaluation/01_synthetic_baseline/outputs/inputs/`. Its `manifest.json` checks
+`evaluation/shared_synthetic/outputs/inputs/`. Its `manifest.json` checks
 the raw file paths/hashes, `tree_seed`, `target_component_size`, resolved tree
 and provenance paths, and implementation hash. The `files` mapping covers the
 GML tree and its source JSON. Matching artifacts are reused; changed signatures
@@ -594,12 +610,11 @@ or file checksums trigger reconstruction.
 `implementation_sha256`, and the `tie_order` description.
 
 Each baseline run also writes `inputs.json` beside `settings.json`. It records
-`tree_path`, the current `tree_sha256`, `n_cases`, `tree_seed`, and
-`target_component_size`. When source provenance is available, it also records
-`tree_source_path`, `source_files`, and `implementation_sha256`, using the
-recorded reconstruction metadata. The source `n_cases` describes the saved
-backbone; the truth artifact manifest records the case count used by the run,
-including any smoke subset.
+the shared `experiment` identity, validated `diagnostics` reference, pinned
+`tree_path`, `tree_sha256`, `n_cases`, `tree_seed`, and `target_component_size`.
+Its `source` object is the backbone artifact's `source.json`: original `tree_path`,
+`tree_sha256`, and available preparation `provenance`. Source provenance describes
+the prepared backbone; shared truth records the cases used, including a smoke subset.
 
 ## 9. Phylogenetic artifacts
 
@@ -859,7 +874,9 @@ print(annotated.reindex(columns=[
 
 Continue with `root` and `run` above. A seed alone is insufficient to choose an
 observation artifact: multiple configurations can reuse the same seed. Follow
-the selected run's manifests instead.
+the selected run's manifests instead. Models/scores are baseline-local; observations
+and truth belong to its pinned shared experiment, which may differ from the latest
+shared `current.json`.
 
 ```python
 from epilink_evaluation.inputs.synthetic import (
@@ -867,18 +884,28 @@ from epilink_evaluation.inputs.synthetic import (
 )
 
 run_manifest = json.loads((run / "manifest.json").read_text())
+experiment = json.loads((run / "experiment.json").read_text())
+experiment_dir = Path(experiment["experiment_directory"])
+experiment_manifest = json.loads((experiment_dir / "manifest.json").read_text())
+assert experiment_manifest["fingerprint"] == experiment["fingerprint"]
+shared_root = experiment_dir.parent.parent
 seed = run_manifest["config"]["splits"]["development"][0]
 seed_dir = run / "development" / f"seed_{seed}"
 pairwise = json.loads((seed_dir / "pairwise/manifest.json").read_text())
 score_dir = root / "artifacts/scores" / pairwise["signature"]["score_id"]
 score_manifest = json.loads((score_dir / "manifest.json").read_text())
 observation_dir = (
-    root / "artifacts/observations" / score_manifest["signature"]["dataset"]
+    shared_root / "artifacts/observations" / score_manifest["signature"]["dataset"]
 )
+observation_link = json.loads(
+    (experiment_dir / "observations" / f"seed_{seed}.json").read_text()
+)
+assert observation_link["dataset"] == observation_dir.name
 observation_manifest = json.loads(
     (observation_dir / "manifest.json").read_text()
 )
-truth_dir = root / "artifacts/truth" / observation_manifest["signature"]["truth"]
+assert observation_manifest["signature"]["truth"] == experiment_manifest["signature"]["truth"]
+truth_dir = shared_root / "artifacts/truth" / observation_manifest["signature"]["truth"]
 observations, cases = load_observations(observation_dir)
 truth = load_truth(truth_dir, observations.pair_id)
 scores = pd.read_parquet(score_dir / "scores.parquet")
@@ -1006,10 +1033,180 @@ artifacts also reuse the same observations independently of EpiLink inference.
 topology, or its smoke prefix. Its manifest signature has `kind`, `reference_truth`,
 `nodes`, and `edges`, with normal completion checksums. Frozen logistic model
 bytes/manifests are copied to `artifacts/models/<training-id-prefix>/`; their
-original training dataset IDs still refer to artifacts in the reference baseline.
+original training dataset IDs refer to the reference baseline's pinned shared
+experiment. Perturbation's newly generated truth and observations remain under
+its own `artifacts/truth/` and `artifacts/observations/`; they are independent of
+the diagnostics/baseline shared observation pool. Boston's paths and schemas in
+section 10 are unchanged by shared synthetic preparation.
 
 `report.md` and `report.html` show coverage, parameter levels, frozen decisions,
 paired AP changes, and fixed-setting metric changes. `figures/paired_f1_<index>.png`
 contains a paired F1 heatmap for each criterion in sorted criterion-name order.
 Each heatmap has one panel per mode, pipelines as rows, and perturbations as
 columns. Smoke reports are explicitly labeled pipeline validation.
+
+## 13. Shared experiments and diagnostics
+
+### Shared experiment identity and access
+
+The shared config owns `inputs`, `generation`, `simulation`, and `splits`.
+Diagnostics and baseline reference it through `experiment_config`; baseline derives
+matched inference from generation. Default shared root:
+`evaluation/shared_synthetic/outputs/synthetic/`, or `synthetic_smoke/`.
+
+| Path relative to shared root | Contract |
+| --- | --- |
+| `current.json` | Latest prepared `experiment_directory` (absolute) and full `fingerprint`. Preparation alone does not imply diagnostics completion. |
+| `experiments/<id>/experiment.json` | Resolved data design (`inputs`, `generation`, `simulation`, `splits`), schema version, and shared `output_directory`; `inputs.tree_path` pins the backbone copy. |
+| `experiments/<id>/manifest.json` | Completion manifest with signature `kind`, original `specification`, generation `producer`, `backbone` and `truth` artifact IDs; checksums cover `experiment.json`. IDs use 20-character fingerprint prefixes. |
+| `artifacts/backbones/<id>/` | Pinned `transmission_tree.gml`, `source.json` (original tree path/hash and available preparation provenance), and completion manifest. Signature includes source SHA-256, nodes, and edges. |
+| `artifacts/truth/<id>/`, `artifacts/observations/<id>/` | Shared pair/case schemas from section 6. Diagnostics prepares development observations; baseline prepares training and, after frozen release, evaluation observations. |
+| `experiments/<id>/observations/seed_<seed>.json` | `seed`, `role` (`train`, `development`, `evaluation`), `dataset` directory ID, and observation `fingerprint`. Created when that dataset is prepared/released. |
+| `experiments/<id>/diagnostics.json` | Completed diagnostics `run_directory`, diagnostics `fingerprint`, shared `experiment` identity, exact development `datasets` mapping (seed string → artifact ID), and `status: complete`. |
+| `heldout_access/seed_<seed>.json` | `seed`, shared `experiment` identity, and `selection_fingerprint`; records access before evaluation observations are generated. |
+| `validation_access/<selection-fingerprint>/seed_<seed>.json` | The same access fields for smoke validation. Smoke observations may be reused across changed comparison implementations; they are pipeline checks rather than held-out scientific evidence. |
+
+Baseline pins the shared identity in its own `<run>/experiment.json` and validates
+the diagnostics marker against checksummed completion evidence. Follow that pinned
+identity for joins, rather than the shared latest pointer. `reset-outputs` preserves
+the entire shared output area, including full/smoke held-out ledgers. Previously
+accessed evaluation seeds cannot be reassigned to training/development or used with
+revised frozen selection. Retained outputs from earlier versions are historical;
+current evidence requires the diagnostics-first workflow.
+
+### Diagnostics layout and completion
+
+Here `<diagnostics-root>` is
+`evaluation/00_synthetic_diagnostics/outputs/diagnostics/` (or `diagnostics_smoke/`),
+and `<diagnostics-run>` is its `runs/<full-signature-fingerprint>/` directory.
+
+| Path | Contents |
+| --- | --- |
+| `<diagnostics-root>/current.json` | `run_directory`, diagnostics `fingerprint`, and shared `experiment` identity. |
+| `<diagnostics-run>/manifest.json` | `signature`, `status`, `requested_stage`, `experiment`, resolved `config`, `run_directory`, `coverage_complete`, and optional `error`. |
+| `<diagnostics-run>/<stage>/index.json` | For `observations`, `graphs`, or `trees`: `status`, `records`, `errors`, and exact seed-to-dataset map. Records link absolute `artifact` paths; graph/tree records also link `source`. |
+| `<diagnostics-root>/artifacts/<kind>/<full-fingerprint>/` | Diagnostic feature tables or known-truth controls with completion manifests; failed artifacts retain `status: failed` and `error`. Kinds are described below. |
+| `<diagnostics-run>/completion/` | Checksummed `coverage.json` and manifest, released only when all required stages and their evidence validate. |
+| `<diagnostics-run>/report.md`, `report.html`, `figures/` | Saved-table reports with stage coverage, visible errors, descriptive summaries, and figures. |
+
+Completion signature fields are `experiment`, `diagnostics` (run fingerprint),
+and `datasets`. `coverage.json` has `status`, required `stages`, `datasets`,
+`aggregation`, and `artifacts`: absolute directory → `manifest_sha256` plus the
+file-name-to-SHA256 `files` inventory. Baseline validates this inventory as well
+as the marker. A complete requested `prepare` or individual stage is insufficient
+without full required coverage. Disabled tree controls are explicitly labeled;
+enabled but failed controls prevent completion. Report-only execution reads saved
+files without generating observations.
+
+### Exact observation feature cells
+
+`artifacts/observations/<id>/` under the **diagnostics root** contains diagnostic
+tables, distinct from the shared root's raw observation artifacts. The stage index
+records each source `dataset` ID and its diagnostic `artifact` path.
+
+`cells.parquet` has **one row per occupied exact feature cell, process, endpoint,
+and seed**. No additional rounding or binning is applied to saved GD/TD values.
+
+| Column | Definition |
+| --- | --- |
+| `seed`, `process`, `feature_set`, `endpoint` | Development seed; `deterministic`/`stochastic`; `GD`/`GD_TD`; `M0`/`Mle1`/`Mle2`. |
+| `GD`, `TD` | Exact saved coordinates, substitutions and days. `TD` is null for GD-only cells. |
+| `n_pairs`, `n_target`, `n_other` | Cell occupancy, endpoint-positive count, and endpoint-negative count; the last two sum to occupancy. |
+| `target_fraction`, `mixed` | `n_target / n_pairs`; boolean indicating both classes occur in the cell. |
+| `n_<category>` | All ten exhaustive relationship counts from section 2, including `n_separate`. Sum equals cell occupancy. |
+
+`summary.csv` has **one row per seed/process/feature_set/endpoint**. It contains
+`n_pairs`, `n_target`, `n_other` for the whole sampled pair universe, plus `n_cells`,
+`mixed_cells`, `n_pairs_in_mixed_cells`, `n_target_in_mixed_cells`, and
+`n_other_in_mixed_cells`. Its ratios use these distinct denominators:
+
+| Column | Definition |
+| --- | --- |
+| `mixed_cell_fraction` | Mixed cells / all occupied cells. |
+| `pair_fraction_in_mixed_cells` | Pairs in mixed cells / all observed pairs. |
+| `target_fraction_in_mixed_cells` | Targets in mixed cells / all targets. |
+| `target_prevalence_in_mixed_cells` | Targets in mixed cells / all pairs in mixed cells. |
+| `non_target_fraction_in_mixed_cells` | Non-targets in mixed cells / all non-targets. |
+| `class_conditional_overlap` | Sum over cells of `min(n_target_cell / total_targets, n_other_cell / total_others)`; undefined if either class is absent. |
+| `minimum_feature_only_misclassifications` | Exact count `sum_cells min(n_target_cell, n_other_cell)`. |
+| `minimum_feature_only_misclassification_rate` | That minimum count / all observed pairs. |
+
+Zero-denominator ratios are undefined. The minimum error applies empirically to
+binary decisions constant within these exact feature cells. It is neither a
+population performance ceiling nor a bound on partition recovery.
+
+`prevalence.csv` has one row per seed/endpoint: `n_pairs`, `n_target`, `n_other`,
+`target_prevalence = n_target / n_pairs`. `relationships.csv` has one row per
+seed/relationship: `n_pairs` is **that category's count**, and `pair_fraction` divides
+it by all observed pairs. These truth summaries have no process/feature-set replication.
+
+Run-level `observations/` concatenates the per-seed `summary.csv`, `prevalence.csv`,
+and `relationships.csv`, and writes corresponding `*_aggregate.csv` tables.
+Numeric fields receive `_mean`, `_min`, `_max`, and `_count` (defined-value count);
+`n_seeds` records contributing distinct seeds. Means give seeds equal weight.
+
+### Endpoint-oracle graph controls
+
+For each sampled-case set, one graph per horizon h=0,1,2 connects precisely finite
+M≤h pairs. Vertices include isolates and edges have unit weight. The graph is not
+necessarily a union of cliques.
+
+- `artifacts/graphs/<id>/cases.parquet`: `case_id`, `node_index`, ordered lexically
+  by string case ID. `edges.parquet`: `a`, `b` (positions in this cases table),
+  `weight: 1`. `provenance.json` records truth/sample identity, endpoint, horizon,
+  edge rule, weight, pair universe, and case order.
+- `summary.json`: `n_cases`, `n_target_edges`, `n_components`, `n_isolates`,
+  `largest_component`, `largest_component_fraction` (denominator `n_cases`), and
+  `n_wedges = sum_vertices degree * (degree - 1) / 2`.
+- `artifacts/graph_partitions/<id>/`: `memberships.parquet`, `clusters.parquet`,
+  `metrics.json` use section 4 schemas; `algorithm.json` records components or
+  Leiden settings/details; `provenance.json` links the source graph. Leiden
+  restarts are selected by algorithm objective, not truth metrics.
+
+`graphs/metrics.csv` has one row per `(seed, endpoint, algorithm, resolution)`;
+components has null resolution. `endpoint` identifies the graph's edge rule;
+each row includes metrics for **all** endpoints and all within-cluster pairs,
+including graph nonedges. `graphs/summary.csv` aggregates across seeds with the
+same `_mean`, `_min`, `_max`, `_count`, `n_seeds` convention.
+`graph_summary.csv` has one row per seed/endpoint with graph-structure fields;
+`graph_summary_aggregate.csv` aggregates those by endpoint.
+
+### Known transmission-hop tree controls
+
+`artifacts/hop_trees/<id>/` contains `transmission_hops.nwk`, `cases.parquet`,
+`provenance.json`, and its manifest. Transmission edges have length one; every
+sampled case, including a sampled ancestor, is a named zero-length terminal tip
+attached to its transmission node. Unsampled intermediates, unary paths,
+multifurcations, and the original root are retained; only branches without sampled
+descendants are pruned. Forests are explicitly unsupported, with failure recorded
+in artifact manifests and stage coverage.
+
+`artifacts/tree_partitions/<id>/` saves the same partition tables and algorithm/
+provenance files as graph controls, along with TreeCluster output/logs. Each
+method/`threshold_hops` is applied once to the known tree; its partition is then
+evaluated at all endpoints. `trees/metrics.csv` has one row per
+`(seed, method, threshold_hops)`, with wide endpoint metrics; `trees/summary.csv`
+aggregates by method/threshold. Hop thresholds are not days or substitutions/site.
+M differs from total tree hops: AD hops=M+1; CA hops=M+2. This known transmission
+tree is not an inferred molecular genealogy.
+
+Graph/tree controls are keyed by truth and the canonical sampled-case set,
+independently of seed, GD/TD, and genetic process. Full sampling reuses one tree
+and one graph per horizon across seeds/processes. The stage tables repeat shared
+results by seed for descriptive equal-seed summaries, not independent control
+replicates. Neither these oracle partitions nor dependent pairs establish a
+universal performance ceiling or pair-based confidence interval.
+
+### Diagnostic figures
+
+- `feature_cells_deterministic.png`, `feature_cells_stochastic.png`: exact GD_TD
+  target fraction and occupancy for the lowest completed development seed,
+  explicitly labeled as a single-realization example; occupancy uses log color.
+- `oracle_graph_precision_recall.png`: equal-seed within-pair precision/recall for
+  components and Leiden, with Leiden resolution labels, by graph endpoint.
+- `transmission_hop_thresholds.png`: mean endpoint precision/recall against hop
+  threshold for each TreeCluster method.
+
+Figures live under the diagnostics run's `figures/` and appear as evidence becomes
+available. Reports expose partial coverage and failed controls alongside completed
+tables; inspect coverage before interpreting a summary.

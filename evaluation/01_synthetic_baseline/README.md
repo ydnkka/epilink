@@ -12,6 +12,12 @@ where the true relationships between cases are known. Parameter
 values are matched between generation and EpiLink inference; deterministic and
 stochastic genetic-process assumptions are compared explicitly.
 
+It follows [synthetic diagnostics](../00_synthetic_diagnostics/README.md) on the
+same [shared experiment](../shared_synthetic/README.md). Baseline requires complete
+diagnostic evidence for the exact development observation artifacts, then fits
+logistic models on separate training realizations. Evaluation observations are
+generated only after frozen operating settings are validated by `evaluate`.
+
 The study has three objectives:
 
 1. **Measure pairwise discrimination:** compare EpiLink with genetic distance and
@@ -29,10 +35,11 @@ truth-based recovery and contamination metrics, and held-out results for frozen
 settings. These results quantify performance conditional on the chosen backbone
 and simulation design.
 
-### How the three studies fit together
+### How the studies fit together
 
 | Study                                                                | Scientific role                                                                   | Main evidence                                                                         |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md) | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells, endpoint-oracle graph partitions, and transmission-hop tree controls. |
 | **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.     | Truth-based performance and frozen models/operating points.                           |
 | [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test sensitivity to changed biological parameters and EpiLink parameter mismatch. | Paired performance changes with baseline-selected operating points held fixed.        |
 | [**Boston application**](../03_boston_application/README.md)         | Examine empirical transfer and sensitivity to clustering settings on real data.   | Exposure composition/recovery, partition agreement, and descriptive parameter sweeps. |
@@ -131,9 +138,22 @@ threshold–resolution heatmaps, precision–recall/contamination frontiers, and
 cluster-size behavior. Broaden a grid on development data when the useful region
 touches its boundary; freeze the grid and selection rule before evaluation.
 
-Observed feature overlap and partitions of a true-target graph can be useful
-diagnostics. Neither an observed mixed feature cell nor a particular oracle-graph
-partition establishes a universal population performance ceiling.
+The preceding diagnostics study reports exact `GD` and `GD_TD` feature cells for both
+genetic processes and every endpoint. The minimum empirical feature-only error
+count is `sum_cells min(n_target, n_other)`; its rate divides by all observed pairs.
+It applies to decisions constant within those cells, not population performance
+or partition recovery. Mixed-cell target prevalence and the fraction of all
+targets in mixed cells have different denominators.
+
+Endpoint-oracle graphs connect finite M≤h pairs with unit weights; components and
+Leiden are assessed on all within-cluster pairs, including graph nonedges. The
+known transmission-hop tree retains unsampled intermediates and represents sampled
+ancestors as zero-length terminal tips. Each method/threshold partition of that
+one tree is evaluated at all endpoints. These controls are deduplicated by truth
+and sampled-case set across seeds/processes; full-sampling repeats are not
+independent controls. The tree control explicitly rejects forests with visible
+failure. Neither oracle partition performance nor feature ambiguity is a universal
+performance ceiling; the hop tree is not a molecular genealogy.
 
 ## 5. Which operating criteria should be carried forward?
 
@@ -158,9 +178,9 @@ fingerprints, training identity and complete method definitions.
 
 ## Baseline design and provenance
 
-Each experiment uses one fixed backbone from `inputs.tree_path`; reconstructed
+Each experiment uses one fixed backbone from the shared config's `inputs.tree_path`; reconstructed
 trees can have a different size from the requested target component.
-Read the tree provenance or the run's truth artifact manifest for the actual
+Read the tree provenance or the pinned shared truth artifact manifest for the actual
 case count; see [tree preparation](../../OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree).
 Training, development and evaluation use distinct observation seeds. All conclusions are conditional on the
 chosen backbone, not independent-epidemic generalization. Summaries use equal
@@ -171,7 +191,9 @@ population confidence intervals. Scorer Monte Carlo, Leiden, and TreeTime seeds
 are separate. `treecluster.rng_seed` controls TreeTime's stochastic choices and is
 included in both the command and the tree artifact signature.
 
-Generation and inference parameters are matched. EDD/EDS/ESD/ESS still distinguish
+The [shared config](../shared_synthetic/config.yaml) owns `inputs`, `generation`, `simulation`, and `splits`;
+baseline's `experiment_config` references it and derives matched inference.
+EDD/EDS/ESD/ESS still distinguish
 genetic process assumptions. The EpiLink 0.1.5 configuration uses:
 `generation.genome_length=29903` controls mutation-count expectations, whereas
 `simulation.sequence_length=5000` controls simulated sequence sites. Tree distances
@@ -192,10 +214,13 @@ From the repository root after `python -m pip install -e '.[test]'`:
 # Dependency checks and experiment size; no simulation.
 epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
 
-# Prepare or reuse the shared transmission backbone (also automatic below).
+# Prepare or reuse the shared transmission backbone (also automatic in diagnostics).
 epilink-evaluate scovmod --stage prepare --config evaluation/01_synthetic_baseline/config.yaml
 
-# Prepare training/development observations and shared truth only.
+# Complete development-only diagnostics on the shared experiment first.
+python evaluation/00_synthetic_diagnostics/run.py --stage all
+
+# Optional: prepare training observations and reuse diagnosed development data.
 python evaluation/01_synthetic_baseline/run.py --stage prepare
 
 # Fit and compare scorers, then clustering, with a development report.
@@ -211,43 +236,57 @@ python evaluation/01_synthetic_baseline/run.py --stage evaluate
 # Rebuild the report from saved tables.
 python evaluation/01_synthetic_baseline/run.py --stage report
 
-# Small end-to-end validation, in a separate smoke output directory.
+# Small end-to-end workflow; both stages use their separate smoke roots.
+python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
-python -m pytest
 ```
 
-The completed 64-case run, test coverage, and full-scale resumption steps are
-recorded in [VALIDATION.md](VALIDATION.md).
+Baseline defaults to `develop`; diagnostics defaults to `all` and supports
+`prepare`, `observations`, `graphs`, `trees`, `all`, and `report`. Its `prepare`
+stage alone does not complete the required diagnostics. Retained outputs and
+[VALIDATION.md](VALIDATION.md) describe earlier workflow checkpoints; current
+evidence requires the diagnostics-first sequence above.
 
 FastME and TreeTime are used for tree construction/dating, and TreeCluster for
 tree partitions. Tools are discovered on PATH or beside the active Python
 interpreter; commands can also be configured explicitly. Reports list failures.
 Raw/processed source inputs are preserved. `scovmod --stage prepare`
-and the baseline workflow share the same input preparation. Managed backbones
+and diagnostics share the same input preparation. Managed backbones
 are reused when the source hashes, construction settings, implementation and
 output checksums match. Explicit prebuilt trees without a manifest are retained.
 
 `scovmod --stage prepare` prepares only the transmission backbone and provenance.
-`baseline --stage prepare` additionally prepares truth and training/development
-observations. The `scovmod` command defaults to `prepare` and supports only that stage.
+Diagnostics prepares shared truth and development observations. Baseline
+`prepare` requires completed diagnostics and prepares training observations while
+reusing development data. The `scovmod` command defaults to `prepare` and supports
+only that stage.
 
 ## Outputs and extension points
 
 Column definitions, formulas, missing-value conventions, metadata fields, and
 analysis joins are documented in the [output reference](../../OUTPUTS.md).
 
-`outputs/inputs/` contains `transmission_tree.gml`, its
+`../shared_synthetic/outputs/inputs/` contains `transmission_tree.gml`, its
 `transmission_tree.source.json` provenance, and `manifest.json`. Full and smoke
 runs share this backbone; `--output` changes the run root, not the input paths.
-Each run's `inputs.json` records the tree it used.
+Each run's `inputs.json` records the pinned tree and its source provenance.
 
-`outputs/baseline/` contains shared `artifacts/` (truth, observations, fitted models,
-scores, trees), and fingerprinted `runs/<id>/` directories. `current.json` points
+`../shared_synthetic/outputs/synthetic/` owns `artifacts/backbones/`,
+`artifacts/truth/`, and `artifacts/observations/`, with experiment manifests under
+`experiments/<id>/`.
+Baseline's `<run>/experiment.json` pins the shared `experiment_directory` and
+`fingerprint`; resolve observation/truth joins from that source, not baseline-local
+artifact paths or the latest shared pointer.
+
+`outputs/baseline/` contains `artifacts/` for fitted models, scores, and inferred
+trees, and fingerprinted `runs/<id>/` directories. `current.json` points
 to the current run. Each run contains `development/` (pairwise curves and clustering sweeps),
 `selection/operating_points.json`, `evaluation/` (fixed-setting results), and
 `report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after
-accessing evaluation data requires fresh evaluation seeds. Smoke outputs use
-`outputs/baseline_smoke/` and are labeled as pipeline validation.
+accessing evaluation data requires fresh evaluation seeds in the shared config
+and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json`
+ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs
+use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`.
 
 Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs,
 phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do

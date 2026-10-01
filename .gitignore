@@ -22,6 +22,8 @@ archive/pre_reset_2026-09-30/results/reference_correction_20260928/archive/
 archive/pre_reset_2026-09-30/results/reference_correction_20260928/*.pkl
 
 # Fresh, regenerable artifacts. Compact reports are explicitly published on demand.
+evaluation/shared_synthetic/outputs/
+evaluation/00_synthetic_diagnostics/outputs/
 evaluation/01_synthetic_baseline/outputs/
 evaluation/02_synthetic_perturbation/outputs/
 evaluation/03_boston_application/outputs/

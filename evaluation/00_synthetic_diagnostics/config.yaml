@@ -1,0 +1,18 @@
+schema_version: 1
+name: synthetic_diagnostics
+experiment_config: ../shared_synthetic/config.yaml
+output_directory: outputs/diagnostics
+
+diagnostics:
+  leiden:
+    objective: CPM
+    resolutions: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
+    restarts: 5
+    seed: 65001
+  treecluster:
+    enabled: true
+    methods: [max_clade, avg_clade, single_linkage]
+    threshold_hops: [0, 1, 2, 3, 4, 6, 8, 12, 16]
+    command_timeout_seconds: 1800
+    executables:
+      treecluster: TreeCluster.py

@@ -115,7 +115,7 @@ def test_build_observations(tmp_path):
 
 
 @pytest.fixture
-def evaluated_baseline(small_config, tmp_path):
+def evaluated_baseline(small_config, prepare_diagnostics):
     from epilink_evaluation.workflows.baseline import Baseline
 
     small_config["scorers"] = [
@@ -130,6 +130,7 @@ def evaluated_baseline(small_config, tmp_path):
     ]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["treecluster"]["enabled"] = False
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     assert baseline.run("all")
     return baseline

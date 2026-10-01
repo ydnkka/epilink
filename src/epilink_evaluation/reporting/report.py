@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import html
+from os.path import relpath
 from pathlib import Path
+from urllib.parse import quote
 
 import matplotlib
 
@@ -234,6 +236,22 @@ def render_report(directory):
                 if not frame.empty
                 else "<p>No completed results.</p>"
             )
+
+    diagnostics_path = directory / "diagnostics.json"
+    if diagnostics_path.exists():
+        diagnostics = read_json(diagnostics_path)
+        section(
+            "Pre-baseline diagnostics",
+            explanation=(
+                "Feature-cell ambiguity and known-truth graph/tree controls were examined "
+                "on these exact development observations before method comparison. "
+                f"Shared experiment: {diagnostics['experiment']['fingerprint']}."
+            ),
+        )
+        source = Path(diagnostics["run_directory"])
+        text.append(f"[Diagnostic report]({quote(relpath(source / 'report.md', directory))})")
+        link = quote(relpath(source / "report.html", directory))
+        body.append(f'<p><a href="{html.escape(link)}">Diagnostic report</a></p>')
 
     coverage = []
     for split in ("development", "evaluation"):

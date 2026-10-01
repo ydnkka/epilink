@@ -1,34 +1,8 @@
 schema_version: 1
 name: matched_baseline
 output_directory: outputs/baseline
-inputs:
-  # Shared by full and smoke runs; provenance is saved beside the tree.
-  tree_path: outputs/inputs/transmission_tree.gml
-  infection_path: ../../data/raw/scovmod/InfectedIndividuals.1.csv
-  transmission_path: ../../data/raw/scovmod/TransmissionEvents.1.csv
-  target_component_size: 5000
-  tree_seed: 12345
-  smoke_cases: null
-splits:
-  train: [61001, 61002]
-  development: [62001, 62002, 62003]
-  evaluation: [63001, 63002, 63003]
-generation: &natural_history
-  incubation: {mean: 5.505036, cv: 0.4149770576}
-  testing_delay: {mean: 1.0, cv: 1.0}
-  latent_shape: 3.38
-  symptomatic_rate: 0.37
-  symptomatic_shape: 1.0
-  transmission_rate_ratio: 2.29
-  substitution_rate: 0.001
-  relaxation: 0.33
-  genome_length: 29903
-inference: *natural_history
-simulation:
-  fraction_sampled: 1.0
-  # Sequence length controls simulated sites; natural_history.genome_length
-  # controls expected mutation counts in epilink 0.1.5 (legacy convention).
-  sequence_length: 5000
+experiment_config: ../shared_synthetic/config.yaml
+# Matched inference is derived from the pinned experiment's generation settings.
 scorer:
   mc_samples: 10000
   seed: 64001
@@ -54,7 +28,8 @@ treecluster:
   # Genetic thresholds are specified as SNP counts (integer) and converted
   # internally to substitutions per site using simulation.sequence_length.
   genetic_thresholds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  threshold_days: [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 91, 98, 105]
+  threshold_days:
+    [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 91, 98, 105]
   days_per_year: 365.25
   fastme_method: N
   raw_rooting: midpoint
@@ -62,7 +37,8 @@ treecluster:
   clock_filter: 0
   rng_seed: 66001
   command_timeout_seconds: 1800
-  executables: {fastme: fastme, treetime: treetime, treecluster: TreeCluster.py}
+  executables:
+    { fastme: fastme, treetime: treetime, treecluster: TreeCluster.py }
 selection:
   # Candidate criterion, not a previously selected operating point.
   # Add scientifically justified constraints after inspecting development curves.

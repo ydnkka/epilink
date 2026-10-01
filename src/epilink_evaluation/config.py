@@ -8,22 +8,40 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from .natural_history import natural_history
 
-def load_config(path):
+
+def _load(path):
     path = Path(path).resolve()
     config = yaml.safe_load(path.read_text())
     config = deepcopy(config)
-    for key in ("output_directory",):
-        config[key] = str((path.parent / config[key]).resolve())
+    config["output_directory"] = str((path.parent / config["output_directory"]).resolve())
+    if config.get("experiment_config"):
+        shared_path = (path.parent / config["experiment_config"]).resolve()
+        shared = _load(shared_path)
+        for key in ("inputs", "generation", "simulation", "splits"):
+            if key in config and config[key] != shared[key]:
+                raise ValueError(f"Configure {key} in the shared experiment, not the study")
+            config[key] = deepcopy(shared[key])
+        config["experiment_config"] = str(shared_path)
+        config["experiment_root"] = shared["output_directory"]
+    if config.get("experiment_root"):
+        config["experiment_root"] = str((path.parent / config["experiment_root"]).resolve())
     for key in ("tree_path", "tree_source_path", "infection_path", "transmission_path"):
         if config["inputs"].get(key):
             config["inputs"][key] = str((path.parent / config["inputs"][key]).resolve())
     config["config_path"] = str(path)
+    return config
+
+
+def load_config(path):
+    config = _load(path)
+    config.setdefault("inference", deepcopy(config["generation"]))
     validate(config)
     return config
 
 
-def validate(config):
+def validate_experiment(config):
     if config.get("schema_version") != 1:
         raise ValueError("Expected schema_version: 1")
     splits = config["splits"]
@@ -35,7 +53,7 @@ def validate(config):
         all_seeds.extend(seeds)
     if len(set(all_seeds)) != len(all_seeds):
         raise ValueError("Training, development and evaluation seeds must be distinct")
-    for params in (config["generation"], config["inference"]):
+    for params in (config["generation"],):
         for name in ("incubation", "testing_delay"):
             for field in ("mean", "cv"):
                 if not np.isfinite(params[name][field]) or params[name][field] <= 0:
@@ -44,14 +62,16 @@ def validate(config):
             raise ValueError("Invalid substitution_rate or relaxation")
         if int(params["genome_length"]) <= 0:
             raise ValueError("genome_length must be positive")
-    if config["inference"] != config["generation"]:
-        raise ValueError(
-            "The initial baseline requires matched generation/inference parameters"
-        )
     if not 0 < config["simulation"]["fraction_sampled"] <= 1:
         raise ValueError("fraction_sampled must be in (0, 1]")
     if config["simulation"]["sequence_length"] <= 0:
         raise ValueError("sequence_length must be positive")
+
+
+def validate(config):
+    validate_experiment(config)
+    if config["inference"] != config["generation"]:
+        raise ValueError("The initial baseline requires matched generation/inference parameters")
     if config["clustering"]["leiden"]["objective"] not in ("CPM", "modularity"):
         raise ValueError("Leiden objective must be CPM or modularity")
     if config["clustering"]["leiden"]["restarts"] < 1:
@@ -82,14 +102,22 @@ def validate(config):
         raise ValueError("Duplicate operating criterion names")
 
 
-def natural_history(params):
-    from epilink import NaturalHistoryParameters
-
-    expanded = {
-        k: v for k, v in params.items() if k not in ("incubation", "testing_delay")
-    }
-    for name in ("incubation", "testing_delay"):
-        shape = 1 / params[name]["cv"] ** 2
-        expanded[f"{name}_shape"] = shape
-        expanded[f"{name}_scale"] = params[name]["mean"] / shape
-    return NaturalHistoryParameters(**expanded)
+def load_diagnostics_config(path):
+    config = _load(path)
+    validate_experiment(config)
+    settings = config["diagnostics"]
+    leiden = settings["leiden"]
+    if leiden["objective"] not in ("CPM", "modularity"):
+        raise ValueError("Leiden objective must be CPM or modularity")
+    if type(leiden["restarts"]) is not int or leiden["restarts"] < 1:
+        raise ValueError("Leiden requires positive integer restarts")
+    if type(leiden["seed"]) is not int or leiden["seed"] < 0:
+        raise ValueError("Leiden seed must be a nonnegative integer")
+    if not leiden["resolutions"] or any(not np.isfinite(r) or r <= 0 for r in leiden["resolutions"]):
+        raise ValueError("Leiden resolutions must be finite and positive")
+    trees = settings["treecluster"]
+    if not trees["methods"] or set(trees["methods"]) - {"max_clade", "avg_clade", "single_linkage"}:
+        raise ValueError("Unsupported transmission-tree clustering method")
+    if not trees["threshold_hops"] or any(not np.isfinite(t) or t < 0 for t in trees["threshold_hops"]):
+        raise ValueError("Transmission-hop thresholds must be finite and nonnegative")
+    return config

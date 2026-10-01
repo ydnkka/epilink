@@ -8,11 +8,15 @@ from epilink_evaluation.provenance import read_json, valid_artifact
 from epilink_evaluation.workflows.baseline import Baseline
 
 
-def test_development_freeze_and_heldout_replay(small_config):
+def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics):
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     with pytest.raises(ValueError, match="freeze development settings"):
         baseline.evaluate()
     assert baseline.run("develop")
+    report = (baseline.directory / "report.md").read_text()
+    assert report.index("Pre-baseline diagnostics") < report.index("Development pairwise comparison")
+    assert "[Diagnostic report]" in report
     development = pd.read_csv(baseline.directory / "development/metrics.csv")
     assert set(development.setting_id) == set(baseline.definitions)
     assert not (baseline.directory / "evaluation").exists()
@@ -56,8 +60,9 @@ def test_development_freeze_and_heldout_replay(small_config):
         resumed.select()
 
 
-def test_subsampling_keeps_full_backbone_truth(small_config):
+def test_subsampling_keeps_full_backbone_truth(small_config, prepare_diagnostics):
     small_config["simulation"]["fraction_sampled"] = 0.6
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     directory = baseline.dataset(small_config["splits"]["train"][0])
     observations, cases = load_observations(directory)
@@ -74,7 +79,7 @@ def test_subsampling_keeps_full_backbone_truth(small_config):
     assert read_json(baseline.truth_directory / "manifest.json")["n_cases"] == 15
     saved = read_json(directory / "manifest.json")
     assert valid_artifact(directory, saved["signature"])
-    # Corrupted cached data must be regenerated rather than trusted.
+    # The explicit training producer repairs corrupt cached observations.
     (directory / "pairs.parquet").write_bytes(b"interrupted write")
     assert not valid_artifact(directory, saved["signature"])
     baseline.datasets.clear()
@@ -82,7 +87,10 @@ def test_subsampling_keeps_full_backbone_truth(small_config):
     pd.testing.assert_frame_equal(load_observations(directory)[0], observations)
 
 
-def test_failed_comparator_prevents_freezing(small_config, monkeypatch):
+def test_failed_comparator_prevents_freezing(
+    small_config, prepare_diagnostics, monkeypatch
+):
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     monkeypatch.setattr(baseline, "pairwise", lambda: None)
     monkeypatch.setattr(baseline, "clusters", lambda: False)

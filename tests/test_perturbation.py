@@ -30,7 +30,8 @@ from epilink_evaluation.workflows.reference import BaselineReference
 
 
 @pytest.fixture
-def evaluated_baseline(small_config):
+def evaluated_baseline(small_config, prepare_diagnostics):
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     assert baseline.run("all")
     return baseline
@@ -125,9 +126,10 @@ def test_paired_changes_use_same_seed_and_keep_missing_controls():
 
 
 def test_frozen_replay_pairing_no_refit_and_cache_reuse(
-    small_config, tmp_path, monkeypatch
+    small_config, prepare_diagnostics, tmp_path, monkeypatch
 ):
     small_config["scorers"] = list(SCORERS)
+    prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     assert baseline.run("all")
     config = study_config(tmp_path, baseline, smoke=True)

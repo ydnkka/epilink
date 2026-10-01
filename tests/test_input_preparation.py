@@ -31,6 +31,8 @@ def scovmod_config(small_config, tmp_path):
         "tree_seed": 42,
         "smoke_cases": None,
     }
+    small_config.pop("experiment_config", None)
+    small_config["experiment_root"] = str(tmp_path / "shared")
     small_config["output_directory"] = "outputs/baseline"
     path = tmp_path / "baseline.yaml"
     path.write_text(yaml.safe_dump(small_config))
@@ -41,7 +43,7 @@ def test_default_shared_input_paths(tmp_path):
     root = Path(__file__).resolve().parents[1]
     baseline = load_config(root / "evaluation/01_synthetic_baseline/config.yaml")
     expected = (
-        root / "evaluation/01_synthetic_baseline/outputs/inputs/transmission_tree.gml"
+        root / "evaluation/shared_synthetic/outputs/inputs/transmission_tree.gml"
     )
     assert Path(baseline["inputs"]["tree_path"]) == expected
     assert smoke_config(baseline)["inputs"]["tree_path"] == str(expected)
@@ -54,7 +56,9 @@ def test_default_shared_input_paths(tmp_path):
     )
 
 
-def test_scovmod_commands_and_baseline_share_cached_tree(scovmod_config, monkeypatch):
+def test_scovmod_commands_and_baseline_share_cached_tree(
+    scovmod_config, prepare_diagnostics, monkeypatch
+):
     config = load_config(scovmod_config)
     path = Path(config["inputs"]["tree_path"])
     assert main(["scovmod", "--stage", "prepare", "--config", str(scovmod_config)]) == 0
@@ -72,11 +76,20 @@ def test_scovmod_commands_and_baseline_share_cached_tree(scovmod_config, monkeyp
     assert main(["scovmod", "--config", str(scovmod_config)]) == 0
     assert not Path(config["output_directory"]).exists()
     assert not Path(config["output_directory"] + "_smoke").exists()
-    study = Baseline(smoke_config(config))
+    baseline_config = smoke_config(config)
+    diagnostics = prepare_diagnostics(baseline_config)
+    study = Baseline(baseline_config)
     inputs = read_json(study.directory / "inputs.json")
-    assert inputs["tree_path"] == str(path)
-    assert inputs["tree_source_path"] == str(path.with_suffix(".source.json"))
-    assert inputs["tree_sha256"] == digest_file(path)
+    snapshot = diagnostics.exp.backbone_directory / "transmission_tree.gml"
+    assert inputs["tree_path"] == str(snapshot)
+    assert snapshot != path
+    assert inputs["tree_sha256"] == digest_file(snapshot)
+    assert inputs["source"] == {
+        "tree_path": str(path),
+        "tree_sha256": digest_file(path),
+        "provenance": source,
+    }
+    assert nx.utils.graphs_equal(nx.read_gml(snapshot), nx.read_gml(path))
     assert path.stat().st_mtime_ns == before
     manifest = read_json(path.parent / "manifest.json")
     assert valid_artifact(path.parent, manifest["signature"])

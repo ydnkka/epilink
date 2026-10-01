@@ -6,6 +6,7 @@ from pathlib import Path
 
 import networkx as nx
 
+from ..inputs.experiment import SyntheticExperiment
 from ..phylogeny.external import command_identity
 from ..provenance import digest_file, fingerprint, read_json, valid_artifact
 from ..truth import TreeIndex
@@ -95,6 +96,7 @@ class OperatingReference:
         )
         modules = {
             "schemas.py",
+            "natural_history.py",
             "config.py",
             "workflows/baseline.py",
             "workflows/settings.py",
@@ -165,7 +167,15 @@ class BaselineReference(OperatingReference):
                 "Reference training identity differs from frozen selection"
             )
         self.models = read_json(self.model_directory / "models.json")
-        self.truth_directory = self.root / "artifacts/truth" / signature["truth"]
+        experiment_identity = signature["experiment"]
+        self.experiment = SyntheticExperiment(
+            experiment_identity["experiment_directory"], implementation
+        )
+        if self.experiment.identity != experiment_identity:
+            raise ValueError("Reference synthetic experiment identity differs")
+        self.truth_directory = self.experiment.truth_directory
+        if self.truth_directory.name != signature["truth"]:
+            raise ValueError("Reference truth differs from the pinned experiment")
         truth_manifest = checked_artifact(self.truth_directory)
         topology = truth_manifest["signature"]
         self.tree = nx.DiGraph()

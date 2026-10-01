@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
@@ -10,18 +11,17 @@ import pandas as pd
 
 from ..clusterers import components, leiden, treecluster
 from ..graphs import build_graph, selected_pairs
+from ..inputs.experiment import load_experiment
 from ..inputs.synthetic import (
-    load_backbone,
     load_observations,
     load_truth,
-    prepare_observations,
-    prepare_truth,
 )
 from ..metrics.pairwise import PairTruth, calibration, precision_recall_curve
 from ..metrics.partitions import PartitionEvaluator
 from ..phylogeny.external import command_identity
 from ..phylogeny.trees import dated_tree, raw_tree
 from ..provenance import (
+    baseline_signature,
     complete_artifact,
     digest_file,
     fingerprint,
@@ -46,8 +46,13 @@ LOG = logging.getLogger(__name__)
 
 class Baseline:
     def __init__(self, config):
-        self.config = config
-        self.implementation = implementation_signature()
+        self.config = deepcopy(config)
+        self.implementation = baseline_signature(implementation_signature())
+        self.experiment = load_experiment(config, self.implementation)
+        self.diagnostics = self.experiment.require_diagnostics()
+        self.tree = self.experiment.tree
+        self.truth_directory = self.experiment.truth_directory
+        self._evaluation_released = False
         self.tools = {}
         if config["treecluster"]["enabled"]:
             for name, command in config["treecluster"]["executables"].items():
@@ -55,8 +60,6 @@ class Baseline:
                     self.tools[name] = command_identity(command)
                 except FileNotFoundError as exc:
                     self.tools[name] = {"unavailable": str(exc)}
-        self.tree = load_backbone(config)
-        self.truth_directory = prepare_truth(config, self.tree, self.implementation)
         scientific = {
             key: value
             for key, value in config.items()
@@ -68,38 +71,27 @@ class Baseline:
             "implementation": self.implementation,
             "tools": self.tools,
             "truth": self.truth_directory.name,
+            "experiment": self.experiment.identity,
         }
         self.root = Path(config["output_directory"])
         self.directory = self.root / "runs" / fingerprint(self.signature)[:20]
         self.directory.mkdir(parents=True, exist_ok=True)
         self.definitions = settings_registry(config)
         write_json(self.directory / "settings.json", self.definitions)
-        tree_path = Path(config["inputs"]["tree_path"]).resolve()
-        tree_source_path = Path(
-            config["inputs"].get("tree_source_path")
-            or tree_path.with_suffix(".source.json")
-        )
-        if tree_source_path.exists():
-            tree_source = read_json(tree_source_path)
-            inputs_info = {
-                "tree_path": str(tree_path),
-                "tree_source_path": str(tree_source_path),
-                "tree_sha256": digest_file(tree_path),
-                "source_files": tree_source["inputs"],
-                "n_cases": tree_source["n_cases"],
-                "tree_seed": tree_source["seed"],
-                "target_component_size": tree_source["target_size"],
-                "implementation_sha256": tree_source["implementation_sha256"],
-            }
-        else:
-            inputs_info = {
-                "tree_path": str(tree_path),
-                "tree_sha256": digest_file(tree_path),
-                "n_cases": len(self.tree),
-                "tree_seed": config["inputs"]["tree_seed"],
-                "target_component_size": config["inputs"]["target_component_size"],
-            }
+        tree_path = Path(self.experiment.config["inputs"]["tree_path"])
+        inputs_info = {
+            "experiment": self.experiment.identity,
+            "diagnostics": self.diagnostics,
+            "tree_path": str(tree_path),
+            "tree_sha256": digest_file(tree_path),
+            "source": read_json(self.experiment.backbone_directory / "source.json"),
+            "n_cases": len(self.tree),
+            "tree_seed": config["inputs"]["tree_seed"],
+            "target_component_size": config["inputs"]["target_component_size"],
+        }
         write_json(self.directory / "inputs.json", inputs_info)
+        write_json(self.directory / "experiment.json", self.experiment.identity)
+        write_json(self.directory / "diagnostics.json", self.diagnostics)
         write_json(
             self.root / "current.json",
             {
@@ -112,11 +104,12 @@ class Baseline:
         self.training_id = None
 
     def dataset(self, seed):
+        role = self.experiment._role(seed)
+        if role == "evaluation" and not self._evaluation_released:
+            raise ValueError("Evaluation observations require frozen selection and explicit held-out release")
         if seed not in self.datasets:
             LOG.info("Prepare observations seed=%s", seed)
-            self.datasets[seed] = prepare_observations(
-                self.config, self.tree, self.truth_directory, seed, self.implementation
-            )
+            self.datasets[seed] = self.experiment.dataset(seed, prepare=role != "development")
         return self.datasets[seed]
 
     def prepare(self):
@@ -494,6 +487,7 @@ class Baseline:
             "criteria": self.config["selection"]["criteria"],
             "operating_points": selected,
         }
+        self.experiment.assert_selection(frozen)
         path = self.directory / "selection/operating_points.json"
         if path.exists() and read_json(path) != frozen:
             if (self.directory / "evaluation/heldout_access.json").exists():
@@ -539,6 +533,8 @@ class Baseline:
         }
         if not selected:
             raise ValueError("No operating criterion is feasible")
+        self.experiment.release_evaluation(frozen)
+        self._evaluation_released = True
         write_json(
             self.directory / "evaluation/heldout_access.json",
             {

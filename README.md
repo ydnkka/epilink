@@ -11,14 +11,17 @@ held-out operating-point evaluation.
 Use the [output reference](OUTPUTS.md) for column definitions, metric formulas,
 artifact provenance, and worked analysis joins.
 
-## Three evaluation studies
+## Evaluation studies
 
 | Study                                                                         | Purpose                                                                                                           | Main evidence                                                              |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md) | Characterize development feature ambiguity and known-truth graph/tree controls before baseline comparison. | Exact feature cells, endpoint-oracle graphs, and transmission-hop tree partitions. |
 | [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings. |
 | [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.            |
 | [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and sensitivity to clustering settings.              | Descriptive exposure summaries and graph/phylogenetic partition agreement. |
 
+Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md).
+Complete diagnostics on its exact development observations before running baseline.
 The completed baseline supplies the reference for both downstream studies.
 Perturbation and Boston can run independently after baseline evaluation; the
 directory numbers express the study presentation order.
@@ -28,6 +31,7 @@ directory numbers express the study presentation order.
 | Capability                    | Active implementation                                                                                          |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | SCoVMod tree preparation      | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                     |
+| Synthetic diagnostics         | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls. |
 | Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.   |
 | Parameter sensitivity         | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.   |
 | Boston input preparation      | Available:`epilink-evaluate boston --stage prepare`.                                                           |
@@ -44,10 +48,11 @@ Python ≥3.10, from the repository root:
 ```bash
 python -m pip install -e '.[test]'
 epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
+python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
-python -m pytest
 
 # Full development on the configured backbone:
+python evaluation/00_synthetic_diagnostics/run.py --stage all
 python evaluation/01_synthetic_baseline/run.py --stage develop
 ```
 
@@ -98,22 +103,26 @@ Fresh-environment and Git LFS instructions are in the
 
 | Location                                           | Role                                                                        |
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
+| `evaluation/shared_synthetic/`                    | Shared input, generation, simulation, and split configuration; immutable experiment artifacts |
+| `evaluation/00_synthetic_diagnostics/`             | Development-only diagnostics, control grids, and entry point |
 | `evaluation/01_synthetic_baseline/`                | Method-comparison protocol, configuration, and entry point                  |
 | `evaluation/02_synthetic_perturbation/`            | Frozen-reference sensitivity protocol, configuration, and entry point       |
 | `evaluation/03_boston_application/`                | Empirical transfer and clustering exploration                               |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                  |
-| `evaluation/01_synthetic_baseline/outputs/inputs/` | Prepared transmission backbone and provenance                               |
+| `evaluation/shared_synthetic/outputs/inputs/`     | Prepared transmission backbone and provenance                               |
 | `evaluation/03_boston_application/outputs/inputs/` | Prepared Boston tables and provenance                                       |
 | `tests/`                                           | Independent scientific correctness and integration checks                   |
 
-Each study has its own `outputs/` directory containing an output root (`baseline`,
-`perturbation`, or `boston`). Within that root, `current.json` locates the latest
+Each study has its own `outputs/` directory containing an output root (`diagnostics`,
+`baseline`, `perturbation`, or `boston`). Within that root, `current.json` locates the latest
 initialized `runs/<id>/`, and content-addressed artifacts live under `artifacts/`.
-Baseline and perturbation smoke validation use separate roots ending in `_smoke`.
-Baseline and Boston prepared inputs are shared alongside their run roots, in
-each study's `outputs/inputs/`. Perturbation reconstructs its frozen backbone
-from baseline truth and stores it under its own `artifacts/backbones/`.
+Diagnostics, baseline, perturbation, and the shared experiment use separate smoke
+roots ending in `_smoke`. Shared backbones, truth, and observations live under
+`evaluation/shared_synthetic/outputs/synthetic/`; baseline stores models, scores,
+and inferred trees in its own artifact root. Its run's `experiment.json` pins the
+shared source. Perturbation retains independent backbone, truth, and observation
+artifacts. Boston prepared inputs remain in its own `outputs/inputs/`.
 Reports are `report.md` and `report.html` inside each run. The pointer can identify
 an incomplete run; check stage coverage before interpreting results.
 
@@ -122,12 +131,14 @@ an incomplete run; check stage coverage before interpreting results.
 Git LFS manages tracked data formats. Derived trees and study outputs are local
 ignored artifacts; retain them when moving an experiment, or regenerate them.
 
-The active baseline experiment uses the tree at `inputs.tree_path`.
-`epilink-evaluate scovmod --stage prepare` uses the same preparation
-as the baseline workflow, writing to `evaluation/01_synthetic_baseline/outputs/inputs/`.
+The shared config owns `inputs.tree_path`, generation, simulation, and splits;
+both diagnostics and baseline reference it through `experiment_config`.
+`epilink-evaluate scovmod --stage prepare` uses the same backbone preparation
+as diagnostics, writing to `evaluation/shared_synthetic/outputs/inputs/`.
 Matching managed artifacts are reused; changed inputs or construction settings
 trigger rebuilding. Explicit prebuilt trees without a manifest are retained.
-The tree hash defines the experiment. Follow
+The experiment identity includes the source backbone, data design, and generation
+implementation. Follow
 the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree)
 to change the target component and check the actual case count.
 
@@ -139,9 +150,11 @@ substitutions/site; missing pairs remain unobserved. Tree construction separatel
 computes all-pair TN93 distances from the alignment. See the
 [input-processing notes](data/raw/boston/boston_data_processing.md).
 
-Saved manifests record paths at execution time. After relocating study
-directories, use the updated `current.json` pointers to locate results; recorded
-scientific signatures remain tied to their original execution.
+Saved manifests record paths and scientific identities at execution time. Retained
+outputs from earlier versions are historical results; generate current evidence
+with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json`
+ledger survives `reset-outputs`; revised analyses after evaluation need fresh
+evaluation seeds.
 
 The EpiLink model package is maintained separately at
 [https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).

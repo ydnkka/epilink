@@ -1,0 +1,29 @@
+schema_version: 1
+name: matched_synthetic
+output_directory: outputs/synthetic
+inputs:
+  tree_path: outputs/inputs/transmission_tree.gml
+  infection_path: ../../data/raw/scovmod/InfectedIndividuals.1.csv
+  transmission_path: ../../data/raw/scovmod/TransmissionEvents.1.csv
+  target_component_size: 5000
+  tree_seed: 12345
+  smoke_cases: null
+splits:
+  train: [61001, 61002]
+  development: [62001, 62002, 62003]
+  evaluation: [63001, 63002, 63003]
+generation:
+  incubation: { mean: 5.505036, cv: 0.4149770576 }
+  testing_delay: { mean: 1.0, cv: 1.0 }
+  latent_shape: 3.38
+  symptomatic_rate: 0.37
+  symptomatic_shape: 1.0
+  transmission_rate_ratio: 2.29
+  substitution_rate: 0.001
+  relaxation: 0.33
+  genome_length: 29903
+simulation:
+  fraction_sampled: 1.0
+  # Mutation expectations use generation.genome_length; Hamming distances
+  # are simulated on this many sites, also the raw-tree distance denominator.
+  sequence_length: 5000

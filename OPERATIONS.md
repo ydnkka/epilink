@@ -3,6 +3,8 @@
 Use this guide to configure and run the project, locate results, and resume interrupted work. All shell commands below assume the **repository root** is the working directory.
 
 - [Project overview and implementation status](README.md)
+- [Shared synthetic experiment](evaluation/shared_synthetic/README.md)
+- [Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)
 - [Baseline protocol and metric definitions](evaluation/01_synthetic_baseline/README.md)
 - [Perturbation study](evaluation/02_synthetic_perturbation/README.md)
 - [Boston empirical application](evaluation/03_boston_application/README.md)
@@ -34,15 +36,17 @@ Use this guide to configure and run the project, locate results, and resume inte
 
 ## 1. How the pipeline works
 
-The three studies live under `evaluation/`. The baseline compares methods against known transmission relationships and freezes operating points. Perturbation tests their sensitivity to biological parameter changes; Boston examines empirical transfer and clustering-parameter sensitivity. Both downstream studies use the completed baseline directly. Sections 3–9 describe the baseline; section 12 gives the downstream commands and their distinct stage behavior.
+The studies live under `evaluation/`. Diagnostics characterizes development observations and known-truth graph/tree controls on a shared synthetic experiment. Baseline then compares methods on those exact development observations and freezes operating points. Perturbation tests their sensitivity to biological parameter changes; Boston examines empirical transfer and clustering-parameter sensitivity. Both downstream studies use the completed baseline directly. Sections 3–9 describe shared preparation, diagnostics, and baseline; section 12 gives the downstream commands and their distinct stage behavior.
 
 ```text
 SCoVMod infection and transmission CSVs
   -> reconstruct/select one fixed transmission backbone
      -> full-tree relationship truth (AD, CA, M)
      -> simulate sampling dates and deterministic/stochastic genomes by seed
-        -> sampled cases and all unordered pairs: genetic distance (GD), time (TD)
-           -> EpiLink, genetic-distance, and logistic scores
+         -> shared development cases/pairs: genetic distance (GD), time (TD)
+            -> exact feature-cell diagnostics, endpoint-oracle graphs, known hop tree
+            -> complete diagnostics gate
+            -> EpiLink, genetic-distance, and training-fitted logistic scores
               -> pairwise rankings and threshold metrics
               -> thresholded graphs -> components / Leiden partitions
            -> genetic-distance trees (FastME)
@@ -55,11 +59,11 @@ SCoVMod infection and transmission CSVs
 
 The transmission backbone supplies truth. FastME and TreeTime reconstruct comparison trees from simulated observations. These have different roles.
 
-One experiment keeps its transmission backbone fixed. Training, development, and evaluation seeds generate different observation realizations on that backbone. Logistic regression is fitted on training realizations; development realizations determine operating settings; evaluation realizations measure fixed-setting performance. Unsampled intermediates remain in relationship truth.
+One experiment keeps its transmission backbone fixed. Diagnostics generates development observations; baseline reuses them and generates separate training realizations for logistic fitting. Development realizations determine operating settings. Evaluation observations are generated only after frozen settings are validated by `evaluate`. Unsampled intermediates remain in relationship truth.
 
 The primary target, **M=0**, includes direct transmission and shared-infector pairs. The [protocol](evaluation/01_synthetic_baseline/README.md) defines secondary targets, the eight scorers, and the interpretation of the metrics.
 
-Implementation entry points are [`cli.py`](src/epilink_evaluation/cli.py) and [`workflows/baseline.py`](src/epilink_evaluation/workflows/baseline.py). Shared modules live under `src/epilink_evaluation/`: `inputs`, `truth`, `scorers`, `graphs`, `phylogeny`, `clusterers`, `metrics`, `selection`, and `reporting`.
+Implementation entry points are [`cli.py`](src/epilink_evaluation/cli.py), [`workflows/diagnostics.py`](src/epilink_evaluation/workflows/diagnostics.py), and [`workflows/baseline.py`](src/epilink_evaluation/workflows/baseline.py). Shared modules live under `src/epilink_evaluation/`, including `inputs`, `diagnostics`, `truth`, `scorers`, `graphs`, `phylogeny`, `clusterers`, `metrics`, `selection`, and `reporting`.
 
 ## 2. Environment and source inputs
 
@@ -107,9 +111,9 @@ data/raw/scovmod/TransmissionEvents.1.csv
 ```
 
 Prepared inputs and run outputs under each study's `outputs/` directory are
-ignored by Git. Generate the baseline tree in
-`evaluation/01_synthetic_baseline/outputs/inputs/` as described below, or configure
-`inputs.tree_path` to use an existing supplied tree.
+ignored by Git. Generate the shared tree in
+`evaluation/shared_synthetic/outputs/inputs/` as described below, or configure
+`inputs.tree_path` in the shared config to use an existing supplied tree.
 
 ```bash
 epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
@@ -119,19 +123,21 @@ epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
 
 ## 3. Configure an experiment
 
-The default configuration is [`evaluation/01_synthetic_baseline/config.yaml`](evaluation/01_synthetic_baseline/config.yaml). For another experiment, save a complete copy alongside it, edit that copy, and pass it consistently with `--config evaluation/01_synthetic_baseline/my_experiment.yaml`.
+The data design is [`evaluation/shared_synthetic/config.yaml`](evaluation/shared_synthetic/config.yaml): it owns `inputs`, `generation`, `simulation`, and `splits`. The [diagnostics config](evaluation/00_synthetic_diagnostics/config.yaml) and [baseline config](evaluation/01_synthetic_baseline/config.yaml) both load it through `experiment_config`. Keep diagnostic controls in the former and scorers, method grids, and selection rules in the latter. For another design, copy the shared config and point both study configs at it; select each study config with `--config` on that study's command.
 
-**Path rules:** `output_directory`, `inputs.tree_path`, `inputs.infection_path`, and `inputs.transmission_path` are resolved relative to the YAML file. Thus `outputs/baseline` in the default config means `evaluation/01_synthetic_baseline/outputs/baseline`. Moving a config to a different directory changes those relative paths. CLI `--config` and `--output` paths are relative to the shell's working directory; executable overrides are best made absolute.
+**Path rules:** paths resolve relative to the YAML file that defines them. Shared input paths and `outputs/synthetic` resolve under `evaluation/shared_synthetic/`; each study's `experiment_config` and `output_directory` resolve relative to its own YAML. Thus `outputs/baseline` means `evaluation/01_synthetic_baseline/outputs/baseline`. Moving a config changes its relative paths. CLI `--config` and `--output` paths are relative to the shell's working directory; executable overrides are best made absolute.
 The optional `inputs.tree_source_path` is also config-relative; by default it is
 the tree's companion `.source.json` file. Input paths are shared across run roots,
-so changing `--output` does not relocate prepared inputs.
+so changing a study's `--output` relocates neither prepared inputs nor the shared
+experiment root.
 
 ### Inputs, simulation, and seeds
 
 | Configuration field                          | Meaning                                                                                                           |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `experiment_config`                         | Study-config reference to the shared data-design YAML. |
 | `name`                                       | Experiment label, recorded in the run signature.                                                                  |
-| `output_directory`                           | Root containing`artifacts/`, `runs/`, and `current.json`.                                                         |
+| `output_directory`                           | In a study: `artifacts/`, `runs/`, `current.json`; in the shared config: `artifacts/`, `experiments/`, `heldout_access/`, `current.json`. |
 | `inputs.tree_path`                           | Transmission backbone to load, or destination when generating a missing tree.                                     |
 | `inputs.infection_path`, `transmission_path` | Raw SCoVMod inputs used for reconstruction.                                                                       |
 | `inputs.target_component_size`               | Requested component size; reconstruction chooses the closest available component.                                 |
@@ -146,11 +152,11 @@ so changing `--output` does not relocate prepared inputs.
 | `clustering.leiden.seed`, `restarts`         | Leiden random seed and restarts; restart quality is judged by its declared objective.                             |
 | `treecluster.rng_seed`                       | TreeTime random seed.                                                                                             |
 
-Observation seeds must be nonnegative integers, unique across all three splits. Algorithm seeds control inference randomness independently of observation seeds.
+The `inputs`, `simulation`, and `splits` rows belong to the shared config; scorer and clustering rows belong to baseline. Observation seeds must be nonnegative integers, unique across all three splits. Previously accessed held-out seeds cannot become training/development seeds. Algorithm seeds control inference randomness independently of observation seeds.
 
 ### Natural-history parameters
 
-`generation` configures observation simulation; `inference` configures EpiLink. The active baseline requires equal values in these two sections. The supplied YAML anchor, `generation: &natural_history` and `inference: *natural_history`, keeps them matched when the generation block is edited.
+Shared `generation` configures observation simulation. Baseline derives `inference` from that block and requires matched values; edit natural history in the shared config and rerun diagnostics for the changed design.
 
 | Field within`generation` / `inference`  | Meaning and units                                                                         |
 | --------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -197,15 +203,15 @@ The runner also adds an explicit empty-selection setting to each scorer's grid. 
 epilink-evaluate scovmod --stage prepare --config evaluation/01_synthetic_baseline/config.yaml
 ```
 
-- The default tree and provenance live in `evaluation/01_synthetic_baseline/outputs/inputs/`.
-- `scovmod --stage prepare` and baseline initialization use the same preparation and configured input paths, seed, and target size.
-- `scovmod` supports only `prepare` (also its default stage). It writes the backbone and provenance; `baseline --stage prepare` additionally creates truth and training/development observations.
+- The default tree and provenance live in `evaluation/shared_synthetic/outputs/inputs/`.
+- `scovmod --stage prepare` loads the baseline config's shared input settings; diagnostics uses the same backbone preparation.
+- `scovmod` supports only `prepare` (also its default stage), writing the backbone and provenance. Diagnostics prepares the shared experiment, truth, and development observations. Baseline requires completed diagnostics even for `prepare`, then prepares training observations and reuses development data.
 - **Matching managed artifact:** reuse the tree after validating the manifest's input/settings signature and output checksums.
 - **Missing or stale managed artifact:** reconstruct from the raw CSVs, write the tree, companion `<tree-stem>.source.json`, and `manifest.json`.
 - **Explicit prebuilt tree without a manifest:** validate the graph and retain it without requiring raw inputs.
 - Full and smoke runs share these inputs. `--output` changes the run root, not the prepared input paths.
 
-To generate a new target while keeping the previous tree, edit these entries in the existing config, keeping its other fields:
+To generate a new target while keeping the previous tree, edit these entries in the shared config, keeping its other fields:
 
 ```yaml
 inputs:
@@ -224,25 +230,26 @@ Reconstruction assigns candidate infectors using the seed, keeps one incoming ed
 Inspect the provenance for the example above:
 
 ```bash
-python -m json.tool evaluation/01_synthetic_baseline/outputs/inputs_target1000_seed12345/transmission_tree.source.json
+python -m json.tool evaluation/shared_synthetic/outputs/inputs_target1000_seed12345/transmission_tree.source.json
 ```
 
-`n_cases` is the actual count. `target_size`, `seed`, input hashes, and `tree_sha256` identify the reconstruction. Use the actual recorded size rather than assuming that it equals the requested target component size. The `artifacts/truth/<id>/manifest.json` in a baseline run also records its actual `n_cases` and `n_pairs`, including any smoke subset.
+`n_cases` is the actual count. `target_size`, `seed`, input hashes, and `tree_sha256` identify the reconstruction. Use the actual recorded size rather than assuming that it equals the requested target component size. The shared experiment root's `artifacts/truth/<id>/manifest.json` also records actual `n_cases` and `n_pairs`, including any smoke subset. Complete diagnostics for the new design before baseline.
 
 ## 5. Run smoke validation and the baseline
 
 First exercise the complete pipeline on a small subset:
 
 ```bash
+python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthetic_diagnostics/config.yaml --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --smoke --stage all
-python -m pytest -q
 ```
 
-Smoke mode uses up to 64 backbone cases, one observation seed per split (71001/72001/73001), 1,024 Monte Carlo draws, smaller threshold/resolution grids, two Leiden restarts, and TreeTime seed 76001. It appends `_smoke` to the output root, preserving a separate namespace. It retains configured scorers, algorithms, and operating criteria. Smoke results establish pipeline functionality.
+Both commands must use `--smoke`. It uses up to 64 backbone cases and one observation seed per split (71001/72001/73001), appending `_smoke` to both study and shared experiment roots. Diagnostics reduces its Leiden grid to 0.1/0.5 with two restarts and hop thresholds to 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, smaller threshold/resolution grids, two Leiden restarts, and TreeTime seed 76001; configured scorers, algorithms, and criteria remain. Smoke results assess pipeline functionality.
 
 Run full development using the configured tree and grids:
 
 ```bash
+python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthetic_diagnostics/config.yaml --stage all
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage develop
 ```
 
@@ -265,16 +272,40 @@ With `--smoke`, that override becomes `evaluation/01_synthetic_baseline/outputs/
 
 ## 6. Stage reference
 
-The following table applies to the **synthetic baseline**. Stages load or create their required truth, observations, fitted models, and scores automatically. `prepare` is optional before `develop`.
+**Synthetic diagnostics** defaults to `all`. Its stages are:
+
+| `--stage` | Work performed |
+| --- | --- |
+| `prepare` | Prepare/reuse the shared backbone, truth, and development observations only. |
+| `observations` | Exact GD and GD/TD cells, ambiguity, prevalence, and relationship summaries. |
+| `graphs` | One unit-weight oracle graph per M horizon; components and configured Leiden controls. |
+| `trees` | Known transmission-hop tree; TreeCluster method/hop-threshold controls evaluated at every endpoint. |
+| `all` | All three diagnostic analyses, with preparation as a dependency. |
+| `report` | Render saved tables and coverage through the diagnostics root's `current.json`. |
+
+Computational stages prepare development data as needed. Baseline is released only
+when all required diagnostics (including trees when enabled) have complete,
+checksummed coverage of the exact development datasets. A successful diagnostics
+`prepare` alone is insufficient. Oracle graph/tree controls reuse identical truth
+and sampled-case sets across seeds and genetic processes; full sampling gives one
+graph per horizon and one hop tree, rather than independent control replicates.
+The tree preserves sampled ancestors as zero-length tips and retains unsampled
+intermediates. Forests are unsupported for this tree control and produce visible
+failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
+
+The following table applies to the **synthetic baseline**. All computational stages
+require a matching shared experiment and completed diagnostics. They reuse shared
+truth/development observations and prepare their training/model/score dependencies.
+Baseline `prepare` is optional before `develop`.
 
 | `--stage`  | Work performed                                                                                                            | Prerequisite / main saved output                                                                                                |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `prepare`  | Prepare full-tree truth and training/development observations.                                                            | Configured tree, or raw inputs to generate it. Writes truth and observation artifacts.                                          |
-| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, thresholds, budgets, and calibration. | Creates missing prerequisites. Writes per-seed`pairwise/` tables.                                                               |
-| `clusters` | Fit/reuse scorers and run development graph/tree clustering sweeps.                                                       | Creates missing prerequisites; does not run pairwise metric tables. Writes per-setting memberships/metrics and per-seed status. |
+| `prepare`  | Prepare shared training observations and validate/reuse development observations. | Requires completed diagnostics; writes training datasets into the shared experiment. |
+| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, thresholds, budgets, and calibration. | Prepares training/model/score dependencies. Writes per-seed `pairwise/` tables. |
+| `clusters` | Fit/reuse scorers and run development graph/tree clustering sweeps. | Prepares training/model/score dependencies; writes per-setting memberships/metrics and per-seed status. |
 | `develop`  | Run`pairwise`, then `clusters`.                                                                                           | Writes the development comparison and report.                                                                                   |
 | `select`   | Complete/reuse the declared development comparison and freeze settings under each criterion.                              | Requires a complete configured sweep. Writes`selection/operating_points.json`.                                                  |
-| `evaluate` | Apply frozen settings to evaluation observations using training-fitted models.                                            | Requires matching frozen settings and development evidence. Writes held-out operating results.                                  |
+| `evaluate` | Release/generate shared evaluation observations and apply frozen settings using training-fitted models. | Requires matching frozen settings and development evidence. Records shared held-out access before observation generation, then writes operating results. |
 | `report`   | Rebuild figures and reports from saved tables.                                                                            | Uses`current.json` in the resolved output root; no simulation or setting selection.                                             |
 | `all`      | Run development, selection, and evaluation sequentially if development succeeds.                                          | Uses the configured criteria immediately, without pausing for development review. Useful for smoke validation.                  |
 
@@ -284,20 +315,21 @@ Computational stages render a report at the end, including caught failures. The 
 
 The [output reference](OUTPUTS.md) defines each saved table's row unit, column names, formulas, units, missing values, and JSON metadata. It also includes [worked joins](OUTPUTS.md#11-worked-joins-in-python) for settings, observations, truth, scores, and cluster memberships.
 
-For the default output root, print the latest run pointer:
+For diagnostics and baseline, print the latest run pointers:
 
 ```bash
+python -m json.tool evaluation/00_synthetic_diagnostics/outputs/diagnostics/current.json
 python -m json.tool evaluation/01_synthetic_baseline/outputs/baseline/current.json
 ```
 
-Open `report.html` inside its `run_directory`. For smoke output, use `evaluation/01_synthetic_baseline/outputs/baseline_smoke/current.json`. These pointers identify the most recently initialized run in each root, including partial runs.
+Open `report.html` inside each `run_directory`. Smoke roots are `diagnostics_smoke` and `baseline_smoke`. These pointers identify the most recently initialized run in each root, including partial runs. Inspect diagnostics coverage first, then exact-feature ambiguity, oracle graph trade-offs, and hop-tree threshold curves. Empirical feature-cell ambiguity is not a universal performance ceiling.
+
+Baseline layout:
 
 ```text
 <output-root>/
   current.json
   artifacts/
-    truth/<id>/           relationships.parquet, nodes.parquet, manifest.json
-    observations/<id>/    pairs.parquet, cases.parquet, manifest.json
     models/<id>/          models.json, manifest.json
     scores/<id>/          scores.parquet, manifest.json
     trees/<id>/           tree files, tool logs, provenance
@@ -305,6 +337,8 @@ Open `report.html` inside its `run_directory`. For smoke output, use `evaluation
     manifest.json         resolved config, implementation/tool identity, last status
     settings.json         setting_id -> complete method definition
     inputs.json           transmission tree path, checksum, and provenance
+    experiment.json       pinned shared experiment_directory and fingerprint
+    diagnostics.json      matching diagnostics completion reference
     development/
       metrics.csv, summary.csv, frontier.csv
       seed_<seed>/pairwise/
@@ -318,6 +352,13 @@ Open `report.html` inside its `run_directory`. For smoke output, use `evaluation
     report.md, report.html, figures/
 ```
 
+Shared `artifacts/backbones/`, `artifacts/truth/`, and `artifacts/observations/`
+live under `evaluation/shared_synthetic/outputs/synthetic[_smoke]/`. Follow the
+baseline run's `experiment.json` to resolve them. That shared root's `current.json`
+uses `experiment_directory`, not `run_directory`. Its `heldout_access/seed_<seed>.json`
+ledger survives study-output cleanup. See the [shared layout](evaluation/shared_synthetic/README.md#artifact-and-provenance-contract)
+and [diagnostic output contract](OUTPUTS.md#13-shared-experiments-and-diagnostics).
+
 Files appear as their stages complete. Reports, aggregate tables, and status files are refreshed by subsequent commands. In each seed's clustering directory, `status.json` lists configured/completed counts and errors; `<setting-id>/` contains `memberships.parquet`, `clusters.parquet`, `metrics.json`, `algorithm.json`, and an artifact manifest.
 
 ### Read development evidence in this order
@@ -328,14 +369,7 @@ Files appear as their stages complete. Reports, aggregate tables, and status fil
 4. **Clustering trade-offs:** use `components_thresholds.png`, `leiden_threshold_resolution.png`, `treecluster_thresholds.png`, and `cluster_tradeoffs.png` under `figures/`. Inspect singleton/largest-cluster behavior alongside recovery and contamination. Broaden useful regions that touch grid boundaries during development.
 5. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by pipeline. Use `settings.json` to translate a setting ID into thresholds and algorithms.
 
-For M=0, every M\>0 pair is a false positive. M\>=3 contamination measures only distant relationships. Cluster precision includes every within-cluster pair, including pair
-
-| col1 | col2 | col3 |
-| ---- | ---- | ---- |
-|      |      |      |
-|      |      |      |
-
-s connected only transitively by graph edges. An empty selection or all-singleton partition has undefined pair precision; `undefined`/blank values in the reports can therefore be expected. Logistic calibration applies to probabilities; EpiLink values are raw compatibility scores. SD is undefined when a split has only one realization, as in the smoke workflow.
+For M=0, every M\>0 pair is a false positive. M\>=3 contamination measures only distant relationships. Cluster precision includes every within-cluster pair, including pairs connected only transitively by graph edges. An empty selection or all-singleton partition has undefined pair precision; `undefined`/blank values in the reports can therefore be expected. Logistic calibration applies to probabilities; EpiLink values are raw compatibility scores. Baseline SD is undefined when a split has only one realization, as in the smoke workflow.
 
 After evaluation, `evaluation/operating_results.csv` gives per-seed results joined to criterion names, and `operating_summary.csv` summarizes them. `selection_used.json` records the frozen decisions actually replayed. Variability is conditional on the fixed backbone; pairs are dependent.
 
@@ -378,7 +412,7 @@ Inspect `selection/operating_points.json` and the updated report. Selection also
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage evaluate
 ```
 
-Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised criteria require fresh evaluation seeds and a newly selected experiment; the runner rejects replacement decisions within an already evaluated run.
+Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory.
 
 ## 9. Resume work and understand caching
 
@@ -400,6 +434,10 @@ select the same component. Explicit prebuilt trees without a manifest are
 retained; use a separate input directory to reconstruct a different backbone
 while keeping the previous one.
 
+Retained outputs from earlier versions are historical results. Produce current
+evidence using diagnostics followed by baseline; old baseline-local truth and
+observation directories do not establish the shared-experiment completion contract.
+
 ## 10. Troubleshooting
 
 | Symptom                                                        | What to check / next action                                                                                                                                                    |
@@ -408,27 +446,34 @@ while keeping the previous one.
 | `Executable not found`                                         | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                           |
 | CSV parsing fails on a fresh checkout                          | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                       | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
+| Baseline requests diagnostics or reports mismatched development data | Run diagnostics `--stage all` with the matching shared config and smoke mode; inspect its coverage and failures. |
+| Diagnostics tree control rejects a forest | Use a single rooted transmission tree for this control; no between-component hop distance is defined. The failure remains visible in coverage. |
 | Report says`partial` / selection reports an incomplete sweep   | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                       |
 | FastME or TreeTime fails                                       | Inspect`<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path.     |
 | TreeCluster fails                                              | Inspect`<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
 | External command times out                                     | Inspect its stderr log and`treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.                  |
 | No frozen operating settings                                   | Run`select` for the exact experiment/output root before `evaluate`.                                                                                                            |
 | `No operating criterion is feasible`                           | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                          |
-| Criteria changed or held-out seeds already accessed            | Before access, rerun`select`. After access, assign fresh evaluation seeds before revised selection/evaluation.                                                                 |
+| Criteria changed or held-out seeds already accessed            | Before access, rerun `select`. After access, assign fresh evaluation seeds in the shared config and rerun diagnostics and baseline selection; reset preserves the ledger. |
 | `current.json` missing when running `report`                   | Check config/output/smoke arguments. A computational stage must initialize that root first.                                                                                    |
 | A rerun writes a different run ID                              | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                             |
 | Incubation parameter error                                     | The Gamma incubation shape is`1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                       |
 
 ## 11. Clear outputs with reset-outputs
 
-To clear evaluation outputs and start fresh, use the `reset-outputs` command. This removes runs, artifacts, and the current.json pointer from the specified evaluation directories.
+To clear study results, use `reset-outputs`. It removes runs, study artifacts, and
+the `current.json` pointer from the selected standard study roots, while preserving
+the shared experiment and held-out access history.
 
 ```bash
 # Preview what would be deleted (recommended first)
 epilink-evaluate reset-outputs --dry-run
 
-# Clear all evaluation outputs (baseline, perturbation, boston)
+# Clear all study outputs (diagnostics, baseline, perturbation, boston)
 epilink-evaluate reset-outputs
+
+# Clear only diagnostics outputs (includes diagnostics_smoke)
+epilink-evaluate reset-outputs --evaluations diagnostics
 
 # Clear only baseline outputs (includes baseline_smoke)
 epilink-evaluate reset-outputs --evaluations baseline
@@ -445,8 +490,12 @@ The command removes:
 
 Use `--dry-run` to inspect the selected paths. The command targets the standard
 run roots listed above; `--output` does not select a custom cleanup location.
-Shared `outputs/inputs/` directories, including the baseline backbone and Boston
-tables, are retained.
+The entire `evaluation/shared_synthetic/outputs/` area is retained, including
+prepared inputs, shared backbones/truth/observations, experiment manifests, and
+both full/smoke held-out access ledgers. Boston's `outputs/inputs/` is also retained.
+After clearing diagnostics, rerun it before baseline; the surviving shared marker
+alone cannot validate deleted diagnostic evidence. Reset does not make accessed
+evaluation seeds available for revised selection.
 
 ## 12. Perturbation and Boston application
 

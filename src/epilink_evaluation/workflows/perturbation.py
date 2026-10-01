@@ -7,7 +7,7 @@ from pathlib import Path
 import networkx as nx
 import pandas as pd
 
-from ..inputs.synthetic import prepare_truth
+from ..inputs.synthetic import prepare_observations, prepare_truth
 from ..provenance import (
     complete_artifact,
     fingerprint,
@@ -111,6 +111,16 @@ class FrozenReplay(Baseline):
     def train(self):
         """Models were loaded from the reference; this path never fits a classifier."""
         return
+
+    def dataset(self, seed):
+        """Fresh scenario observations; baseline holdout access is not inherited."""
+        if seed not in self.config["splits"]["evaluation"]:
+            raise ValueError("Perturbation may only access its configured fresh seeds")
+        if seed not in self.datasets:
+            self.datasets[seed] = prepare_observations(
+                self.config, self.tree, self.truth_directory, seed, self.implementation
+            )
+        return self.datasets[seed]
 
     def select(self):
         raise ValueError(
