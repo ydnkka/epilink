@@ -25,19 +25,21 @@ exploration:
   scorers: [EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D]
   graph:
     thresholds:
-      epilink: [0.1, 0.25, 0.5, 0.75, 1.0]
-      genetic: [0, 1, 2, 3, 4]
-      logistic: [0.01, 0.1, 0.25, 0.5, 0.75]
+      epilink: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0]
+      genetic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      logistic: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0]
     clustering:
       algorithms: [components, leiden]
       leiden:
         objective: CPM
         weight_policies: [binary, native]
-        resolutions: [0.05, 0.1, 0.3, 0.5, 0.75]
+        resolutions: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
         restarts: 5
         seed: 65001
   treecluster:
     enabled: true
     methods: [max_clade, avg_clade, single_linkage]
-    genetic_thresholds: [0, 0.0001, 0.0005, 0.001, 0.002]
-    threshold_days: [7, 14, 28, 42, 56, 70]
+    # Genetic thresholds are specified as SNP counts (integer) and converted
+    # internally to substitutions per site using the alignment length.
+    genetic_thresholds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    threshold_days: [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70]

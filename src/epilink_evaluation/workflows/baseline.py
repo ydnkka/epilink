@@ -175,7 +175,7 @@ class Baseline:
             if definition["kind"] == "pairwise"
         }
         for seed in self.config["splits"][split]:
-            observations, _, truth_frame, scores, score_id = self.scores(seed)
+            _, _, truth_frame, scores, score_id = self.scores(seed)
             signature = {
                 "run": fingerprint(self.signature),
                 "score_id": score_id,

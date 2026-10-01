@@ -182,7 +182,7 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `clustering.leiden.resolutions`                | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                         |
 | `treecluster.enabled`                          | Whether raw and dated phylogenetic comparisons are included.                                                                         |
 | `treecluster.methods`                          | Methods to sweep: `max_clade`, `avg_clade`, `single_linkage`.                                                                        |
-| `treecluster.genetic_thresholds`               | Raw-tree branch-distance cutoffs in substitutions/site.                                                                              |
+| `treecluster.genetic_thresholds`               | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using `simulation.sequence_length`. |
 | `treecluster.threshold_days`, `days_per_year`  | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                 |
 | `treecluster.fastme_method`                    | FastME method code passed through `-m`; the supplied value is `N`.                                                                   |
 | `treecluster.raw_rooting`, `negative_branches` | Supported policies: `midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                  |

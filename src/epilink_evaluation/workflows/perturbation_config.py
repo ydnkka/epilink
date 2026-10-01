@@ -9,8 +9,12 @@ import yaml
 from ..config import natural_history
 
 PARAMETERS = {
-    "incubation.mean", "incubation.cv", "testing_delay.mean",
-    "testing_delay.cv", "substitution_rate", "relaxation",
+    "incubation.mean",
+    "incubation.cv",
+    "testing_delay.mean",
+    "testing_delay.cv",
+    "substitution_rate",
+    "relaxation",
 }
 MODES = {"matched", "baseline_fixed"}
 
@@ -28,27 +32,37 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
         config["baseline_run"] = str(Path(baseline_run).resolve())
     config["config_path"] = str(path)
     seeds = config["seeds"]
-    if (not seeds or any(type(seed) is not int or seed < 0 for seed in seeds)
-            or len(set(seeds)) != len(seeds)):
+    if (
+        not seeds
+        or any(type(seed) is not int or seed < 0 for seed in seeds)
+        or len(set(seeds)) != len(seeds)
+    ):
         raise ValueError("Perturbation seeds must be distinct nonnegative integers")
     modes = config["modes"]
     if not modes or not set(modes) <= MODES or len(set(modes)) != len(modes):
-        raise ValueError("Modes must be a unique nonempty subset of matched, baseline_fixed")
+        raise ValueError(
+            "Modes must be a unique nonempty subset of matched, baseline_fixed"
+        )
     if not config["perturbations"]:
         raise ValueError("Configure at least one parameter perturbation")
     parameters = []
     for item in config["perturbations"]:
         parameter = item["parameter"]
         if parameter not in PARAMETERS or parameter in parameters:
-            raise ValueError(f"Unsupported or duplicate perturbation parameter: {parameter}")
+            raise ValueError(
+                f"Unsupported or duplicate perturbation parameter: {parameter}"
+            )
         parameters.append(parameter)
         kinds = set(item) - {"parameter"}
         if kinds not in ({"multipliers"}, {"values"}):
             raise ValueError("Each parameter requires either multipliers or values")
         kind = next(iter(kinds))
         levels = item[kind]
-        if (not levels or any(type(x) not in (int, float) or not np.isfinite(x)
-                              for x in levels) or len(set(levels)) != len(levels)):
+        if (
+            not levels
+            or any(type(x) not in (int, float) or not np.isfinite(x) for x in levels)
+            or len(set(levels)) != len(levels)
+        ):
             raise ValueError(f"Invalid perturbation levels for {parameter}")
         if kind == "multipliers" and any(x <= 0 for x in levels):
             raise ValueError("Perturbation multipliers must be positive")
@@ -58,15 +72,21 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
         settings = config["smoke"]
         seed, cases = settings["seed"], settings["cases"]
         if type(seed) is not int or seed < 0 or seed in seeds:
-            raise ValueError("Smoke seed must be nonnegative and separate from study seeds")
+            raise ValueError(
+                "Smoke seed must be nonnegative and separate from study seeds"
+            )
         if type(cases) is not int or cases < 4:
             raise ValueError("Smoke cases must be an integer of at least four")
         chosen = settings["parameters"]
         if not chosen or not set(chosen) <= set(parameters):
-            raise ValueError("Smoke parameters must be a nonempty subset of configured parameters")
+            raise ValueError(
+                "Smoke parameters must be a nonempty subset of configured parameters"
+            )
         config["seeds"] = [seed]
         config["case_limit"] = cases
-        config["perturbations"] = [x for x in config["perturbations"] if x["parameter"] in chosen]
+        config["perturbations"] = [
+            x for x in config["perturbations"] if x["parameter"] in chosen
+        ]
         config["name"] += "_smoke"
         config["output_directory"] += "_smoke"
     return config
@@ -74,9 +94,16 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
 
 def scenarios(config, baseline_parameters):
     """Resolve absolute levels without mutating the reference or coupling parameters."""
-    result = [{"name": "baseline", "parameter": None, "value": None,
-               "baseline_value": None, "multiplier": None,
-               "generation": deepcopy(baseline_parameters)}]
+    result = [
+        {
+            "name": "baseline",
+            "parameter": None,
+            "value": None,
+            "baseline_value": None,
+            "multiplier": None,
+            "generation": deepcopy(baseline_parameters),
+        }
+    ]
     names = {"baseline"}
     for item in config["perturbations"]:
         parameter = item["parameter"]
@@ -87,10 +114,18 @@ def scenarios(config, baseline_parameters):
         kind = "multipliers" if "multipliers" in item else "values"
         for level in item[kind]:
             value = float(source * level if kind == "multipliers" else level)
-            if not np.isfinite(value) or value < 0 or (value == 0 and parameter != "relaxation"):
-                raise ValueError(f"Invalid value for {parameter}: {value}; only relaxation may be zero")
+            if (
+                not np.isfinite(value)
+                or value < 0
+                or (value == 0 and parameter != "relaxation")
+            ):
+                raise ValueError(
+                    f"Invalid value for {parameter}: {value}; only relaxation may be zero"
+                )
             if value == source:
-                raise ValueError(f"{parameter} level {level} duplicates the baseline control")
+                raise ValueError(
+                    f"{parameter} level {level} duplicates the baseline control"
+                )
             generation = deepcopy(baseline_parameters)
             target = generation
             for key in keys[:-1]:
@@ -103,8 +138,14 @@ def scenarios(config, baseline_parameters):
             if name in names:
                 raise ValueError(f"Duplicate scenario name: {name}")
             names.add(name)
-            result.append({"name": name, "parameter": parameter, "value": value,
-                           "baseline_value": float(source),
-                           "multiplier": float(level) if kind == "multipliers" else None,
-                           "generation": generation})
+            result.append(
+                {
+                    "name": name,
+                    "parameter": parameter,
+                    "value": value,
+                    "baseline_value": float(source),
+                    "multiplier": float(level) if kind == "multipliers" else None,
+                    "generation": generation,
+                }
+            )
     return result

@@ -64,9 +64,14 @@ def validate(config):
             raise ValueError(f"Invalid {family} threshold grid")
         if family == "logistic" and any(t < 0 or t > 1 for t in thresholds):
             raise ValueError("Probability thresholds must be in [0, 1]")
-    for name in ("genetic_thresholds", "threshold_days"):
+    for name in ("threshold_days",):
         if any(not np.isfinite(t) or t < 0 for t in config["treecluster"][name]):
             raise ValueError("TreeCluster thresholds must be finite and nonnegative")
+    genetic_thresholds = config["treecluster"]["genetic_thresholds"]
+    if not genetic_thresholds or any(
+        not np.isfinite(t) or t < 0 or int(t) != t for t in genetic_thresholds
+    ):
+        raise ValueError("genetic_thresholds must be nonnegative integers (SNP counts)")
     tree_seed = config["treecluster"]["rng_seed"]
     if type(tree_seed) is not int or tree_seed < 0:
         raise ValueError("TreeTime rng_seed must be a nonnegative integer")
