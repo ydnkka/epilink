@@ -280,8 +280,38 @@ def test_default_boston_config_covers_expanded_models():
     assert Path(config["trees"]["alignment_path"]).exists()
     assert (
         Path(config["inputs"]["cases_path"])
-        == Path(config["output_directory"]) / "boston_inputs/cases.parquet"
+        == root / "evaluation/03_boston_application/outputs/inputs/cases.parquet"
     )
+
+
+def test_boston_workflow_prepares_shared_inputs(evaluated_baseline, tmp_path, monkeypatch):
+    from epilink_evaluation.inputs import boston as adapter
+
+    config = boston_config(tmp_path, evaluated_baseline)
+    cases = pd.read_parquet(config["inputs"]["cases_path"])
+    pairs = pd.read_parquet(config["inputs"]["pairs_path"])
+    prepared = tmp_path / "outputs/inputs"
+    config["inputs"].update(
+        data_root=str(tmp_path / "data"),
+        cases_path=str(prepared / "cases.parquet"),
+        pairs_path=str(prepared / "observed_pairs.parquet"),
+    )
+    calls = []
+
+    def prepare(data_root, output):
+        calls.append((data_root, output))
+        output.mkdir(parents=True)
+        cases.to_parquet(output / "cases.parquet", index=False)
+        pairs.to_parquet(output / "observed_pairs.parquet", index=False)
+
+    monkeypatch.setattr(adapter, "prepare_boston", prepare)
+    study = BostonEmpirical(config)
+    assert calls == [(str(tmp_path / "data"), prepared)]
+    assert study.n_cases == len(cases)
+    assert read_json(study.directory / "inputs.json")["cases_path"] == str(
+        prepared / "cases.parquet"
+    )
+
 
 def test_boston_report_includes_tree_only_results(tmp_path):
     from epilink_evaluation.provenance import write_json

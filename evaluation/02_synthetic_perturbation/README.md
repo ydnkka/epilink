@@ -57,8 +57,10 @@ The default config resolves
 particular completed baseline, use its run directory:
 
 ```bash
-python evaluation/02_synthetic_perturbation/run.py --smoke --baseline-run evaluation/01_synthetic_baseline/outputs/baseline/runs/91a6a1370408b0849567
+python evaluation/02_synthetic_perturbation/run.py --smoke --baseline-run "evaluation/01_synthetic_baseline/outputs/baseline/runs/<completed-run-id>"
 ```
+
+Replace `<completed-run-id>` with the ID of your completed baseline run.
 
 `--baseline-run` also accepts a baseline `current.json`. The resolved reference,
 its frozen decisions, and its model/truth identities are saved with the new study.
@@ -214,8 +216,9 @@ the reference. New workflow, CLI, and reporting code can consume a previous
 baseline without forcing its development sweep to run again.
 
 The frozen topology is reconstructed from the validated truth artifact and saved
-as a new study backbone. Changing the live `data/derived/` tree cannot replace
-that reference topology. Frozen model bytes are copied into the study's model
+under the perturbation root's `artifacts/backbones/<id>/transmission_tree.gml`.
+Changing the live baseline `outputs/inputs/` tree cannot replace that reference
+topology. Frozen model bytes are copied into the study's model
 artifacts; training dataset identities still refer to the source baseline.
 
 Changed perturbation configurations or implementations produce a new study run
@@ -238,6 +241,6 @@ links use the current directory names; the recorded counts are not a new test ru
   204 operating result rows, including 156 clustering evaluations.
 - All eight scorers and both raw/dated TreeCluster comparisons completed.
 
-[Open the saved smoke report](outputs/perturbation_smoke/runs/455c87d2dc1d53e6c7b8/report.html).
+[Historical smoke report (requires retained local outputs)](outputs/perturbation_smoke/runs/455c87d2dc1d53e6c7b8/report.html).
 Generated outputs are local ignored artifacts; the full perturbation study has
 not been run as part of this checkpoint.

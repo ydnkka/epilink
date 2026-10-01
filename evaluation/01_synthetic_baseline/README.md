@@ -192,6 +192,9 @@ From the repository root after `python -m pip install -e '.[test]'`:
 # Dependency checks and experiment size; no simulation.
 epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
 
+# Prepare or reuse the shared transmission backbone (also automatic below).
+epilink-evaluate scovmod --stage prepare --config evaluation/01_synthetic_baseline/config.yaml
+
 # Prepare training/development observations and shared truth only.
 python evaluation/01_synthetic_baseline/run.py --stage prepare
 
@@ -219,13 +222,24 @@ recorded in [VALIDATION.md](VALIDATION.md).
 FastME and TreeTime are used for tree construction/dating, and TreeCluster for
 tree partitions. Tools are discovered on PATH or beside the active Python
 interpreter; commands can also be configured explicitly. Reports list failures.
-Raw/processed source inputs are preserved. `prepare-tree` regenerates a missing
-backbone from raw SCoVMod data; an existing backbone is validated and retained.
+Raw/processed source inputs are preserved. `scovmod --stage prepare`
+and the baseline workflow share the same input preparation. Managed backbones
+are reused when the source hashes, construction settings, implementation and
+output checksums match. Explicit prebuilt trees without a manifest are retained.
+
+`scovmod --stage prepare` prepares only the transmission backbone and provenance.
+`baseline --stage prepare` additionally prepares truth and training/development
+observations. The `scovmod` command defaults to `prepare` and supports only that stage.
 
 ## Outputs and extension points
 
 Column definitions, formulas, missing-value conventions, metadata fields, and
 analysis joins are documented in the [output reference](../../OUTPUTS.md).
+
+`outputs/inputs/` contains `transmission_tree.gml`, its
+`transmission_tree.source.json` provenance, and `manifest.json`. Full and smoke
+runs share this backbone; `--output` changes the run root, not the input paths.
+Each run's `inputs.json` records the tree it used.
 
 `outputs/baseline/` contains shared `artifacts/` (truth, observations, fitted models,
 scores, trees), and fingerprinted `runs/<id>/` directories. `current.json` points

@@ -67,6 +67,8 @@ python -m pip install -e '.[test]'
 
 # Prepare Boston input tables (cases.parquet, observed_pairs.parquet)
 python evaluation/03_boston_application/run.py --stage prepare
+# Equivalent installed command:
+epilink-evaluate boston --stage prepare --config evaluation/03_boston_application/config.yaml
 
 # Build trees from the Boston alignment and run TreeCluster
 python evaluation/03_boston_application/run.py --stage trees
@@ -99,6 +101,7 @@ Edit [`config.yaml`](config.yaml) to change:
 | `baseline_run`                | Completed synthetic baseline run directory or `current.json` pointer.                                                                                     |
 | `output_directory`            | Boston output root (separate from baseline outputs).                                                                                                      |
 | `inputs.data_root`            | Root containing `raw/boston/` source files.                                                                                                               |
+| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables, defaulting to `outputs/inputs/` beside the config. Paths are independent of the run output root.                                            |
 | `scorers`                     | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. Aliases ES→ESS and ED→EDS are accepted but cannot be combined.                                |
 | `assessment.treecluster_path` | Optional external TreeCluster partition for comparison (TSV with `SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
 | `assessment.focus_exposures`  | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                   |
@@ -125,16 +128,25 @@ Source files under `data/raw/boston/`:
 | `MGH_DPH_98percent_772samples_tn93_distances.csv` | Pairwise TN93 distances (censored at 0.0005/site).      |
 | `MGH_DPH_98percent_772samples_aligned.fasta`      | Aligned sequences for tree building (uncensored).       |
 
-The `prepare` stage derives `cases.parquet` and `observed_pairs.parquet` with provenance. The TN93 pair table is **distance-censored**: missing pairs are unobserved, not zero distance. The candidate universe is explicit in the manifest.
+The `prepare` stage (`epilink-evaluate boston --stage prepare`) derives
+`cases.parquet` and `observed_pairs.parquet` with provenance under
+`evaluation/03_boston_application/outputs/inputs/`. Computational stages
+automatically use the same preparation and reuse matching artifacts. `--output`
+changes the run root, not these shared input paths. The TN93 pair table is
+**distance-censored**: missing pairs are unobserved, not zero distance. The
+candidate universe is explicit in the manifest.
 
 ## Outputs
 
-Default root: `evaluation/03_boston_application/outputs/boston/`
+- Run root: `evaluation/03_boston_application/outputs/boston/`
+- Shared inputs: `evaluation/03_boston_application/outputs/inputs/`
+
+The shared input directory contains `cases.parquet`, `observed_pairs.parquet`,
+and `manifest.json`. The run root contains:
 
 ```text
 boston/
   current.json                          # Latest run pointer
-  boston_inputs/                        # Prepared input tables and manifest
   artifacts/
     scores/<id>/                        # Pairwise compatibility scores
     trees/<id>/                         # Raw and dated tree artifacts

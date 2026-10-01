@@ -1,4 +1,4 @@
-# EpiLink evaluation: operational guide {#epilink-evaluation-operational-guide}
+# EpiLink evaluation: operational guide
 
 Use this guide to configure and run the project, locate results, and resume interrupted work. All shell commands below assume the **repository root** is the working directory.
 
@@ -9,24 +9,24 @@ Use this guide to configure and run the project, locate results, and resume inte
 - [Column-level output reference](OUTPUTS.md)
 - [Recorded validation checkpoint](evaluation/01_synthetic_baseline/VALIDATION.md)
 
-## Contents {#contents}
+## Contents
 
-- [EpiLink evaluation: operational guide {#epilink-evaluation-operational-guide}](#epilink-evaluation-operational-guide-epilink-evaluation-operational-guide)
-  - [Contents {#contents}](#contents-contents)
+- [EpiLink evaluation: operational guide](#epilink-evaluation-operational-guide)
+  - [Contents](#contents)
   - [1. How the pipeline works](#1-how-the-pipeline-works)
   - [2. Environment and source inputs](#2-environment-and-source-inputs)
-    - [Existing checkout {#existing-checkout}](#existing-checkout-existing-checkout)
-    - [Fresh environment {#fresh-environment}](#fresh-environment-fresh-environment)
-    - [Obtain inputs and check the installation {#obtain-inputs-and-check-the-installation}](#obtain-inputs-and-check-the-installation-obtain-inputs-and-check-the-installation)
+    - [Existing checkout](#existing-checkout)
+    - [Fresh environment](#fresh-environment)
+    - [Obtain inputs and check the installation](#obtain-inputs-and-check-the-installation)
   - [3. Configure an experiment](#3-configure-an-experiment)
-    - [Inputs, simulation, and seeds {#inputs-simulation-and-seeds}](#inputs-simulation-and-seeds-inputs-simulation-and-seeds)
-    - [Natural-history parameters {#natural-history-parameters}](#natural-history-parameters-natural-history-parameters)
-    - [Scorers, grids, and comparison settings {#scorers-grids-and-comparison-settings}](#scorers-grids-and-comparison-settings-scorers-grids-and-comparison-settings)
+    - [Inputs, simulation, and seeds](#inputs-simulation-and-seeds)
+    - [Natural-history parameters](#natural-history-parameters)
+    - [Scorers, grids, and comparison settings](#scorers-grids-and-comparison-settings)
   - [4. Prepare or regenerate the SCoVMod tree](#4-prepare-or-regenerate-the-scovmod-tree)
   - [5. Run smoke validation and the baseline](#5-run-smoke-validation-and-the-baseline)
   - [6. Stage reference](#6-stage-reference)
   - [7. Find and interpret results](#7-find-and-interpret-results)
-    - [Read development evidence in this order {#read-development-evidence-in-this-order}](#read-development-evidence-in-this-order-read-development-evidence-in-this-order)
+    - [Read development evidence in this order](#read-development-evidence-in-this-order)
   - [8. Choose and freeze operating criteria](#8-choose-and-freeze-operating-criteria)
   - [9. Resume work and understand caching](#9-resume-work-and-understand-caching)
   - [10. Troubleshooting](#10-troubleshooting)
@@ -35,7 +35,7 @@ Use this guide to configure and run the project, locate results, and resume inte
 
 ## 1. How the pipeline works
 
-The three studies live under `evaluation/`. The baseline compares methods against known transmission relationships and freezes operating points. Perturbation tests their sensitivity to biological parameter changes; Boston examines empirical transfer and clustering-parameter sensitivity. Both downstream studies use the completed baseline directly. Sections 3–9 describe the baseline; section 11 gives the downstream commands and their distinct stage behavior.
+The three studies live under `evaluation/`. The baseline compares methods against known transmission relationships and freezes operating points. Perturbation tests their sensitivity to biological parameter changes; Boston examines empirical transfer and clustering-parameter sensitivity. Both downstream studies use the completed baseline directly. Sections 3–9 describe the baseline; section 12 gives the downstream commands and their distinct stage behavior.
 
 ```text
 SCoVMod infection and transmission CSVs
@@ -64,7 +64,7 @@ Implementation entry points are [`cli.py`](src/epilink_evaluation/cli.py) and [`
 
 ## 2. Environment and source inputs
 
-### Existing checkout {#existing-checkout}
+### Existing checkout
 
 ```bash
 conda activate epilik_evaluation
@@ -77,7 +77,7 @@ The environment name is spelled `epilik_evaluation`. The local interpreter used 
 /opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/python
 ```
 
-### Fresh environment {#fresh-environment}
+### Fresh environment
 
 The package declares Python \>=3.10; the recorded validation used Python 3.14. For a new Conda environment:
 
@@ -97,7 +97,7 @@ The runner searches PATH first, then the active interpreter's directory. To spec
 
 Boston tree construction also requires the standalone `tn93` executable. Install it separately (for example, `conda install -c bioconda tn93` where available), or set `trees.tn93_executable` in the Boston config. The baseline `check` command checks baseline tools; it does not check Boston's TN93 dependency.
 
-### Obtain inputs and check the installation {#obtain-inputs-and-check-the-installation}
+### Obtain inputs and check the installation
 
 Tracked CSV, TSV, Parquet, sequence, and several tree formats use Git LFS. On a fresh checkout with Git LFS installed:
 
@@ -113,7 +113,10 @@ data/raw/scovmod/InfectedIndividuals.1.csv
 data/raw/scovmod/TransmissionEvents.1.csv
 ```
 
-`data/derived/` and new experiment outputs are ignored by Git. Obtain the intended derived tree from the working copy or generate it as described below.
+Prepared inputs and run outputs under each study's `outputs/` directory are
+ignored by Git. Generate the baseline tree in
+`evaluation/01_synthetic_baseline/outputs/inputs/` as described below, or configure
+`inputs.tree_path` to use an existing supplied tree.
 
 ```bash
 epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
@@ -126,8 +129,11 @@ epilink-evaluate check --config evaluation/01_synthetic_baseline/config.yaml
 The default configuration is [`evaluation/01_synthetic_baseline/config.yaml`](evaluation/01_synthetic_baseline/config.yaml). For another experiment, save a complete copy alongside it, edit that copy, and pass it consistently with `--config evaluation/01_synthetic_baseline/my_experiment.yaml`.
 
 **Path rules:** `output_directory`, `inputs.tree_path`, `inputs.infection_path`, and `inputs.transmission_path` are resolved relative to the YAML file. Thus `outputs/baseline` in the default config means `evaluation/01_synthetic_baseline/outputs/baseline`. Moving a config to a different directory changes those relative paths. CLI `--config` and `--output` paths are relative to the shell's working directory; executable overrides are best made absolute.
+The optional `inputs.tree_source_path` is also config-relative; by default it is
+the tree's companion `.source.json` file. Input paths are shared across run roots,
+so changing `--output` does not relocate prepared inputs.
 
-### Inputs, simulation, and seeds {#inputs-simulation-and-seeds}
+### Inputs, simulation, and seeds
 
 | Configuration field                          | Meaning                                                                                                           |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -149,7 +155,7 @@ The default configuration is [`evaluation/01_synthetic_baseline/config.yaml`](ev
 
 Observation seeds must be nonnegative integers, unique across all three splits. Algorithm seeds control inference randomness independently of observation seeds.
 
-### Natural-history parameters {#natural-history-parameters}
+### Natural-history parameters
 
 `generation` configures observation simulation; `inference` configures EpiLink. The active baseline requires equal values in these two sections. The supplied YAML anchor, `generation: &natural_history` and `inference: *natural_history`, keeps them matched when the generation block is edited.
 
@@ -166,7 +172,7 @@ Observation seeds must be nonnegative integers, unique across all three splits. 
 
 The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. TreeTime estimates its clock from the generated observations.
 
-### Scorers, grids, and comparison settings {#scorers-grids-and-comparison-settings}
+### Scorers, grids, and comparison settings
 
 | Field                                          | Meaning                                                                                                                              |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -195,29 +201,37 @@ The runner also adds an explicit empty-selection setting to each scorer's grid. 
 ## 4. Prepare or regenerate the SCoVMod tree
 
 ```bash
-epilink-evaluate prepare-tree --config evaluation/01_synthetic_baseline/config.yaml
+epilink-evaluate scovmod --stage prepare --config evaluation/01_synthetic_baseline/config.yaml
 ```
 
-- **Existing `tree_path`:** validate the graph and return its path. The tree and provenance are retained, even if `target_component_size` or `tree_seed` changed.
-- **Missing `tree_path`:** reconstruct from the raw CSVs, write the tree, and write a companion `<tree-stem>.source.json`.
+- The default tree and provenance live in `evaluation/01_synthetic_baseline/outputs/inputs/`.
+- `scovmod --stage prepare` and baseline initialization use the same preparation and configured input paths, seed, and target size.
+- `scovmod` supports only `prepare` (also its default stage). It writes the backbone and provenance; `baseline --stage prepare` additionally creates truth and training/development observations.
+- **Matching managed artifact:** reuse the tree after validating the manifest's input/settings signature and output checksums.
+- **Missing or stale managed artifact:** reconstruct from the raw CSVs, write the tree, companion `<tree-stem>.source.json`, and `manifest.json`.
+- **Explicit prebuilt tree without a manifest:** validate the graph and retain it without requiring raw inputs.
+- Full and smoke runs share these inputs. `--output` changes the run root, not the prepared input paths.
 
 To generate a new target while keeping the previous tree, edit these entries in the existing config, keeping its other fields:
 
 ```yaml
 inputs:
-  tree_path: ../../data/derived/scovmod/transmission_tree_target1000_seed12345.gml
+  tree_path: outputs/inputs_target1000_seed12345/transmission_tree.gml
   target_component_size: 1000
   tree_seed: 12345
 ```
 
-Choose a filename that does not already exist, then run `prepare-tree` again. There is no CLI `--force` or target-size override; these settings live in YAML.
+Choose a separate directory to retain the old artifact, then run `scovmod --stage prepare`
+again. By default, provenance is saved beside the tree; if using an explicit
+`tree_source_path`, update it too. There is no CLI `--force` or target-size
+override; these settings live in YAML.
 
 Reconstruction assigns candidate infectors using the seed, keeps one incoming edge per case ordered by earliest time then infector ID, and chooses the weakly connected component closest to the requested size. Equally close sizes prefer the larger component, then the lowest member ID. A spanning transmission tree is constructed from that component. Actual case count can differ from the target; changing the target can also select the same component again.
 
 Inspect the provenance for the example above:
 
 ```bash
-python -m json.tool data/derived/scovmod/transmission_tree_target1000_seed12345.source.json
+python -m json.tool evaluation/01_synthetic_baseline/outputs/inputs_target1000_seed12345/transmission_tree.source.json
 ```
 
 `n_cases` is the actual count. `target_size`, `seed`, input hashes, and `tree_sha256` identify the reconstruction. Use the actual recorded size rather than assuming that it equals the requested target component size. The `artifacts/truth/<id>/manifest.json` in a baseline run also records its actual `n_cases` and `n_pairs`, including any smoke subset.
@@ -239,7 +253,7 @@ Run full development using the configured tree and grids:
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage develop
 ```
 
-Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. The supplied grids define 2,044 operating settings per development realization; `check` reports the count for your configuration. Work scales with the grids, replicates, and number of pairs: `n * (n - 1) / 2`. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
+Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. The supplied grids define 1,876 operating settings per development realization; `check` reports the count for your configuration. Work scales with the grids, replicates, and number of pairs: `n * (n - 1) / 2`. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
 The two baseline entry points are equivalent:
 
@@ -297,6 +311,7 @@ Open `report.html` inside its `run_directory`. For smoke output, use `evaluation
   runs/<run-id>/
     manifest.json         resolved config, implementation/tool identity, last status
     settings.json         setting_id -> complete method definition
+    inputs.json           transmission tree path, checksum, and provenance
     development/
       metrics.csv, summary.csv, frontier.csv
       seed_<seed>/pairwise/
@@ -312,7 +327,7 @@ Open `report.html` inside its `run_directory`. For smoke output, use `evaluation
 
 Files appear as their stages complete. Reports, aggregate tables, and status files are refreshed by subsequent commands. In each seed's clustering directory, `status.json` lists configured/completed counts and errors; `<setting-id>/` contains `memberships.parquet`, `clusters.parquet`, `metrics.json`, `algorithm.json`, and an artifact manifest.
 
-### Read development evidence in this order {#read-development-evidence-in-this-order}
+### Read development evidence in this order
 
 1. **Coverage:** confirm expected seeds and methods completed. Inspect `development/seed_<seed>/clusters/status.json` for missing comparisons.
 2. **Pairwise discrimination:** compare scorers within the same observed genetic process using `figures/pairwise_precision_recall.png` and each seed's `pairwise/rankings.csv`. AP summarizes rankings; threshold-specific precision, recall, F1, and selected counts are in `pairwise/metrics.csv`.
@@ -379,7 +394,11 @@ Run IDs incorporate scientific configuration, input/truth identity, implementati
 
 `selection`, `output_directory`, and the config-file path itself are excluded from the scientific configuration portion of the run ID. Selection decisions have their own validation; changing the output root changes where artifacts are found. The root-level pointer is updated when a run is initialized. Earlier run directories remain available; the pointer is not an index of successful runs.
 
-Changing `target_component_size` can change the run ID while an existing `tree_path` continues to supply the same tree. Generate a new tree explicitly when the scientific intention is a new backbone.
+Changing `target_component_size` or `tree_seed` invalidates a managed backbone's
+preparation signature and triggers reconstruction. Different targets can still
+select the same component. Explicit prebuilt trees without a manifest are
+retained; use a separate input directory to reconstruct a different backbone
+while keeping the previous one.
 
 ## 10. Troubleshooting
 
@@ -388,7 +407,7 @@ Changing `target_component_size` can change the run ID while an existing `tree_p
 | `epilink-evaluate: command not found` or module import failure | Activate the environment used for installation and run `python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.          |
 | `Executable not found`                                         | Run `check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                       |
 | CSV parsing fails on a fresh checkout                          | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run `git lfs pull` after installing Git LFS.                         |
-| Tree size did not change                                       | An existing `tree_path` is reused. Choose a new filename and run `prepare-tree`; inspect `n_cases` in the new provenance.                                                   |
+| Tree size did not change                                       | Inspect `n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Report says `partial` / selection reports an incomplete sweep  | Inspect `seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                   |
 | FastME or TreeTime fails                                       | Inspect `<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path. |
 | TreeCluster fails                                              | Inspect `<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                       |
@@ -424,7 +443,10 @@ The command removes:
 - All artifact directories under `artifacts/`
 - The `current.json` pointer file
 
-Always use `--dry-run` first to verify what will be deleted. Derived inputs (such as Boston's prepared tables) are not affected.
+Use `--dry-run` to inspect the selected paths. The command targets the standard
+run roots listed above; `--output` does not select a custom cleanup location.
+Shared `outputs/inputs/` directories, including the baseline backbone and Boston
+tables, are retained.
 
 ## 12. Perturbation and Boston application
 
@@ -445,6 +467,8 @@ See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for
 
 ```bash
 python evaluation/03_boston_application/run.py --stage prepare
+# Equivalent installed preparation command (uses the Boston config):
+epilink-evaluate boston --stage prepare --config evaluation/03_boston_application/config.yaml
 ```
 
 Run the frozen transfer analysis with:
@@ -461,15 +485,15 @@ python evaluation/03_boston_application/run.py --stage explore
 
 | Boston stage    | Work performed                                                                                                    |
 | --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `prepare`       | Write or reuse `boston_inputs/` tables and provenance.                                                            |
+| `prepare`       | Write or reuse `outputs/inputs/` tables and provenance.                                                          |
 | `trees`         | Build/reuse raw and dated trees and apply frozen TreeCluster settings. Graph scoring/clustering is not requested. |
 | `all` (default) | Score pairs, apply frozen graph settings, run enabled TreeCluster, and assess partitions.                         |
 | `explore`       | Sweep the configured graph and TreeCluster grids under `exploration/`. This is requested separately from `all`.   |
 | `report`        | Render saved results for the run identified by the Boston root's `current.json`.                                  |
 
-Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under `data/raw/boston/`. Outputs are under `evaluation/03_boston_application/outputs/boston/`. The TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero. The exploration stage is descriptive and must not be treated as Boston truth-based operating-point selection.
+Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under `data/raw/boston/`. Prepared tables are under `evaluation/03_boston_application/outputs/inputs/`; run results are under `evaluation/03_boston_application/outputs/boston/`. The TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero. The exploration stage is descriptive and must not be treated as Boston truth-based operating-point selection.
 
-The default exploration grid has 468 graph settings and 33 TreeCluster settings. Its scorer parameters and fitted models stay fixed while clustering settings vary. Inspect graph/tree `status.json` files within `exploration/` for completed counts and errors; a complete tree-only stage does not establish graph coverage.
+The supplied exploration grid has 1,722 graph settings and 66 TreeCluster settings. Its scorer parameters and fitted models stay fixed while clustering settings vary. Inspect graph/tree `status.json` files within `exploration/` for completed counts and errors; a complete tree-only stage does not establish graph coverage.
 
 Boston supports `--config`, `--output`, and `--baseline-run`, but not `--smoke`. YAML paths are relative to the Boston config; CLI overrides are relative to the working directory. The sibling baseline pointer is `../01_synthetic_baseline/outputs/baseline/current.json` in the supplied YAML. Repeat the same configuration and overrides to resume a run.
 

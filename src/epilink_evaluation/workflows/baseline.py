@@ -74,6 +74,32 @@ class Baseline:
         self.directory.mkdir(parents=True, exist_ok=True)
         self.definitions = settings_registry(config)
         write_json(self.directory / "settings.json", self.definitions)
+        tree_path = Path(config["inputs"]["tree_path"]).resolve()
+        tree_source_path = Path(
+            config["inputs"].get("tree_source_path")
+            or tree_path.with_suffix(".source.json")
+        )
+        if tree_source_path.exists():
+            tree_source = read_json(tree_source_path)
+            inputs_info = {
+                "tree_path": str(tree_path),
+                "tree_source_path": str(tree_source_path),
+                "tree_sha256": digest_file(tree_path),
+                "source_files": tree_source["inputs"],
+                "n_cases": tree_source["n_cases"],
+                "tree_seed": tree_source["seed"],
+                "target_component_size": tree_source["target_size"],
+                "implementation_sha256": tree_source["implementation_sha256"],
+            }
+        else:
+            inputs_info = {
+                "tree_path": str(tree_path),
+                "tree_sha256": digest_file(tree_path),
+                "n_cases": len(self.tree),
+                "tree_seed": config["inputs"]["tree_seed"],
+                "target_component_size": config["inputs"]["target_component_size"],
+            }
+        write_json(self.directory / "inputs.json", inputs_info)
         write_json(
             self.root / "current.json",
             {

@@ -102,7 +102,7 @@ class BostonEmpirical:
         )
         self.cases_path = Path(config["inputs"]["cases_path"])
         self.pairs_path = Path(config["inputs"]["pairs_path"])
-        prepared = self.root / "boston_inputs"
+        prepared = self.cases_path.parent
         if (
             "data_root" in config["inputs"]
             and self.cases_path == prepared / "cases.parquet"

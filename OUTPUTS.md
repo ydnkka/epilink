@@ -14,6 +14,18 @@ metric schemas as described in section 12. Boston's empirical schemas are in
 section 10. Boston has descriptive exposure summaries rather than synthetic
 truth metrics, observation seeds, or train/development/evaluation splits.
 
+Prepared inputs are shared outside the run roots:
+
+| Directory | Files |
+| --- | --- |
+| `evaluation/01_synthetic_baseline/outputs/inputs/` | `transmission_tree.gml`, `transmission_tree.source.json`, `manifest.json` |
+| `evaluation/03_boston_application/outputs/inputs/` | `cases.parquet`, `observed_pairs.parquet`, `manifest.json` |
+
+Both preparation commands and computational workflows use these locations.
+Changing `--output` or using baseline `--smoke` leaves configured input paths
+unchanged. Matching input artifacts are validated and reused. Each baseline or Boston run's
+`inputs.json` records the inputs used by that run.
+
 ## Contents
 
 1. [Conventions and identifiers](#1-conventions-and-identifiers)
@@ -570,9 +582,24 @@ requested stage rather than every possible stage in the study.
 
 ### Reconstructed SCoVMod tree provenance
 
+The prepared input directory defaults to
+`evaluation/01_synthetic_baseline/outputs/inputs/`. Its `manifest.json` checks
+the raw file paths/hashes, `tree_seed`, `target_component_size`, resolved tree
+and provenance paths, and implementation hash. The `files` mapping covers the
+GML tree and its source JSON. Matching artifacts are reused; changed signatures
+or file checksums trigger reconstruction.
+
 `<tree-stem>.source.json` contains `inputs` (input paths and SHA-256 hashes),
 `tree_sha256`, actual `n_cases`, requested `target_size`, reconstruction `seed`,
 `implementation_sha256`, and the `tie_order` description.
+
+Each baseline run also writes `inputs.json` beside `settings.json`. It records
+`tree_path`, the current `tree_sha256`, `n_cases`, `tree_seed`, and
+`target_component_size`. When source provenance is available, it also records
+`tree_source_path`, `source_files`, and `implementation_sha256`, using the
+recorded reconstruction metadata. The source `n_cases` describes the saved
+backbone; the truth artifact manifest records the case count used by the run,
+including any smoke subset.
 
 ## 9. Phylogenetic artifacts
 
@@ -613,13 +640,14 @@ remain distinct singletons.
 ## 10. Boston inputs and results
 
 Here `<root>` defaults to `evaluation/03_boston_application/outputs/boston/`.
-The input tables live under `<root>/boston_inputs/`, produced by
+The input tables live under `evaluation/03_boston_application/outputs/inputs/`, produced by
 `python evaluation/03_boston_application/run.py --stage prepare` or automatically
 by computational stages with the default input configuration. They contain
 empirical observations and metadata, without synthetic M truth labels.
 
-The separate `epilink-evaluate prepare-boston` command uses a **baseline** config
-and writes under that config's output root; it is not the Boston study entry point.
+`epilink-evaluate boston --stage prepare` uses the Boston config and the same preparation
+as the Boston `run.py --stage prepare` entry point. Both honor `inputs.cases_path` and
+`inputs.pairs_path`. Input paths are independent of the run's `--output` override.
 
 ### `cases.parquet`
 

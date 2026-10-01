@@ -33,7 +33,7 @@ directory numbers express the study presentation order.
 
 | Capability                    | Active implementation                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| SCoVMod tree preparation      | Available: `epilink-evaluate prepare-tree`. Existing trees are retained.                                        |
+| SCoVMod tree preparation      | Available: `epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                     |
 | Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.    |
 | Parameter sensitivity         | Available: `epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.   |
 | Boston input preparation      | Available: `epilink-evaluate boston --stage prepare`.                                                           |
@@ -109,13 +109,17 @@ Fresh-environment and Git LFS instructions are in the
 | `evaluation/03_boston_application/`                | Empirical transfer and clustering exploration                               |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                  |
-| `data/derived/`                                    | Regenerable input artifacts, including the fixed transmission backbone      |
+| `evaluation/01_synthetic_baseline/outputs/inputs/` | Prepared transmission backbone and provenance                               |
+| `evaluation/03_boston_application/outputs/inputs/` | Prepared Boston tables and provenance                                       |
 | `tests/`                                           | Independent scientific correctness and integration checks                   |
 
 Each study has its own `outputs/` directory containing an output root (`baseline`,
 `perturbation`, or `boston`). Within that root, `current.json` locates the latest
 initialized `runs/<id>/`, and content-addressed artifacts live under `artifacts/`.
 Baseline and perturbation smoke validation use separate roots ending in `_smoke`.
+Baseline and Boston prepared inputs are shared alongside their run roots, in
+each study's `outputs/inputs/`. Perturbation reconstructs its frozen backbone
+from baseline truth and stores it under its own `artifacts/backbones/`.
 Reports are `report.md` and `report.html` inside each run. The pointer can identify
 an incomplete run; check stage coverage before interpreting results.
 
@@ -125,13 +129,18 @@ Git LFS manages tracked data formats. Derived trees and study outputs are local
 ignored artifacts; retain them when moving an experiment, or regenerate them.
 
 The active baseline experiment uses the tree at `inputs.tree_path`.
-`epilink-evaluate prepare-tree` constructs a missing tree from the SCoVMod raw
-inputs and retains an existing tree. Its hash defines the experiment. Follow
+`epilink-evaluate scovmod --stage prepare` uses the same preparation
+as the baseline workflow, writing to `evaluation/01_synthetic_baseline/outputs/inputs/`.
+Matching managed artifacts are reused; changed inputs or construction settings
+trigger rebuilding. Explicit prebuilt trees without a manifest are retained.
+The tree hash defines the experiment. Follow
 the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree)
 to change the target component and check the actual case count.
 
 Boston's input adapter reads `data/raw/boston/` and writes derived tables and
-provenance under its output root. Its scoring table is censored at 0.0005
+provenance to `evaluation/03_boston_application/outputs/inputs/`.
+Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point.
+Its scoring table is censored at 0.0005
 substitutions/site; missing pairs remain unobserved. Tree construction separately
 computes all-pair TN93 distances from the alignment. See the
 [input-processing notes](data/raw/boston/boston_data_processing.md).
@@ -139,6 +148,10 @@ computes all-pair TN93 distances from the alignment. See the
 Saved manifests record paths at execution time. After relocating study
 directories, use the updated `current.json` pointers to locate results; recorded
 scientific signatures remain tied to their original execution.
+
+READMEs under `archive/pre_reset_2026-09-30/` document the archived workflow.
+The dated validation checkpoints record historical executions; their generated
+report links require the corresponding local output artifacts.
 
 The EpiLink model package is maintained separately at
 <https://github.com/ydnkka/epilink>.

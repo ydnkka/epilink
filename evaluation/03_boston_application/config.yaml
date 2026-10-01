@@ -4,7 +4,9 @@ baseline_run: ../01_synthetic_baseline/outputs/baseline/current.json
 output_directory: outputs/boston
 inputs:
   data_root: ../../data
-  # Prepared tables default to <output_directory>/boston_inputs/.
+  # Shared prepared inputs, independent of the run output directory.
+  cases_path: outputs/inputs/cases.parquet
+  pairs_path: outputs/inputs/observed_pairs.parquet
 # All four EpiLink inference/observation rules, two genetic rules and two
 # pretrained logistic rules are replayed on the same observed Boston GD/TD.
 # S/D in synthetic source names denotes the original observation process;

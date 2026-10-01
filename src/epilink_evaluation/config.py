@@ -15,7 +15,7 @@ def load_config(path):
     config = deepcopy(config)
     for key in ("output_directory",):
         config[key] = str((path.parent / config[key]).resolve())
-    for key in ("tree_path", "infection_path", "transmission_path"):
+    for key in ("tree_path", "tree_source_path", "infection_path", "transmission_path"):
         if config["inputs"].get(key):
             config["inputs"][key] = str((path.parent / config["inputs"][key]).resolve())
     config["config_path"] = str(path)

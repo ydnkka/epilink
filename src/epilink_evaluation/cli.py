@@ -47,7 +47,8 @@ def smoke_config(config):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("baseline", "check", "prepare-tree", "prepare-boston", "perturbation", "boston", "reset-outputs")
+        "command",
+        choices=("baseline", "check", "scovmod", "prepare-boston", "perturbation", "boston", "reset-outputs"),
     )
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
@@ -92,9 +93,13 @@ def main(argv=None):
         from .workflows.perturbation import PerturbationStudy
 
         return 0 if PerturbationStudy(config).run() else 1
-    if args.command == "boston":
+    if args.command in ("boston", "prepare-boston"):
         from .workflows.boston_config import load_study_config
 
+        if args.command == "prepare-boston":
+            if args.stage not in (None, "prepare"):
+                parser.error("prepare-boston only supports --stage prepare")
+            args.stage = "prepare"
         if args.stage not in (None, "prepare", "trees", "explore", "all", "report"):
             parser.error("Boston supports --stage prepare, trees, explore, all or report")
         if args.smoke:
@@ -128,6 +133,10 @@ def main(argv=None):
     if args.baseline_run:
         parser.error("--baseline-run applies to perturbation or boston only")
     args.config = args.config or Path("evaluation/01_synthetic_baseline/config.yaml")
+    if args.command == "scovmod":
+        if args.stage not in (None, "prepare"):
+            parser.error("SCoVMod supports --stage prepare only")
+        args.stage = "prepare"
     args.stage = args.stage or "develop"
     if args.stage == "trees":
         parser.error("--stage trees applies to boston only")
@@ -138,6 +147,11 @@ def main(argv=None):
         config["output_directory"] = str(args.output.resolve())
     if args.smoke:
         config = smoke_config(config)
+    if args.command == "scovmod":
+        from .inputs.scovmod import prepare_tree
+
+        print(prepare_tree(config).parent)
+        return 0
     from .scorers import SCORERS
 
     unknown = set(config["scorers"]) - set(SCORERS)
@@ -172,17 +186,6 @@ def main(argv=None):
             config["treecluster"]["enabled"]
             and any("unavailable" in tool for tool in tools.values())
         )
-    if args.command == "prepare-tree":
-        from .inputs.scovmod import prepare_tree
-
-        print(prepare_tree(config))
-        return 0
-    if args.command == "prepare-boston":
-        from .inputs.boston import prepare_boston
-
-        root = Path(config["inputs"]["infection_path"]).parents[2]
-        print(prepare_boston(root, Path(config["output_directory"]) / "boston_inputs"))
-        return 0
     if args.stage == "report":
         from .reporting.report import render_report
 

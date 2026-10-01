@@ -57,7 +57,7 @@ python evaluation/03_boston_application/run.py --stage prepare
 The adapter joins metadata and Nextclade annotations, removes self-pairs,
 canonicalizes unordered pair IDs, and computes **absolute** sample-date
 differences in days as `TD`. It writes `cases.parquet`, `observed_pairs.parquet`,
-and a provenance manifest under the Boston output root's `boston_inputs/`.
+and a provenance manifest under `evaluation/03_boston_application/outputs/inputs/`.
 Missing pairs from the censored TN93 table remain unobserved, not zero-distance.
 The [output reference](../../../OUTPUTS.md#10-boston-inputs-and-results) defines
 the columns and exposure-label assignment.

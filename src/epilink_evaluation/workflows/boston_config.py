@@ -44,7 +44,7 @@ def load_study_config(argv=None, config_path=None, baseline_run=None, output=Non
     inputs = config["inputs"]
     if "data_root" in inputs:
         inputs["data_root"] = str((config_path.parent / inputs["data_root"]).resolve())
-    prepared = Path(config["output_directory"]) / "boston_inputs"
+    prepared = config_path.parent / "outputs/inputs"
     for key, filename in (
         ("cases_path", "cases.parquet"),
         ("pairs_path", "observed_pairs.parquet"),

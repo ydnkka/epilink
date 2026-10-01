@@ -2,7 +2,8 @@ schema_version: 1
 name: matched_baseline
 output_directory: outputs/baseline
 inputs:
-  tree_path: ../../data/derived/scovmod/transmission_tree.gml
+  # Shared by full and smoke runs; provenance is saved beside the tree.
+  tree_path: outputs/inputs/transmission_tree.gml
   infection_path: ../../data/raw/scovmod/InfectedIndividuals.1.csv
   transmission_path: ../../data/raw/scovmod/TransmissionEvents.1.csv
   target_component_size: 5000
@@ -36,7 +37,7 @@ scorers: [EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S]
 thresholds:
   epilink: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0]
   genetic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  logistic: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0]
+  logistic: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
 pairwise:
   selected_fractions: [0.0005, 0.001, 0.005, 0.01]
 clustering:

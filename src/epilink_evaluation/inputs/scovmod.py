@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import ast
 import csv
+from os.path import relpath
 from pathlib import Path
 
 import networkx as nx
 import numpy as np
 
-from ..provenance import digest_file, write_json
+from ..provenance import complete_artifact, digest_file, valid_artifact, write_json
 from ..truth import TreeIndex
 
 
@@ -61,29 +62,43 @@ def build_tree(infections, transmissions, target_size, seed):
     return tree
 
 
-def prepare_tree(config):
+def prepare_scovmod_inputs(config):
+    """Build or reuse the configured backbone and its provenance artifact."""
     settings = config["inputs"]
-    path = Path(settings["tree_path"])
-    if path.exists():
-        TreeIndex(nx.read_gml(path))
-        return path
-    inputs = {key: settings[key] for key in ("infection_path", "transmission_path")}
+    tree_path = Path(settings["tree_path"])
+    output = tree_path.parent
+    source_json = Path(
+        settings.get("tree_source_path") or tree_path.with_suffix(".source.json")
+    )
+    inputs = {
+        key: {"path": str(settings[key]), "sha256": digest_file(settings[key])}
+        for key in ("infection_path", "transmission_path")
+    }
+    signature = {
+        "kind": "scovmod-inputs-v2",
+        "inputs": inputs,
+        "tree_seed": settings["tree_seed"],
+        "target_component_size": settings["target_component_size"],
+        "tree_path": str(tree_path),
+        "tree_source_path": str(source_json),
+        "implementation": digest_file(__file__),
+    }
+    if valid_artifact(output, signature):
+        TreeIndex(nx.read_gml(tree_path))
+        return output
     tree = build_tree(
-        parse_scovmod(inputs["infection_path"]),
-        parse_scovmod(inputs["transmission_path"]),
+        parse_scovmod(settings["infection_path"]),
+        parse_scovmod(settings["transmission_path"]),
         settings["target_component_size"],
         settings["tree_seed"],
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    nx.write_gml(tree, path)
+    output.mkdir(parents=True, exist_ok=True)
+    nx.write_gml(tree, tree_path)
     write_json(
-        path.with_suffix(".source.json"),
+        source_json,
         {
-            "inputs": {
-                key: {"path": value, "sha256": digest_file(value)}
-                for key, value in inputs.items()
-            },
-            "tree_sha256": digest_file(path),
+            "inputs": inputs,
+            "tree_sha256": digest_file(tree_path),
             "n_cases": len(tree),
             "seed": settings["tree_seed"],
             "target_size": settings["target_component_size"],
@@ -91,4 +106,23 @@ def prepare_tree(config):
             "tie_order": "sorted integer IDs; earliest time then infector ID",
         },
     )
+    complete_artifact(
+        output,
+        signature,
+        [tree_path.name, relpath(source_json, output)],
+        n_cases=len(tree),
+        tree_sha256=digest_file(tree_path),
+    )
+    return output
+
+
+def prepare_tree(config):
+    """Use a supplied tree or prepare a managed SCoVMod input artifact."""
+    settings = config["inputs"]
+    path = Path(settings["tree_path"])
+    # Explicit prebuilt trees need not have raw SCoVMod inputs or a manifest.
+    if path.exists() and not (path.parent / "manifest.json").exists():
+        TreeIndex(nx.read_gml(path))
+        return path
+    prepare_scovmod_inputs(config)
     return path
