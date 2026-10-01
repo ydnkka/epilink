@@ -35,11 +35,11 @@ scorer:
   logistic_C: 1.0
 scorers: [EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S]
 thresholds:
-  epilink: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 1.5, 2.0]
+  epilink: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
   genetic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  logistic: [0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+  logistic: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 pairwise:
-  selected_fractions: [0.0005, 0.001, 0.005, 0.01]
+  selected_fractions: [0.000025, 0.0005, 0.0001, 0.001, 0.01]
 clustering:
   algorithms: [components, leiden]
   leiden:
@@ -54,7 +54,7 @@ treecluster:
   # Genetic thresholds are specified as SNP counts (integer) and converted
   # internally to substitutions per site using simulation.sequence_length.
   genetic_thresholds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  threshold_days: [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70]
+  threshold_days: [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 91, 98, 105]
   days_per_year: 365.25
   fastme_method: N
   raw_rooting: midpoint

@@ -174,27 +174,27 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 
 ### Scorers, grids, and comparison settings
 
-| Field                                          | Meaning                                                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `scorers`                                      | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes. |
-| `scorer.logistic_C`                            | Fixed inverse regularization strength for logistic fitting.                                                                          |
-| `thresholds.epilink`                           | Raw compatibility cutoffs; retain scores **\>=** the cutoff. Values can exceed one.                                                  |
-| `thresholds.genetic`                           | Hamming-distance cutoffs in substitutions; retain distances **\<=** the cutoff.                                                      |
-| `thresholds.logistic`                          | Probability cutoffs in `[0, 1]`; retain scores **\>=** the cutoff.                                                                   |
-| `pairwise.selected_fractions`                  | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                               |
-| `clustering.algorithms`                        | `components`, `leiden`, or both.                                                                                                     |
-| `clustering.leiden.objective`                  | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                  |
-| `clustering.leiden.weight_policies`            | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                 |
-| `clustering.leiden.resolutions`                | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                         |
-| `treecluster.enabled`                          | Whether raw and dated phylogenetic comparisons are included.                                                                         |
-| `treecluster.methods`                          | Methods to sweep: `max_clade`, `avg_clade`, `single_linkage`.                                                                        |
+| Field                                          | Meaning                                                                                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `scorers`                                      | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.   |
+| `scorer.logistic_C`                            | Fixed inverse regularization strength for logistic fitting.                                                                            |
+| `thresholds.epilink`                           | Raw compatibility cutoffs; retain scores **\>=** the cutoff. Values can exceed one.                                                    |
+| `thresholds.genetic`                           | Hamming-distance cutoffs in substitutions; retain distances **\<=** the cutoff.                                                        |
+| `thresholds.logistic`                          | Probability cutoffs in `[0, 1]`; retain scores **\>=** the cutoff.                                                                     |
+| `pairwise.selected_fractions`                  | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                 |
+| `clustering.algorithms`                        | `components`, `leiden`, or both.                                                                                                       |
+| `clustering.leiden.objective`                  | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                    |
+| `clustering.leiden.weight_policies`            | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                   |
+| `clustering.leiden.resolutions`                | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                           |
+| `treecluster.enabled`                          | Whether raw and dated phylogenetic comparisons are included.                                                                           |
+| `treecluster.methods`                          | Methods to sweep: `max_clade`, `avg_clade`, `single_linkage`.                                                                          |
 | `treecluster.genetic_thresholds`               | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using `simulation.sequence_length`. |
-| `treecluster.threshold_days`, `days_per_year`  | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                 |
-| `treecluster.fastme_method`                    | FastME method code passed through `-m`; the supplied value is `N`.                                                                   |
-| `treecluster.raw_rooting`, `negative_branches` | Supported policies: `midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                  |
-| `treecluster.clock_filter`                     | Clock-filter value passed to TreeTime.                                                                                               |
-| `treecluster.command_timeout_seconds`          | Timeout for each external tool invocation.                                                                                           |
-| `selection.criteria`                           | Objectives and constraints for freezing settings; see section 8.                                                                     |
+| `treecluster.threshold_days`, `days_per_year`  | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                   |
+| `treecluster.fastme_method`                    | FastME method code passed through `-m`; the supplied value is `N`.                                                                     |
+| `treecluster.raw_rooting`, `negative_branches` | Supported policies: `midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                    |
+| `treecluster.clock_filter`                     | Clock-filter value passed to TreeTime.                                                                                                 |
+| `treecluster.command_timeout_seconds`          | Timeout for each external tool invocation.                                                                                             |
+| `selection.criteria`                           | Objectives and constraints for freezing settings; see section 8.                                                                       |
 
 The runner also adds an explicit empty-selection setting to each scorer's grid. Binary graphs include zero-valued edges at a zero compatibility/probability cutoff; native weighted graphs omit zero-weight edges.
 
@@ -402,22 +402,22 @@ while keeping the previous one.
 
 ## 10. Troubleshooting
 
-| Symptom                                                        | What to check / next action                                                                                                                                                 |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epilink-evaluate: command not found` or module import failure | Activate the environment used for installation and run `python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.          |
-| `Executable not found`                                         | Run `check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                       |
-| CSV parsing fails on a fresh checkout                          | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run `git lfs pull` after installing Git LFS.                         |
+| Symptom                                                        | What to check / next action                                                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `epilink-evaluate: command not found` or module import failure | Activate the environment used for installation and run `python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.              |
+| `Executable not found`                                         | Run `check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                           |
+| CSV parsing fails on a fresh checkout                          | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run `git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                       | Inspect `n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
-| Report says `partial` / selection reports an incomplete sweep  | Inspect `seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                   |
-| FastME or TreeTime fails                                       | Inspect `<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path. |
-| TreeCluster fails                                              | Inspect `<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                       |
-| External command times out                                     | Inspect its stderr log and `treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.              |
-| No frozen operating settings                                   | Run `select` for the exact experiment/output root before `evaluate`.                                                                                                        |
-| `No operating criterion is feasible`                           | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                       |
-| Criteria changed or held-out seeds already accessed            | Before access, rerun `select`. After access, assign fresh evaluation seeds before revised selection/evaluation.                                                             |
-| `current.json` missing when running `report`                   | Check config/output/smoke arguments. A computational stage must initialize that root first.                                                                                 |
-| A rerun writes a different run ID                              | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                          |
-| Incubation parameter error                                     | The Gamma incubation shape is `1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                   |
+| Report says `partial` / selection reports an incomplete sweep  | Inspect `seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                       |
+| FastME or TreeTime fails                                       | Inspect `<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path.     |
+| TreeCluster fails                                              | Inspect `<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
+| External command times out                                     | Inspect its stderr log and `treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.                  |
+| No frozen operating settings                                   | Run `select` for the exact experiment/output root before `evaluate`.                                                                                                            |
+| `No operating criterion is feasible`                           | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                           |
+| Criteria changed or held-out seeds already accessed            | Before access, rerun `select`. After access, assign fresh evaluation seeds before revised selection/evaluation.                                                                 |
+| `current.json` missing when running `report`                   | Check config/output/smoke arguments. A computational stage must initialize that root first.                                                                                     |
+| A rerun writes a different run ID                              | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                              |
+| Incubation parameter error                                     | The Gamma incubation shape is `1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                       |
 
 ## 11. Clear outputs with reset-outputs
 
@@ -485,7 +485,7 @@ python evaluation/03_boston_application/run.py --stage explore
 
 | Boston stage    | Work performed                                                                                                    |
 | --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `prepare`       | Write or reuse `outputs/inputs/` tables and provenance.                                                          |
+| `prepare`       | Write or reuse `outputs/inputs/` tables and provenance.                                                           |
 | `trees`         | Build/reuse raw and dated trees and apply frozen TreeCluster settings. Graph scoring/clustering is not requested. |
 | `all` (default) | Score pairs, apply frozen graph settings, run enabled TreeCluster, and assess partitions.                         |
 | `explore`       | Sweep the configured graph and TreeCluster grids under `exploration/`. This is requested separately from `all`.   |

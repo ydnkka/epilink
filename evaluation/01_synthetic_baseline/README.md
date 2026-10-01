@@ -8,7 +8,7 @@ recovery–contamination trade-offs under baseline simulation conditions?
 
 This is the **method-comparison and operating-point selection study**. It uses
 simulated genetic distances and sampling times on a fixed transmission backbone,
-where the true relationships between cases are known. Natural-history parameter
+where the true relationships between cases are known. Parameter
 values are matched between generation and EpiLink inference; deterministic and
 stochastic genetic-process assumptions are compared explicitly.
 
@@ -50,7 +50,7 @@ The primary target is **M=0: direct transmission AD(0) or shared infector
 CA(0,0)**. Keep those two relationships separate in descriptive summaries.
 Secondary endpoints are M≤1 and M≤2. For AD, M=m is the number of intermediates;
 for CA, M=m1+m2 excludes the shared ancestor. Tree edge distance is M+1 for AD
-and M+2 for CA. Inactive counts are null, not zero. CA(a,b) and CA(b,a) have the
+and M+2 for CA. Inactive counts are null, not zero. CA(a,b) and CA(b,a) are symmetric and so have the
 same relationship interpretation; CA(0,2) and CA(1,1) remain distinguishable.
 
 All observed unordered pairs are evaluated exactly once, excluding self-pairs.

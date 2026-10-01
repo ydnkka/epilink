@@ -40,7 +40,7 @@ class Scorer(Protocol):
 
 
 @dataclass(frozen=True)
-class EpiLinkScorer:
+class EpiLinkScorer(Scorer):
     spec: ScoreSpec
 
     def predict(self, observations, context):
@@ -55,7 +55,7 @@ class EpiLinkScorer:
 
 
 @dataclass(frozen=True)
-class GeneticScorer:
+class GeneticScorer(Scorer):
     spec: ScoreSpec
 
     def predict(self, observations, context):
@@ -63,7 +63,7 @@ class GeneticScorer:
 
 
 @dataclass(frozen=True)
-class LogisticScorer:
+class LogisticScorer(Scorer):
     spec: ScoreSpec
 
     def predict(self, observations, context):
