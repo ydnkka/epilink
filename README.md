@@ -25,15 +25,15 @@ directory numbers express the study presentation order.
 
 ## Implementation status
 
-| Capability                    | Active implementation                                                                                           |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| SCoVMod tree preparation      | Available: `epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                     |
-| Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.    |
-| Parameter sensitivity         | Available: `epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.   |
-| Boston input preparation      | Available: `epilink-evaluate boston --stage prepare`.                                                           |
-| Boston frozen transfer        | Available: `epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster. |
-| Boston clustering exploration | Available: `epilink-evaluate boston --stage explore`, with separate descriptive grid outputs.                   |
-| Output cleanup                | Available: `epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.         |
+| Capability                    | Active implementation                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| SCoVMod tree preparation      | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                     |
+| Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.   |
+| Parameter sensitivity         | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.   |
+| Boston input preparation      | Available:`epilink-evaluate boston --stage prepare`.                                                           |
+| Boston frozen transfer        | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster. |
+| Boston clustering exploration | Available:`epilink-evaluate boston --stage explore`, with separate descriptive grid outputs.                   |
+| Output cleanup                | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.         |
 
 See the guide for [perturbation and Boston execution](OPERATIONS.md#12-perturbation-and-boston-application) and [clearing outputs](OPERATIONS.md#11-clear-outputs-with-reset-outputs).
 
@@ -144,7 +144,7 @@ directories, use the updated `current.json` pointers to locate results; recorded
 scientific signatures remain tied to their original execution.
 
 The EpiLink model package is maintained separately at
-<https://github.com/ydnkka/epilink>.
+[https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).
 
 ## Acknowledge
 
