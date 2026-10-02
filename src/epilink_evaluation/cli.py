@@ -45,6 +45,14 @@ def smoke_config(config):
         "logistic": [0.01, 0.25],
     }
     config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
+    config["clustering"]["leiden"]["resolutions_by_weight_policy"] = {
+        "binary": [0.05, 0.5], "native": [0.05, 0.5]
+    }
+    if "grid_audit" in config:
+        config["grid_audit"]["reference"] = {
+            "thresholds": deepcopy(config["thresholds"]),
+            "leiden_resolutions": [0.5],
+        }
     config["treecluster"].update(
         genetic_thresholds=[1, 10], threshold_days=[14, 56], rng_seed=76001
     )
@@ -257,7 +265,10 @@ def main(argv=None):
                     "tools": tools,
                     "splits": config["splits"],
                     "output": config["output_directory"],
-                    "operating_definitions_per_realization": len(settings),
+                    "operating_definitions_per_realization": None if config["pairwise"].get("threshold_mode") == "all_development_scores" else len(settings),
+                    "configured_clustering_definitions_per_realization": sum(d["kind"] != "pairwise" for d in settings.values()),
+                    "pairwise_threshold_mode": config["pairwise"].get("threshold_mode", "configured"),
+                    "pairwise_candidates_pending_development": config["pairwise"].get("threshold_mode") == "all_development_scores",
                     "tree_input_exists": Path(config["inputs"]["tree_path"]).exists(),
                 },
                 indent=2,

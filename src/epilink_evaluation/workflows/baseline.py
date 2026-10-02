@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from shutil import copyfile
 from copy import deepcopy
 from pathlib import Path
 
@@ -16,7 +17,9 @@ from ..inputs.synthetic import (
     load_observations,
     load_truth,
 )
-from ..metrics.pairwise import PairTruth, calibration, precision_recall_curve
+from ..metrics.pairwise import (
+    PairTruth, calibration, metrics_at_thresholds, precision_recall_curve,
+)
 from ..metrics.partitions import PartitionEvaluator
 from ..phylogeny.external import command_identity
 from ..phylogeny.trees import dated_tree, raw_tree
@@ -35,7 +38,7 @@ from ..scorers import SCORERS, ScoringContext
 from ..scorers.logistic import fit_logistic, training_cells
 from ..selection.operating import (
     aggregate_settings,
-    pareto_frontier,
+    endpoint_frontiers,
     select_operating_points,
 )
 from ..truth import reference_memberships
@@ -77,6 +80,10 @@ class Baseline:
         self.directory = self.root / "runs" / fingerprint(self.signature)[:20]
         self.directory.mkdir(parents=True, exist_ok=True)
         self.definitions = settings_registry(config)
+        candidates = self.directory / "development/pairwise_candidates"
+        candidate_signature = self._candidate_signature()
+        if candidate_signature and valid_artifact(candidates, candidate_signature):
+            self.definitions.update(read_json(candidates / "definitions.json"))
         write_json(self.directory / "settings.json", self.definitions)
         tree_path = Path(self.experiment.config["inputs"]["tree_path"])
         inputs_info = {
@@ -186,7 +193,117 @@ class Baseline:
         truth = load_truth(self.truth_directory, observations.pair_id)
         return observations, cases, truth, scores, directory.name
 
+    def _candidate_signature(self):
+        manifests = {
+            str(seed): self.directory / "development" / f"seed_{seed}" / "pairwise/evidence/manifest.json"
+            for seed in self.config["splits"]["development"]
+        }
+        if not all(path.exists() for path in manifests.values()):
+            return None
+        return {
+            "kind": "development-pairwise-candidates-v1",
+            "run": fingerprint(self.signature),
+            "evidence": {seed: digest_file(path) for seed, path in manifests.items()},
+        }
+
+    def _development_pairwise_evidence(self, seed):
+        """Checkpoint cumulative score evidence independently of candidate cutoffs."""
+        _, _, truth_frame, scores, score_id = self.scores(seed)
+        directory = self.directory / "development" / f"seed_{seed}" / "pairwise/evidence"
+        signature = {
+            "kind": "development-pairwise-curves-v1",
+            "run": fingerprint(self.signature), "score_id": score_id, "seed": seed,
+        }
+        if valid_artifact(directory, signature):
+            return directory
+        directory.mkdir(parents=True, exist_ok=True)
+        truth = PairTruth(truth_frame)
+        rankings, curves, budgets, calibrations = [], [], [], []
+        for name in self.config["scorers"]:
+            spec = SCORERS[name].spec
+            values = scores[name].to_numpy(float)
+            curve, ranking = precision_recall_curve(values, spec, truth)
+            base = {"split": "development", "seed": seed, "score_name": name, "data_process": spec.data_process}
+            curves.append(curve.assign(**base))
+            for fraction in self.config["pairwise"]["selected_fractions"]:
+                row = curve.loc[curve.selected_fraction >= fraction].iloc[0].to_dict()
+                budgets.append({**base, "requested_fraction": fraction, **row})
+            if spec.family == "logistic":
+                bins, summary = calibration(values, truth)
+                calibrations.append(bins.assign(**base))
+                ranking.update(summary)
+            rankings.append({**base, **ranking})
+        pd.concat(curves, ignore_index=True).to_parquet(directory / "precision_recall.parquet", index=False)
+        pd.DataFrame(rankings).to_csv(directory / "rankings.csv", index=False)
+        pd.DataFrame(budgets).to_csv(directory / "budgets.csv", index=False)
+        (pd.concat(calibrations, ignore_index=True) if calibrations else pd.DataFrame()).to_csv(
+            directory / "calibration.csv", index=False
+        )
+        write_json(directory / "empty_metrics.json", truth.statistics(np.zeros(truth.n, dtype=bool)))
+        complete_artifact(directory, signature, [
+            "precision_recall.parquet", "rankings.csv", "budgets.csv", "calibration.csv", "empty_metrics.json",
+        ])
+        return directory
+
+    def _development_pairwise(self):
+        sources = {
+            seed: self._development_pairwise_evidence(seed)
+            for seed in self.config["splits"]["development"]
+        }
+        candidates = self.directory / "development/pairwise_candidates"
+        signature = self._candidate_signature()
+        if not valid_artifact(candidates, signature):
+            thresholds = {name: set() for name in self.config["scorers"]}
+            for source in sources.values():
+                curves = pd.read_parquet(source / "precision_recall.parquet", columns=["score_name", "threshold"])
+                for name, curve in curves.groupby("score_name"):
+                    thresholds[name].update(curve.threshold.tolist())
+            definitions = {
+                key: value for key, value in settings_registry(self.config, thresholds).items()
+                if value["kind"] == "pairwise"
+            }
+            write_json(candidates / "definitions.json", definitions)
+            complete_artifact(candidates, signature, ["definitions.json"])
+        definitions = read_json(candidates / "definitions.json")
+        self.definitions = {**settings_registry(self.config), **definitions}
+        write_json(self.directory / "settings.json", self.definitions)
+        for seed, source in sources.items():
+            directory = source.parent
+            stage_signature = {
+                "run": fingerprint(self.signature), "seed": seed,
+                "split": "development",
+                "score_id": read_json(source / "manifest.json")["signature"]["score_id"],
+                "candidates": digest_file(candidates / "manifest.json"),
+                "evidence": digest_file(source / "manifest.json"),
+            }
+            if valid_artifact(directory, stage_signature):
+                continue
+            curves = pd.read_parquet(source / "precision_recall.parquet")
+            empty = read_json(source / "empty_metrics.json")
+            metrics = []
+            for name in self.config["scorers"]:
+                spec = SCORERS[name].spec
+                choices = {key: d for key, d in definitions.items() if d["score_name"] == name}
+                values = metrics_at_thresholds(
+                    curves.loc[curves.score_name == name],
+                    [d["threshold"] for d in choices.values()], spec.higher_is_better, empty,
+                )
+                metrics.append(values.assign(
+                    split="development", seed=seed, score_name=name, data_process=spec.data_process,
+                    pipeline=f"pairwise/{name}", setting_id=list(choices),
+                ))
+            pd.concat(metrics, ignore_index=True).to_csv(directory / "metrics.csv", index=False)
+            files = ["precision_recall.parquet", "rankings.csv", "budgets.csv", "calibration.csv"]
+            for filename in files:
+                copyfile(source / filename, directory / filename)
+            complete_artifact(directory, stage_signature, ["metrics.csv", *files])
+        self.collect("development")
+
     def pairwise(self, split="development", selected=None):
+        if split == "development":
+            if selected is not None:
+                raise ValueError("Development pairwise evaluation uses the complete candidate registry")
+            return self._development_pairwise()
         definitions = self.definitions if selected is None else selected
         definitions = {
             key: definition
@@ -449,10 +566,7 @@ class Baseline:
         frame.to_csv(parent / "metrics.csv", index=False)
         aggregated = aggregate_settings(frame)
         aggregated.to_csv(parent / "summary.csv", index=False)
-        frontier = aggregated.rename(
-            columns={"M0_precision_mean": "M0_precision", "M0_recall_mean": "M0_recall"}
-        )
-        pareto_frontier(frontier).to_csv(parent / "frontier.csv", index=False)
+        endpoint_frontiers(aggregated).to_csv(parent / "frontier.csv", index=False)
         return frame
 
     def select(self):
@@ -533,6 +647,8 @@ class Baseline:
         }
         if not selected:
             raise ValueError("No operating criterion is feasible")
+        if any(self.definitions.get(key) != definition for key, definition in selected.items()):
+            raise ValueError("Frozen settings differ from the validated development candidate registry")
         self.experiment.release_evaluation(frozen)
         self._evaluation_released = True
         write_json(

@@ -9,17 +9,21 @@ scorer:
   logistic_C: 1.0
 scorers: [EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S]
 thresholds:
-  epilink: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  # Finite graph thresholds; pairwise selection uses all development scores below.
+  epilink: [0.001, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
   genetic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  logistic: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  logistic: [0.001, 0.003, 0.005, 0.0075, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 pairwise:
+  threshold_mode: all_development_scores
   selected_fractions: [0.000025, 0.0005, 0.0001, 0.001, 0.01]
 clustering:
   algorithms: [components, leiden]
   leiden:
     objective: CPM
     weight_policies: [binary, native]
-    resolutions: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
+    resolutions: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    resolutions_by_weight_policy:
+      native: [0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     restarts: 5
     seed: 65001
 treecluster:
@@ -39,6 +43,15 @@ treecluster:
   command_timeout_seconds: 1800
   executables:
     { fastme: fastme, treetime: treetime, treecluster: TreeCluster.py }
+grid_audit:
+  # Numerical refinement tolerance, not a statistical uncertainty interval.
+  objective_tolerance: 0.005
+  # Evaluate the former coarse grid on the SAME development evidence.
+  reference:
+    thresholds:
+      epilink: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+      logistic: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    leiden_resolutions: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
 selection:
   # Candidate criterion, not a previously selected operating point.
   # Add scientifically justified constraints after inspecting development curves.
@@ -48,7 +61,7 @@ selection:
       objective: M0_f1
       constraints: {}
 
-    # Secondary endpoint: M≤1 (includes direct + shared infector + 1 hop)
+    # Secondary endpoint: M≤1 (AD0/AD1 and CA00/CA01; M is not hop distance)
     - name: balanced_Mle1
       objective: Mle1_f1
       constraints: {}

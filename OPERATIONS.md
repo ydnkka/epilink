@@ -177,14 +177,16 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `scorers`                                        | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.    |
 | `scorer.logistic_C`                              | Fixed inverse regularization strength for logistic fitting.                                                                             |
-| `thresholds.epilink`                             | Raw compatibility cutoffs; retain scores **\>=** the cutoff. Values can exceed one.                                                      |
+| `thresholds.epilink`                             | Graph compatibility cutoffs (also pairwise in `configured` mode); retain scores **\>=** the cutoff. Values can exceed one. |
 | `thresholds.genetic`                             | Hamming-distance cutoffs in substitutions; retain distances **\<=** the cutoff.                                                          |
 | `thresholds.logistic`                            | Probability cutoffs in`[0, 1]`; retain scores **\>=** the cutoff.                                                               |
 | `pairwise.selected_fractions`                    | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                  |
+| `pairwise.threshold_mode`                        | `all_development_scores` (supplied): union of unique development cutoffs plus empty selection; `configured`: use `thresholds`. One shared cutoff is evaluated across seeds. |
 | `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                    |
 | `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                 |
 | `clustering.leiden.weight_policies`              | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                |
 | `clustering.leiden.resolutions`                  | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                            |
+| `clustering.leiden.resolutions_by_weight_policy` | Optional `binary`/`native` resolution overrides; unlisted policies use `resolutions`. |
 | `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                            |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                      |
 | `treecluster.genetic_thresholds`                 | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using`simulation.sequence_length`. |
@@ -194,8 +196,13 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `treecluster.clock_filter`                       | Clock-filter value passed to TreeTime.                                                                                                  |
 | `treecluster.command_timeout_seconds`            | Timeout for each external tool invocation.                                                                                              |
 | `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                        |
+| `grid_audit.objective_tolerance`                  | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval. |
+| `grid_audit.reference`                            | Coarse-grid overrides: `thresholds`, `leiden_resolutions`, and/or `treecluster` threshold lists. Compare on the same development observations. |
 
 The runner also adds an explicit empty-selection setting to each scorer's grid. Binary graphs include zero-valued edges at a zero compatibility/probability cutoff; native weighted graphs omit zero-weight edges.
+Exact pairwise candidates are generated only after all development curves exist;
+they never expand the clustering grids. `check` reports the configured clustering
+count and marks the total operating count as unknown until these candidates exist.
 
 ## 4. Prepare or regenerate the SCoVMod tree
 
@@ -253,7 +260,7 @@ python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthet
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage develop
 ```
 
-Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. The supplied grids define 1,876 operating settings per development realization; `check` reports the count for your configuration. Work scales with the grids, replicates, and number of pairs: `n * (n - 1) / 2`. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
+Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. `check` reports the static clustering count; exact pairwise candidate counts depend on development scores. Work scales with the graph/tree grids, replicates, and number of pairs: `n * (n - 1) / 2`. Exact pairwise candidates use cumulative-curve lookups rather than repeated pair scans. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
 The two baseline entry points are equivalent:
 
@@ -341,7 +348,10 @@ Baseline layout:
     diagnostics.json      matching diagnostics completion reference
     development/
       metrics.csv, summary.csv, frontier.csv
+      grid_adequacy.csv, grid_neighbors.csv
+      pairwise_candidates/definitions.json, manifest.json
       seed_<seed>/pairwise/
+        evidence/            cached curves and empty-selection metrics
       seed_<seed>/clusters/
     selection/operating_points.json
     evaluation/
@@ -364,14 +374,15 @@ Files appear as their stages complete. Reports, aggregate tables, and status fil
 ### Read development evidence in this order
 
 1. **Coverage:** confirm expected seeds and methods completed. Inspect `development/seed_<seed>/clusters/status.json` for missing comparisons.
-2. **Pairwise discrimination:** compare scorers within the same observed genetic process using `figures/pairwise_precision_recall.png` and each seed's `pairwise/rankings.csv`. AP summarizes rankings; threshold-specific precision, recall, F1, and selected counts are in `pairwise/metrics.csv`.
+2. **Pairwise discrimination:** compare scorers within the same observed genetic process using `figures/pairwise_precision_recall_<endpoint>.png` and each seed's `pairwise/rankings.csv`. `<endpoint>` is `M0`, `Mle1`, or `Mle2`. AP summarizes rankings; threshold-specific precision, recall, F1, and selected counts are in `pairwise/metrics.csv`.
 3. **Workload and calibration:** inspect `pairwise/budgets.csv` for achieved tie-aware candidate budgets and `pairwise/calibration.csv` for logistic reliability. Brier score and log loss are in `rankings.csv`.
-4. **Clustering trade-offs:** use `components_thresholds.png`, `leiden_threshold_resolution.png`, `treecluster_thresholds.png`, and `cluster_tradeoffs.png` under `figures/`. Inspect singleton/largest-cluster behavior alongside recovery and contamination. Broaden useful regions that touch grid boundaries during development.
-5. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by pipeline. Use `settings.json` to translate a setting ID into thresholds and algorithms.
+4. **Clustering trade-offs:** use `components_thresholds_<endpoint>.png`, `leiden_threshold_resolution_<endpoint>.png`, `treecluster_thresholds_<endpoint>.png`, and `cluster_tradeoffs_<endpoint>.png` under `figures/`. Inspect singleton/largest-cluster behavior alongside recovery and contamination for the endpoint being optimized.
+5. **Grid adequacy:** inspect `development/grid_adequacy.csv` and `grid_neighbors.csv`. Extend arbitrary search boundaries and refine useful intervals. Keep declared reference clustering settings in the expanded sweep for a complete comparison. A gain within tolerance is only a numerical diagnostic; unchanged grids are labelled `not_refined`, and zero GD is a natural boundary.
+6. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by endpoint and pipeline, keeping `_mean` column suffixes. Use `settings.json` to translate a setting ID into thresholds and algorithms.
 
 For M=0, every M\>0 pair is a false positive. M\>=3 contamination measures only distant relationships. Cluster precision includes every within-cluster pair, including pairs connected only transitively by graph edges. An empty selection or all-singleton partition has undefined pair precision; `undefined`/blank values in the reports can therefore be expected. Logistic calibration applies to probabilities; EpiLink values are raw compatibility scores. Baseline SD is undefined when a split has only one realization, as in the smoke workflow.
 
-After evaluation, `evaluation/operating_results.csv` gives per-seed results joined to criterion names, and `operating_summary.csv` summarizes them. `selection_used.json` records the frozen decisions actually replayed. Variability is conditional on the fixed backbone; pairs are dependent.
+After evaluation, `evaluation/operating_results.csv` gives per-seed results joined to criterion names. `operating_summary.csv` includes the frozen objective/setting, all three endpoint metrics, AD0/CA00 retention, workload and cluster sizes, with realization and defined-value counts. Reports display each criterion's actual optimized endpoint, resolved from `selection_used.json`, not its name. Logistic probabilities remain M0-trained. Variability is conditional on the fixed backbone; pairs are dependent.
 
 To refresh the latest report from saved results:
 
@@ -383,7 +394,7 @@ Use `--smoke`, `--config`, and/or `--output` consistently to locate the intended
 
 ## 8. Choose and freeze operating criteria
 
-The supplied `balanced_M0` criterion maximizes mean development M=0 F1. After reviewing development results, edit the `selection` block. This complete example compares balanced F1 with a recall objective subject to precision and distant contamination bounds:
+The supplied `balanced_M0`, `balanced_Mle1`, and `balanced_Mle2` criteria maximize their respective mean development F1 values. M0 remains primary. After reviewing development results, edit the `selection` block. This complete example compares balanced M0 F1 with a recall objective subject to precision and distant contamination bounds:
 
 ```yaml
 selection:
@@ -413,6 +424,10 @@ python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_
 ```
 
 Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory.
+The supplied revised full design uses 63101–63103, reserving 63001–63003 for the
+previous completed comparison. Report-only endpoint corrections can be rendered
+from saved outputs without new observations. Resetting outputs preserves access
+history; smoke is repeatable validation in its separate namespace.
 
 ## 9. Resume work and understand caching
 

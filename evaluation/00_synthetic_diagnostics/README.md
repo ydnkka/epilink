@@ -94,7 +94,7 @@ for portable nonexternal integration checks; the report labels that omission.
 
 ## Validation
 
-Validated on 2026-10-01 using the project's configured Python environment:
+Validated on 2026-10-02 using the project's configured Python environment:
 
 ```bash
 python -m pytest -q
@@ -102,10 +102,12 @@ python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 ```
 
-All **149 tests passed**. The real-tool 64-case sequence completed feature-cell
+All **160 tests passed**. The real-tool 64-case sequence completed feature-cell
 diagnostics, 9 oracle-graph partitions, and 12 transmission-hop tree partitions,
-then baseline development (132 clustering settings) and held-out replay (26
-clustering settings). TreeCluster, FastME, and TreeTime were exercised. Baseline
+then baseline development (1,541 exact pairwise candidates and 132 clustering
+settings) and frozen replay (23 pairwise and 47 clustering settings).
+TreeCluster, FastME, and TreeTime were exercised. Baseline
 reused the exact diagnostic development observations and linked the diagnostic
-report before its performance results. This validates execution; scientific
-conclusions require the full configured study.
+report before its performance results. Endpoint-aware summaries/frontiers and
+development grid-adequacy diagnostics were verified for all three criteria.
+This validates execution; scientific conclusions require the full configured study.

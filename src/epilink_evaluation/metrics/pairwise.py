@@ -171,3 +171,29 @@ def calibration(values, truth, bins=10):
         "brier_score": brier_score_loss(y, values),
         "log_loss": log_loss(y, values, labels=[False, True]),
     }
+
+
+def metrics_at_thresholds(curve, thresholds, higher_is_better, empty_metrics):
+    """Look up inclusive, whole-tie selections without rescanning original pairs.
+
+    Each requested threshold is evaluated on this realization, including cutoffs
+    observed only in another development realization. None denotes the explicit
+    empty selection. Row order matches the requested thresholds.
+    """
+    ordered = curve.sort_values("threshold")
+    values = ordered.threshold.to_numpy(float)
+    queries = np.array([np.nan if t is None else t for t in thresholds], dtype=float)
+    if higher_is_better:
+        indices = np.searchsorted(values, queries, side="left")
+    else:
+        indices = np.searchsorted(values, queries, side="right") - 1
+    valid = np.isfinite(queries) & (indices >= 0) & (indices < len(ordered))
+    if ordered.empty:
+        return pd.DataFrame([empty_metrics] * len(queries))
+    indices = np.clip(indices, 0, len(ordered) - 1)
+    return pd.DataFrame({
+        column: np.where(
+            valid, ordered[column].to_numpy()[indices], np.nan if empty is None else empty
+        )
+        for column, empty in empty_metrics.items()
+    })

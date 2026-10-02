@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from sklearn.metrics import average_precision_score
 
-from epilink_evaluation.metrics.pairwise import PairTruth, precision_recall_curve
+from epilink_evaluation.metrics.pairwise import PairTruth, metrics_at_thresholds, precision_recall_curve
 from epilink_evaluation.metrics.partitions import PartitionEvaluator, ReferenceIndex
 from epilink_evaluation.schemas import ScoreSpec
 from epilink_evaluation.truth import reference_memberships, relationship_table
@@ -55,6 +55,24 @@ def test_false_positives_include_close_non_targets_and_separate_introductions():
     empty = truth.statistics(np.zeros(15, dtype=bool))
     assert np.isnan(empty["M0_precision"])
     assert empty["M0_recall"] == empty["M0_f1"] == 0
+
+
+@pytest.mark.parametrize("higher_is_better", [True, False])
+def test_cumulative_lookup_matches_direct_masks_including_unseen_cutoffs(higher_is_better):
+    truth = PairTruth(relationship_table(nx.DiGraph([(0, 1), (0, 2), (1, 3), (3, 4)])))
+    values = np.array([0, 0, 1, 2, 0, 1, 2, 1, 1, 2], dtype=float)
+    spec = ScoreSpec("test", "genetic", "deterministic", higher_is_better=higher_is_better)
+    curve, _ = precision_recall_curve(values, spec, truth)
+    cutoffs = [None, -1, 0, 0.5, 1, 1.5, 2, 3]
+    empty = truth.statistics(np.zeros(len(values), dtype=bool))
+    actual = metrics_at_thresholds(curve, cutoffs, higher_is_better, empty)
+    expected = []
+    for cutoff in cutoffs:
+        mask = np.zeros(len(values), dtype=bool) if cutoff is None else (
+            values >= cutoff if higher_is_better else values <= cutoff
+        )
+        expected.append(truth.statistics(mask))
+    pd.testing.assert_frame_equal(actual, pd.DataFrame(expected), check_dtype=False)
 
 
 def test_partitions_evaluate_transitive_pairs_not_only_graph_edges():

@@ -4,7 +4,8 @@ from ..provenance import fingerprint
 from ..scorers import SCORERS
 
 
-def settings_registry(config):
+def settings_registry(config, pairwise_thresholds=None):
+    """Graph grids stay finite; exact pairwise candidates come from development."""
     definitions = {}
 
     def add(definition):
@@ -14,6 +15,21 @@ def settings_registry(config):
     for name in config["scorers"]:
         spec = SCORERS[name].spec
         thresholds = [None, *sorted(set(config["thresholds"][spec.family]))]
+        if config["pairwise"].get("threshold_mode", "configured") == "configured":
+            pair_thresholds = thresholds
+        elif pairwise_thresholds is not None:
+            pair_thresholds = [None, *sorted(set(pairwise_thresholds[name]))]
+        else:
+            pair_thresholds = []  # Not known until all development curves exist.
+        for threshold in pair_thresholds:
+            add({
+                "score_name": name,
+                "data_process": spec.data_process,
+                "threshold": threshold,
+                "empty": threshold is None,
+                "kind": "pairwise",
+                "pipeline": f"pairwise/{name}",
+            })
         for threshold in thresholds:
             base = {
                 "score_name": name,
@@ -21,7 +37,6 @@ def settings_registry(config):
                 "threshold": threshold,
                 "empty": threshold is None,
             }
-            add({**base, "kind": "pairwise", "pipeline": f"pairwise/{name}"})
             if "components" in config["clustering"]["algorithms"]:
                 add(
                     {
@@ -36,7 +51,10 @@ def settings_registry(config):
                 for policy in leiden["weight_policies"]:
                     if policy == "native" and spec.family == "genetic":
                         continue
-                    for resolution in leiden["resolutions"]:
+                    resolutions = leiden.get("resolutions_by_weight_policy", {}).get(
+                        policy, leiden["resolutions"]
+                    )
+                    for resolution in sorted(set(resolutions)):
                         add(
                             {
                                 **base,

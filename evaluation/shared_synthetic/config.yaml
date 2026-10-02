@@ -11,7 +11,8 @@ inputs:
 splits:
   train: [61001, 61002]
   development: [62001, 62002, 62003]
-  evaluation: [63001, 63002, 63003]
+  # Fresh held-out observations for the refined comparison; 63001–63003 were accessed.
+  evaluation: [63101, 63102, 63103]
 generation:
   incubation: { mean: 5.505036, cv: 0.4149770576 }
   testing_delay: { mean: 1.0, cv: 1.0 }

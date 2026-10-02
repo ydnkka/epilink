@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ..schemas import ENDPOINTS
+
 
 def aggregate_settings(frame):
     numeric = [
@@ -92,3 +94,11 @@ def pareto_frontier(frame, precision="M0_precision", recall="M0_recall"):
                 rows.append(equal_precision.loc[equal_precision[recall] == local_max])
             best_recall = max(best_recall, local_max)
     return pd.concat(rows, ignore_index=True) if rows else frame.iloc[:0].copy()
+
+
+def endpoint_frontiers(summary):
+    """Long-form endpoint-labelled frontiers; retain explicit mean column names."""
+    return pd.concat([
+        pareto_frontier(summary, f"{ep}_precision_mean", f"{ep}_recall_mean").copy().assign(endpoint=ep)
+        for ep in ENDPOINTS
+    ], ignore_index=True)

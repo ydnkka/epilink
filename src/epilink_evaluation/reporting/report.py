@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 
 from ..provenance import read_json
+from ..schemas import ENDPOINTS
+from ..selection.operating import endpoint_frontiers
+from .baseline_tables import grid_adequacy, operating_summary
 
 
 def read_table(path):
@@ -43,15 +46,19 @@ def markdown_table(frame):
 
 
 def figures(directory, definitions, development):
+    return [path for endpoint in ENDPOINTS for path in endpoint_figures(directory, definitions, development, endpoint)]
+
+
+def endpoint_figures(directory, definitions, development, endpoint):
     output = directory / "figures"
     output.mkdir(exist_ok=True)
     saved = []
 
     def save(fig, name):
         fig.tight_layout()
-        fig.savefig(output / f"{name}.png", dpi=150)
+        fig.savefig(output / f"{name}_{endpoint}.png", dpi=150)
         plt.close(fig)
-        saved.append(f"figures/{name}.png")
+        saved.append(f"figures/{name}_{endpoint}.png")
 
     curves = []
     for path in sorted(
@@ -69,8 +76,8 @@ def figures(directory, definitions, development):
             ):
                 for j, (_, replicate) in enumerate(group.groupby("seed")):
                     axis.step(
-                        replicate.M0_recall,
-                        replicate.M0_precision,
+                        replicate[f"{endpoint}_recall"],
+                        replicate[f"{endpoint}_precision"],
                         where="post",
                         alpha=0.65,
                         color=f"C{i}",
@@ -78,8 +85,8 @@ def figures(directory, definitions, development):
                     )
             axis.set(
                 title=f"{process}: each development realization",
-                xlabel="M=0 recall",
-                ylabel="M=0 precision",
+                xlabel=f"{endpoint} recall",
+                ylabel=f"{endpoint} precision",
                 xlim=(0, 1),
                 ylim=(0, 1),
             )
@@ -89,9 +96,9 @@ def figures(directory, definitions, development):
         return saved
     summary = development.groupby(["pipeline", "setting_id"], as_index=False)[
         [
-            "M0_precision",
-            "M0_recall",
-            "M0_f1",
+            f"{endpoint}_precision",
+            f"{endpoint}_recall",
+            f"{endpoint}_f1",
             "Mge3_contamination",
             "singleton_fraction",
             "largest_cluster_fraction",
@@ -114,8 +121,8 @@ def figures(directory, definitions, development):
                 .sort_values("threshold")
             )
             for metric in (
-                "M0_precision",
-                "M0_recall",
+                f"{endpoint}_precision",
+                f"{endpoint}_recall",
                 "Mge3_contamination",
                 "largest_cluster_fraction",
             ):
@@ -135,7 +142,7 @@ def figures(directory, definitions, development):
         )
         for row, pipeline in enumerate(pipelines):
             group = leiden.loc[leiden.pipeline == pipeline]
-            for column, metric in enumerate(("M0_f1", "Mge3_contamination")):
+            for column, metric in enumerate((f"{endpoint}_f1", "Mge3_contamination")):
                 table = group.pivot(
                     index="resolution", columns="threshold", values=metric
                 ).sort_index()
@@ -168,14 +175,14 @@ def figures(directory, definitions, development):
             group = tc.loc[tc.pipeline == pipeline]
             for method, subset in group.groupby("method"):
                 subset = subset.sort_values("threshold")
-                axis.plot(subset.threshold, subset.M0_f1, ".-", label=method)
+                axis.plot(subset.threshold, subset[f"{endpoint}_f1"], ".-", label=method)
             units = (
                 "days" if group.tree_kind.iloc[0] == "dated" else "substitutions/site"
             )
             axis.set(
                 title=pipeline,
                 xlabel=f"Tree threshold ({units})",
-                ylabel="M=0 F1",
+                ylabel=f"{endpoint} F1",
                 ylim=(0, 1),
             )
             axis.legend(fontsize=8)
@@ -184,11 +191,11 @@ def figures(directory, definitions, development):
     for pipeline, group in summary.groupby("pipeline"):
         if not pipeline.startswith("pairwise/"):
             axis.scatter(
-                group.M0_recall, group.M0_precision, s=12, alpha=0.5, label=pipeline
+                group[f"{endpoint}_recall"], group[f"{endpoint}_precision"], s=12, alpha=0.5, label=pipeline
             )
     axis.set(
-        xlabel="Mean development M=0 pair recall",
-        ylabel="Mean development M=0 pair precision",
+        xlabel=f"Mean development {endpoint} pair recall",
+        ylabel=f"Mean development {endpoint} pair precision",
         xlim=(0, 1),
         ylim=(0, 1),
         title="Clustering operating trade-offs",
@@ -278,22 +285,42 @@ def render_report(directory):
         pd.DataFrame(coverage),
         "Partial or failed tree comparisons are visible in each seed's clusters/status.json. Complete command status refers only to the requested stage.",
     )
-    rankings = []
-    for path in sorted(
-        (directory / "development").glob("seed_*/pairwise/rankings.csv")
-    ):
-        rankings.append(read_table(path))
-    if rankings:
-        frame = pd.concat(rankings, ignore_index=True)
-        columns = [
-            name
-            for name in ("M0_AP", "Mle1_AP", "Mle2_AP", "M0_prevalence", "brier_score")
-            if name in frame
-        ]
+    for split in ("development", "evaluation"):
+        rankings = [read_table(path) for path in sorted((directory / split).glob("seed_*/pairwise/rankings.csv"))]
+        if rankings:
+            frame = pd.concat(rankings, ignore_index=True)
+            columns = [name for name in (
+                "M0_AP", "Mle1_AP", "Mle2_AP", "M0_prevalence", "Mle1_prevalence", "Mle2_prevalence", "brier_score",
+            ) if name in frame]
+            section(
+                f"{split.capitalize()} pairwise comparison",
+                frame.groupby(["data_process", "score_name"])[columns].mean().reset_index(),
+                "Equal-realization means. Logistic probabilities and calibration target M=0; M≤1/M≤2 assess the same M=0-trained score.",
+            )
+        summary = read_table(directory / split / "summary.csv")
+        if not summary.empty:
+            endpoint_frontiers(summary).to_csv(directory / split / "frontier.csv", index=False)
+    if not development.empty:
+        curves = {
+            seed: pd.read_parquet(directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet")
+            for seed in config["splits"]["development"]
+            if (directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet").exists()
+        }
+        adequacy, neighbors = grid_adequacy(development, definitions, config, curves)
+        adequacy.to_csv(directory / "development/grid_adequacy.csv", index=False)
+        neighbors.to_csv(directory / "development/grid_neighbors.csv", index=False)
+        columns = [c for c in (
+            "pipeline", "criterion", "status", "search_scope", "threshold", "resolution", "method",
+            "objective_mean", "reference_status", "reference_objective_mean", "refinement_gain",
+            "refinement_assessment", "threshold_boundary", "resolution_boundary",
+        ) if c in adequacy]
         section(
-            "Development pairwise comparison",
-            frame.groupby(["data_process", "score_name"])[columns].mean().reset_index(),
-            "Equal-realization means; full per-seed rankings, tie-aware curves, budget composition and logistic calibration are saved alongside this report.",
+            "Development grid adequacy", adequacy[columns],
+            "Reference and current searches use the same development realizations and per-seed constraints. "
+            "A refinement gain within the configured numerical tolerance does not prove a global optimum. "
+            "Inspect search boundaries and neighboring precision/recall, contamination and cluster sizes in grid_neighbors.csv. "
+            "Natural zero-distance boundaries are distinguished from arbitrary search limits. "
+            "Exact pairwise selection exhausts development score cutoffs, independently of clustering grids.",
         )
     frozen_path = directory / "selection/operating_points.json"
     if frozen_path.exists():
@@ -320,26 +347,22 @@ def render_report(directory):
         )
     evaluation = read_table(directory / "evaluation/operating_results.csv")
     if not evaluation.empty:
-        metrics = [
-            "M0_precision",
-            "M0_recall",
-            "M0_f1",
-            "Mge3_contamination",
-            "bcubed_f1",
-        ]
-        present = [column for column in metrics if column in evaluation]
-        summary = evaluation.groupby(["criterion", "pipeline"])[present].agg(
-            ["mean", "std", "min", "max"]
-        )
-        summary.columns = [f"{metric}_{stat}" for metric, stat in summary.columns]
-        summary.reset_index().to_csv(
-            directory / "evaluation/operating_summary.csv", index=False
-        )
+        replayed = read_json(directory / "evaluation/selection_used.json")
+        summary = operating_summary(evaluation, replayed)
+        summary.to_csv(directory / "evaluation/operating_summary.csv", index=False)
         section(
             "Held-out fixed-setting performance",
-            summary.reset_index(),
-            "Settings are replayed unchanged. SD and range summarize observation realizations, not independent epidemics or independent pair replicates.",
+            explanation="Each criterion is shown using its frozen objective and endpoint. "
+            "operating_summary.csv also retains every endpoint for cross-endpoint assessment. "
+            "SD and range summarize observation realizations, not independent epidemics or independent pair replicates.",
         )
+        for criterion, group in summary.groupby("criterion", sort=True):
+            endpoint = group.objective_endpoint.iloc[0]
+            columns = ["pipeline", "objective", "setting_id", "n_realizations", "objective_mean", "objective_std"]
+            if endpoint:
+                columns += [f"{endpoint}_{m}_mean" for m in ("precision", "recall", "f1")]
+            columns += ["direct_edge_retention_mean", "shared_infector_retention_mean", "Mge3_contamination_mean", "singleton_fraction_mean", "largest_cluster_fraction_mean"]
+            section(f"Criterion: {criterion}", group[[c for c in columns if c in group]])
     else:
         section(
             "Held-out performance",

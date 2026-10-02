@@ -9,6 +9,7 @@ from epilink_evaluation.workflows.baseline import Baseline
 
 
 def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics):
+    small_config["splits"]["development"] = [72001, 72002]
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     with pytest.raises(ValueError, match="freeze development settings"):
@@ -36,7 +37,18 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
         if point["status"] == "selected"
     }
     assert selected
+    # A new process restores the data-derived registry before frozen replay.
+    definitions = deepcopy(baseline.definitions)
+    baseline = Baseline(deepcopy(small_config))
+    assert baseline.definitions == definitions
+    for name in small_config["scorers"]:
+        cutoffs = set()
+        for seed in small_config["splits"]["development"]:
+            curve = pd.read_parquet(baseline.directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet")
+            cutoffs.update(curve.loc[curve.score_name == name, "threshold"])
+        assert {d["threshold"] for d in definitions.values() if d["kind"] == "pairwise" and d["score_name"] == name and not d["empty"]} == cutoffs
     assert baseline.run("evaluate")
+    assert baseline.definitions == definitions
     evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
     assert set(evaluation.setting_id) == selected
     assert set(evaluation.seed) == set(small_config["splits"]["evaluation"])
@@ -45,6 +57,14 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
         "Held-out fixed-setting performance"
         in (baseline.directory / "report.md").read_text()
     )
+    summary = pd.read_csv(baseline.directory / "evaluation/operating_summary.csv")
+    secondary = summary.loc[summary.criterion == "balanced_Mle1"]
+    assert (secondary.objective == "Mle1_f1").all()
+    assert (secondary.objective_mean == secondary.Mle1_f1_mean).all()
+    assert {"M0", "Mle1", "Mle2"} == set(pd.read_csv(baseline.directory / "development/frontier.csv").endpoint)
+    for endpoint in ("M0", "Mle1", "Mle2"):
+        assert (baseline.directory / f"figures/pairwise_precision_recall_{endpoint}.png").exists()
+    assert (baseline.directory / "development/grid_adequacy.csv").exists()
 
     # A fresh process-equivalent context reuses completed observations unchanged.
     resumed = Baseline(deepcopy(small_config))
@@ -58,6 +78,12 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
     resumed.config["selection"]["criteria"][0]["name"] = "revised_after_evaluation"
     with pytest.raises(ValueError, match="fresh evaluation seeds"):
         resumed.select()
+
+    # A damaged data-derived registry cannot silently fall back to configured
+    # thresholds and release a different replay.
+    (baseline.directory / "development/pairwise_candidates/definitions.json").write_text("{}")
+    with pytest.raises(ValueError, match="candidate registry"):
+        Baseline(deepcopy(small_config)).evaluate()
 
 
 def test_subsampling_keeps_full_backbone_truth(small_config, prepare_diagnostics):

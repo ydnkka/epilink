@@ -95,6 +95,15 @@ precision and zero recall when positive pairs exist. Calibration curves, Brier
 score, and log loss apply to logistic probabilities. Compatibility is not treated
 as a calibrated probability, clipped to [0,1], or normalized into one.
 
+The supplied `pairwise.threshold_mode: all_development_scores` evaluates the union
+of distinct score values across **development** realizations, plus an empty
+selection. Each candidate is one shared inclusive cutoff applied to every seed;
+metrics are looked up from cumulative whole-tie PR curves. Selection uses equal
+realization means and per-realization constraints, not pooled pairs or separately
+optimized per-seed thresholds. Evaluation replays the frozen numerical cutoff.
+`configured` mode instead uses the finite `thresholds` lists. Graph clustering
+always uses those finite lists, independently of the exact pairwise candidates.
+
 ## 3. What relationships do clusters contain?
 
 | Approach             | Input                        | Sweep                                  |
@@ -121,6 +130,9 @@ threshold zero. Native weighted graphs omit zero-weight edges and record this
 distinction. Leiden's objective is explicit (default CPM), and restarts are
 selected by that same objective, never by truth metrics. Resolution scales are
 specific to their weight policy and scorer.
+`clustering.leiden.resolutions_by_weight_policy` can override the default
+`resolutions` list for `binary` or `native`. The supplied native grid extends
+below 0.1; binary and native weights need not share a resolution scale.
 
 TreeCluster compares `max_clade`, `avg_clade`, and `single_linkage`. Raw trees
 are midpoint-rooted using genetics alone; dated trees are rooted by TreeTime.
@@ -132,11 +144,36 @@ between sampling dates.
 
 ## 4. How do tuning parameters change the key metrics?
 
-Use the declared broad grids in `config.yaml`, including empty selections,
+Use the declared broad clustering grids in `config.yaml`, including empty selections,
 strict settings and permissive settings. Inspect threshold curves, Leiden
 threshold–resolution heatmaps, precision–recall/contamination frontiers, and
 cluster-size behavior. Broaden a grid on development data when the useful region
 touches its boundary; freeze the grid and selection rule before evaluation.
+
+Reports and figures cover **M0, Mle1 and Mle2**, with endpoint suffixes on figure
+filenames. `frontier.csv` is endpoint-labelled and retains the explicit
+`*_precision_mean`/`*_recall_mean` names. Held-out tables display each criterion's
+actual frozen objective; `operating_summary.csv` retains all endpoints,
+AD0/CA00 retention, workload, cluster-size metrics and defined-value counts.
+The endpoint is derived from the objective, not from the criterion's name.
+
+`development/grid_adequacy.csv` compares each selected development setting with
+`grid_audit.reference` on the same observations. The reference may override
+`thresholds`, `leiden_resolutions`, and TreeCluster `genetic_thresholds` or
+`threshold_days`; unspecified fields inherit the current configuration. Keep
+reference clustering settings in the expanded sweep so coverage remains complete.
+Pairwise reference thresholds are evaluated from the saved full PR curves.
+`grid_neighbors.csv` reports adjacent settings with other coordinates and the
+TreeCluster method held fixed, including feasibility and precision/recall,
+contamination and cluster-size behavior.
+
+The audit distinguishes natural zero cutoffs from arbitrary search boundaries,
+and reports `material_improvement`, `within_tolerance`, `not_refined`,
+`reference_better`, or `unassessed`. The supplied absolute objective tolerance
+is 0.005. It is a numerical refinement diagnostic, not a confidence interval or
+proof of a global optimum. Inspect boundary flags and scientific trade-offs as
+well as objective changes before freezing. An unchanged reference grid is
+labelled `not_refined`, rather than evidence of refinement stability.
 
 The preceding diagnostics study reports exact `GD` and `GD_TD` feature cells for both
 genetic processes and every endpoint. The minimum empirical feature-only error
@@ -164,7 +201,9 @@ performance ceiling; the hop tree is not a molecular genealogy.
 4. Select method-specific settings using that criterion, then freeze them.
 5. Apply those settings unchanged on **held-out evaluation** realizations.
 
-The supplied `balanced_M0` criterion is an executable starting comparison, not
+The supplied `balanced_M0`, `balanced_Mle1`, and `balanced_Mle2` criteria maximize
+their respective endpoint F1 values. M=0 remains primary; broader endpoints
+evaluate the same M=0-trained scores. These are executable starting comparisons, not
 an established epidemiological recommendation. Configurable constraints use
 explicit `min`/`max` bounds, for example `M0_precision: {min: 0.5}`. Choose such
 values from the intended use and development evidence. Bounds must hold on
@@ -243,8 +282,8 @@ python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 
 Baseline defaults to `develop`; diagnostics defaults to `all` and supports
 `prepare`, `observations`, `graphs`, `trees`, `all`, and `report`. Its `prepare`
-stage alone does not complete the required diagnostics. Retained outputs and
-[VALIDATION.md](VALIDATION.md) describe earlier workflow checkpoints; current
+stage alone does not complete the required diagnostics. Retained outputs
+describe earlier workflow checkpoints; current
 evidence requires the diagnostics-first sequence above.
 
 FastME and TreeTime are used for tree construction/dating, and TreeCluster for
@@ -260,6 +299,17 @@ Diagnostics prepares shared truth and development observations. Baseline
 `prepare` requires completed diagnostics and prepares training observations while
 reusing development data. The `scovmod` command defaults to `prepare` and supports
 only that stage.
+
+## Development validation
+
+Validated on 2026-10-02 with `python -m pytest -q` (**160 passed**) and the
+diagnostics→baseline `--smoke --stage all` sequence. The 64-case baseline run
+`f076584b64907b3f30ed` completed 1,541 development pairwise candidates, 132
+clustering settings, and frozen replay of 23 pairwise / 47 clustering settings.
+All 102 criterion/pipeline operating summaries displayed their actual objective;
+all three endpoint frontiers and the reference-grid audit were verified.
+FastME, TreeTime and TreeCluster were exercised. No full study was run for this
+development validation.
 
 ## Outputs and extension points
 
@@ -287,6 +337,15 @@ accessing evaluation data requires fresh evaluation seeds in the shared config
 and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json`
 ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs
 use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`.
+The revised supplied design reserves fresh full-evaluation seeds 63101–63103;
+63001–63003 belong to the previous completed comparison. Smoke retains its
+separate validation seeds and never substitutes for full scientific evaluation.
+
+Each development `pairwise/evidence/` artifact checkpoints cumulative curves,
+rankings, budgets, calibration, and empty-selection metrics. Once every seed's
+evidence is available, `development/pairwise_candidates/` pins the candidate
+definitions and source-manifest hashes. `settings.json` includes these definitions
+alongside the static clustering grids; a fresh process restores them before replay.
 
 Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs,
 phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do

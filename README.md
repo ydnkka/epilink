@@ -58,6 +58,10 @@ python evaluation/01_synthetic_baseline/run.py --stage develop
 
 Review the development report and configure operating criteria before selection
 and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria).
+The supplied baseline selects pairwise cutoffs from all distinct development
+scores, independently of finite graph grids. Reports cover M0/Mle1/Mle2 and
+include same-development reference-grid comparisons and neighboring-setting
+diagnostics. Inspect these before freezing clustering settings.
 
 ```bash
 python evaluation/01_synthetic_baseline/run.py --stage select

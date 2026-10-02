@@ -168,8 +168,12 @@ The common scorer identifiers are `split`, `seed`, `score_name`, `data_process`.
 ### `metrics.csv`
 
 **One row per scorer threshold setting.** Columns are the four scorer identifiers,
-`pipeline`, `setting_id`, and every shared metric in section 2. Development covers
-the declared threshold grid; evaluation covers selected pairwise settings.
+`pipeline`, `setting_id`, and every shared metric in section 2. With
+`pairwise.threshold_mode: all_development_scores`, development covers the union
+of distinct development score cutoffs for each scorer plus an empty selection.
+Every cutoff is applied to every development seed, retaining whole ties.
+`configured` mode covers the declared threshold grid. Evaluation covers selected
+pairwise settings only; it does not discover new candidate cutoffs.
 Look up the actual threshold and its direction in `settings.json` and the scorer
 definitions; there is no `threshold` column in this file.
 
@@ -208,6 +212,15 @@ Rows run from strict to permissive within each scorer. There is no synthetic
 zero-selection row; its recall of zero is implicit in the AP calculation.
 This curve uses unique observed values rather than the configured operating grid.
 The evaluation file is an empty table because full curves are not saved there.
+
+Development `pairwise/evidence/` checkpoints these curves and the ranking,
+budget and calibration tables before candidate enumeration, together with
+`empty_metrics.json` and its artifact manifest. The top-level pairwise tables
+remain the analysis interface. `development/pairwise_candidates/definitions.json`
+maps IDs to pairwise definitions; its manifest binds the run and all source
+evidence-manifest hashes. `settings.json` combines these candidates with the
+independently configured clustering settings. Cached candidates are restored on
+resumption and before evaluation replay.
 
 ### `budgets.csv`
 
@@ -338,11 +351,13 @@ recover them from setting definitions. Counts also receive these suffixes.
 ### `<run>/<split>/frontier.csv`
 
 A subset of `summary.csv`, retaining non-dominated mean precision/recall settings
-within each pipeline, including exact ties. **`M0_precision_mean` is renamed to
-`M0_precision`, and `M0_recall_mean` to `M0_recall` in this file.** Both still
-represent realization means. Other columns keep their summary names. Settings
-with missing precision or recall are omitted. Evaluation's frontier covers only
-its evaluated settings; it is not another parameter sweep.
+within each `(endpoint, pipeline)`, including exact ties. The additional
+`endpoint` column is `M0`, `Mle1`, or `Mle2`; **all summary column names retain
+their `_mean` suffixes**. One setting can appear at multiple endpoints. Settings
+with missing precision or recall for that endpoint are omitted. Evaluation's
+frontier covers only its evaluated settings; it is not another parameter sweep.
+Earlier reports used an M0-only schema with renamed columns; rerendering a report
+updates this derived table from its saved summary.
 
 ### `evaluation/operating_results.csv`
 
@@ -353,12 +368,56 @@ included to avoid unintended duplication.
 
 ### `evaluation/operating_summary.csv`
 
-**One row per `(criterion, pipeline)`**, generated during reporting. The five
-metrics `M0_precision`, `M0_recall`, `M0_f1`, `Mge3_contamination`, and `bcubed_f1`
-each receive `_mean`, `_std`, `_min`, `_max` suffixes with the same aggregation
-semantics. BCubed is blank for pairwise pipelines. Unlike `summary.csv`, this
-file has no `n_realizations` or `setting_id` column; use operating results and
-frozen decisions to recover coverage and definitions.
+**One row per `(criterion, pipeline)`**, generated during reporting from the
+frozen mapping in `evaluation/selection_used.json`. It includes `setting_id`,
+`objective`, `objective_endpoint` and `n_realizations`. The endpoint is derived
+from the objective metric (blank for objectives without an endpoint), never
+guessed from the criterion name. Each group must contain one frozen setting and
+one row per seed.
+
+For all three endpoints, precision, recall, F1 and enrichment receive `_mean`,
+`_std`, `_min`, `_max`, and `_count` suffixes. The same summaries are included
+for distant/separate contamination, direct-edge/shared-infector retention,
+selected pair counts/fractions, BCubed F1, singleton fraction, largest-cluster
+fraction and number of clusters when present. `_count` is the number of defined
+values for that metric; `n_realizations` counts seeds even when a metric is
+undefined. `_std` uses `ddof=1`. BCubed and cluster-size metrics are undefined
+for pairwise pipelines.
+
+`objective_mean`, `objective_std`, `objective_min`, `objective_max`, and
+`objective_count` alias the corresponding summaries of the actual optimized
+metric, including arbitrary supported objectives. The report displays the
+optimized endpoint's precision/recall/F1 prominently; the CSV retains every
+endpoint for cross-endpoint comparisons.
+
+### `development/grid_adequacy.csv` and `grid_neighbors.csv`
+
+These are report-generated **development-only** diagnostics. They can be empty
+before all development seeds are available and do not change frozen decisions.
+
+`grid_adequacy.csv` has one row per `(pipeline, criterion)` with status, objective,
+endpoint, selected setting/parameters, `objective_mean` and `objective_sd`
+(selection convention, `ddof=0`), candidate counts, and comparison against the
+declared `grid_audit.reference`. `reference_status` distinguishes selected,
+infeasible, incomplete and unavailable reference evidence. `refinement_gain` is
+current minus reference mean objective, using the same development realizations
+and per-seed constraints. `objective_tolerance` is an absolute numerical tolerance.
+
+`refinement_assessment` is `material_improvement`, `within_tolerance`,
+`reference_better`, `not_refined` (identical candidate searches), or `unassessed`.
+`search_scope` distinguishes `exhaustive_development_scores` from `finite_grid`.
+`threshold_boundary`/`resolution_boundary` are `interior`, `search_lower`,
+`search_upper`, `natural_lower` (zero cutoff), `natural_upper` (probability one),
+`single_value`, `empty`, or `not_applicable`. `inspect_search_boundary` flags
+arbitrary limits/single-value axes. These labels do not certify a global optimum.
+
+`grid_neighbors.csv` has one row per available adjacent numerical setting:
+pipeline, criterion, selected and neighboring setting IDs, axis, side, value,
+per-seed-constraint feasibility, and mean objective/endpoint precision and recall,
+distant contamination and cluster-size metrics. Other coordinates and the
+TreeCluster method are held fixed. Missing reference clustering settings produce
+incomplete coverage, not a silently reduced comparison. Pairwise reference
+cutoffs are evaluated directly from saved full PR curves.
 
 ## 6. Truth, observations, scores, and fitted models
 
