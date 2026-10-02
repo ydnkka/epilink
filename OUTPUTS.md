@@ -20,10 +20,10 @@ Section 13 covers the shared synthetic experiment and diagnostics. For baseline,
 
 Prepared inputs are shared outside the run roots:
 
-| Directory | Files |
-| --- | --- |
-| `evaluation/shared_synthetic/outputs/inputs/` | `transmission_tree.gml`, `transmission_tree.source.json`, `manifest.json` |
-| `evaluation/03_boston_application/outputs/inputs/` | `cases.parquet`, `observed_pairs.parquet`, `manifest.json` |
+| Directory                                          | Files                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------- |
+| `evaluation/shared_synthetic/outputs/inputs/`      | `transmission_tree.gml`, `transmission_tree.source.json`, `manifest.json` |
+| `evaluation/03_boston_application/outputs/inputs/` | `cases.parquet`, `observed_pairs.parquet`, `manifest.json`                |
 
 SCoVMod preparation and diagnostics use the shared input location; baseline reads
 the experiment's immutable backbone copy. Boston uses its own prepared inputs.
@@ -592,15 +592,15 @@ and `<run>/diagnostics.json` records the validated completion reference.
 
 `<run>/manifest.json` fields:
 
-| Field             | Definition                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------- |
-| `status`          | `running`, `complete`, `partial`, or `failed` for the last requested computational stage.           |
-| `requested_stage` | Stage responsible for this manifest; rebuilding a report does not change it.                        |
+| Field             | Definition                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `status`          | `running`, `complete`, `partial`, or `failed` for the last requested computational stage.                                         |
+| `requested_stage` | Stage responsible for this manifest; rebuilding a report does not change it.                                                      |
 | `signature`       | `schema` version, scientific `config`, `implementation`, `tools`, truth artifact ID in `truth`, and shared `experiment` identity. |
-| `git_revision`    | Git HEAD at execution; null if unavailable. Implementation hashes capture working-copy code.        |
-| `config`          | Full resolved configuration, including selection rules and paths.                                   |
-| `run_directory`   | Absolute path to the run.                                                                           |
-| `error`           | Exception representation when a caught stage exception marks the run failed.                        |
+| `git_revision`    | Git HEAD at execution; null if unavailable. Implementation hashes capture working-copy code.                                      |
+| `config`          | Full resolved configuration, including selection rules and paths.                                                                 |
+| `run_directory`   | Absolute path to the run.                                                                                                         |
+| `error`           | Exception representation when a caught stage exception marks the run failed.                                                      |
 
 `implementation` records relative-file SHA-256 mappings for the evaluation and
 EpiLink packages plus recorded dependency `versions`. Each tool identity contains
@@ -1113,17 +1113,17 @@ Diagnostics and baseline reference it through `experiment_config`; baseline deri
 matched inference from generation. Default shared root:
 `evaluation/shared_synthetic/outputs/synthetic/`, or `synthetic_smoke/`.
 
-| Path relative to shared root | Contract |
-| --- | --- |
-| `current.json` | Latest prepared `experiment_directory` (absolute) and full `fingerprint`. Preparation alone does not imply diagnostics completion. |
-| `experiments/<id>/experiment.json` | Resolved data design (`inputs`, `generation`, `simulation`, `splits`), schema version, and shared `output_directory`; `inputs.tree_path` pins the backbone copy. |
-| `experiments/<id>/manifest.json` | Completion manifest with signature `kind`, original `specification`, generation `producer`, `backbone` and `truth` artifact IDs; checksums cover `experiment.json`. IDs use 20-character fingerprint prefixes. |
-| `artifacts/backbones/<id>/` | Pinned `transmission_tree.gml`, `source.json` (original tree path/hash and available preparation provenance), and completion manifest. Signature includes source SHA-256, nodes, and edges. |
-| `artifacts/truth/<id>/`, `artifacts/observations/<id>/` | Shared pair/case schemas from section 6. Diagnostics prepares development observations; baseline prepares training and, after frozen release, evaluation observations. |
-| `experiments/<id>/observations/seed_<seed>.json` | `seed`, `role` (`train`, `development`, `evaluation`), `dataset` directory ID, and observation `fingerprint`. Created when that dataset is prepared/released. |
-| `experiments/<id>/diagnostics.json` | Completed diagnostics `run_directory`, diagnostics `fingerprint`, shared `experiment` identity, exact development `datasets` mapping (seed string → artifact ID), and `status: complete`. |
-| `heldout_access/seed_<seed>.json` | `seed`, shared `experiment` identity, and `selection_fingerprint`; records access before evaluation observations are generated. |
-| `validation_access/<selection-fingerprint>/seed_<seed>.json` | The same access fields for smoke validation. Smoke observations may be reused across changed comparison implementations; they are pipeline checks rather than held-out scientific evidence. |
+| Path relative to shared root                                 | Contract                                                                                                                                                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current.json`                                               | Latest prepared `experiment_directory` (absolute) and full `fingerprint`. Preparation alone does not imply diagnostics completion.                                                                             |
+| `experiments/<id>/experiment.json`                           | Resolved data design (`inputs`, `generation`, `simulation`, `splits`), schema version, and shared `output_directory`; `inputs.tree_path` pins the backbone copy.                                               |
+| `experiments/<id>/manifest.json`                             | Completion manifest with signature `kind`, original `specification`, generation `producer`, `backbone` and `truth` artifact IDs; checksums cover `experiment.json`. IDs use 20-character fingerprint prefixes. |
+| `artifacts/backbones/<id>/`                                  | Pinned `transmission_tree.gml`, `source.json` (original tree path/hash and available preparation provenance), and completion manifest. Signature includes source SHA-256, nodes, and edges.                    |
+| `artifacts/truth/<id>/`, `artifacts/observations/<id>/`      | Shared pair/case schemas from section 6. Diagnostics prepares development observations; baseline prepares training and, after frozen release, evaluation observations.                                         |
+| `experiments/<id>/observations/seed_<seed>.json`             | `seed`, `role` (`train`, `development`, `evaluation`), `dataset` directory ID, and observation `fingerprint`. Created when that dataset is prepared/released.                                                  |
+| `experiments/<id>/diagnostics.json`                          | Completed diagnostics `run_directory`, diagnostics `fingerprint`, shared `experiment` identity, exact development `datasets` mapping (seed string → artifact ID), and `status: complete`.                      |
+| `heldout_access/seed_<seed>.json`                            | `seed`, shared `experiment` identity, and `selection_fingerprint`; records access before evaluation observations are generated.                                                                                |
+| `validation_access/<selection-fingerprint>/seed_<seed>.json` | The same access fields for smoke validation. Smoke observations may be reused across changed comparison implementations; they are pipeline checks rather than held-out scientific evidence.                    |
 
 Baseline pins the shared identity in its own `<run>/experiment.json` and validates
 the diagnostics marker against checksummed completion evidence. Follow that pinned
@@ -1139,14 +1139,14 @@ Here `<diagnostics-root>` is
 `evaluation/00_synthetic_diagnostics/outputs/diagnostics/` (or `diagnostics_smoke/`),
 and `<diagnostics-run>` is its `runs/<full-signature-fingerprint>/` directory.
 
-| Path | Contents |
-| --- | --- |
-| `<diagnostics-root>/current.json` | `run_directory`, diagnostics `fingerprint`, and shared `experiment` identity. |
-| `<diagnostics-run>/manifest.json` | `signature`, `status`, `requested_stage`, `experiment`, resolved `config`, `run_directory`, `coverage_complete`, and optional `error`. |
-| `<diagnostics-run>/<stage>/index.json` | For `observations`, `graphs`, or `trees`: `status`, `records`, `errors`, and exact seed-to-dataset map. Records link absolute `artifact` paths; graph/tree records also link `source`. |
-| `<diagnostics-root>/artifacts/<kind>/<full-fingerprint>/` | Diagnostic feature tables or known-truth controls with completion manifests; failed artifacts retain `status: failed` and `error`. Kinds are described below. |
-| `<diagnostics-run>/completion/` | Checksummed `coverage.json` and manifest, released only when all required stages and their evidence validate. |
-| `<diagnostics-run>/report.md`, `report.html`, `figures/` | Saved-table reports with stage coverage, visible errors, descriptive summaries, and figures. |
+| Path                                                      | Contents                                                                                                                                                                               |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<diagnostics-root>/current.json`                         | `run_directory`, diagnostics `fingerprint`, and shared `experiment` identity.                                                                                                          |
+| `<diagnostics-run>/manifest.json`                         | `signature`, `status`, `requested_stage`, `experiment`, resolved `config`, `run_directory`, `coverage_complete`, and optional `error`.                                                 |
+| `<diagnostics-run>/<stage>/index.json`                    | For `observations`, `graphs`, or `trees`: `status`, `records`, `errors`, and exact seed-to-dataset map. Records link absolute `artifact` paths; graph/tree records also link `source`. |
+| `<diagnostics-root>/artifacts/<kind>/<full-fingerprint>/` | Diagnostic feature tables or known-truth controls with completion manifests; failed artifacts retain `status: failed` and `error`. Kinds are described below.                          |
+| `<diagnostics-run>/completion/`                           | Checksummed `coverage.json` and manifest, released only when all required stages and their evidence validate.                                                                          |
+| `<diagnostics-run>/report.md`, `report.html`, `figures/`  | Saved-table reports with stage coverage, visible errors, descriptive summaries, and figures.                                                                                           |
 
 Completion signature fields are `experiment`, `diagnostics` (run fingerprint),
 and `datasets`. `coverage.json` has `status`, required `stages`, `datasets`,
@@ -1166,29 +1166,29 @@ records each source `dataset` ID and its diagnostic `artifact` path.
 `cells.parquet` has **one row per occupied exact feature cell, process, endpoint,
 and seed**. No additional rounding or binning is applied to saved GD/TD values.
 
-| Column | Definition |
-| --- | --- |
-| `seed`, `process`, `feature_set`, `endpoint` | Development seed; `deterministic`/`stochastic`; `GD`/`GD_TD`; `M0`/`Mle1`/`Mle2`. |
-| `GD`, `TD` | Exact saved coordinates, substitutions and days. `TD` is null for GD-only cells. |
-| `n_pairs`, `n_target`, `n_other` | Cell occupancy, endpoint-positive count, and endpoint-negative count; the last two sum to occupancy. |
-| `target_fraction`, `mixed` | `n_target / n_pairs`; boolean indicating both classes occur in the cell. |
-| `n_<category>` | All ten exhaustive relationship counts from section 2, including `n_separate`. Sum equals cell occupancy. |
+| Column                                       | Definition                                                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `seed`, `process`, `feature_set`, `endpoint` | Development seed; `deterministic`/`stochastic`; `GD`/`GD_TD`; `M0`/`Mle1`/`Mle2`.                         |
+| `GD`, `TD`                                   | Exact saved coordinates, substitutions and days. `TD` is null for GD-only cells.                          |
+| `n_pairs`, `n_target`, `n_other`             | Cell occupancy, endpoint-positive count, and endpoint-negative count; the last two sum to occupancy.      |
+| `target_fraction`, `mixed`                   | `n_target / n_pairs`; boolean indicating both classes occur in the cell.                                  |
+| `n_<category>`                               | All ten exhaustive relationship counts from section 2, including `n_separate`. Sum equals cell occupancy. |
 
 `summary.csv` has **one row per seed/process/feature_set/endpoint**. It contains
 `n_pairs`, `n_target`, `n_other` for the whole sampled pair universe, plus `n_cells`,
 `mixed_cells`, `n_pairs_in_mixed_cells`, `n_target_in_mixed_cells`, and
 `n_other_in_mixed_cells`. Its ratios use these distinct denominators:
 
-| Column | Definition |
-| --- | --- |
-| `mixed_cell_fraction` | Mixed cells / all occupied cells. |
-| `pair_fraction_in_mixed_cells` | Pairs in mixed cells / all observed pairs. |
-| `target_fraction_in_mixed_cells` | Targets in mixed cells / all targets. |
-| `target_prevalence_in_mixed_cells` | Targets in mixed cells / all pairs in mixed cells. |
-| `non_target_fraction_in_mixed_cells` | Non-targets in mixed cells / all non-targets. |
-| `class_conditional_overlap` | Sum over cells of `min(n_target_cell / total_targets, n_other_cell / total_others)`; undefined if either class is absent. |
-| `minimum_feature_only_misclassifications` | Exact count `sum_cells min(n_target_cell, n_other_cell)`. |
-| `minimum_feature_only_misclassification_rate` | That minimum count / all observed pairs. |
+| Column                                        | Definition                                                                                                                |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `mixed_cell_fraction`                         | Mixed cells / all occupied cells.                                                                                         |
+| `pair_fraction_in_mixed_cells`                | Pairs in mixed cells / all observed pairs.                                                                                |
+| `target_fraction_in_mixed_cells`              | Targets in mixed cells / all targets.                                                                                     |
+| `target_prevalence_in_mixed_cells`            | Targets in mixed cells / all pairs in mixed cells.                                                                        |
+| `non_target_fraction_in_mixed_cells`          | Non-targets in mixed cells / all non-targets.                                                                             |
+| `class_conditional_overlap`                   | Sum over cells of `min(n_target_cell / total_targets, n_other_cell / total_others)`; undefined if either class is absent. |
+| `minimum_feature_only_misclassifications`     | Exact count `sum_cells min(n_target_cell, n_other_cell)`.                                                                 |
+| `minimum_feature_only_misclassification_rate` | That minimum count / all observed pairs.                                                                                  |
 
 Zero-denominator ratios are undefined. The minimum error applies empirically to
 binary decisions constant within these exact feature cells. It is neither a

@@ -37,10 +37,10 @@ and simulation design.
 
 ### How the studies fit together
 
-| Study                                                                     | Scientific role                                                                        | Main evidence                                                                               |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Study                                                                | Scientific role                                                                        | Main evidence                                                                               |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells, endpoint-oracle graph partitions, and transmission-hop tree controls. |
-| **Synthetic baseline** (this study)                                 | Compare methods, select settings, and evaluate them on held-out observations.          | Truth-based performance and frozen models/operating points.                                 |
+| **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.          | Truth-based performance and frozen models/operating points.                                 |
 | [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test sensitivity to changed biological parameters and EpiLink parameter mismatch.      | Paired performance changes with baseline-selected operating points held fixed.              |
 | [**Boston application**](../03_boston_application/README.md)         | Examine empirical transfer and sensitivity to clustering settings on real data.        | Exposure composition/recovery, partition agreement, and descriptive parameter sweeps.       |
 
@@ -106,9 +106,9 @@ always uses those finite lists, independently of the exact pairwise candidates.
 
 ## 3. What relationships do clusters contain?
 
-| Approach             | Input                        | Sweep                                  |
-| -------------------- | ---------------------------- | -------------------------------------- |
-| Connected components | Thresholded pair-score graph | Score or genetic threshold             |
+| Approach             | Input                        | Sweep                                 |
+| -------------------- | ---------------------------- | ------------------------------------- |
+| Connected components | Thresholded pair-score graph | Score or genetic threshold            |
 | Leiden               | Same graph, declared weights | Graph threshold × resolution          |
 | TreeCluster, raw     | FastME genetic-distance tree | Method × substitutions/site threshold |
 | TreeCluster, dated   | TreeTime-dated version       | Method × day threshold                |
