@@ -15,6 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.ticker import MaxNLocator
 
 DIAGNOSTICS_ROOT = Path(__file__).parent / "outputs" / "diagnostics"
 
@@ -43,9 +44,6 @@ COLORS = {
     "contamination": "#CC79A7",
 }
 
-PANEL_LABEL_X = (0.02, 0.27, 0.52)
-
-
 @dataclass(frozen=True)
 class MetricSpec:
     label: str
@@ -63,16 +61,16 @@ class MetricSpec:
 
 
 SCORE_METRICS = (
-    MetricSpec("F1", "f1", "o", COLORS["f1"], 2.5, 6),
-    MetricSpec("Precision", "precision", "s", COLORS["precision"], 2, 5, alpha=0.8),
-    MetricSpec("Recall", "recall", "^", COLORS["recall"], 2, 5, alpha=0.8),
+    MetricSpec("F1", "f1", "o", COLORS["f1"], 1.8, 4),
+    MetricSpec("Precision", "precision", "s", COLORS["precision"], 1.5, 3.5, alpha=0.8),
+    MetricSpec("Recall", "recall", "^", COLORS["recall"], 1.5, 3.5, alpha=0.8),
     MetricSpec(
         "M≥3 contam.",
         "Mge3_contamination",
         "d",
         COLORS["contamination"],
-        2,
-        5,
+        1.5,
+        3.5,
         linestyle="--",
         alpha=0.7,
     ),
@@ -159,10 +157,7 @@ def plot_feature_ambiguity(
 
     ax.set_xticks(x_pos)
     ax.set_xticklabels([FEATURE_LABELS[feature_set] for feature_set in FEATURE_SETS])
-    ax.set_ylabel("Mixed cell fraction", fontsize=9)
-    ax.set_title(ENDPOINT_LABELS[endpoint], fontsize=10, fontweight="bold")
     ax.set_ylim(0, y_max or subset["mixed_cell_fraction_max"].max() * 1.2)
-    ax.grid(axis="y", alpha=0.3, linestyle="--")
 
 
 def plot_score_metrics(
@@ -217,42 +212,8 @@ def plot_oracle_pr(ax: Axes, data: pd.DataFrame, endpoint: str) -> None:
     plot_score_metrics(ax, leiden_data, endpoint, "resolution_float", SCORE_METRICS)
     plot_f1_error_bars(ax, leiden_data, endpoint, "resolution_float")
 
-    ax.set_xlabel("Leiden Resolution (CPM)", fontsize=9)
-    ax.set_ylabel("Score", fontsize=9)
-    ax.set_title(f"Oracle: {ENDPOINT_LABELS[endpoint]}", fontsize=10, fontweight="bold")
     ax.set_xlim(0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
-    ax.grid(alpha=0.3, linestyle="--")
-
-
-def plot_connected_components(ax: Axes, data: pd.DataFrame, endpoint: str) -> None:
-    """Plot connected components F1, precision, recall, and contamination."""
-    cc_data = data[
-        (data["endpoint"].astype(str) == endpoint)
-        & (data["algorithm"].astype(str) == "components")
-    ]
-    row = cc_data.iloc[0]
-
-    for metric in SCORE_METRICS:
-        ax.axhline(
-            row[metric_column(endpoint, metric.suffix)],
-            color=metric.color,
-            linewidth=metric.linewidth,
-            linestyle=metric.linestyle,
-            label=metric.label,
-            alpha=metric.alpha,
-        )
-
-    ax.set_ylabel("Score", fontsize=9)
-    ax.set_title(
-        f"Connected Components: {ENDPOINT_LABELS[endpoint]}",
-        fontsize=10,
-        fontweight="bold",
-    )
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.05, 1.05)
-    ax.set_xticks([])
-    ax.grid(alpha=0.3, linestyle="--")
 
 
 def plot_tree_performance(
@@ -268,16 +229,7 @@ def plot_tree_performance(
     plot_score_metrics(ax, method_data, endpoint, "threshold_hops", TREE_METRICS)
     plot_f1_error_bars(ax, method_data, endpoint, "threshold_hops")
 
-    ax.set_xlabel("Threshold (hops)", fontsize=9)
-    ax.set_ylabel("Score", fontsize=9)
-    ax.set_title(
-        f"{METHOD_LABELS.get(method, method)} - {ENDPOINT_LABELS[endpoint]}",
-        fontsize=10,
-        fontweight="bold",
-    )
-    ax.set_xticks(method_data["threshold_hops"].unique())
     ax.set_ylim(-0.05, 1.05)
-    ax.grid(alpha=0.3, linestyle="--")
 
 
 def metric_legend_handles(metrics: tuple[MetricSpec, ...]) -> list[Line2D]:
@@ -291,114 +243,146 @@ def metric_legend_handles(metrics: tuple[MetricSpec, ...]) -> list[Line2D]:
             markersize=metric.markersize,
             linestyle=metric.linestyle,
             label=metric.label,
+            alpha=metric.alpha,
         )
         for metric in metrics
     ]
 
 
-def add_legend(ax: Axes, handles: Sequence[Patch | Line2D], title: str) -> None:
-    ax.axis("off")
-    ax.legend(
-        handles=handles,
-        loc="center",
+def add_legends(fig: Figure, gs: GridSpec) -> None:
+    """Keep the two distinct color keys above the grid."""
+    fig.legend(
+        handles=[
+            Patch(facecolor=COLORS[process], label=PROCESS_LABELS[process])
+            for process in PROCESSES
+        ],
+        loc="upper left",
+        bbox_to_anchor=(gs.left, 0.99),
+        ncol=len(PROCESSES),
         fontsize=9,
         frameon=False,
-        title=title,
-        title_fontsize=10,
+        title="Process",
+        title_fontsize=9,
+        borderaxespad=0,
+    )
+    fig.legend(
+        handles=metric_legend_handles(SCORE_METRICS),
+        loc="upper right",
+        bbox_to_anchor=(gs.right, 0.99),
+        ncol=len(SCORE_METRICS),
+        fontsize=9,
+        frameon=False,
+        title="Metrics",
+        title_fontsize=9,
+        borderaxespad=0,
     )
 
 
-def add_panel_labels(fig: Figure, labels: tuple[str, ...], y_pos: float) -> None:
-    for x_pos, label in zip(PANEL_LABEL_X, labels):
-        fig.text(x_pos, y_pos, label, fontsize=12, fontweight="bold", va="top")
+def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
+    """Align each row label with its axes rather than fixed figure heights."""
+    labels = [
+        "Feature\nambiguity",
+        "Leiden\nCommunity\nDetection",
+        *[f"TreeCluster\n{METHOD_LABELS[method]}" for method in TREE_METHODS],
+    ]
+    for ax, label in zip(row_axes, labels):
+        bounds = ax.get_position()
+        y_pos = (bounds.y0 + bounds.y1) / 2
+        fig.text(bounds.x0 - 0.16, y_pos, label, fontsize=9, va="center")
+
+
+def add_panel_labels(panel_axes: Sequence[Axes]) -> None:
+    """Label individual cells alphabetically in row-major order."""
+    for index, ax in enumerate(panel_axes):
+        ax.set_title(
+            chr(ord("A") + index),
+            loc="left",
+            fontsize=11,
+            fontweight="bold",
+            pad=10,
+        )
 
 
 def make_grid(fig: Figure) -> GridSpec:
     return GridSpec(
-        6,
-        4,
+        2 + len(TREE_METHODS),
+        len(ENDPOINTS),
         figure=fig,
-        height_ratios=[1, 1.2, 0.8, 1, 1, 1],
-        width_ratios=[1, 1, 1, 0.3],
-        hspace=0.35,
-        wspace=0.25,
-        left=0.06,
-        right=0.95,
-        top=0.95,
-        bottom=0.05,
+        hspace=0.33,
+        wspace=0.12,
+        left=0.22,
+        right=0.98,
+        top=0.92,
+        bottom=0.065,
     )
 
 
 def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
     """Create and save the diagnostics figure."""
-    fig = plt.figure(figsize=(14, 18))
+    fig = plt.figure(figsize=(12, 11))
     gs = make_grid(fig)
+    axes = gs.subplots()
+
+    # Share directly with each group's reference so limits AND tick locators
+    # stay identical, including across all three tree-method rows.
+    for row, row_axes in enumerate(axes):
+        x_reference = axes[2 if row >= 2 else row, 0]
+        y_reference = axes[0 if row == 0 else 1, 0]
+        for ax in row_axes:
+            if ax is not x_reference:
+                ax.sharex(x_reference)
+            if ax is not y_reference:
+                ax.sharey(y_reference)
 
     summary_agg = data["summary_aggregate"]
     y_max_ambiguity = summary_agg["mixed_cell_fraction_max"].max() * 1.2
 
     for col, endpoint in enumerate(ENDPOINTS):
         plot_feature_ambiguity(
-            fig.add_subplot(gs[0, col]),
+            axes[0, col],
             summary_agg,
             endpoint,
             y_max_ambiguity,
         )
-        plot_oracle_pr(fig.add_subplot(gs[1, col]), data["graphs"], endpoint)
-        plot_connected_components(
-            fig.add_subplot(gs[2, col]),
-            data["graphs"],
-            endpoint,
+        plot_oracle_pr(axes[1, col], data["graphs"], endpoint)
+        axes[0, col].set_title(
+            ENDPOINT_LABELS[endpoint], fontsize=11, fontweight="bold", pad=10
         )
 
     for row, method in enumerate(TREE_METHODS):
         for col, endpoint in enumerate(ENDPOINTS):
             plot_tree_performance(
-                fig.add_subplot(gs[3 + row, col]),
+                axes[2 + row, col],
                 data["trees"],
                 method,
                 endpoint,
             )
 
-    add_legend(
-        fig.add_subplot(gs[0, 3]),
-        [
-            Patch(facecolor=COLORS[process], label=PROCESS_LABELS[process])
-            for process in PROCESSES
-        ],
-        "Process",
-    )
-    add_legend(
-        fig.add_subplot(gs[1, 3]),
-        metric_legend_handles(SCORE_METRICS),
-        "Oracle Metrics",
-    )
-    add_legend(
-        fig.add_subplot(gs[2, 3]),
-        metric_legend_handles(SCORE_METRICS),
-        "CC Metrics",
-    )
-    add_legend(
-        fig.add_subplot(gs[3:6, 3]),
-        metric_legend_handles(TREE_METRICS),
-        "Tree Metrics",
-    )
+    axes[0, 0].yaxis.set_major_locator(MaxNLocator(nbins=4))
+    axes[1, 0].set_yticks([0, 0.5, 1])
+    axes[1, 0].xaxis.set_major_locator(MaxNLocator(nbins=5))
+    axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
 
-    add_panel_labels(fig, ("A1", "A2", "A3"), 0.98)
-    add_panel_labels(fig, ("B1", "B2", "B3"), 0.85)
-    add_panel_labels(fig, ("C1", "C2", "C3"), 0.72)
-
-    for i, method in enumerate(TREE_METHODS):
-        y_pos = (0.56, 0.38, 0.20)[i]
-        fig.text(0.01, y_pos, f"D{i + 1}", fontsize=12, fontweight="bold", va="top")
-        fig.text(
-            0.04,
-            y_pos,
-            METHOD_LABELS[method],
-            fontsize=9,
-            va="center",
-            style="italic",
+    x_labels = ("Feature set", "Leiden resolution (CPM)") + (
+        "Threshold (hops)",
+    ) * len(TREE_METHODS)
+    for row, row_axes in enumerate(axes):
+        row_axes[0].set_ylabel(
+            "Mixed cell fraction" if row == 0 else "Score", fontsize=9
         )
+        for col, ax in enumerate(row_axes):
+            ax.set_axisbelow(True)
+            ax.grid(axis="y", color="0.9", linewidth=0.6)
+            ax.spines[["top", "right"]].set_visible(False)
+            ax.tick_params(axis="both", labelsize=8, length=3)
+            ax.tick_params(axis="y", left=col == 0, labelleft=col == 0)
+            ax.tick_params(axis="x", bottom=True, labelbottom=True)
+            ax.set_xlabel(x_labels[row], fontsize=9)
+
+    fig.align_ylabels(axes[:, 0])
+    add_legends(fig, gs)
+    add_row_labels(fig, axes[:, 0])
+    add_panel_labels(axes.ravel())
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     save_kwargs = {"bbox_inches": "tight"}
