@@ -43,6 +43,17 @@ selection:
   # Candidate criterion, not a previously selected operating point.
   # Add scientifically justified constraints after inspecting development curves.
   criteria:
+    # Primary endpoint: M=0 (direct transmission + shared infector)
     - name: balanced_M0
       objective: M0_f1
+      constraints: {}
+
+    # Secondary endpoint: M≤1 (includes direct + shared infector + 1 hop)
+    - name: balanced_Mle1
+      objective: Mle1_f1
+      constraints: {}
+
+    # Tertiary endpoint: M≤2 (broader transmission network)
+    - name: balanced_Mle2
+      objective: Mle2_f1
       constraints: {}
