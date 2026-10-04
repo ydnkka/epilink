@@ -111,3 +111,5 @@ reused the exact diagnostic development observations and linked the diagnostic
 report before its performance results. Endpoint-aware summaries/frontiers and
 development grid-adequacy diagnostics were verified for all three criteria.
 This validates execution; scientific conclusions require the full configured study.
+
+The full configured diagnostics run on 2026-10-02 used 5,051 cases, 5,000-nt sequences, and development observation seeds 62001–62003. Its first timestamped simulation log was at 04:08:47 and its report file was written at 04:13:58, giving an observed log-to-report interval of about **5m 10s**. The command's exact start time was not logged, so this is an approximate runtime rather than a precise process duration. Hardware context is recorded in the [Operations runtime benchmark](../../OPERATIONS.md#observed-full-run-wall-times).

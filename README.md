@@ -18,7 +18,7 @@ artifact provenance, and worked analysis joins.
 | [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth graph/tree controls before baseline comparison.        | Exact feature cells, endpoint-oracle graphs, and transmission-hop tree partitions. |
 | [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings.         |
 | [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.                    |
-| [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.             |
+| [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.           |
 
 Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md).
 Complete diagnostics on its exact development observations before running baseline.
@@ -28,15 +28,15 @@ directory numbers express the study presentation order.
 
 ## Implementation status
 
-| Capability                    | Active implementation                                                                                           |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| SCoVMod tree preparation      | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                      |
-| Synthetic diagnostics         | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls. |
-| Synthetic baseline            | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.    |
-| Parameter sensitivity         | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.    |
-| Boston input preparation      | Available:`epilink-evaluate boston --stage prepare`.                                                            |
-| Boston frozen transfer        | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster.  |
-| Output cleanup                | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.          |
+| Capability               | Active implementation                                                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| SCoVMod tree preparation | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                      |
+| Synthetic diagnostics    | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls. |
+| Synthetic baseline       | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.      |
+| Parameter sensitivity    | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.    |
+| Boston input preparation | Available:`epilink-evaluate boston --stage prepare`.                                                            |
+| Boston frozen transfer   | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster.  |
+| Output cleanup           | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.          |
 
 See the guide for [perturbation and Boston execution](OPERATIONS.md#12-perturbation-and-boston-application) and [clearing outputs](OPERATIONS.md#11-clear-outputs-with-reset-outputs).
 
@@ -104,18 +104,18 @@ Fresh-environment and Git LFS instructions are in the
 
 ## Layout
 
-| Location                                           | Role                                                                                          |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `evaluation/shared_synthetic/`                     | Shared input, generation, simulation, and split configuration; immutable experiment artifacts |
-| `evaluation/00_synthetic_diagnostics/`             | Development-only diagnostics, control grids, and entry point                                  |
-| `evaluation/01_synthetic_baseline/`                | Method-comparison protocol, configuration, and entry point                                    |
-| `evaluation/02_synthetic_perturbation/`            | Frozen-reference sensitivity protocol, configuration, and entry point                         |
-| `evaluation/03_boston_application/`                | Empirical transfer and epidemiological assessment                                              |
-| `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules                   |
+| Location                                                 | Role                                                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `evaluation/shared_synthetic/`                         | Shared input, generation, simulation, and split configuration; immutable experiment artifacts |
+| `evaluation/00_synthetic_diagnostics/`                 | Development-only diagnostics, control grids, and entry point                                  |
+| `evaluation/01_synthetic_baseline/`                    | Method-comparison protocol, configuration, and entry point                                    |
+| `evaluation/02_synthetic_perturbation/`                | Frozen-reference sensitivity protocol, configuration, and entry point                         |
+| `evaluation/03_boston_application/`                    | Empirical transfer and epidemiological assessment                                             |
+| `src/epilink_evaluation/`                              | Shared input, scoring, clustering, metrics, selection and reporting modules                   |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                                    |
-| `evaluation/shared_synthetic/outputs/inputs/`      | Prepared transmission backbone and provenance                                                 |
-| `evaluation/03_boston_application/outputs/inputs/` | Prepared Boston tables and provenance                                                         |
-| `tests/`                                           | Independent scientific correctness and integration checks                                     |
+| `evaluation/shared_synthetic/outputs/inputs/`          | Prepared transmission backbone and provenance                                                 |
+| `evaluation/03_boston_application/outputs/inputs/`     | Prepared Boston tables and provenance                                                         |
+| `tests/`                                               | Independent scientific correctness and integration checks                                     |
 
 Each study has its own `outputs/` directory containing an output root (`diagnostics`,
 `baseline`, `perturbation`, or `boston`). Within that root, `current.json` locates the latest

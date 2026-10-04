@@ -88,8 +88,8 @@ override its output root. Repeat the same options on subsequent commands;
 For every scenario, observation seed, and mode, replay the selected pairwise
 thresholds and cluster definitions exactly as stored in the reference:
 
-| Mode               | Generation parameters       | EpiLink inference parameters | Logistic models        |
-| ------------------ | --------------------------- | ---------------------------- | ---------------------- |
+| Mode             | Generation parameters       | EpiLink inference parameters | Logistic models        |
+| ---------------- | --------------------------- | ---------------------------- | ---------------------- |
 | `matched`        | Scenario's perturbed values | Same perturbed values        | Baseline-fitted, fixed |
 | `baseline_fixed` | Same scenario observations  | Baseline values              | Baseline-fitted, fixed |
 
@@ -126,18 +126,18 @@ reference but has no synthetic transmission truth.
 
 The default [`config.yaml`](config.yaml) contains:
 
-| Field                | Meaning                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `schema_version`   | `1`.                                                                                                        |
+| Field              | Meaning                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `schema_version`   | `1`.                                                                                                          |
 | `name`             | Study label, included in its signature.                                                                       |
 | `baseline_run`     | Evaluated baseline run directory or current-run pointer, relative to this YAML.                               |
 | `output_directory` | Study output root, relative to this YAML. Must be separate from baseline outputs.                             |
 | `seeds`            | Distinct fresh observation seeds. Overlap with any baseline split is rejected. Defaults: 81001, 81002, 81003. |
-| `modes`            | Nonempty subset of`matched`, `baseline_fixed`; both are supplied.                                         |
-| `perturbations`    | One-at-a-time parameter definitions; use either`multipliers` or absolute `values` for each parameter.     |
+| `modes`            | Nonempty subset of`matched`, `baseline_fixed`; both are supplied.                                             |
+| `perturbations`    | One-at-a-time parameter definitions; use either`multipliers` or absolute `values` for each parameter.         |
 | `smoke.cases`      | Ancestor-preserving topological prefix size, up to the reference size; default 64.                            |
 | `smoke.seed`       | Separate smoke observation seed, default 91001.                                                               |
-| `smoke.parameters` | Subset of configured parameters exercised in smoke mode; default`incubation.mean`.                          |
+| `smoke.parameters` | Subset of configured parameters exercised in smoke mode; default`incubation.mean`.                            |
 
 CLI path overrides are resolved relative to the working directory. For a second
 study, copy this YAML alongside the default file and pass it with `--config`.
@@ -145,14 +145,14 @@ The baseline's own YAML is not edited or reloaded to construct the study.
 
 Default full perturbations are:
 
-| Parameter              | Levels                     | Units                                     |
-| ---------------------- | -------------------------- | ----------------------------------------- |
+| Parameter            | Levels                   | Units                                     |
+| -------------------- | ------------------------ | ----------------------------------------- |
 | `incubation.mean`    | 0.75× and 1.25× baseline | Days                                      |
 | `incubation.cv`      | 0.75× and 1.25× baseline | Dimensionless CV                          |
 | `testing_delay.mean` | 0.75× and 1.25× baseline | Days                                      |
 | `testing_delay.cv`   | 0.75× and 1.25× baseline | Dimensionless CV                          |
 | `substitution_rate`  | 0.75× and 1.25× baseline | Substitutions/site/year                   |
-| `relaxation`         | Absolute 0.0 and 0.66      | Lognormal rate SD; zero is a strict clock |
+| `relaxation`         | Absolute 0.0 and 0.66    | Lognormal rate SD; zero is a strict clock |
 
 These produce 12 perturbed scenarios plus one control, crossed with both modes
 and three seeds. Exactly one generation parameter changes in each scenario.
@@ -241,6 +241,9 @@ links use the current directory names; the recorded counts are not a new test ru
   204 operating result rows, including 156 clustering evaluations.
 - All eight scorers and both raw/dated TreeCluster comparisons completed.
 
-[Historical smoke report (requires retained local outputs)](outputs/perturbation_smoke/runs/455c87d2dc1d53e6c7b8/report.html).
-Generated outputs are local ignored artifacts; the full perturbation study has
-not been run as part of this checkpoint.
+Smoke outputs are local ignored artifacts and are not included in the repository.
+The full perturbation study has not been run as part of this checkpoint.
+
+## Full configured runtime — 2026-10-02–03
+
+A subsequent full run completed on the 5,051-case backbone with 12 perturbed scenarios plus the baseline control, both inference modes, three seeds, eight scorers, and 10,000 EpiLink Monte Carlo draws. The interval from the first scenario log (2026-10-02 10:31:55) to the final report log (2026-10-03 03:16:06) was **16h 44m 12s**. This is an observed single-run wall time, not a guarantee; hardware and benchmark context are recorded in the [Operations runtime benchmark](../../OPERATIONS.md#observed-full-run-wall-times).

@@ -311,6 +311,19 @@ all three endpoint frontiers and the reference-grid audit were verified.
 FastME, TreeTime and TreeCluster were exercised. No full study was run for this
 development validation.
 
+### Observed full-run timing — 2026-10-02
+
+A separate full configured run used the 5,051-case backbone, 5,000-nt sequences, eight scorers, 10,000 EpiLink Monte Carlo draws, training seeds 61001–61002, development seeds 62001–62003, and evaluation seeds 63101–63103.
+
+| Stage | Observed elapsed |
+| --- | ---: |
+| `develop` | 2h 02m 10s |
+| `select` | 1m 49s |
+| `evaluate` | 1h 16m 33s |
+| Complete `develop`–`evaluate` sequence | 3h 20m 38s |
+
+Stage durations are measured from the first timestamped stage log to its report log; the combined time spans the first `develop` log through the final `evaluate` report log. Hardware and benchmark context are recorded in the [Operations runtime benchmark](../../OPERATIONS.md#observed-full-run-wall-times); these timings are one observed run, not a guarantee.
+
 ## Outputs and extension points
 
 Column definitions, formulas, missing-value conventions, metadata fields, and

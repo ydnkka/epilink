@@ -262,6 +262,23 @@ python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_
 
 Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. `check` reports the static clustering count; exact pairwise candidate counts depend on development scores. Work scales with the graph/tree grids, replicates, and number of pairs: `n * (n - 1) / 2`. Exact pairwise candidates use cumulative-curve lookups rather than repeated pair scans. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
+### Observed full-run wall times
+
+One full configured execution on 2026-10-02–03 produced these timings:
+
+| Workflow/stage | Observed elapsed |
+| --- | ---: |
+| Diagnostics `all` | about 5m 10s* |
+| Baseline `develop` | 2h 02m 10s |
+| Baseline `select` | 1m 49s |
+| Baseline `evaluate` | 1h 16m 33s |
+| Baseline `develop`–`evaluate` sequence | 3h 20m 38s† |
+| Full perturbation `all` | 16h 44m 12s‡ |
+
+The baseline and perturbation runs used the 5,051-case backbone, 5,000-nt sequences, eight scorers, and 10,000 EpiLink Monte Carlo draws. Perturbation covered the baseline control plus 12 parameter variants, two inference modes, and three seeds. The measured command windows sum to about 20h 10m, excluding the idle interval between baseline evaluation and the later perturbation run.
+
+These are single-run observations, not guarantees; they were collected on a MacBook Pro (MacBookPro18,3) with an Apple M1 Pro (8 CPU cores: 6 performance and 2 efficiency), 16 GB memory, and macOS 27.0.1. Runtime also depends on tool versions and cache state. Stage times use the first timestamped workflow log through the final report log. The diagnostics estimate (*) spans the first simulation log to the report file timestamp because command start/end timestamps were not captured. The baseline sequence duration (†) spans the first `develop` log through the `evaluate` report log. Perturbation duration (‡) spans its first scenario log through its final report log.
+
 The two baseline entry points are equivalent:
 
 ```bash
