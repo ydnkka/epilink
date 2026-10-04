@@ -265,6 +265,7 @@ def test_default_boston_config_covers_expanded_models():
     root = Path(__file__).resolve().parents[1]
     config = load_study_config(config_path=root / "evaluation/03_boston_application/config.yaml")
     assert config["schema_version"] == 1
+    assert "exploration" not in config
     assert config["scorers"] == [
         "EDD",
         "EDS",
@@ -283,6 +284,14 @@ def test_default_boston_config_covers_expanded_models():
         Path(config["inputs"]["cases_path"])
         == root / "evaluation/03_boston_application/outputs/inputs/cases.parquet"
     )
+
+
+def test_boston_cli_rejects_removed_explore_stage():
+    from epilink_evaluation.cli import main
+
+    with pytest.raises(SystemExit) as error:
+        main(["boston", "--stage", "explore"])
+    assert error.value.code == 2
 
 
 def test_boston_workflow_prepares_shared_inputs(evaluated_baseline, tmp_path, monkeypatch):

@@ -18,7 +18,7 @@ artifact provenance, and worked analysis joins.
 | [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth graph/tree controls before baseline comparison.        | Exact feature cells, endpoint-oracle graphs, and transmission-hop tree partitions. |
 | [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings.         |
 | [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.                    |
-| [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and sensitivity to clustering settings.              | Descriptive exposure summaries and graph/phylogenetic partition agreement.         |
+| [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.             |
 
 Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md).
 Complete diagnostics on its exact development observations before running baseline.
@@ -36,7 +36,6 @@ directory numbers express the study presentation order.
 | Parameter sensitivity         | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.    |
 | Boston input preparation      | Available:`epilink-evaluate boston --stage prepare`.                                                            |
 | Boston frozen transfer        | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster.  |
-| Boston clustering exploration | Available:`epilink-evaluate boston --stage explore`, with separate descriptive grid outputs.                    |
 | Output cleanup                | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.          |
 
 See the guide for [perturbation and Boston execution](OPERATIONS.md#12-perturbation-and-boston-application) and [clearing outputs](OPERATIONS.md#11-clear-outputs-with-reset-outputs).
@@ -79,15 +78,15 @@ python evaluation/02_synthetic_perturbation/run.py
 See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run
 selection, parameter levels, and paired-result interpretation.
 
-Apply the baseline reference to Boston, then run the optional exploratory grid:
+Apply the baseline reference to Boston and render the report:
 
 ```bash
 python evaluation/03_boston_application/run.py --stage all
-python evaluation/03_boston_application/run.py --stage explore
 python evaluation/03_boston_application/run.py --stage report
 ```
 
-Boston's `all` stage runs frozen transfer; exploration is a separate stage.
+Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and
+assessment. `report` re-renders the saved results.
 
 FastME is an external executable (e.g. `conda install -c bioconda fastme`).
 TreeCluster and TreeTime are Python dependencies. Executables are discovered on
@@ -111,7 +110,7 @@ Fresh-environment and Git LFS instructions are in the
 | `evaluation/00_synthetic_diagnostics/`             | Development-only diagnostics, control grids, and entry point                                  |
 | `evaluation/01_synthetic_baseline/`                | Method-comparison protocol, configuration, and entry point                                    |
 | `evaluation/02_synthetic_perturbation/`            | Frozen-reference sensitivity protocol, configuration, and entry point                         |
-| `evaluation/03_boston_application/`                | Empirical transfer and clustering exploration                                                 |
+| `evaluation/03_boston_application/`                | Empirical transfer and epidemiological assessment                                              |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules                   |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                                    |
 | `evaluation/shared_synthetic/outputs/inputs/`      | Prepared transmission backbone and provenance                                                 |

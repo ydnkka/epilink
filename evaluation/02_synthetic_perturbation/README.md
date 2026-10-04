@@ -31,9 +31,9 @@ retraining would answer a separate adaptation question.
 **Role in the study sequence:** the baseline establishes performance and selects
 settings; this study assesses their sensitivity under controlled changes. The
 [Boston application](../03_boston_application/README.md) independently applies the
-baseline reference to empirical observations. Boston's clustering-parameter
-exploration varies thresholds/resolutions on fixed real data; this study varies
-the observation-generation parameters on synthetic data.
+baseline reference to empirical observations and summarizes exposure composition
+and graph/phylogenetic partition agreement. This study instead varies the
+observation-generation parameters on synthetic data.
 
 All commands run from the repository root in the installed environment.
 

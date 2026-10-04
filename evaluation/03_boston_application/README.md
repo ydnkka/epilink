@@ -8,31 +8,27 @@ evaluation.
 
 **Main question:** Do methods selected on synthetic data identify clusters
 concentrated for the Conference and SNF exposures in Boston, how much of each
-exposure group do they recover, and how sensitive are these patterns to
-clustering settings?
+exposure group do they recover, and how do their partitions compare with
+TreeCluster partitions?
 
 This is the **empirical transfer and descriptive application study**. It applies
 EpiLink compatibility scores, genetic distances, and baseline-fitted logistic
 models to observed Boston genetic distances and sampling dates. It also compares
 graph partitions with TreeCluster partitions built from the Boston alignment.
 
-The study has three objectives:
+The study has two objectives:
 
 1. **Assess transfer of frozen settings:** apply the synthetic baseline's selected
    graph and TreeCluster settings directly to empirical observations.
 2. **Characterize epidemiological coherence:** describe exposure concentration,
    the fraction of each focus-exposure group captured, cluster sizes and
    singletons, and agreement between graph and phylogenetic partitions.
-3. **Explore clustering sensitivity:** vary graph thresholds, Leiden resolutions,
-   and TreeCluster methods/thresholds on the same Boston data to examine how
-   exposure composition and partition structure change.
 
-These questions are addressed by two explicitly separate analyses:
+These questions are addressed by the frozen-transfer analysis:
 
-| Analysis                            | Settings                                                                                | Evidence                                                                        |
-| ----------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Frozen transfer** (`--stage all`) | Baseline-selected operating points applied directly.                                    | Empirical partition and focus-exposure summaries at the prespecified settings.  |
-| **Exploration** (`--stage explore`) | Configured graph and TreeCluster grids, with scorer parameters and fitted models fixed. | Descriptive sensitivity across clustering settings, saved under `exploration/`. |
+| Analysis                                    | Settings                                                     | Evidence                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| **Frozen transfer** (`--stage all`) | Baseline-selected operating points applied directly.         | Empirical partitions and focus-exposure summaries at prespecified settings. |
 
 **Evidence produced:** cluster memberships, exposure composition and recovery,
 cluster-size summaries, and partition agreement. Exposure concentration and
@@ -45,9 +41,8 @@ describe external epidemiological evidence rather than transmission accuracy.
 compares methods against known truth and supplies the primary operating points.
 The [perturbation study](../02_synthetic_perturbation/README.md) examines biological
 parameter changes and inference mismatch in simulation. Boston uses the baseline
-reference directly for real-data application; its exploration characterizes
-clustering sensitivity without selecting a new primary setting from exposure
-labels.
+reference directly for real-data application, reporting exposure concentration,
+recovery, and agreement between graph and phylogenetic partitions.
 
 ## Workflow overview
 
@@ -56,8 +51,7 @@ labels.
 3. **Clusters graphs** at frozen thresholds using components and Leiden algorithms
 4. **Builds phylogenetic trees** from the full Boston alignment (independent of the distance-censored TN93 table)
 5. **Runs TreeCluster** on raw and dated trees at frozen thresholds
-6. **Optionally explores graph and TreeCluster threshold/resolution grids** as descriptive sensitivity analysis
-7. **Compares partitions** with exposure metadata and new TreeCluster results
+6. **Compares partitions** with exposure metadata and TreeCluster results
 
 ## Quick start
 
@@ -76,9 +70,6 @@ python evaluation/03_boston_application/run.py --stage trees
 # Run the full empirical analysis (scoring, clustering, trees, assessment)
 python evaluation/03_boston_application/run.py --stage all
 
-# Run descriptive threshold/resolution sweeps without changing the frozen result
-python evaluation/03_boston_application/run.py --stage explore
-
 # Re-render the report from saved results
 python evaluation/03_boston_application/run.py --stage report
 ```
@@ -86,7 +77,7 @@ python evaluation/03_boston_application/run.py --stage report
 The equivalent installed CLI command is `epilink-evaluate boston --config evaluation/03_boston_application/config.yaml --stage all`.
 
 `--stage all` runs frozen scoring, graph clustering, enabled TreeCluster, and
-assessment. The exploratory sweep is requested separately with `--stage explore`.
+assessment.
 `--stage trees` only builds/reuses trees and applies the frozen TreeCluster rules.
 Boston does not support `--smoke`. Input preparation can run before baseline
 evaluation; computational stages need the baseline's frozen selection and
@@ -96,33 +87,30 @@ held-out evaluation provenance.
 
 Edit [`config.yaml`](config.yaml) to change:
 
-| Field                                    | Meaning                                                                                                                                                   |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseline_run`                           | Completed synthetic baseline run directory or `current.json` pointer.                                                                                     |
-| `output_directory`                       | Boston output root (separate from baseline outputs).                                                                                                      |
-| `inputs.data_root`                       | Root containing `raw/boston/` source files.                                                                                                               |
-| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables, defaulting to `outputs/inputs/` beside the config. Paths are independent of the run output root.                                         |
-| `scorers`                                | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. Aliases ES→ESS and ED→EDS are accepted but cannot be combined.                                |
-| `assessment.treecluster_path`            | Optional external TreeCluster partition for comparison (TSV with `SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
-| `assessment.focus_exposures`             | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                   |
-| `assessment.min_cluster_size`            | Minimum cluster size for focus-cluster analysis (default: 2).                                                                                             |
-| `trees.enabled`                          | Whether to build raw/dated trees and run TreeCluster (default: true).                                                                                     |
-| `trees.alignment_path`                   | Boston FASTA alignment for tree building (required when `trees.enabled` is true).                                                                         |
-| `trees.tn93_executable`                  | Optional path to `tn93` for all-pair distances (default: `tn93` on PATH).                                                                                 |
-| `exploration`                            | Optional descriptive grid for `--stage explore`. It can set scorer subsets, graph thresholds/resolutions, and TreeCluster methods/thresholds.             |
+| Field                                        | Meaning                                                                                                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseline_run`                             | Completed synthetic baseline run directory or`current.json` pointer.                                                                                           |
+| `output_directory`                         | Boston output root (separate from baseline outputs).                                                                                                             |
+| `inputs.data_root`                         | Root containing`raw/boston/` source files.                                                                                                                     |
+| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables, defaulting to`outputs/inputs/` beside the config. Paths are independent of the run output root.                                               |
+| `scorers`                                  | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. Aliases ES→ESS and ED→EDS are accepted but cannot be combined.                                     |
+| `assessment.treecluster_path`              | Optional external TreeCluster partition for comparison (TSV with`SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
+| `assessment.focus_exposures`               | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                          |
+| `assessment.min_cluster_size`              | Minimum cluster size for focus-cluster analysis (default: 2).                                                                                                    |
+| `trees.enabled`                            | Whether to build raw/dated trees and run TreeCluster (default: true).                                                                                            |
+| `trees.alignment_path`                     | Boston FASTA alignment for tree building (required when`trees.enabled` is true).                                                                               |
+| `trees.tn93_executable`                    | Optional path to`tn93` for all-pair distances (default: `tn93` on PATH).                                                                                     |
 
 For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo
 settings, fitted logistic models, graph thresholds, Leiden settings, and
-TreeCluster methods/thresholds come from the baseline reference. For exploration,
-the `exploration` block supplies the clustering grid; EpiLink inference parameters,
-Monte Carlo settings, and fitted logistic models still come from the baseline.
+TreeCluster methods/thresholds come from the baseline reference.
 
 ## Inputs
 
 Source files under `data/raw/boston/`:
 
-| File                                              | Role                                                    |
-| ------------------------------------------------- | ------------------------------------------------------- |
+| File                                                | Role                                                    |
+| --------------------------------------------------- | ------------------------------------------------------- |
 | `MGH_DPH_98percent_772samples_metadata.csv`       | Case metadata with collection dates and exposure flags. |
 | `MGH_DPH_98percent_772samples_nextclade.tsv`      | Nextclade clade assignments and substitutions.          |
 | `MGH_DPH_98percent_772samples_tn93_distances.csv` | Pairwise TN93 distances (censored at 0.0005/site).      |
@@ -167,9 +155,6 @@ boston/
       best_cluster_overlaps.csv         # Optional external-comparator overlaps
       tree_agreement.csv                # ARI/AMI between graph and tree partitions
       named_tree_overlaps.csv           # Named exposure overlaps with tree clusters
-    exploration/                        # Optional --stage explore sensitivity sweep
-      settings.json, setting_metadata.csv
-      clusters/, trees/, assessment/
     figures/                            # Cluster size and overlap plots
     report.md, report.html              # Human-readable summary
 ```
@@ -180,19 +165,18 @@ boston/
 - **LOGIT_S/LOGIT_D** reuse the baseline's fitted logistic classifiers without retraining.
 - **Raw trees** are built from uncensored TN93 all-pair distances (FastME, midpoint rooted). **Dated trees** use TreeTime with real collection dates.
 - **TreeCluster thresholds** use substitutions/site for raw trees and days of tree branch distance for dated trees. Cluster sizes depend on the method and cutoff; neither tree type guarantees finer or more accurate partitions.
-- **Exploration outputs** are descriptive stability checks across thresholds/resolutions. They are not Boston-selected operating points because complete transmission truth is unavailable.
 - **Exposure labels and TreeCluster agreement** are descriptive external evidence, not transmission truth. The Boston dataset lacks complete transmission links for precision/recall evaluation.
 - **Candidate coverage** is less than 1.0 because the TN93 source is distance-censored; missing pairs are not imputed.
 
 ## Troubleshooting
 
-| Symptom                                                       | Check / Next action                                                                                                                 |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `Executable not found: tn93`                                  | Install TN93 (`conda install -c bioconda tn93`) or set `trees.tn93_executable` in config.                                           |
-| `Reference has no selected ... TreeCluster settings`          | The baseline must have completed `--stage evaluate` with TreeCluster enabled and selected settings.                                 |
-| `Boston scorers must be a unique nonempty subset`             | Use valid scorer names; ES/ESS and ED/EDS are aliases and cannot be combined.                                                       |
+| Symptom                                                         | Check / Next action                                                                                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `Executable not found: tn93`                                  | Install TN93 (`conda install -c bioconda tn93`) or set `trees.tn93_executable` in config.                                         |
+| `Reference has no selected ... TreeCluster settings`          | The baseline must have completed`--stage evaluate` with TreeCluster enabled and selected settings.                                  |
+| `Boston scorers must be a unique nonempty subset`             | Use valid scorer names; ES/ESS and ED/EDS are aliases and cannot be combined.                                                         |
 | `Scientific implementation/dependencies differ from baseline` | The Boston adapter (`inputs/boston.py`) is excluded from baseline checks. Other scientific module changes require a fresh baseline. |
-| `FastME exited 1; invalid distance matrix`                    | Ensure the PHYLIP distance matrix uses fixed-point format (not scientific notation).                                                |
+| `FastME exited 1; invalid distance matrix`                    | Ensure the PHYLIP distance matrix uses fixed-point format (not scientific notation).                                                  |
 
 ## Scientific notes
 

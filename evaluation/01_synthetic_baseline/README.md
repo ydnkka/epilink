@@ -364,9 +364,8 @@ retraining is a separate adaptation analysis.
 
 The [Boston empirical application](../03_boston_application/README.md) applies the
 same frozen definitions to observed Boston outbreak data. It tests transfer and
-describes exposure composition, recovery, and method agreement. Its separate
-`--stage explore` analysis varies clustering settings on those same observations
-to characterize sensitivity. Complete transmission truth is unavailable, so the
-Boston summaries provide descriptive evidence rather than truth-validated
-operating-point selection. Boston's TN93 table is distance-censored at 0.0005/site,
-so missing pairs are treated as unobserved rather than zero distance.
+describes exposure composition, recovery, and graph/phylogenetic partition
+agreement. Complete transmission truth is unavailable, so the Boston summaries
+provide descriptive evidence rather than truth-validated operating-point
+selection. Boston's TN93 table is distance-censored at 0.0005/site, so missing
+pairs are treated as unobserved rather than zero distance.

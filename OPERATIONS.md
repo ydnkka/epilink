@@ -541,23 +541,14 @@ Run the frozen transfer analysis with:
 python evaluation/03_boston_application/run.py --stage all
 ```
 
-Run the separate descriptive threshold/resolution sensitivity sweep with:
-
-```bash
-python evaluation/03_boston_application/run.py --stage explore
-```
-
 | Boston stage    | Work performed                                                                                                    |
 | --------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `prepare`       | Write or reuse`outputs/inputs/` tables and provenance.                                                            |
 | `trees`         | Build/reuse raw and dated trees and apply frozen TreeCluster settings. Graph scoring/clustering is not requested. |
 | `all` (default) | Score pairs, apply frozen graph settings, run enabled TreeCluster, and assess partitions.                         |
-| `explore`       | Sweep the configured graph and TreeCluster grids under`exploration/`. This is requested separately from `all`.    |
 | `report`        | Render saved results for the run identified by the Boston root's`current.json`.                                   |
 
-Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under `data/raw/boston/`. Prepared tables are under `evaluation/03_boston_application/outputs/inputs/`; run results are under `evaluation/03_boston_application/outputs/boston/`. The TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero. The exploration stage is descriptive and must not be treated as Boston truth-based operating-point selection.
-
-The supplied exploration grid has 1,722 graph settings and 66 TreeCluster settings. Its scorer parameters and fitted models stay fixed while clustering settings vary. Inspect graph/tree `status.json` files within `exploration/` for completed counts and errors; a complete tree-only stage does not establish graph coverage.
+Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under `data/raw/boston/`. Prepared tables are under `evaluation/03_boston_application/outputs/inputs/`; run results are under `evaluation/03_boston_application/outputs/boston/`. The TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero. A complete tree-only stage does not establish graph coverage.
 
 Boston supports `--config`, `--output`, and `--baseline-run`, but not `--smoke`. YAML paths are relative to the Boston config; CLI overrides are relative to the working directory. The sibling baseline pointer is `../01_synthetic_baseline/outputs/baseline/current.json` in the supplied YAML. Repeat the same configuration and overrides to resume a run.
 

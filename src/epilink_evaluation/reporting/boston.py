@@ -192,41 +192,6 @@ def render_report(directory):
         text.append(paragraphs[-1])
         body.append(f"<p>{html.escape(paragraphs[-1])}</p>")
 
-    exploration = directory / "exploration"
-    exploration_status_path = exploration / "status.json"
-    if exploration_status_path.exists():
-        section("Exploration status", pd.DataFrame([read_json(exploration_status_path)]))
-        for label, path in (
-            ("Exploration graph status", exploration / "clusters/status.json"),
-            ("Exploration TreeCluster status", exploration / "trees/status.json"),
-        ):
-            if path.exists():
-                section(label, pd.DataFrame([read_json(path)]))
-        exploration_summary = read_table(exploration / "assessment/summary.csv")
-        exploration_settings = read_table(exploration / "setting_metadata.csv")
-        if not exploration_summary.empty and not exploration_settings.empty:
-            combined = exploration_summary.merge(
-                exploration_settings, on=["setting_id", "pipeline", "score_name"], how="left",
-            )
-            ranges = combined.groupby("pipeline", as_index=False).agg(
-                settings=("setting_id", "count"),
-                n_clusters_min=("n_clusters", "min"),
-                n_clusters_median=("n_clusters", "median"),
-                n_clusters_max=("n_clusters", "max"),
-                largest_cluster_min=("largest_cluster", "min"),
-                largest_cluster_median=("largest_cluster", "median"),
-                largest_cluster_max=("largest_cluster", "max"),
-                singleton_cases_min=("n_singleton_cases", "min"),
-                singleton_cases_median=("n_singleton_cases", "median"),
-                singleton_cases_max=("n_singleton_cases", "max"),
-            )
-            section("Exploration partition ranges", ranges)
-            paragraphs.append(
-                "Exploration sweeps are descriptive sensitivity analyses. Full setting metadata, partition summaries, exposure composition, and TreeCluster agreement are saved under exploration/."
-            )
-            text.append(paragraphs[-1])
-            body.append(f"<p>{html.escape(paragraphs[-1])}</p>")
-
     coverage = pd.DataFrame(
         [
             {

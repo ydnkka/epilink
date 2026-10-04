@@ -18,7 +18,6 @@ STAGES = (
     "pairwise",
     "clusters",
     "trees",
-    "explore",
     "develop",
     "select",
     "evaluate",
@@ -176,9 +175,9 @@ def main(argv=None):
             if args.stage not in (None, "prepare"):
                 parser.error("prepare-boston only supports --stage prepare")
             args.stage = "prepare"
-        if args.stage not in (None, "prepare", "trees", "explore", "all", "report"):
+        if args.stage not in (None, "prepare", "trees", "all", "report"):
             parser.error(
-                "Boston supports --stage prepare, trees, explore, all or report"
+                "Boston supports --stage prepare, trees, all or report"
             )
         if args.smoke:
             parser.error("Boston does not support --smoke")
@@ -227,8 +226,6 @@ def main(argv=None):
     args.stage = args.stage or "develop"
     if args.stage == "trees":
         parser.error("--stage trees applies to boston only")
-    if args.stage == "explore":
-        parser.error("--stage explore applies to boston only")
     if args.stage in ("observations", "graphs"):
         parser.error("--stage observations/graphs applies to diagnostics only")
     config = load_config(args.config)

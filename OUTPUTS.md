@@ -769,7 +769,7 @@ The manifest adds `n_cases`, `n_observed_pairs`, `n_all_pairs`, and
 ### Boston empirical run outputs
 
 Directory: `<root>/runs/<run-id>/`, initialized by
-`python evaluation/03_boston_application/run.py --stage all`, `trees`, or `explore`.
+`python evaluation/03_boston_application/run.py --stage all` or `trees`.
 
 The frozen transfer analysis writes `settings.json`, `selection.json`,
 `clusters/`, `trees/`, and `assessment/` using baseline-selected operating
@@ -781,7 +781,7 @@ precision/recall columns.
 `manifest.json` records the requested stage and its status; `inputs.json` records
 case/pair counts, input hashes/paths, and `trees_enabled`. A complete `trees` run
 does not imply graph scoring or clustering completed. The `all` stage runs frozen
-transfer, while `explore` writes a separate sweep. `report` renders saved tables.
+transfer. `report` renders saved tables.
 
 #### Scores and settings
 
@@ -822,10 +822,9 @@ per completed setting with source identifiers and these metrics:
 
 #### Assessment tables
 
-The following tables appear under `assessment/`, and under
-`exploration/assessment/` for exploratory settings. Identifiers include
-`setting_id`, `pipeline`, and `score_name`; source setting IDs are populated for
-frozen partitions and null for exploratory partitions.
+The following tables appear under `assessment/`. Identifiers include
+`setting_id`, `pipeline`, and `score_name`; source setting IDs identify the
+baseline settings applied to Boston.
 
 | Table                        | Row unit and interpretation                                                                                                                                                                                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -863,29 +862,6 @@ these summaries do not establish transmission precision/recall.
 `n_all_pairs = total_Boston_cases * (total_Boston_cases - 1) / 2`. It describes the
 censored input table and is repeated on tree rows for context; Boston trees use
 separately generated all-pair distances from the alignment.
-
-#### Exploration outputs
-
-The exploratory sensitivity stage writes under `exploration/`:
-
-| Path                   | Definition                                                                                                                                                                        |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settings.json`        | Complete exploratory graph and TreeCluster definitions.                                                                                                                           |
-| `setting_metadata.csv` | Flat setting metadata: kind, pipeline, scorer, threshold, resolution, TreeCluster method, and threshold units.                                                                    |
-| `clusters/`            | Graph partitions for exploratory components/Leiden settings.                                                                                                                      |
-| `trees/`               | TreeCluster partitions for exploratory raw/dated thresholds.                                                                                                                      |
-| `assessment/`          | Same descriptive partition summaries and exposure/agreement tables as the frozen analysis, scoped to exploratory settings.                                                        |
-| `status.json`          | Overall exploratory completion state and counts `configured`, `graph_configured`, and `treecluster_configured`. Completed counts and errors are in each graph/tree `status.json`. |
-
-Exploration outputs are descriptive stability checks, not selected Boston
-operating points.
-
-Exploratory pipeline names begin with `explore/`. Trees use one empirical raw and
-one dated input, with all configured methods/cutoffs rather than duplicated
-synthetic-source rules. Graph grids include explicit empty-selection settings.
-Join assessment rows to `setting_metadata.csv` by `setting_id` to inspect the
-threshold/resolution response. The report shows minimum/median/maximum partition
-sizes across settings; these ranges are not replicate-based uncertainty intervals.
 
 #### Boston tree artifacts
 
