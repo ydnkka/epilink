@@ -249,7 +249,7 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
             for process in PROCESSES
         ],
         loc="upper left",
-        bbox_to_anchor=(top_axes[0].get_position().x0, 0.99),
+        bbox_to_anchor=(top_axes[0].get_position().x0, 1.06),
         ncol=len(PROCESSES),
         title="Process",
         borderaxespad=0,
@@ -257,7 +257,7 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
     fig.legend(
         handles=metric_legend_handles(SCORE_METRICS),
         loc="upper right",
-        bbox_to_anchor=(top_axes[-1].get_position().x1, 0.99),
+        bbox_to_anchor=(top_axes[-1].get_position().x1, 1.07),
         ncol=2,
         title="Metrics",
         borderaxespad=0,
@@ -267,14 +267,24 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
 def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
     """Align each row label with its axes rather than fixed figure heights."""
     labels = [
-        "Feature\nambiguity",
+        "Feature\nAmbiguity",
         "Leiden\nCPM objective",
         *[f"TreeCluster\n{METHOD_LABELS[method]}" for method in TREE_METHODS],
     ]
     for ax, label in zip(row_axes, labels):
-        bounds = ax.get_position()
-        y_pos = (bounds.y0 + bounds.y1) / 2
-        fig.text(bounds.x0 - 0.02, y_pos, label, ha="right", va="center")
+        ax.annotate(
+            label,
+            xy=(-0.1, 0.5),
+            xytext=(-60, 0),
+            xycoords="axes fraction",
+            textcoords="offset points",
+            fontweight="bold",
+            ha="center",
+            va="center",
+        )
+        # bounds = ax.get_position()
+        # y_pos = (bounds.y0 + bounds.y1) / 2
+        # fig.text(bounds.x0 - 0.15, y_pos, label, ha="right", va="top")
 
 
 def create_figure(
@@ -287,17 +297,10 @@ def create_figure(
     """Create and save the diagnostics figure."""
     fig, axes = style.new_figure(
         width="double",
-        height_in=9.5,
+        height_in=8,
         nrows=2 + len(TREE_METHODS),
         ncols=len(ENDPOINTS),
-        gridspec_kw={
-            "hspace": 0.33,
-            "wspace": 0.12,
-            "left": 0.22,
-            "right": 0.98,
-            "top": 0.92,
-            "bottom": 0.065,
-        },
+        layout="constrained",
     )
 
     # Share directly with each group's reference so limits AND tick locators
