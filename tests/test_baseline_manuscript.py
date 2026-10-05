@@ -96,3 +96,48 @@ def test_display_variants_match_available_pipelines(monkeypatch):
     assert bars.treecluster_variant("raw", "deterministic", points, {
         "simulation": {"sequence_length": 5000}
     }) == ("Deterministic\nAvg clade, 4 SNP", "treecluster/deterministic/raw")
+
+
+def test_shared_resolution_regret_uses_full_native_reference_and_minimax(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(manuscript.__file__).parent))
+    regret = importlib.import_module("plot_resolution_regret")
+    specs = [
+        ("b1", "binary", 0.1, 0.2, 0.8),
+        ("b2", "binary", 0.1, 0.4, 0.7),
+        ("b3", "binary", 0.2, 0.2, 0.55),
+        ("b4", "binary", 0.2, 0.4, 0.6),
+        ("nref", "native", 0.05, 0.2, 0.8),
+        ("n1", "native", 0.1, 0.2, 0.5),
+        ("n2", "native", 0.2, 0.2, 0.65),
+    ]
+    definitions = {}
+    rows = []
+    for identifier, policy, resolution, threshold, f1 in specs:
+        pipeline = f"leiden/EDD/{policy}"
+        definitions[identifier] = {
+            "kind": "leiden", "pipeline": pipeline, "score_name": "EDD",
+            "data_process": "deterministic", "weight_policy": policy,
+            "resolution": resolution, "threshold": threshold,
+        }
+        for seed in (11, 12):
+            rows.append({
+                "split": "development", "seed": seed, "pipeline": pipeline,
+                "setting_id": identifier, "M0_f1": f1,
+                **{name: 0.5 for name in regret.SECONDARY_METRICS},
+            })
+    pipelines = ("leiden/EDD/binary", "leiden/EDD/native")
+    details, summary, reference = regret.regret_tables(
+        pd.DataFrame(rows), definitions,
+        {"name": "balanced_M0", "objective": "M0_f1", "constraints": {}},
+        [11, 12], pipelines,
+    )
+    assert regret.common_resolutions(definitions, pipelines) == [0.1, 0.2]
+    assert reference["leiden/EDD/native"]["definition"]["resolution"] == 0.05
+    assert details.loc[
+        (details.resolution == 0.2) & (details.pipeline == "leiden/EDD/binary"),
+        "selected_threshold",
+    ].iloc[0] == 0.4
+    assert summary.loc[summary.resolution == 0.1, "mean_regret_pp"].iloc[0] == pytest.approx(15)
+    assert summary.loc[summary.resolution == 0.2, "mean_regret_pp"].iloc[0] == pytest.approx(17.5)
+    assert summary.loc[summary.selected_default, "resolution"].tolist() == [0.2]
+    assert summary.loc[summary.selected_default, "max_regret_pp"].iloc[0] == pytest.approx(20)
