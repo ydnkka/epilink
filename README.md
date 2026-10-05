@@ -1,15 +1,8 @@
 # EpiLink evaluation
 
-Evaluation of EpiLink compatibility scores, genetic-distance
-rankings, logistic probabilities, and graph/phylogenetic clustering.
+Evaluation of EpiLink compatibility scores, genetic-distance rankings, logistic probabilities, and graph/phylogenetic clustering.
 
-**Start with the [operational guide](OPERATIONS.md)** for setup, configuration,
-tree regeneration, stage execution, result interpretation, and troubleshooting.
-The [synthetic baseline protocol](evaluation/01_synthetic_baseline/README.md) defines the
-scientific questions, primary M=0 target, comparison matrix, metrics, and
-held-out operating-point evaluation.
-Use the [output reference](OUTPUTS.md) for column definitions, metric formulas,
-artifact provenance, and worked analysis joins.
+**Start with the [operational guide](OPERATIONS.md)** for setup, configuration, tree regeneration, stage execution, result interpretation, and troubleshooting. The [synthetic baseline protocol](evaluation/01_synthetic_baseline/README.md) defines the scientific questions, primary M=0 target, comparison matrix, metrics, and held-out operating-point evaluation. Use the [output reference](OUTPUTS.md) for column definitions, metric formulas, artifact provenance, and worked analysis joins.
 
 ## Evaluation studies
 
@@ -20,11 +13,7 @@ artifact provenance, and worked analysis joins.
 | [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.                    |
 | [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.           |
 
-Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md).
-Complete diagnostics on its exact development observations before running baseline.
-The completed baseline supplies the reference for both downstream studies.
-Perturbation and Boston can run independently after baseline evaluation; the
-directory numbers express the study presentation order.
+Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md). Complete diagnostics on its exact development observations before running baseline. The completed baseline supplies the reference for both downstream studies. Perturbation and Boston can run independently after baseline evaluation; the directory numbers express the study presentation order.
 
 ## Implementation status
 
@@ -55,12 +44,7 @@ python evaluation/00_synthetic_diagnostics/run.py --stage all
 python evaluation/01_synthetic_baseline/run.py --stage develop
 ```
 
-Review the development report and configure operating criteria before selection
-and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria).
-The supplied baseline selects pairwise cutoffs from all distinct development
-scores, independently of finite graph grids. Reports cover M0/Mle1/Mle2 and
-include same-development reference-grid comparisons and neighboring-setting
-diagnostics. Inspect these before freezing clustering settings.
+Review the development report and configure operating criteria before selection and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria). The supplied baseline selects pairwise cutoffs from all distinct development scores, independently of finite graph grids. Reports cover M0/Mle1/Mle2 and include same-development reference-grid comparisons and neighboring-setting diagnostics. Inspect these before freezing clustering settings.
 
 ```bash
 python evaluation/01_synthetic_baseline/run.py --stage select
@@ -75,8 +59,7 @@ python evaluation/02_synthetic_perturbation/run.py --smoke
 python evaluation/02_synthetic_perturbation/run.py
 ```
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run
-selection, parameter levels, and paired-result interpretation.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run selection, parameter levels, and paired-result interpretation.
 
 Apply the baseline reference to Boston and render the report:
 
@@ -85,22 +68,9 @@ python evaluation/03_boston_application/run.py --stage all
 python evaluation/03_boston_application/run.py --stage report
 ```
 
-Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and
-assessment. `report` re-renders the saved results.
+Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and assessment. `report` re-renders the saved results.
 
-FastME is an external executable (e.g. `conda install -c bioconda fastme`).
-TreeCluster and TreeTime are Python dependencies. Executables are discovered on
-PATH or alongside the active Python interpreter; override their paths in the
-configuration when needed. `check` prints tool identity and experiment size.
-Boston tree construction additionally requires the standalone `tn93` executable;
-see the [Boston guide](evaluation/03_boston_application/README.md#troubleshooting).
-
-The existing local environment is
-`/opt/homebrew/Caskroom/miniconda/base/envs/epilik_evaluation/bin/python`.
-Use that interpreter consistently for installation and execution if working in
-this checkout. No machine-specific path is embedded in the implementation.
-Fresh-environment and Git LFS instructions are in the
-[setup section](OPERATIONS.md#2-environment-and-source-inputs).
+FastME is an external executable (e.g. `conda install -c bioconda fastme`). TreeCluster and TreeTime are Python dependencies. Executables are discovered on PATH or alongside the active Python interpreter; override their paths in the configuration when needed. `check` prints tool identity and experiment size. Boston tree construction additionally requires the standalone `tn93` executable; see the [Boston guide](evaluation/03_boston_application/README.md#troubleshooting).
 
 ## Layout
 
@@ -117,50 +87,19 @@ Fresh-environment and Git LFS instructions are in the
 | `evaluation/03_boston_application/outputs/inputs/` | Prepared Boston tables and provenance                                                         |
 | `tests/`                                           | Independent scientific correctness and integration checks                                     |
 
-Each study has its own `outputs/` directory containing an output root (`diagnostics`,
-`baseline`, `perturbation`, or `boston`). Within that root, `current.json` locates the latest
-initialized `runs/<id>/`, and content-addressed artifacts live under `artifacts/`.
-Diagnostics, baseline, perturbation, and the shared experiment use separate smoke
-roots ending in `_smoke`. Shared backbones, truth, and observations live under
-`evaluation/shared_synthetic/outputs/synthetic/`; baseline stores models, scores,
-and inferred trees in its own artifact root. Its run's `experiment.json` pins the
-shared source. Perturbation retains independent backbone, truth, and observation
-artifacts. Boston prepared inputs remain in its own `outputs/inputs/`.
-Reports are `report.md` and `report.html` inside each run. The pointer can identify
-an incomplete run; check stage coverage before interpreting results.
+Each study has its own `outputs/` directory containing an output root (`diagnostics`, `baseline`, `perturbation`, or `boston`). Within that root, `current.json` locates the latest initialized `runs/<id>/`, and content-addressed artifacts live under `artifacts/`. Diagnostics, baseline, perturbation, and the shared experiment use separate smoke roots ending in `_smoke`. Shared backbones, truth, and observations live under `evaluation/shared_synthetic/outputs/synthetic/`; baseline stores models, scores, and inferred trees in its own artifact root. Its run's `experiment.json` pins the shared source. Perturbation retains independent backbone, truth, and observation artifacts. Boston prepared inputs remain in its own `outputs/inputs/`. Reports are `report.md` and `report.html` inside each run. The pointer can identify an incomplete run; check stage coverage before interpreting results.
 
 ## Inputs and provenance
 
-Git LFS manages tracked data formats. Derived trees and study outputs are local
-ignored artifacts; retain them when moving an experiment, or regenerate them.
+Git LFS manages tracked data formats. Derived trees and study outputs are local ignored artifacts; retain them when moving an experiment, or regenerate them.
 
-The shared config owns `inputs.tree_path`, generation, simulation, and splits;
-both diagnostics and baseline reference it through `experiment_config`.
-`epilink-evaluate scovmod --stage prepare` uses the same backbone preparation
-as diagnostics, writing to `evaluation/shared_synthetic/outputs/inputs/`.
-Matching managed artifacts are reused; changed inputs or construction settings
-trigger rebuilding. Explicit prebuilt trees without a manifest are retained.
-The experiment identity includes the source backbone, data design, and generation
-implementation. Follow
-the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree)
-to change the target component and check the actual case count.
+The shared config owns `inputs.tree_path`, generation, simulation, and splits; both diagnostics and baseline reference it through `experiment_config`. `epilink-evaluate scovmod --stage prepare` uses the same backbone preparation as diagnostics, writing to `evaluation/shared_synthetic/outputs/inputs/`. Matching managed artifacts are reused; changed inputs or construction settings trigger rebuilding. Explicit prebuilt trees without a manifest are retained. The experiment identity includes the source backbone, data design, and generation implementation. Follow the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree) to change the target component and check the actual case count.
 
-Boston's input adapter reads `data/raw/boston/` and writes derived tables and
-provenance to `evaluation/03_boston_application/outputs/inputs/`.
-Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point.
-Its scoring table is censored at 0.0005
-substitutions/site; missing pairs remain unobserved. Tree construction separately
-computes all-pair TN93 distances from the alignment. See the
-[input-processing notes](data/raw/boston/boston_data_processing.md).
+Boston's input adapter reads `data/raw/boston/` and writes derived tables and provenance to `evaluation/03_boston_application/outputs/inputs/`. Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point. Its scoring table is censored at 0.0005 substitutions/site; missing pairs remain unobserved. Tree construction separately computes all-pair TN93 distances from the alignment. See the [input-processing notes](data/raw/boston/boston_data_processing.md).
 
-Saved manifests record paths and scientific identities at execution time. Retained
-outputs from earlier versions are historical results; generate current evidence
-with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json`
-ledger survives `reset-outputs`; revised analyses after evaluation need fresh
-evaluation seeds.
+Saved manifests record paths and scientific identities at execution time. Retained outputs from earlier versions are historical results; generate current evidence with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`; revised analyses after evaluation need fresh evaluation seeds.
 
-The EpiLink model package is maintained separately at
-[https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).
+The EpiLink model package is maintained separately at [https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).
 
 ## Acknowledge
 

@@ -25,6 +25,7 @@ Use this guide to configure and run the project, locate results, and resume inte
     - [Scorers, grids, and comparison settings](#scorers-grids-and-comparison-settings)
   - [4. Prepare or regenerate the SCoVMod tree](#4-prepare-or-regenerate-the-scovmod-tree)
   - [5. Run smoke validation and the baseline](#5-run-smoke-validation-and-the-baseline)
+    - [Observed full-run wall times](#observed-full-run-wall-times)
   - [6. Stage reference](#6-stage-reference)
   - [7. Find and interpret results](#7-find-and-interpret-results)
     - [Read development evidence in this order](#read-development-evidence-in-this-order)
@@ -43,7 +44,7 @@ SCoVMod infection and transmission CSVs
   -> reconstruct/select one fixed transmission backbone
      -> full-tree relationship truth (AD, CA, M)
      -> simulate sampling dates and deterministic/stochastic genomes by seed
-         -> shared development cases/pairs: genetic distance (GD), time (TD)
+         -> shared development cases/pairs: genetic distance (GD), temporal distance (TD)
             -> exact feature-cell diagnostics, endpoint-oracle graphs, known hop tree
             -> complete diagnostics gate
             -> EpiLink, genetic-distance, and training-fitted logistic scores
@@ -133,24 +134,24 @@ experiment root.
 
 ### Inputs, simulation, and seeds
 
-| Configuration field                          | Meaning                                                                                                                                  |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `experiment_config`                          | Study-config reference to the shared data-design YAML.                                                                                   |
-| `name`                                       | Experiment label, recorded in the run signature.                                                                                         |
-| `output_directory`                           | In a study:`artifacts/`, `runs/`, `current.json`; in the shared config: `artifacts/`, `experiments/`, `heldout_access/`, `current.json`. |
-| `inputs.tree_path`                           | Transmission backbone to load, or destination when generating a missing tree.                                                            |
-| `inputs.infection_path`, `transmission_path` | Raw SCoVMod inputs used for reconstruction.                                                                                              |
-| `inputs.target_component_size`               | Requested component size; reconstruction chooses the closest available component.                                                        |
-| `inputs.tree_seed`                           | Random infector assignment during reconstruction; affects a newly generated tree.                                                        |
-| `inputs.smoke_cases`                         | `null` uses the full backbone; a count uses an ancestor-preserving topological prefix. `--smoke` sets this to 64.                        |
-| `simulation.fraction_sampled`                | Fraction of tree cases observed, in`(0, 1]`; full-tree truth is retained.                                                                |
-| `simulation.sequence_length`                 | Number of simulated sequence sites, also the denominator for FastME distances.                                                           |
-| `splits.train`                               | Seeds for observation realizations used to fit logistic models.                                                                          |
-| `splits.development`                         | Seeds for parameter-grid comparison and operating-point selection.                                                                       |
-| `splits.evaluation`                          | Held-out observation seeds used by`evaluate`.                                                                                            |
-| `scorer.seed`, `scorer.mc_samples`           | EpiLink Monte Carlo seed and number of draws.                                                                                            |
-| `clustering.leiden.seed`, `restarts`         | Leiden random seed and restarts; restart quality is judged by its declared objective.                                                    |
-| `treecluster.rng_seed`                       | TreeTime random seed.                                                                                                                    |
+| Configuration field                              | Meaning                                                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `experiment_config`                            | Study-config reference to the shared data-design YAML.                                                                                                 |
+| `name`                                         | Experiment label, recorded in the run signature.                                                                                                       |
+| `output_directory`                             | In a study:`artifacts/`, `runs/`, `current.json`; in the shared config: `artifacts/`, `experiments/`, `heldout_access/`, `current.json`. |
+| `inputs.tree_path`                             | Transmission backbone to load, or destination when generating a missing tree.                                                                          |
+| `inputs.infection_path`, `transmission_path` | Raw SCoVMod inputs used for reconstruction.                                                                                                            |
+| `inputs.target_component_size`                 | Requested component size; reconstruction chooses the closest available component.                                                                      |
+| `inputs.tree_seed`                             | Random infector assignment during reconstruction; affects a newly generated tree.                                                                      |
+| `inputs.smoke_cases`                           | `null` uses the full backbone; a count uses an ancestor-preserving topological prefix. `--smoke` sets this to 64.                                  |
+| `simulation.fraction_sampled`                  | Fraction of tree cases observed, in`(0, 1]`; full-tree truth is retained.                                                                            |
+| `simulation.sequence_length`                   | Number of simulated sequence sites, also the denominator for FastME distances.                                                                         |
+| `splits.train`                                 | Seeds for observation realizations used to fit logistic models.                                                                                        |
+| `splits.development`                           | Seeds for parameter-grid comparison and operating-point selection.                                                                                     |
+| `splits.evaluation`                            | Held-out observation seeds used by`evaluate`.                                                                                                        |
+| `scorer.seed`, `scorer.mc_samples`           | EpiLink Monte Carlo seed and number of draws.                                                                                                          |
+| `clustering.leiden.seed`, `restarts`         | Leiden random seed and restarts; restart quality is judged by its declared objective.                                                                  |
+| `treecluster.rng_seed`                         | TreeTime random seed.                                                                                                                                  |
 
 The `inputs`, `simulation`, and `splits` rows belong to the shared config; scorer and clustering rows belong to baseline. Observation seeds must be nonnegative integers, unique across all three splits. Previously accessed held-out seeds cannot become training/development seeds. Algorithm seeds control inference randomness independently of observation seeds.
 
@@ -158,46 +159,46 @@ The `inputs`, `simulation`, and `splits` rows belong to the shared config; score
 
 Shared `generation` configures observation simulation. Baseline derives `inference` from that block and requires matched values; edit natural history in the shared config and rerun diagnostics for the changed design.
 
-| Field within`generation` / `inference`  | Meaning and units                                                                         |
-| --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `incubation.mean`, `testing_delay.mean` | Mean durations in days.                                                                   |
+| Field within`generation` / `inference`  | Meaning and units                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `incubation.mean`, `testing_delay.mean` | Mean durations in days.                                                                        |
 | `incubation.cv`, `testing_delay.cv`     | Dimensionless coefficient of variation; Gamma shape is`1 / cv²`, scale is `mean / shape`. |
-| `latent_shape`                          | Dimensionless latent-stage Gamma shape; must be below the incubation shape.               |
-| `symptomatic_rate`, `symptomatic_shape` | Symptomatic removal rate (1/day) and dimensionless Gamma shape.                           |
-| `transmission_rate_ratio`               | Dimensionless presymptomatic-to-symptomatic transmission-rate ratio.                      |
-| `substitution_rate`                     | Median substitution rate in substitutions/site/year.                                      |
-| `relaxation`                            | Dimensionless lognormal SD of branch-specific rates; zero gives a strict clock.           |
-| `genome_length`                         | Site count used by EpiLink to calculate mutation-count expectations.                      |
+| `latent_shape`                            | Dimensionless latent-stage Gamma shape; must be below the incubation shape.                    |
+| `symptomatic_rate`, `symptomatic_shape` | Symptomatic removal rate (1/day) and dimensionless Gamma shape.                                |
+| `transmission_rate_ratio`                 | Dimensionless presymptomatic-to-symptomatic transmission-rate ratio.                           |
+| `substitution_rate`                       | Median substitution rate in substitutions/site/year.                                           |
+| `relaxation`                              | Dimensionless lognormal SD of branch-specific rates; zero gives a strict clock.                |
+| `genome_length`                           | Site count used by EpiLink to calculate mutation-count expectations.                           |
 
 The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. TreeTime estimates its clock from the generated observations.
 
 ### Scorers, grids, and comparison settings
 
-| Field                                            | Meaning                                                                                                                                                                     |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scorers`                                        | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.                                        |
-| `scorer.logistic_C`                              | Fixed inverse regularization strength for logistic fitting.                                                                                                                 |
-| `thresholds.epilink`                             | Graph compatibility cutoffs (also pairwise in `configured` mode); retain scores **\>=** the cutoff. Values can exceed one.                                                  |
-| `thresholds.genetic`                             | Hamming-distance cutoffs in substitutions; retain distances **\<=** the cutoff.                                                                                             |
-| `thresholds.logistic`                            | Probability cutoffs in`[0, 1]`; retain scores **\>=** the cutoff.                                                                                                           |
-| `pairwise.selected_fractions`                    | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                                                      |
+| Field                                              | Meaning                                                                                                                                                                           |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scorers`                                        | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.                                              |
+| `scorer.logistic_C`                              | Fixed inverse regularization strength for logistic fitting.                                                                                                                       |
+| `thresholds.epilink`                             | Graph compatibility cutoffs (also pairwise in`configured` mode); retain scores **\>=** the cutoff. Values can exceed one.                                                 |
+| `thresholds.genetic`                             | Hamming-distance cutoffs in substitutions; retain distances**\<=** the cutoff.                                                                                              |
+| `thresholds.logistic`                            | Probability cutoffs in`[0, 1]`; retain scores **\>=** the cutoff.                                                                                                         |
+| `pairwise.selected_fractions`                    | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                                                            |
 | `pairwise.threshold_mode`                        | `all_development_scores` (supplied): union of unique development cutoffs plus empty selection; `configured`: use `thresholds`. One shared cutoff is evaluated across seeds. |
-| `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                                                            |
-| `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                                                         |
-| `clustering.leiden.weight_policies`              | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                                                        |
-| `clustering.leiden.resolutions`                  | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                                                                |
-| `clustering.leiden.resolutions_by_weight_policy` | Optional `binary`/`native` resolution overrides; unlisted policies use `resolutions`.                                                                                       |
-| `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                |
+| `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                                                              |
+| `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                                                           |
+| `clustering.leiden.weight_policies`              | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                                                          |
+| `clustering.leiden.resolutions`                  | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                                                                      |
+| `clustering.leiden.resolutions_by_weight_policy` | Optional`binary`/`native` resolution overrides; unlisted policies use `resolutions`.                                                                                        |
+| `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                      |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
-| `treecluster.genetic_thresholds`                 | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using`simulation.sequence_length`.                                       |
-| `treecluster.threshold_days`, `days_per_year`    | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                                                        |
-| `treecluster.fastme_method`                      | FastME method code passed through`-m`; the supplied value is `N`.                                                                                                           |
-| `treecluster.raw_rooting`, `negative_branches`   | Supported policies:`midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                                                          |
-| `treecluster.clock_filter`                       | Clock-filter value passed to TreeTime.                                                                                                                                      |
-| `treecluster.command_timeout_seconds`            | Timeout for each external tool invocation.                                                                                                                                  |
-| `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                                                            |
-| `grid_audit.objective_tolerance`                 | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                      |
-| `grid_audit.reference`                           | Coarse-grid overrides: `thresholds`, `leiden_resolutions`, and/or `treecluster` threshold lists. Compare on the same development observations.                              |
+| `treecluster.genetic_thresholds`                 | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using`simulation.sequence_length`.                                           |
+| `treecluster.threshold_days`, `days_per_year`  | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                                                              |
+| `treecluster.fastme_method`                      | FastME method code passed through`-m`; the supplied value is `N`.                                                                                                             |
+| `treecluster.raw_rooting`, `negative_branches` | Supported policies:`midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                                                            |
+| `treecluster.clock_filter`                       | Clock-filter value passed to TreeTime.                                                                                                                                            |
+| `treecluster.command_timeout_seconds`            | Timeout for each external tool invocation.                                                                                                                                        |
+| `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                                                                  |
+| `grid_audit.objective_tolerance`                 | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                            |
+| `grid_audit.reference`                           | Coarse-grid overrides:`thresholds`, `leiden_resolutions`, and/or `treecluster` threshold lists. Compare on the same development observations.                               |
 
 The runner also adds an explicit empty-selection setting to each scorer's grid. Binary graphs include zero-valued edges at a zero compatibility/probability cutoff; native weighted graphs omit zero-weight edges.
 Exact pairwise candidates are generated only after all development curves exist;
@@ -266,14 +267,14 @@ Then follow sections 7–8 to inspect development evidence, configure criteria, 
 
 One full configured execution on 2026-10-02–03 produced these timings:
 
-| Workflow/stage | Observed elapsed |
-| --- | ---: |
-| Diagnostics `all` | about 5m 10s* |
-| Baseline `develop` | 2h 02m 10s |
-| Baseline `select` | 1m 49s |
-| Baseline `evaluate` | 1h 16m 33s |
-| Baseline `develop`–`evaluate` sequence | 3h 20m 38s† |
-| Full perturbation `all` | 16h 44m 12s‡ |
+| Workflow/stage                             | Observed elapsed |
+| ------------------------------------------ | ---------------: |
+| Diagnostics`all`                         |    about 5m 10s* |
+| Baseline`develop`                        |       2h 02m 10s |
+| Baseline`select`                         |           1m 49s |
+| Baseline`evaluate`                       |       1h 16m 33s |
+| Baseline`develop`–`evaluate` sequence |     3h 20m 38s† |
+| Full perturbation`all`                   |    16h 44m 12s‡ |
 
 The baseline and perturbation runs used the 5,051-case backbone, 5,000-nt sequences, eight scorers, and 10,000 EpiLink Monte Carlo draws. Perturbation covered the baseline control plus 12 parameter variants, two inference modes, and three seeds. The measured command windows sum to about 20h 10m, excluding the idle interval between baseline evaluation and the later perturbation run.
 
@@ -299,38 +300,27 @@ With `--smoke`, that override becomes `evaluation/01_synthetic_baseline/outputs/
 **Synthetic diagnostics** defaults to `all`. Its stages are:
 
 | `--stage`      | Work performed                                                                                      |
-| -------------- | --------------------------------------------------------------------------------------------------- |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
 | `prepare`      | Prepare/reuse the shared backbone, truth, and development observations only.                        |
 | `observations` | Exact GD and GD/TD cells, ambiguity, prevalence, and relationship summaries.                        |
 | `graphs`       | One unit-weight oracle graph per M horizon; components and configured Leiden controls.              |
 | `trees`        | Known transmission-hop tree; TreeCluster method/hop-threshold controls evaluated at every endpoint. |
 | `all`          | All three diagnostic analyses, with preparation as a dependency.                                    |
-| `report`       | Render saved tables and coverage through the diagnostics root's`current.json`.                      |
+| `report`       | Render saved tables and coverage through the diagnostics root's`current.json`.                    |
 
-Computational stages prepare development data as needed. Baseline is released only
-when all required diagnostics (including trees when enabled) have complete,
-checksummed coverage of the exact development datasets. A successful diagnostics
-`prepare` alone is insufficient. Oracle graph/tree controls reuse identical truth
-and sampled-case sets across seeds and genetic processes; full sampling gives one
-graph per horizon and one hop tree, rather than independent control replicates.
-The tree preserves sampled ancestors as zero-length tips and retains unsampled
-intermediates. Forests are unsupported for this tree control and produce visible
-failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
+Computational stages prepare development data as needed. Baseline is released only when all required diagnostics (including trees when enabled) have complete, checksummed coverage of the exact development datasets. A successful diagnostics `prepare` alone is insufficient. Oracle graph/tree controls reuse identical truth and sampled-case sets across seeds and genetic processes; full sampling gives one graph per horizon and one hop tree, rather than independent control replicates. The tree preserves sampled ancestors as zero-length tips and retains unsampled intermediates. Forests are unsupported for this tree control and produce visible failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
 
-The following table applies to the **synthetic baseline**. All computational stages
-require a matching shared experiment and completed diagnostics. They reuse shared
-truth/development observations and prepare their training/model/score dependencies.
-Baseline `prepare` is optional before `develop`.
+The following table applies to the **synthetic baseline**. All computational stages require a matching shared experiment and completed diagnostics. They reuse shared truth/development observations and prepare their training/model/score dependencies. Baseline `prepare` is optional before `develop`.
 
 | `--stage`  | Work performed                                                                                                            | Prerequisite / main saved output                                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `prepare`  | Prepare shared training observations and validate/reuse development observations.                                         | Requires completed diagnostics; writes training datasets into the shared experiment.                                                                     |
-| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, thresholds, budgets, and calibration. | Prepares training/model/score dependencies. Writes per-seed`pairwise/` tables.                                                                           |
+| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, thresholds, budgets, and calibration. | Prepares training/model/score dependencies. Writes per-seed`pairwise/` tables.                                                                         |
 | `clusters` | Fit/reuse scorers and run development graph/tree clustering sweeps.                                                       | Prepares training/model/score dependencies; writes per-setting memberships/metrics and per-seed status.                                                  |
-| `develop`  | Run`pairwise`, then `clusters`.                                                                                           | Writes the development comparison and report.                                                                                                            |
-| `select`   | Complete/reuse the declared development comparison and freeze settings under each criterion.                              | Requires a complete configured sweep. Writes`selection/operating_points.json`.                                                                           |
+| `develop`  | Run`pairwise`, then `clusters`.                                                                                       | Writes the development comparison and report.                                                                                                            |
+| `select`   | Complete/reuse the declared development comparison and freeze settings under each criterion.                              | Requires a complete configured sweep. Writes`selection/operating_points.json`.                                                                         |
 | `evaluate` | Release/generate shared evaluation observations and apply frozen settings using training-fitted models.                   | Requires matching frozen settings and development evidence. Records shared held-out access before observation generation, then writes operating results. |
-| `report`   | Rebuild figures and reports from saved tables.                                                                            | Uses`current.json` in the resolved output root; no simulation or setting selection.                                                                      |
+| `report`   | Rebuild figures and reports from saved tables.                                                                            | Uses`current.json` in the resolved output root; no simulation or setting selection.                                                                    |
 | `all`      | Run development, selection, and evaluation sequentially if development succeeds.                                          | Uses the configured criteria immediately, without pausing for development review. Useful for smoke validation.                                           |
 
 Computational stages render a report at the end, including caught failures. The run manifest's `status: complete` describes its **last requested stage**. For example, a complete `prepare` command does not mean clustering or evaluation has run. Use the report's comparison-coverage table and per-stage manifests to assess the whole experiment. Failures during initial input preparation may occur before a run manifest or report can be written.
@@ -440,11 +430,7 @@ Inspect `selection/operating_points.json` and the updated report. Selection also
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage evaluate
 ```
 
-Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory.
-The supplied revised full design uses 63101–63103, reserving 63001–63003 for the
-previous completed comparison. Report-only endpoint corrections can be rendered
-from saved outputs without new observations. Resetting outputs preserves access
-history; smoke is repeatable validation in its separate namespace.
+Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory. The supplied revised full design uses 63101–63103, reserving 63001–63003 for the previous completed comparison. Report-only endpoint corrections can be rendered from saved outputs without new observations. Resetting outputs preserves access history; smoke is repeatable validation in its separate namespace.
 
 ## 9. Resume work and understand caching
 
@@ -460,42 +446,34 @@ Run IDs incorporate scientific configuration, input/truth identity, implementati
 
 `selection`, `output_directory`, and the config-file path itself are excluded from the scientific configuration portion of the run ID. Selection decisions have their own validation; changing the output root changes where artifacts are found. The root-level pointer is updated when a run is initialized. Earlier run directories remain available; the pointer is not an index of successful runs.
 
-Changing `target_component_size` or `tree_seed` invalidates a managed backbone's
-preparation signature and triggers reconstruction. Different targets can still
-select the same component. Explicit prebuilt trees without a manifest are
-retained; use a separate input directory to reconstruct a different backbone
-while keeping the previous one.
+Changing `target_component_size` or `tree_seed` invalidates a managed backbone's preparation signature and triggers reconstruction. Different targets can still select the same component. Explicit prebuilt trees without a manifest are retained; use a separate input directory to reconstruct a different backbone while keeping the previous one.
 
-Retained outputs from earlier versions are historical results. Produce current
-evidence using diagnostics followed by baseline; old baseline-local truth and
-observation directories do not establish the shared-experiment completion contract.
+Retained outputs from earlier versions are historical results. Produce current evidence using diagnostics followed by baseline; old baseline-local truth and observation directories do not establish the shared-experiment completion contract.
 
 ## 10. Troubleshooting
 
-| Symptom                                                              | What to check / next action                                                                                                                                                    |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `epilink-evaluate: command not found` or module import failure       | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.              |
-| `Executable not found`                                               | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                           |
+| Symptom                                                              | What to check / next action                                                                                                                                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `epilink-evaluate: command not found` or module import failure     | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.            |
+| `Executable not found`                                             | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                         |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                |
-| Diagnostics tree control rejects a forest                            | Use a single rooted transmission tree for this control; no between-component hop distance is defined. The failure remains visible in coverage.                                 |
-| Report says`partial` / selection reports an incomplete sweep         | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                       |
-| FastME or TreeTime fails                                             | Inspect`<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path.     |
+| Diagnostics tree control rejects a forest                            | Use a single rooted transmission tree for this control; no between-component hop distance is defined. The failure remains visible in coverage.                                   |
+| Report says`partial` / selection reports an incomplete sweep       | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                   |
+| FastME or TreeTime fails                                             | Inspect`<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path.   |
 | TreeCluster fails                                                    | Inspect`<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
 | External command times out                                           | Inspect its stderr log and`treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.                  |
-| No frozen operating settings                                         | Run`select` for the exact experiment/output root before `evaluate`.                                                                                                            |
-| `No operating criterion is feasible`                                 | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                          |
+| No frozen operating settings                                         | Run`select` for the exact experiment/output root before `evaluate`.                                                                                                          |
+| `No operating criterion is feasible`                               | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                            |
 | Criteria changed or held-out seeds already accessed                  | Before access, rerun`select`. After access, assign fresh evaluation seeds in the shared config and rerun diagnostics and baseline selection; reset preserves the ledger.       |
-| `current.json` missing when running `report`                         | Check config/output/smoke arguments. A computational stage must initialize that root first.                                                                                    |
-| A rerun writes a different run ID                                    | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                             |
-| Incubation parameter error                                           | The Gamma incubation shape is`1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                       |
+| `current.json` missing when running `report`                     | Check config/output/smoke arguments. A computational stage must initialize that root first.                                                                                      |
+| A rerun writes a different run ID                                    | Compare manifests for config, input paths/hashes, implementation, package, and executable changes.                                                                               |
+| Incubation parameter error                                           | The Gamma incubation shape is`1 / cv²`; EpiLink requires `latent_shape` to be smaller. Check the complete matched natural-history block.                                    |
 
 ## 11. Clear outputs with reset-outputs
 
-To clear study results, use `reset-outputs`. It removes runs, study artifacts, and
-the `current.json` pointer from the selected standard study roots, while preserving
-the shared experiment and held-out access history.
+To clear study results, use `reset-outputs`. It removes runs, study artifacts, and the `current.json` pointer from the selected standard study roots, while preserving the shared experiment and held-out access history.
 
 ```bash
 # Preview what would be deleted (recommended first)
@@ -520,14 +498,7 @@ The command removes:
 - All artifact directories under `artifacts/`
 - The `current.json` pointer file
 
-Use `--dry-run` to inspect the selected paths. The command targets the standard
-run roots listed above; `--output` does not select a custom cleanup location.
-The entire `evaluation/shared_synthetic/outputs/` area is retained, including
-prepared inputs, shared backbones/truth/observations, experiment manifests, and
-both full/smoke held-out access ledgers. Boston's `outputs/inputs/` is also retained.
-After clearing diagnostics, rerun it before baseline; the surviving shared marker
-alone cannot validate deleted diagnostic evidence. Reset does not make accessed
-evaluation seeds available for revised selection.
+Use `--dry-run` to inspect the selected paths. The command targets the standard run roots listed above; `--output` does not select a custom cleanup location. The entire `evaluation/shared_synthetic/outputs/` area is retained, including prepared inputs, shared backbones/truth/observations, experiment manifests, and both full/smoke held-out access ledgers. Boston's `outputs/inputs/` is also retained. After clearing diagnostics, rerun it before baseline; the surviving shared marker alone cannot validate deleted diagnostic evidence. Reset does not make accessed evaluation seeds available for revised selection.
 
 ## 12. Perturbation and Boston application
 
@@ -558,12 +529,12 @@ Run the frozen transfer analysis with:
 python evaluation/03_boston_application/run.py --stage all
 ```
 
-| Boston stage    | Work performed                                                                                                    |
-| --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `prepare`       | Write or reuse`outputs/inputs/` tables and provenance.                                                            |
+| Boston stage      | Work performed                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `prepare`       | Write or reuse`outputs/inputs/` tables and provenance.                                                          |
 | `trees`         | Build/reuse raw and dated trees and apply frozen TreeCluster settings. Graph scoring/clustering is not requested. |
 | `all` (default) | Score pairs, apply frozen graph settings, run enabled TreeCluster, and assess partitions.                         |
-| `report`        | Render saved results for the run identified by the Boston root's`current.json`.                                   |
+| `report`        | Render saved results for the run identified by the Boston root's`current.json`.                                 |
 
 Boston reads metadata, Nextclade, TN93 distances, and the aligned FASTA under `data/raw/boston/`. Prepared tables are under `evaluation/03_boston_application/outputs/inputs/`; run results are under `evaluation/03_boston_application/outputs/boston/`. The TN93 table is censored at 0.0005/site; missing pairs remain unobserved, not zero. A complete tree-only stage does not establish graph coverage.
 

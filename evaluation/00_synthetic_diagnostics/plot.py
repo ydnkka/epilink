@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
@@ -30,9 +29,9 @@ PROCESS_LABELS = {"deterministic": "Deterministic", "stochastic": "Stochastic"}
 
 TREE_METHODS = ("avg_clade", "max_clade", "single_linkage")
 METHOD_LABELS = {
-    "avg_clade": "avg_clade",
-    "max_clade": "max_clade",
-    "single_linkage": "single_linkage",
+    "avg_clade": "Avg Clade",
+    "max_clade": "Max Clade",
+    "single_linkage": "Single Linkage",
 }
 
 COLORS = {
@@ -75,7 +74,6 @@ SCORE_METRICS = (
         alpha=0.7,
     ),
 )
-TREE_METRICS = (SCORE_METRICS[0], SCORE_METRICS[3])
 
 
 def metric_column(endpoint: str, suffix: str) -> str:
@@ -226,7 +224,7 @@ def plot_tree_performance(
     method_data = data[data["method"].astype(str) == method].copy()
     method_data = method_data.sort_values("threshold_hops")
 
-    plot_score_metrics(ax, method_data, endpoint, "threshold_hops", TREE_METRICS)
+    plot_score_metrics(ax, method_data, endpoint, "threshold_hops", SCORE_METRICS)
     plot_f1_error_bars(ax, method_data, endpoint, "threshold_hops")
 
     ax.set_ylim(-0.05, 1.05)
@@ -249,7 +247,7 @@ def metric_legend_handles(metrics: tuple[MetricSpec, ...]) -> list[Line2D]:
     ]
 
 
-def add_legends(fig: Figure, gs: GridSpec) -> None:
+def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
     """Keep the two distinct color keys above the grid."""
     fig.legend(
         handles=[
@@ -257,7 +255,7 @@ def add_legends(fig: Figure, gs: GridSpec) -> None:
             for process in PROCESSES
         ],
         loc="upper left",
-        bbox_to_anchor=(gs.left, 0.99),
+        bbox_to_anchor=(top_axes[0].get_position().x0, 0.99),
         ncol=len(PROCESSES),
         fontsize=9,
         frameon=False,
@@ -268,7 +266,7 @@ def add_legends(fig: Figure, gs: GridSpec) -> None:
     fig.legend(
         handles=metric_legend_handles(SCORE_METRICS),
         loc="upper right",
-        bbox_to_anchor=(gs.right, 0.99),
+        bbox_to_anchor=(top_axes[-1].get_position().x1, 0.99),
         ncol=len(SCORE_METRICS),
         fontsize=9,
         frameon=False,
@@ -282,7 +280,7 @@ def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
     """Align each row label with its axes rather than fixed figure heights."""
     labels = [
         "Feature\nambiguity",
-        "Leiden\nCommunity\nDetection",
+        "Leiden\nCPM objective",
         *[f"TreeCluster\n{METHOD_LABELS[method]}" for method in TREE_METHODS],
     ]
     for ax, label in zip(row_axes, labels):
@@ -303,30 +301,26 @@ def add_panel_labels(panel_axes: Sequence[Axes]) -> None:
         )
 
 
-def make_grid(fig: Figure) -> GridSpec:
-    return GridSpec(
-        2 + len(TREE_METHODS),
-        len(ENDPOINTS),
-        figure=fig,
-        hspace=0.33,
-        wspace=0.12,
-        left=0.22,
-        right=0.98,
-        top=0.92,
-        bottom=0.065,
-    )
-
-
 def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
     """Create and save the diagnostics figure."""
-    fig = plt.figure(figsize=(12, 11))
-    gs = make_grid(fig)
-    axes = gs.subplots()
+    fig, axes = plt.subplots(
+        2 + len(TREE_METHODS),
+        len(ENDPOINTS),
+        figsize=(12, 11),
+        gridspec_kw={
+            "hspace": 0.33,
+            "wspace": 0.12,
+            "left": 0.22,
+            "right": 0.98,
+            "top": 0.92,
+            "bottom": 0.065,
+        },
+    )
 
     # Share directly with each group's reference so limits AND tick locators
     # stay identical, including across all three tree-method rows.
     for row, row_axes in enumerate(axes):
-        x_reference = axes[2 if row >= 2 else row, 0]
+        x_reference = axes[min(2, row), 0]
         y_reference = axes[0 if row == 0 else 1, 0]
         for ax in row_axes:
             if ax is not x_reference:
@@ -363,7 +357,7 @@ def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
     axes[1, 0].xaxis.set_major_locator(MaxNLocator(nbins=5))
     axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
 
-    x_labels = ("Feature set", "Leiden resolution (CPM)") + (
+    x_labels = ("Feature set", "Resolution") + (
         "Threshold (hops)",
     ) * len(TREE_METHODS)
     for row, row_axes in enumerate(axes):
@@ -380,16 +374,13 @@ def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
             ax.set_xlabel(x_labels[row], fontsize=9)
 
     fig.align_ylabels(axes[:, 0])
-    add_legends(fig, gs)
+    add_legends(fig, axes[0])
     add_row_labels(fig, axes[:, 0])
     add_panel_labels(axes.ravel())
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    save_kwargs = {"bbox_inches": "tight"}
-    if output_path.suffix.lower() not in {".pdf", ".svg"}:
-        save_kwargs["dpi"] = 300
 
-    fig.savefig(output_path, **save_kwargs)
+    fig.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close(fig)
     print(f"Figure saved to: {output_path}")
 

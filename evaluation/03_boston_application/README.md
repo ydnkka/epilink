@@ -1,28 +1,17 @@
 # Boston empirical application
 
-Empirical clustering analysis of SARS-CoV-2 sequences from Boston outbreaks
-(March-May 2020), using frozen operating settings from the synthetic baseline
-evaluation.
+Empirical clustering analysis of SARS-CoV-2 sequences from Boston outbreaks (March-May 2020), using frozen operating settings from the synthetic baseline evaluation.
 
 ## Purpose and study sequence
 
-**Main question:** Do methods selected on synthetic data identify clusters
-concentrated for the Conference and SNF exposures in Boston, how much of each
-exposure group do they recover, and how do their partitions compare with
-TreeCluster partitions?
+**Main question:** Do methods selected on synthetic data identify clusters concentrated for the Conference and SNF exposures in Boston, how much of each exposure group do they recover, and how do their partitions compare with TreeCluster partitions?
 
-This is the **empirical transfer and descriptive application study**. It applies
-EpiLink compatibility scores, genetic distances, and baseline-fitted logistic
-models to observed Boston genetic distances and sampling dates. It also compares
-graph partitions with TreeCluster partitions built from the Boston alignment.
+This is the **empirical transfer and descriptive application study**. It applies EpiLink compatibility scores, genetic distances, and baseline-fitted logistic models to observed Boston genetic distances and sampling dates. It also compares graph partitions with TreeCluster partitions built from the Boston alignment.
 
 The study has two objectives:
 
-1. **Assess transfer of frozen settings:** apply the synthetic baseline's selected
-   graph and TreeCluster settings directly to empirical observations.
-2. **Characterize epidemiological coherence:** describe exposure concentration,
-   the fraction of each focus-exposure group captured, cluster sizes and
-   singletons, and agreement between graph and phylogenetic partitions.
+1. **Assess transfer of frozen settings:** apply the synthetic baseline's selected graph and TreeCluster settings directly to empirical observations.
+2. **Characterize epidemiological coherence:** describe exposure concentration, the fraction of each focus-exposure group captured, cluster sizes and singletons, and agreement between graph and phylogenetic partitions.
 
 These questions are addressed by the frozen-transfer analysis:
 
@@ -30,19 +19,9 @@ These questions are addressed by the frozen-transfer analysis:
 | ------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | **Frozen transfer** (`--stage all`) | Baseline-selected operating points applied directly.         | Empirical partitions and focus-exposure summaries at prespecified settings. |
 
-**Evidence produced:** cluster memberships, exposure composition and recovery,
-cluster-size summaries, and partition agreement. Exposure concentration and
-recovery should be interpreted together: a small pure cluster can capture few
-exposed cases, while a very large cluster can capture many with little
-concentration. Complete transmission truth is unavailable, so these summaries
-describe external epidemiological evidence rather than transmission accuracy.
+**Evidence produced:** cluster memberships, exposure composition and recovery, cluster-size summaries, and partition agreement. Exposure concentration and recovery should be interpreted together: a small pure cluster can capture few exposed cases, while a very large cluster can capture many with little concentration. Complete transmission truth is unavailable, so these summaries describe external epidemiological evidence rather than transmission accuracy.
 
-**Role in the study sequence:** the [synthetic baseline](../01_synthetic_baseline/README.md)
-compares methods against known truth and supplies the primary operating points.
-The [perturbation study](../02_synthetic_perturbation/README.md) examines biological
-parameter changes and inference mismatch in simulation. Boston uses the baseline
-reference directly for real-data application, reporting exposure concentration,
-recovery, and agreement between graph and phylogenetic partitions.
+**Role in the study sequence:** the [synthetic baseline](../01_synthetic_baseline/README.md) compares methods against known truth and supplies the primary operating points. The [perturbation study](../02_synthetic_perturbation/README.md) examines biological parameter changes and inference mismatch in simulation. Boston uses the baseline reference directly for real-data application, reporting exposure concentration, recovery, and agreement between graph and phylogenetic partitions.
 
 ## Workflow overview
 
@@ -76,12 +55,7 @@ python evaluation/03_boston_application/run.py --stage report
 
 The equivalent installed CLI command is `epilink-evaluate boston --config evaluation/03_boston_application/config.yaml --stage all`.
 
-`--stage all` runs frozen scoring, graph clustering, enabled TreeCluster, and
-assessment.
-`--stage trees` only builds/reuses trees and applies the frozen TreeCluster rules.
-Boston does not support `--smoke`. Input preparation can run before baseline
-evaluation; computational stages need the baseline's frozen selection and
-held-out evaluation provenance.
+`--stage all` runs frozen scoring, graph clustering, enabled TreeCluster, and assessment. `--stage trees` only builds/reuses trees and applies the frozen TreeCluster rules. Boston does not support `--smoke`. Input preparation can run before baseline evaluation; computational stages need the baseline's frozen selection and held-out evaluation provenance.
 
 ## Configuration
 
@@ -101,9 +75,7 @@ Edit [`config.yaml`](config.yaml) to change:
 | `trees.alignment_path`                     | Boston FASTA alignment for tree building (required when`trees.enabled` is true).                                                                               |
 | `trees.tn93_executable`                    | Optional path to`tn93` for all-pair distances (default: `tn93` on PATH).                                                                                     |
 
-For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo
-settings, fitted logistic models, graph thresholds, Leiden settings, and
-TreeCluster methods/thresholds come from the baseline reference.
+For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo settings, fitted logistic models, graph thresholds, Leiden settings, and TreeCluster methods/thresholds come from the baseline reference.
 
 ## Inputs
 
@@ -116,21 +88,14 @@ Source files under `data/raw/boston/`:
 | `MGH_DPH_98percent_772samples_tn93_distances.csv` | Pairwise TN93 distances (censored at 0.0005/site).      |
 | `MGH_DPH_98percent_772samples_aligned.fasta`      | Aligned sequences for tree building (uncensored).       |
 
-The `prepare` stage (`epilink-evaluate boston --stage prepare`) derives
-`cases.parquet` and `observed_pairs.parquet` with provenance under
-`evaluation/03_boston_application/outputs/inputs/`. Computational stages
-automatically use the same preparation and reuse matching artifacts. `--output`
-changes the run root, not these shared input paths. The TN93 pair table is
-**distance-censored**: missing pairs are unobserved, not zero distance. The
-candidate universe is explicit in the manifest.
+The `prepare` stage (`epilink-evaluate boston --stage prepare`) derives `cases.parquet` and `observed_pairs.parquet` with provenance under `evaluation/03_boston_application/outputs/inputs/`. Computational stages automatically use the same preparation and reuse matching artifacts. `--output` changes the run root, not these shared input paths. The TN93 pair table is **distance-censored**: missing pairs are unobserved, not zero distance. The candidate universe is explicit in the manifest.
 
 ## Outputs
 
 - Run root: `evaluation/03_boston_application/outputs/boston/`
 - Shared inputs: `evaluation/03_boston_application/outputs/inputs/`
 
-The shared input directory contains `cases.parquet`, `observed_pairs.parquet`,
-and `manifest.json`. The run root contains:
+The shared input directory contains `cases.parquet`, `observed_pairs.parquet`, and `manifest.json`. The run root contains:
 
 ```text
 boston/
@@ -180,11 +145,7 @@ boston/
 
 ## Scientific notes
 
-The Boston empirical application demonstrates how frozen operating settings from
-a synthetic baseline transfer to real outbreak data. It does **not** claim
-transmission truth recovery, as complete epidemiological links are unavailable.
-The analysis is descriptive: it reports cluster sizes, exposure composition, and
-method agreement, without asserting correctness.
+The Boston empirical application demonstrates how frozen operating settings from a synthetic baseline transfer to real outbreak data. It does **not** claim transmission truth recovery, as complete epidemiological links are unavailable. The analysis is descriptive: it reports cluster sizes, exposure composition, and method agreement, without asserting correctness.
 
 For sensitivity to natural-history parameters, use the **perturbation workflow** on synthetic data. Adaptation (retraining or retuning) under changed parameters is a separate analysis not performed here.
 
