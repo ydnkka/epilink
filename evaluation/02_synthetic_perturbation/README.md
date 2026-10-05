@@ -140,6 +140,38 @@ Inside the run, inspect these files in order:
 
 Missing controls remain explicit: `control_available` is false and paired deltas are missing. A present control can itself have undefined metrics, so inspect `delta_<metric>_count` as well as `n_controls`. A partial comparator or failed replay gives a partial study, reports its coverage, and returns a nonzero exit code. It never silently substitutes a different operating setting.
 
+## Manuscript displays from saved results
+
+After completing the **full** study, create the focused figure set, fresh-control LaTeX table, and comprehensive supplements without rerunning simulations:
+
+```bash
+python evaluation/02_synthetic_perturbation/table_control_performance.py
+python evaluation/02_synthetic_perturbation/plot_pairwise_sensitivity.py
+python evaluation/02_synthetic_perturbation/plot_cluster_sensitivity.py
+python evaluation/02_synthetic_perturbation/plot_pairwise_ranges.py
+python evaluation/02_synthetic_perturbation/plot_cluster_ranges.py
+python evaluation/02_synthetic_perturbation/plot_epilink_mode_effect.py
+python evaluation/02_synthetic_perturbation/plot_pairwise_all.py
+python evaluation/02_synthetic_perturbation/plot_full_sensitivity.py
+```
+
+Each script defaults to `outputs/perturbation/current.json` and writes under that run's `manuscript/`. Use `--run-dir <run>` to pin the complete study or `--output-dir <directory>` for another destination. Figure scripts accept `--format pdf|svg|both` (default `both`); `plot_full_sensitivity.py` additionally accepts `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all`. Both modes, the three configured study seeds, matching frozen setting IDs, and every configured scenario must have complete coverage. Missing metric values are displayed as undefined rather than zero. Figures use `src/epilink_evaluation/utils/style.py`; the table uses the project LaTeX table writer in `utils/latex_tables.py`.
+
+The primary *pairwise* scorers are **ESD, LGD, GDD** for deterministic observed genetics and **ESS, LGS, GDS** for stochastic observed genetics. Legend shorthand maps `GD_D`/`GD_S` to GDD/GDS and `LOGIT_D`/`LOGIT_S` to LGD/LGS. The primary *cluster* pipelines are `leiden/ESD/native`, `leiden/LOGIT_D/native`, `leiden/GD_D/binary`, and raw/dated deterministic TreeCluster, with `leiden/ESS/native`, `leiden/LOGIT_S/native`, `leiden/GD_S/binary`, and raw/dated stochastic TreeCluster in the other observed-process panel. ESD **native** is the focused EpiLink partition; ESD binary and every other selected pipeline remain in the supplement. All definitions are replayed exactly as frozen by the baseline's `balanced_M0` criterion. ESD/ESS use stochastic genetic inference; `matched`/`baseline_fixed` here refer to EpiLink's **biological parameter inputs**, not a change of that genetic-process assumption.
+
+| Saved display | Scientific interpretation |
+| --- | --- |
+| `fresh_control_performance.tex` | Absolute M=0 AP for focused scorers and frozen-setting M=0 F1/M≥3 contamination for focused clusters on the **fresh unperturbed control**, as equal-seed means (sample SD). This is a distinct set of observations from baseline evaluation. Pairwise AP is independent of a threshold; clustering metrics use all within-cluster pairs. |
+| `pairwise_ap_sensitivity.pdf` / `.svg` | Mean paired change in M=0 AP, in **percentage points**, from the same-seed fresh control, grouped by the six parameters and two configured levels. Columns separate deterministic/stochastic observed genetics; scores use matched EpiLink inference. Blue represents increased AP and red decreased AP. |
+| `cluster_sensitivity.pdf` / `.svg` | Mean paired changes in M=0 F1 (top) and M≥3 contamination (bottom) for the five focused pipelines per observed process. The two rows have **separate zero-centered color scales**: blue denotes higher F1 in the top row, while red denotes greater distant contamination in the bottom row. Raw and dated trees remain separate pipelines. |
+| `pairwise_ap_ranges.pdf` / `.svg` | Focused **paired M=0 AP** changes as offset dots and horizontal whiskers for each perturbation scenario. The dot is the equal-seed mean; whiskers cover the **minimum and maximum of the three seed-level deltas for that same scenario**, not a range across the 12 different perturbations. Columns distinguish observed genetics; colors identify EpiLink, logistic and GD. |
+| `cluster_f1_contamination_ranges.pdf` / `.svg` | The same scenario-specific paired mean/range convention for **M=0 F1** (top) and **M≥3 contamination** (bottom), including ESD/ESS native Leiden, logistic native Leiden, GD binary Leiden, and raw/dated TreeCluster. Models are vertically offset within each scenario row. Each metric has its own symmetric percentage-point x scale around the zero-change line. Positive F1 is favourable; positive contamination indicates more distant pairs. |
+| `epilink_mode_effect.pdf` / `.svg` | For ESD/ESS pairwise AP and ESD/ESS native-Leiden F1, matched minus baseline-fixed **control-paired deltas** on the same scenario and seed. Diamonds show the mean and whiskers the across-seed range. A positive value means updating EpiLink's biological parameters improved that metric relative to baseline-fixed inference. |
+| `pairwise_ap_all_M0.pdf`, `pairwise_ap_all_Mle1.pdf`, `pairwise_ap_all_Mle2.pdf` (and `.svg`) | Supplementary matched-mode AP changes for **all eight scorers** at each endpoint; the broader endpoints reuse the M=0-trained scores. |
+| `all_pipelines_balanced_M0.pdf`, `all_pipelines_balanced_Mle1.pdf`, `all_pipelines_balanced_Mle2.pdf` (and `.svg`) | Supplementary mean paired F1 and M≥3 contamination changes for **all selected frozen pairwise and clustering pipelines**, grouped by observed genetics. Each criterion uses its own frozen settings and objective endpoint. A gray cell with × means an undefined delta; a number in a cell with reduced coverage is its defined-value count. Exact means, SDs and counts remain in the saved CSV summaries. |
+
+Rows follow `scenarios.json`: multipliers 0.75× and 1.25× are shown for five parameters, whereas relaxation is labelled by its **absolute values** 0 and 0.66 (control 0.33). For all displays, `delta = perturbed − same-seed, same-mode control`; positive M≥3 contamination is worse and **does not represent every M=0 false positive**. The point-and-range plots use the saved `delta_*_mean/min/max/count` columns. An open dot indicates fewer than three defined values; `n=0` denotes an undefined metric and exact counts are in the summaries. Their dot is **not** an overall/net average across scenarios: lower and higher perturbation levels remain separate, so opposite effects cannot cancel. The mismatch figure computes differences **within seed before aggregating**, not by comparing earlier baseline held-out seeds. Non-EpiLink results (GD, LOGIT and TreeCluster) are shown once: the two inference modes are identical for them on the same observations. Across-seed variability, including range whiskers, is descriptive for one fixed backbone, not a confidence interval across epidemics.
+
 ## Reference integrity and resumption
 
 The runner verifies frozen selection/evidence, training identity, truth checksums, and every requested baseline held-out artifact. Existing scientific producer code, EpiLink code, recorded dependencies, and executable hashes must agree with the reference. New workflow, CLI, and reporting code can consume a previous baseline without forcing its development sweep to run again.
