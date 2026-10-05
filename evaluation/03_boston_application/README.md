@@ -124,6 +124,32 @@ boston/
     report.md, report.html              # Human-readable summary
 ```
 
+## Manuscript displays from frozen results
+
+Generate the main exposure-composition table and two figures, then supplementary figures covering every frozen partition, from saved results alone:
+
+```bash
+python evaluation/03_boston_application/table_frozen_exposures.py
+python evaluation/03_boston_application/plot_exposure_tradeoffs.py
+python evaluation/03_boston_application/plot_partition_context.py
+python evaluation/03_boston_application/plot_all_exposures.py
+python evaluation/03_boston_application/plot_all_agreement.py
+```
+
+Scripts default to `outputs/boston/current.json` and write into `<run>/manuscript/`. Each accepts `--run-dir <run>` and `--output-dir <directory>`; the figure scripts accept `--format pdf|svg|both` (default `both`). The two supplementary scripts also accept `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all` (default `all`). They validate the pinned reference, setting IDs, graph/tree completion and assessment coverage without changing any producer artifacts. The current saved run has complete `all` report and graph/tree checkpoints but a later stale `running`/`explore` manifest entry; the scripts warn when consuming those independently checked results. Pin a finalized run for manuscript provenance.
+
+The **main-text focus** is the original baseline-frozen `balanced_M0` settings for ESD native Leiden, LGD native Leiden, GDD binary Leiden, and the deterministic-source raw and dated TreeCluster definitions. D/S in a scorer or TreeCluster setting names the *synthetic source rule*, not an alternative Boston distance measurement. The tree comparator uses uncensored distances rebuilt from the alignment; graph inputs use the distance-censored TN93 pair table. No exposure-based threshold or resolution selection is performed.
+
+| Output | Manuscript role |
+| --- | --- |
+| `boston_frozen_exposures.tex` | Main table: for Conference and SNF, exposed counts/denominators, representative-cluster size, concentration (`n_exposure / n_cases`), recovery (`n_exposure / exposure_total`), number of clusters, singleton cases and largest cluster. Generated with the shared `utils/latex_tables.py` manuscript table environment. |
+| `boston_exposure_tradeoffs.pdf` / `.svg` | Main figure: exposure recovery versus concentration in **one representative eligible cluster** per frozen pipeline, with cluster-size-dependent point areas and reference lines for exposure prevalence among all Boston cases. A large impure group can recover many cases without strong exposure concentration. |
+| `boston_partition_context.pdf` / `.svg` | Main figure: singleton and largest-cluster shares of all cases, alongside ARI (cell colour/text) and AMI (cell text) for the three focused graph partitions versus frozen raw and dated TreeCluster partitions. Agreement measures partition similarity, **not** epidemiological truth. |
+| `boston_all_exposures_<criterion>.pdf` / `.svg` | Supplement for each frozen criterion: concentration and recovery of Conference/SNF in every selected graph and TreeCluster partition. No eligible exposure cluster is shown as undefined, not zero. |
+| `boston_all_agreement_<criterion>.pdf` / `.svg` | Supplement for each frozen criterion: all selected graph-versus-tree ARI and AMI combinations. D/S on tree axes distinguishes source cutoffs applied to the same empirical raw/dated trees. |
+
+In the named-exposure assessment a representative cluster is the eligible cluster containing the **largest number of labelled exposure cases** for that frozen setting; exposure recovery is the fraction captured by **that one cluster**, not the total distributed among clusters. Its choice uses exposure metadata for *description*, not for tuning any model. `cluster_composition.csv` provides the complete exposure/clade/mutation composition for more detailed supplementary analysis, and `named_tree_overlaps.csv` supplies exposure-specific graph/tree membership overlap. With no external TreeCluster input configured, external `best_cluster_overlaps.csv` is empty. The candidate-pair coverage denominator applies to censored graph scoring, whereas tree building uses all-pair alignment distances. These are descriptive empirical results, not transmission precision/recall or independent outbreak replicates.
+
 ## Interpretation
 
 - **Synthetic D/S labels** (e.g., EDS, GD_S, LOGIT_D) identify the source operating rules or fitted classifiers from the baseline, not separate Boston measurements. All scorers use the same observed Boston GD and TD vectors.
