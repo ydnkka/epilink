@@ -276,7 +276,7 @@ def create_approach_figure(
             )
         )
         axes[0, col].legend(
-            handles=handles, loc="upper right", title="Method" if tree else "Scorer"
+            handles=handles, loc="upper right", title="Method" if tree else "Model"
         )
     axes[0, 0].set_ylabel("M=0 precision")
     axes[1, 0].set_ylabel("M=0 F1")

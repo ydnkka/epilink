@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from epilink_evaluation.utils import style
+
 from ._baseline.bars import (
     GRAPH_APPROACHES,
     graph_variants,
@@ -19,8 +21,6 @@ from ._baseline.common import (
     selected_summary,
 )
 from ._baseline.plots import APPROACHES
-
-from epilink_evaluation.utils import style
 
 
 def create_figure(run, config, output, *, fmt="both") -> None:
@@ -41,7 +41,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
                 ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
             if col == 0:
                 ax.set_ylabel(APPROACHES[approach] + "\n(%)")
-    fig.suptitle("Graph clustering at M=0 settings", fontweight="bold")
+    # fig.suptitle("Graph clustering at M=0 settings", fontweight="bold")
     fig.legend(
         handles=metric_legend(), loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=4
     )

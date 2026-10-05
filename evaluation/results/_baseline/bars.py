@@ -72,7 +72,7 @@ def plot_grouped_bars(
             point = points[pipeline]
             if point["status"] != "selected":
                 continue
-            result = summary.loc[pipeline]
+            result = summary.loc[pipeline].to_dict()
             count = int(result[f"{metric}_count"])
             mean = result[f"{metric}_mean"]
             if not count or pd.isna(mean):

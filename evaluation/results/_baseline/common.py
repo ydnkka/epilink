@@ -108,8 +108,9 @@ def selected_summary(run: Path, config: dict) -> tuple[pd.DataFrame, dict[str, d
     )
     results = results.loc[results.criterion == "balanced_M0"]
     for row in summary.itertuples(index=False):
-        point = selected[row.pipeline]
-        subset = results.loc[results.pipeline == row.pipeline]
+        pipeline = str(row.pipeline)
+        point = selected[pipeline]
+        subset = results.loc[results.pipeline == pipeline]
         if (
             row.setting_id != point["setting_id"]
             or row.objective != "M0_f1"
@@ -119,9 +120,7 @@ def selected_summary(run: Path, config: dict) -> tuple[pd.DataFrame, dict[str, d
             or len(subset) != len(expected_seeds)
             or set(subset.setting_id) != {row.setting_id}
         ):
-            raise ValueError(
-                f"Incomplete or unfrozen held-out evidence: {row.pipeline}"
-            )
+            raise ValueError(f"Incomplete or unfrozen held-out evidence: {pipeline}")
     return summary.set_index("pipeline"), points
 
 

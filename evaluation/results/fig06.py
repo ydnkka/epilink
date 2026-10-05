@@ -12,12 +12,13 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from ._baseline.common import add_arguments, load_run, output_directory, read_json
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from epilink_evaluation.selection.operating import select_operating_points
 from epilink_evaluation.utils import style
+
+from ._baseline.common import add_arguments, load_run, output_directory, read_json
 
 SCORERS = ("EDD", "EDS", "ESD", "ESS")
 POLICIES = ("binary", "native")
@@ -269,7 +270,7 @@ def create_figure(summary: pd.DataFrame, output, *, fmt: str = "both") -> None:
                 label=f"Chosen default ({selected.resolution:g})",
             ),
         ],
-        loc="upper left",
+        loc="upper center",
         frameon=True,
         facecolor="white",
         edgecolor="none",

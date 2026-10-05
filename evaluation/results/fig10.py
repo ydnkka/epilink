@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from epilink_evaluation.utils import style
+
 from ._baseline.bars import (
     TREE_KINDS,
     metric_legend,
@@ -17,8 +19,6 @@ from ._baseline.common import (
     output_directory,
     selected_summary,
 )
-
-from epilink_evaluation.utils import style
 
 
 def create_figure(run, config, output, *, fmt="both") -> None:
@@ -37,7 +37,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
         plot_grouped_bars(ax, variants, summary, points)
         ax.set_title(f"{kind.title()} tree")
     axes[0].set_ylabel("Held-out metric (%)")
-    fig.suptitle("TreeCluster at frozen M=0 settings", fontweight="bold")
+    # fig.suptitle("TreeCluster at frozen M=0 settings", fontweight="bold")
     fig.legend(
         handles=metric_legend(), loc="lower center", bbox_to_anchor=(0.5, -0.13), ncol=4
     )

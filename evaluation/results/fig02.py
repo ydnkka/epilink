@@ -5,6 +5,10 @@ from __future__ import annotations
 import argparse
 
 import pandas as pd
+from matplotlib.lines import Line2D
+
+from epilink_evaluation.utils import style
+
 from ._baseline.common import (
     PROCESS_LABELS,
     PROCESSES,
@@ -16,9 +20,6 @@ from ._baseline.common import (
     output_directory,
     selected_summary,
 )
-from matplotlib.lines import Line2D
-
-from epilink_evaluation.utils import style
 
 
 def create_figure(run, config, output, *, fmt="both") -> None:
@@ -54,7 +55,12 @@ def create_figure(run, config, output, *, fmt="both") -> None:
         ],
     ).set_index(["pipeline", "setting_id"])
     fig, axes = style.new_figure(
-        width="double", height_in=3.6, ncols=2, layout="constrained"
+        width="double",
+        height_in=3.6,
+        ncols=2,
+        layout="constrained",
+        sharex=True,
+        sharey=True,
     )
     for ax, process in zip(axes, PROCESSES):
         curves = {}
@@ -107,7 +113,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
             )
             for score in SCORES_BY_PROCESS[process]
         ]
-        ax.legend(handles=handles, title="Scorer (held-out AP)", loc="upper right")
+        ax.legend(handles=handles, title="Model (AP)", loc="upper right")
         ax.set(
             title=f"{PROCESS_LABELS[process]} observed genetics",
             xlabel="M=0 recall",
