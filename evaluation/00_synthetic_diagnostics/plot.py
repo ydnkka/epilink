@@ -8,13 +8,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
+
+from epilink_evaluation.utils import style
 
 DIAGNOSTICS_ROOT = Path(__file__).parent / "outputs" / "diagnostics"
 
@@ -43,14 +44,13 @@ COLORS = {
     "contamination": "#CC79A7",
 }
 
+
 @dataclass(frozen=True)
 class MetricSpec:
     label: str
     suffix: str
     marker: str
     color: str
-    linewidth: float
-    markersize: float
     linestyle: str = "-"
     alpha: float | None = None
 
@@ -60,16 +60,14 @@ class MetricSpec:
 
 
 SCORE_METRICS = (
-    MetricSpec("F1", "f1", "o", COLORS["f1"], 1.8, 4),
-    MetricSpec("Precision", "precision", "s", COLORS["precision"], 1.5, 3.5, alpha=0.8),
-    MetricSpec("Recall", "recall", "^", COLORS["recall"], 1.5, 3.5, alpha=0.8),
+    MetricSpec("F1", "f1", "o", COLORS["f1"]),
+    MetricSpec("Precision", "precision", "s", COLORS["precision"], alpha=0.8),
+    MetricSpec("Recall", "recall", "^", COLORS["recall"], alpha=0.8),
     MetricSpec(
         "M≥3 contam.",
         "Mge3_contamination",
         "d",
         COLORS["contamination"],
-        1.5,
-        3.5,
         linestyle="--",
         alpha=0.7,
     ),
@@ -171,8 +169,6 @@ def plot_score_metrics(
             data[metric_column(endpoint, metric.suffix)],
             metric.fmt,
             color=metric.color,
-            linewidth=metric.linewidth,
-            markersize=metric.markersize,
             label=metric.label,
             alpha=metric.alpha,
         )
@@ -237,8 +233,6 @@ def metric_legend_handles(metrics: tuple[MetricSpec, ...]) -> list[Line2D]:
             [0],
             marker=metric.marker,
             color=metric.color,
-            linewidth=metric.linewidth,
-            markersize=metric.markersize,
             linestyle=metric.linestyle,
             label=metric.label,
             alpha=metric.alpha,
@@ -257,21 +251,15 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
         loc="upper left",
         bbox_to_anchor=(top_axes[0].get_position().x0, 0.99),
         ncol=len(PROCESSES),
-        fontsize=9,
-        frameon=False,
         title="Process",
-        title_fontsize=9,
         borderaxespad=0,
     )
     fig.legend(
         handles=metric_legend_handles(SCORE_METRICS),
         loc="upper right",
         bbox_to_anchor=(top_axes[-1].get_position().x1, 0.99),
-        ncol=len(SCORE_METRICS),
-        fontsize=9,
-        frameon=False,
+        ncol=2,
         title="Metrics",
-        title_fontsize=9,
         borderaxespad=0,
     )
 
@@ -286,27 +274,22 @@ def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
     for ax, label in zip(row_axes, labels):
         bounds = ax.get_position()
         y_pos = (bounds.y0 + bounds.y1) / 2
-        fig.text(bounds.x0 - 0.16, y_pos, label, fontsize=9, va="center")
+        fig.text(bounds.x0 - 0.02, y_pos, label, ha="right", va="center")
 
 
-def add_panel_labels(panel_axes: Sequence[Axes]) -> None:
-    """Label individual cells alphabetically in row-major order."""
-    for index, ax in enumerate(panel_axes):
-        ax.set_title(
-            chr(ord("A") + index),
-            loc="left",
-            fontsize=11,
-            fontweight="bold",
-            pad=10,
-        )
-
-
-def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
+def create_figure(
+    data: dict[str, pd.DataFrame],
+    output_path: Path,
+    *,
+    save_pdf: bool = True,
+    save_svg: bool = True,
+) -> None:
     """Create and save the diagnostics figure."""
-    fig, axes = plt.subplots(
-        2 + len(TREE_METHODS),
-        len(ENDPOINTS),
-        figsize=(12, 11),
+    fig, axes = style.new_figure(
+        width="double",
+        height_in=9.5,
+        nrows=2 + len(TREE_METHODS),
+        ncols=len(ENDPOINTS),
         gridspec_kw={
             "hspace": 0.33,
             "wspace": 0.12,
@@ -339,9 +322,7 @@ def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
             y_max_ambiguity,
         )
         plot_oracle_pr(axes[1, col], data["graphs"], endpoint)
-        axes[0, col].set_title(
-            ENDPOINT_LABELS[endpoint], fontsize=11, fontweight="bold", pad=10
-        )
+        axes[0, col].set_title(ENDPOINT_LABELS[endpoint], fontweight="bold", pad=10)
 
     for row, method in enumerate(TREE_METHODS):
         for col, endpoint in enumerate(ENDPOINTS):
@@ -357,36 +338,32 @@ def create_figure(data: dict[str, pd.DataFrame], output_path: Path) -> None:
     axes[1, 0].xaxis.set_major_locator(MaxNLocator(nbins=5))
     axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
 
-    x_labels = ("Feature set", "Resolution") + (
-        "Threshold (hops)",
-    ) * len(TREE_METHODS)
+    x_labels = ("Feature set", "Resolution") + ("Threshold (hops)",) * len(TREE_METHODS)
     for row, row_axes in enumerate(axes):
-        row_axes[0].set_ylabel(
-            "Mixed cell fraction" if row == 0 else "Score", fontsize=9
-        )
+        row_axes[0].set_ylabel("Mixed cell fraction" if row == 0 else "Score")
         for col, ax in enumerate(row_axes):
             ax.set_axisbelow(True)
-            ax.grid(axis="y", color="0.9", linewidth=0.6)
-            ax.spines[["top", "right"]].set_visible(False)
-            ax.tick_params(axis="both", labelsize=8, length=3)
+            ax.grid(axis="y", color="0.9")
             ax.tick_params(axis="y", left=col == 0, labelleft=col == 0)
             ax.tick_params(axis="x", bottom=True, labelbottom=True)
-            ax.set_xlabel(x_labels[row], fontsize=9)
+            ax.set_xlabel(x_labels[row])
 
     fig.align_ylabels(axes[:, 0])
     add_legends(fig, axes[0])
     add_row_labels(fig, axes[:, 0])
-    add_panel_labels(axes.ravel())
+    style.add_panel_labels(axes.ravel())
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    fig.savefig(output_path, bbox_inches="tight", dpi=300)
-    plt.close(fig)
-    print(f"Figure saved to: {output_path}")
+    saved_paths = style.save_figure(
+        fig, output_path, width="double", save_pdf=save_pdf, save_svg=save_svg
+    )
+    for path in saved_paths.values():
+        print(f"Figure saved to: {path}")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate diagnostics manuscript figure")
+    parser = argparse.ArgumentParser(
+        description="Generate diagnostics manuscript figure"
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -412,11 +389,12 @@ def main() -> None:
     print("Loading data...")
     data = load_data(run_dir)
 
-    if args.format in {"pdf", "both"}:
-        create_figure(data, args.output_dir / "diagnostics_figure.pdf")
-
-    if args.format in {"svg", "both"}:
-        create_figure(data, args.output_dir / "diagnostics_figure.svg")
+    create_figure(
+        data,
+        args.output_dir / "diagnostics_figure",
+        save_pdf=args.format in {"pdf", "both"},
+        save_svg=args.format in {"svg", "both"},
+    )
 
     print("Done!")
 

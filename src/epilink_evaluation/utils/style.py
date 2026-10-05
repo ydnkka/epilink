@@ -2,7 +2,7 @@
 
 Usage
 -----
->>> from analysis.utils import style
+>>> from epilink_evaluation.utils import style
 >>> fig, ax = style.new_figure("single")
 
 >>> # Temporary override without leaking global state:
