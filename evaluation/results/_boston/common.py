@@ -13,6 +13,7 @@ import pandas as pd
 from epilink_evaluation.provenance import read_json
 
 from .._paths import output_directory as results_output_directory
+from .._baseline.common import method_label as baseline_method_label
 
 ROOT = (
     Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
@@ -294,16 +295,4 @@ class BostonStudy:
 
 
 def method_label(point: dict) -> str:
-    definition = point["definition"]
-    kind = definition["kind"]
-    if kind == "treecluster":
-        name = definition["method"].replace("_", " ").title()
-        tree = "undated" if definition["tree_kind"] == "raw" else "dated"
-        return f"TreeCluster {tree} ({name})"
-    score = SCORE_LABELS[definition["score_name"]]
-    label = (
-        "Connected components"
-        if kind == "components"
-        else "Leiden " + {"binary": "(binary edges)", "native": "(score weights)"}[definition["weight_policy"]]
-    )
-    return f"{score} {label}"
+    return baseline_method_label(point["definition"])

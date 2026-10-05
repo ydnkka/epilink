@@ -12,7 +12,7 @@ from ._perturbation.common import (
     FOCUS_CLUSTER, FOCUS_PAIR, PROCESSES, PROCESS_LABELS, SCORE_LABELS,
     Study, add_arguments, cluster_summary, pair_summary,
 )
-from ._baseline.common import TREE_KIND_LABELS, WEIGHT_LABELS
+from ._baseline.common import TREE_KIND_LABELS, TREE_METHOD_LABELS, WEIGHT_LABELS
 
 
 def describe_setting(point: dict) -> str:
@@ -28,7 +28,7 @@ def describe_setting(point: dict) -> str:
     else:
         result = f"score >= {cutoff:g}"
     if definition["kind"] == "leiden":
-        result += f"; CPM {definition['resolution']:g}"
+        result += f"; resolution {definition['resolution']:g}"
     return result
 
 
@@ -67,7 +67,7 @@ def pipeline_label(point: dict) -> str:
     definition = point["definition"]
     pipeline = point["pipeline"]
     if definition["kind"] == "treecluster":
-        method = definition["method"].replace("_", " ").title()
+        method = TREE_METHOD_LABELS[definition["method"]]
         return f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})"
     score = SCORE_LABELS[definition["score_name"]]
     if pipeline.startswith("leiden/"):

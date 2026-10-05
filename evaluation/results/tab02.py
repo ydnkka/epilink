@@ -70,9 +70,10 @@ def main() -> None:
             "(sample SD) over three observation realizations on one transmission tree. "
             "Fractions are percentages; selected pairs are counts. Cluster metrics "
             "include all within-cluster pairs. Distant pairs (M>=3) account for only "
-            "part of the M=0 false positives. Direct and shared-source retention are "
-            "the fractions of the respective target pairs recovered. Singleton and "
-            "largest-cluster shares use all cases as their denominator. Undated-tree "
+            "part of the M=0 false positives. Direct and shared recovery are "
+            "the percentages of the respective target pairs recovered. Singletons "
+            "and largest are the percentages of all cases in singleton clusters "
+            "and in the largest cluster. Undated-tree "
             "cutoffs are shown in SNP counts and dated-tree cutoffs in days. "
             "Dashes indicate undefined values; n gives the number of defined realizations "
             "when fewer than three are available."
@@ -80,18 +81,18 @@ def main() -> None:
         short_caption="Complete held-out method comparison",
         label="tab:baseline-operating-points-full",
         columns=[
-            "Genetic observations",
+            "Genetics",
             "Method",
-            "Selected setting",
+            "Setting",
             "Precision",
             "Recall",
             "F1",
             "Distant pairs",
-            "Direct retention",
-            "Shared-source retention",
-            "Selected pairs",
-            "Singleton share",
-            "Largest-cluster share",
+            "Direct recovery",
+            "Shared recovery",
+            "Pairs",
+            "Singletons",
+            "Largest",
         ],
         rows=rows,
         column_spec="lllrrrrrrrrr",

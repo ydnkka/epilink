@@ -44,6 +44,11 @@ SCORE_DESCRIPTIONS = {
 }
 WEIGHT_LABELS = {"binary": "binary edges", "native": "score weights"}
 TREE_KIND_LABELS = {"raw": "undated", "dated": "dated"}
+TREE_METHOD_LABELS = {
+    "max_clade": "Maximum clade",
+    "avg_clade": "Average clade",
+    "single_linkage": "Single linkage",
+}
 SCORE_COLORS = {
     "EDD": "#0072B2",
     "ESD": "#009E73",
@@ -160,7 +165,7 @@ def setting_label(definition: dict, config: dict) -> str:
 def method_label(definition: dict) -> str:
     kind = definition["kind"]
     if kind == "treecluster":
-        method = definition["method"].replace("_", " ").title()
+        method = TREE_METHOD_LABELS[definition["method"]]
         return f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})"
     label = {"pairwise": "Pairwise", "components": "Connected components", "leiden": "Leiden"}[
         kind
