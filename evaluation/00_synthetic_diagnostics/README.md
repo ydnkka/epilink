@@ -18,6 +18,8 @@ Oracle graph/tree caches are keyed by truth and canonical sampled-case set, inde
 
 The report gives cross-seed summaries, explicitly labelled single-seed GD/TD target-fraction and occupancy heatmaps, graph partition precision/recall curves, and tree threshold curves. Exact-feature ambiguity is empirical, not a population performance ceiling. Oracle graphs are not an absolute partition-performance ceiling. The hop tree is not a molecular genealogy, and relationship horizon M differs from total transmission hops.
 
+The standalone manuscript display is [`evaluation/results/fig01.py`](../results/fig01.py); from the repository root run `python -m evaluation.results.fig01` after completing diagnostics. It writes `fig01_diagnostics_figure.pdf` and `.png` under `evaluation/results/outputs/00_synthetic_diagnostics/<run-id>/`. Use `--run-dir` to pin another run or `--output-dir` to choose another destination. The [figure caption and results draft](../results/notes/fig01.md) use the pinned full run.
+
 ## Checkpoints and completion contract
 
 `Diagnostics(config).run(stage)` returns whether the requested stage completed. The run is `output_directory/runs/<full signature fingerprint>`; `current.json` points to it. `manifest.json` records `signature`, `status`, `requested_stage`, `experiment`, `config`, and `coverage_complete`. Computational signatures contain the experiment identity, scoped producer/core algorithm implementations, settings, and relevant executable identity. Reporting source changes do not invalidate computational checkpoints. Failed controls retain failed manifests and logs; partial reports expose errors and successful checkpoints are reused on retry.

@@ -2,12 +2,11 @@
 
 import importlib
 import json
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-manuscript = importlib.import_module("evaluation.03_boston_application.manuscript_common")
+manuscript = importlib.import_module("evaluation.results._boston.common")
 
 
 def completed_study(tmp_path):
@@ -76,7 +75,7 @@ def completed_study(tmp_path):
     return manuscript.BostonStudy.load(tmp_path)
 
 
-def test_focused_boston_outputs_keep_both_exposure_denominators(tmp_path, monkeypatch):
+def test_focused_boston_outputs_keep_both_exposure_denominators(tmp_path):
     study = completed_study(tmp_path)
     focus = study.focus_rows()
     assert len(focus) == 10
@@ -85,8 +84,7 @@ def test_focused_boston_outputs_keep_both_exposure_denominators(tmp_path, monkey
     assert focus.loc[0, "exposure_recovery"] == 1
     assert focus.loc[1, "exposure_fraction"] == 0.5
     assert focus.loc[1, "exposure_recovery"] == 0.5
-    monkeypatch.syspath_prepend(str(Path(manuscript.__file__).parent))
-    ari, ami = importlib.import_module("plot_partition_context").agreement_matrix(study)
+    ari, ami = importlib.import_module("evaluation.results.fig19").agreement_matrix(study)
     assert ari.shape == (3, 2)
     assert ami[2, 1] == pytest.approx(0.15)
 

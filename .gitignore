@@ -27,6 +27,7 @@ evaluation/00_synthetic_diagnostics/outputs/
 evaluation/01_synthetic_baseline/outputs/
 evaluation/02_synthetic_perturbation/outputs/
 evaluation/03_boston_application/outputs/
+evaluation/results/outputs/
 data/derived/
 *.egg-info/
 .pytest_cache/

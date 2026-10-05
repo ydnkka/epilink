@@ -1,0 +1,1 @@
+"""Baseline manuscript display helpers."""

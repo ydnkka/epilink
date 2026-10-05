@@ -2,13 +2,12 @@
 
 import importlib
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-manuscript = importlib.import_module("evaluation.01_synthetic_baseline.manuscript_common")
+manuscript = importlib.import_module("evaluation.results._baseline.common")
 
 
 def test_operating_table_requires_every_frozen_heldout_seed(tmp_path):
@@ -59,9 +58,8 @@ def test_table_preserves_units_and_undefined_metrics():
     assert manuscript.format_metric(row, "largest_cluster_fraction") == "--"
 
 
-def test_display_envelopes_discard_dominated_settings(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(manuscript.__file__).parent))
-    plots = importlib.import_module("manuscript_plots")
+def test_display_envelopes_discard_dominated_settings():
+    plots = importlib.import_module("evaluation.results._baseline.plots")
     points = pd.DataFrame({
         "recall": [0.9, 0.8, 0.6, 0.5, 0.6],
         "precision": [0.3, 0.2, 0.7, 0.6, 0.7],
@@ -78,9 +76,8 @@ def test_display_envelopes_discard_dominated_settings(monkeypatch):
     ]
 
 
-def test_display_variants_match_available_pipelines(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(manuscript.__file__).parent))
-    bars = importlib.import_module("manuscript_bars")
+def test_display_variants_match_available_pipelines():
+    bars = importlib.import_module("evaluation.results._baseline.bars")
     assert [label for label, _ in bars.graph_variants(
         "leiden_native", "stochastic"
     )] == ["EDS", "ESS", "LGS"]
@@ -98,9 +95,8 @@ def test_display_variants_match_available_pipelines(monkeypatch):
     }) == ("Deterministic\nAvg clade, 4 SNP", "treecluster/deterministic/raw")
 
 
-def test_shared_resolution_regret_uses_full_native_reference_and_minimax(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(manuscript.__file__).parent))
-    regret = importlib.import_module("plot_resolution_regret")
+def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
+    regret = importlib.import_module("evaluation.results.fig06")
     specs = [
         ("b1", "binary", 0.1, 0.2, 0.8),
         ("b2", "binary", 0.1, 0.4, 0.7),

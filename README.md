@@ -81,6 +81,7 @@ FastME is an external executable (e.g. `conda install -c bioconda fastme`). Tree
 | `evaluation/01_synthetic_baseline/`                | Method-comparison protocol, configuration, and entry point                                    |
 | `evaluation/02_synthetic_perturbation/`            | Frozen-reference sensitivity protocol, configuration, and entry point                         |
 | `evaluation/03_boston_application/`                | Empirical transfer and epidemiological assessment                                             |
+| `evaluation/results/`                              | Numbered manuscript figures, tables, notes, and run-specific generated displays               |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules                   |
 | `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                                    |
 | `evaluation/shared_synthetic/outputs/inputs/`      | Prepared transmission backbone and provenance                                                 |

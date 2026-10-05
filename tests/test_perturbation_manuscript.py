@@ -6,7 +6,7 @@ import json
 import pandas as pd
 import pytest
 
-manuscript = importlib.import_module("evaluation.02_synthetic_perturbation.manuscript_common")
+manuscript = importlib.import_module("evaluation.results._perturbation.common")
 
 
 def study_fixture(tmp_path):
