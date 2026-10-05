@@ -6,7 +6,7 @@ import argparse
 
 import matplotlib as mpl
 import numpy as np
-from ._boston.common import CRITERIA, BostonStudy, add_arguments, method_label
+from ._boston.common import CRITERIA, EXPOSURE_LABELS, BostonStudy, add_arguments, method_label
 
 from epilink_evaluation.utils import style
 
@@ -28,9 +28,8 @@ def all_rows(study: BostonStudy, criterion: str):
             source = definition["baseline_data_process"][0].upper()
             cutoff = definition["threshold"]
             units = "subs/site" if definition["tree_kind"] == "raw" else "d"
-            label = (
-                f"TC {definition['tree_kind']} [{source} source; {cutoff:g} {units}]"
-            )
+            tree = "undated" if definition["tree_kind"] == "raw" else "dated"
+            label = f"TreeCluster {tree} [{source} source; {cutoff:g} {units}]"
         labels.append(label)
         for j, exposure in enumerate(exposures):
             named = study.representative(point, exposure)
@@ -71,7 +70,7 @@ def create_figure(
         ax.set_title(title)
         ax.set_xticks(
             range(len(study.config["assessment"]["focus_exposures"])),
-            study.config["assessment"]["focus_exposures"],
+            [EXPOSURE_LABELS.get(name, name) for name in study.config["assessment"]["focus_exposures"]],
         )
         ax.set_yticks(range(len(labels)), labels, fontsize=7)
         ax.tick_params(axis="y", labelleft=show_labels)
@@ -96,7 +95,7 @@ def create_figure(
         criterion
     ]
     fig.suptitle(
-        f"Boston frozen settings selected for {endpoint} in simulation",
+        f"Boston exposure summaries: settings selected for {endpoint} in simulation",
         fontweight="bold",
     )
     style.add_panel_labels(axes)

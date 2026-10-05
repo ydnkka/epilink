@@ -12,6 +12,7 @@ from ._perturbation.common import (
     FOCUS_CLUSTER, FOCUS_PAIR, PROCESSES, PROCESS_LABELS, SCORE_LABELS,
     Study, add_arguments, cluster_summary, pair_summary,
 )
+from ._baseline.common import TREE_KIND_LABELS, WEIGHT_LABELS
 
 
 def describe_setting(point: dict) -> str:
@@ -67,10 +68,10 @@ def pipeline_label(point: dict) -> str:
     pipeline = point["pipeline"]
     if definition["kind"] == "treecluster":
         method = definition["method"].replace("_", " ").title()
-        return f"TreeCluster {definition['tree_kind']} ({method})"
+        return f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})"
     score = SCORE_LABELS[definition["score_name"]]
     if pipeline.startswith("leiden/"):
-        return f"{score} Leiden {definition['weight_policy']}"
+        return f"Leiden {score} ({WEIGHT_LABELS[definition['weight_policy']]})"
     return f"Pairwise {score}"
 
 
@@ -108,19 +109,21 @@ def main() -> None:
     path = write_latex_grouped_column_table(
         study.output(args.output_dir) / "tab03_fresh_control_performance.tex",
         caption=(
-            "Performance on the perturbation study's fresh, unperturbed control "
-            "observations under matched EpiLink inference. Pairwise average precision "
-            "is independent of a selected cutoff; cluster F1 and distant contamination "
-            "use frozen balanced M=0 settings and every within-cluster pair. "
-            "Values are equal-seed means (sample SD) in percent for three observations "
-            "on one transmission backbone. Dashes denote metrics not displayed. "
-            "These controls, not the earlier baseline evaluation seeds, are paired "
-            "with perturbation scenarios."
+            "Performance on the fresh unperturbed controls used for sensitivity "
+            "analysis. The target is direct transmission or infection from a shared "
+            "source (M=0). AP is average precision across score cutoffs. Cluster F1 "
+            "and distant-pair contamination use settings selected in the baseline "
+            "development study and include every within-cluster pair. Distant pairs "
+            "have M>=3. Values are equally weighted means (sample SD) in percent "
+            "across three new observation realizations on the same transmission tree. "
+            "These controls are paired with each perturbed scenario; they are "
+            "separate from the earlier held-out observations. Dashes indicate "
+            "metrics that do not apply to that analysis level."
         ),
         short_caption="Fresh unperturbed controls for sensitivity comparisons",
         label="tab:perturbation-control",
-        row_columns=["Observed", "Level", "Pipeline", "Frozen setting"],
-        column_groups=[("Control performance (%)", ["M=0 AP", "M=0 F1", "M>=3"])],
+        row_columns=["Genetic observations", "Level", "Method", "Selected setting"],
+        column_groups=[("Control performance (%)", ["AP", "F1", "Distant pairs"])],
         rows=rows,
         column_spec="llllrrr",
         addlinespace_after={2, 7, 10},

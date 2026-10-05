@@ -6,7 +6,7 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from ._boston.common import FOCUS, BostonStudy, add_arguments
+from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments
 from matplotlib.lines import Line2D
 
 from epilink_evaluation.utils import style
@@ -30,7 +30,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
         ax.text(
             0.02,
             background + 0.025,
-            f"All cases: {100 * background:.1f}%",
+            f"Exposure share of all cases: {100 * background:.1f}%",
             ha="left",
             va="bottom",
             color="0.35",
@@ -57,17 +57,17 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
                 zorder=3,
             )
         ax.set(
-            title=f"{exposure} ({study.exposure_totals[exposure]} cases)",
-            xlabel="Fraction of exposed cases in one cluster",
+            title=f"{EXPOSURE_LABELS.get(exposure, exposure)}\n({study.exposure_totals[exposure]} labelled cases)",
+            xlabel="Exposure-group recovery",
             xlim=(-0.03, 1.05),
             ylim=(-0.03, 1.05),
         )
         if index == 0:
-            ax.set_ylabel("Exposed fraction within that cluster")
+            ax.set_ylabel("Exposure concentration in the cluster")
         ax.grid(axis="both", color="0.92")
         ax.set_axisbelow(True)
     fig.suptitle(
-        "Exposure coherence at frozen M=0 operating settings", fontweight="bold"
+        "Boston exposure groups at settings selected in simulation", fontweight="bold"
     )
     fig.legend(
         handles=[
@@ -85,7 +85,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
         ],
         loc="upper center",
         bbox_to_anchor=(0.5, -0.06),
-        ncol=3,
+        ncol=2,
     )
     style.add_panel_labels(axes)
     paths = style.save_figure(

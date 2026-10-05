@@ -14,6 +14,7 @@ from ._baseline.bars import (
 )
 from ._baseline.common import (
     PROCESSES,
+    TREE_KIND_LABELS,
     add_arguments,
     load_run,
     output_directory,
@@ -35,7 +36,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
             treecluster_variant(kind, process, points, config) for process in PROCESSES
         ]
         plot_grouped_bars(ax, variants, summary, points)
-        ax.set_title(f"{kind.title()} tree")
+        ax.set_title(f"{TREE_KIND_LABELS[kind].title()} tree")
     axes[0].set_ylabel("Held-out metric (%)")
     # fig.suptitle("TreeCluster at frozen M=0 settings", fontweight="bold")
     fig.legend(

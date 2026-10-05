@@ -30,15 +30,15 @@ ENDPOINTS = ("M0", "Mle1", "Mle2")
 ENDPOINT_LABELS = {"M0": "M=0", "Mle1": "M≤1", "Mle2": "M≤2"}
 
 FEATURE_SETS = ("GD", "GD_TD")
-FEATURE_LABELS = {"GD": "GD", "GD_TD": "GD+TD"}
+FEATURE_LABELS = {"GD": "Genetics", "GD_TD": "Genetics\n+ sampling time"}
 
 PROCESSES = ("deterministic", "stochastic")
 PROCESS_LABELS = {"deterministic": "Deterministic", "stochastic": "Stochastic"}
 
 TREE_METHODS = ("avg_clade", "max_clade", "single_linkage")
 METHOD_LABELS = {
-    "avg_clade": "Avg Clade",
-    "max_clade": "Max Clade",
+    "avg_clade": "Average clade",
+    "max_clade": "Maximum clade",
     "single_linkage": "Single Linkage",
 }
 
@@ -71,7 +71,7 @@ SCORE_METRICS = (
     MetricSpec("Precision", "precision", "s", COLORS["precision"], alpha=0.8),
     MetricSpec("Recall", "recall", "^", COLORS["recall"], alpha=0.8),
     MetricSpec(
-        "M≥3 contam.",
+        "Distant pairs",
         "Mge3_contamination",
         "d",
         COLORS["contamination"],
@@ -263,7 +263,7 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
         loc="upper left",
         bbox_to_anchor=(top_axes[0].get_position().x0, 1.06),
         ncol=len(PROCESSES),
-        title="Process",
+        title="Genetic observations",
         borderaxespad=0,
     )
     fig.legend(
@@ -353,9 +353,9 @@ def create_figure(
     axes[1, 0].xaxis.set_major_locator(MaxNLocator(nbins=5))
     axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
 
-    x_labels = ("Feature set", "Resolution") + ("Threshold (hops)",) * len(TREE_METHODS)
+    x_labels = ("Observed information", "Leiden resolution") + ("Cutoff (transmission hops)",) * len(TREE_METHODS)
     for row, row_axes in enumerate(axes):
-        row_axes[0].set_ylabel("Mixed cell fraction" if row == 0 else "Score")
+        row_axes[0].set_ylabel("Mixed observation groups" if row == 0 else "Metric value")
         for col, ax in enumerate(row_axes):
             ax.set_axisbelow(True)
             ax.grid(axis="y", color="0.9")

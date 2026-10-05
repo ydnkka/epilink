@@ -88,7 +88,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
     ax.set_ylim(len(labels) - 0.6, -0.6)
     ax.set_xlim(0, 100)
     ax.set_xlabel("Fraction of all Boston cases (%)")
-    ax.set_title("Cluster burden")
+    ax.set_title("Cluster sizes and singletons")
     ax.grid(axis="x", color="0.9")
     ax.set_axisbelow(True)
     ax.legend(loc="upper right", fontsize=7)
@@ -102,10 +102,10 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
         aspect="auto",
         interpolation="nearest",
     )
-    heat.set_xticks(range(2), ["Raw", "Dated"])
+    heat.set_xticks(range(2), ["Undated", "Dated"])
     heat.set_yticks(range(3), [label for label, _, _ in FOCUS[:3]])
     heat.set_title("Graph–tree agreement")
-    heat.set_xlabel("Frozen TreeCluster rule")
+    heat.set_xlabel("TreeCluster at selected settings")
     for (row, col), value in np.ndenumerate(ari):
         heat.text(
             col,
@@ -118,7 +118,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
         )
     fig.colorbar(image, ax=heat, shrink=0.65, label="Adjusted Rand index")
     fig.suptitle(
-        "Structure and agreement of frozen Boston partitions", fontweight="bold"
+        "Cluster structure and graph–tree agreement in Boston", fontweight="bold"
     )
     style.add_panel_labels(axes)
     paths = style.save_figure(

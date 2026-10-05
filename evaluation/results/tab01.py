@@ -7,6 +7,7 @@ import argparse
 from ._baseline.common import (
     PROCESS_LABELS,
     PROCESSES,
+    SCORES_BY_PROCESS,
     add_arguments,
     format_metric,
     load_run,
@@ -21,11 +22,13 @@ from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_tab
 
 def main_pipelines(process: str) -> list[str]:
     suffix = "D" if process == "deterministic" else "S"
-    matched = "EDD" if process == "deterministic" else "ESS"
-    scorers = (matched, f"GD_{suffix}", f"LOGIT_{suffix}")
+    epilink_es = "ESD" if process == "deterministic" else "ESS"
+    scorers = SCORES_BY_PROCESS[process]
     return [
         *(f"pairwise/{scorer}" for scorer in scorers),
         *(f"leiden/{scorer}/binary" for scorer in scorers),
+        f"leiden/{epilink_es}/native",
+        f"leiden/LOGIT_{suffix}/native",
         f"treecluster/{process}/raw",
         f"treecluster/{process}/dated",
     ]
@@ -53,10 +56,6 @@ def build_rows(summary, points, config):
                     format_metric(data, "M0_recall"),
                     format_metric(data, "M0_f1"),
                     format_metric(data, "Mge3_contamination"),
-                    f"{format_metric(data, 'direct_edge_retention')} / "
-                    f"{format_metric(data, 'shared_infector_retention')}",
-                    format_metric(data, "selected_pairs", percent=False),
-                    format_metric(data, "largest_cluster_fraction"),
                 ]
             )
     return rows
@@ -72,24 +71,29 @@ def main() -> None:
     path = write_latex_grouped_column_table(
         output_directory(run, args.output_dir) / "tab01_operating_points.tex",
         caption=(
-            "Frozen balanced M=0 operating points on held-out observations. "
-            "Prespecified matched EpiLink, genetic distance, and logistic pairwise "
-            "and binary Leiden comparisons, plus raw and dated TreeCluster. "
-            "Values are equal-realization means (sample SD); ratios are percentages. "
-            "AD0 / CA00 denotes direct-transmission / shared-infector retention. "
-            "Pairs are all selected unordered pairs; largest is the percentage of "
-            "cases in the largest cluster. Dashes denote undefined metrics. "
-            "Observed processes are distinct; three evaluation realizations share one backbone."
+            "Identification of direct transmission and infection from a shared source "
+            "in held-out synthetic observations. Cutoffs and clustering settings were "
+            "selected by mean development F1 and applied unchanged. Both EpiLink "
+            "inference formulations, genetic distance, and logistic regression are "
+            "shown as pairwise rules and binary-edge Leiden inputs; score-weighted "
+            "stochastic EpiLink and logistic Leiden and undated/dated TreeCluster "
+            "provide additional clustering comparisons. Values are equally weighted "
+            "means (sample SD) across three observation realizations on one fixed "
+            "transmission tree, expressed as percentages. Cluster metrics include "
+            "every within-cluster pair. Distant pairs have M>=3; this measure does "
+            "not include every false positive for M=0. Tree cutoffs are shown in SNP "
+            "counts for undated trees and days for dated trees. Dashes indicate "
+            "undefined values. The complete method comparison is in the appendix."
         ),
-        short_caption="Held-out M=0 operating points",
+        short_caption="Held-out identification of recent transmission relationships",
         label="tab:baseline-operating-points",
-        row_columns=["Observed", "Method", "Frozen cutoff"],
+        row_columns=["Genetic observations", "Method", "Selected setting"],
         column_groups=[
-            ("M=0 recovery", ["Precision", "Recall", "F1"]),
-            ("Contamination and workload", ["M>=3", "AD0 / CA00", "Pairs", "Largest"]),
+            ("Target-pair performance (%)", ["Precision", "Recall", "F1"]),
+            ("Distant pairs (%)", ["M>=3"]),
         ],
         rows=rows,
-        column_spec="lllrrrrrrr",
+        column_spec="lllrrrr",
         addlinespace_after={len(main_pipelines(PROCESSES[0])) - 1},
         landscape=True,
     )

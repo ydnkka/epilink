@@ -66,8 +66,8 @@ def create_figure(
             improvement_positive=True,
             labels_on_left=process == PROCESSES[0],
         )
-        ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
-        ax.set_xlabel("Pairwise scorer")
+        ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
+        ax.set_xlabel("Pairwise model")
     # endpoint_label = {"M0": "M=0", "Mle1": "M≤1", "Mle2": "M≤2"}[endpoint]
     # fig.suptitle(
     #     f"Paired change in {endpoint_label} average precision", fontweight="bold"

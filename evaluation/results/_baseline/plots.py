@@ -16,7 +16,7 @@ from .common import (
     PROCESS_LABELS,
     PROCESSES,
     SCORE_COLORS,
-    SCORE_LABELS,
+    SCORE_DESCRIPTIONS,
     SCORES_BY_PROCESS,
     add_arguments,
     load_run,
@@ -28,8 +28,8 @@ from .common import (
 APPROACHES = {
     "components": "Connected components",
     "leiden_binary": "Leiden (binary edges)",
-    "leiden_native": "Leiden (native weights)",
-    "treecluster_raw": "TreeCluster (raw tree)",
+    "leiden_native": "Leiden (score weights)",
+    "treecluster_raw": "TreeCluster (undated tree)",
     "treecluster_dated": "TreeCluster (dated tree)",
 }
 FIGURE_IDS = {
@@ -41,8 +41,8 @@ FIGURE_IDS = {
 }
 TREE_METHODS = ("max_clade", "avg_clade", "single_linkage")
 TREE_LABELS = {
-    "max_clade": "Max clade",
-    "avg_clade": "Avg clade",
+    "max_clade": "Maximum clade",
+    "avg_clade": "Average clade",
     "single_linkage": "Single linkage",
 }
 TREE_COLORS = {
@@ -248,12 +248,12 @@ def create_approach_figure(
             point = points[pipeline]
             if not tree or point["definition"].get("method") == variant:
                 mark_selected((axes[0, col], axes[1, col]), group, point, color)
-        axes[0, col].set_title(f"{PROCESS_LABELS[process]} observed genetics")
+        axes[0, col].set_title(f"{PROCESS_LABELS[process]} genetic observations")
         for row in range(2):
             axes[row, col].set(xlim=(0, 1), ylim=(0, 1))
             axes[row, col].grid(axis="y", color="0.9")
-        axes[0, col].set_xlabel("M=0 recall")
-        axes[1, col].set_xlabel("M≥3 contamination")
+        axes[0, col].set_xlabel("Target-pair recovery (recall)")
+        axes[1, col].set_xlabel("Distant-pair contamination (M≥3)")
         if tree:
             handles = [
                 Line2D([0], [0], color=TREE_COLORS[method], label=TREE_LABELS[method])
@@ -261,7 +261,7 @@ def create_approach_figure(
             ]
         else:
             handles = [
-                Line2D([0], [0], color=SCORE_COLORS[score], label=SCORE_LABELS[score])
+                Line2D([0], [0], color=SCORE_COLORS[score], label=SCORE_DESCRIPTIONS[score])
                 for score in scorers
             ]
         handles.append(
@@ -272,14 +272,14 @@ def create_approach_figure(
                 marker="D",
                 linestyle="none",
                 markerfacecolor="white",
-                label="Selected",
+                label="Selected during development",
             )
         )
         axes[0, col].legend(
             handles=handles, loc="upper right", title="Method" if tree else "Model"
         )
-    axes[0, 0].set_ylabel("M=0 precision")
-    axes[1, 0].set_ylabel("M=0 F1")
+    axes[0, 0].set_ylabel("Target-pair fraction (precision)")
+    axes[1, 0].set_ylabel("Target-pair F1")
     fig.suptitle(APPROACHES[approach], fontweight="bold")
     style.add_panel_labels(axes)
     paths = style.save_figure(

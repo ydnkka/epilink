@@ -33,13 +33,13 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
         ax = axes[col]
         grouped_range_axis(ax, study, ranges[process], FOCUS_PAIR[process],
                            bound=bound, labels_on_left=col == 0)
-        ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
-        ax.set_xlabel("Paired Δ M=0 AP (percentage points)")
-    fig.suptitle("Pairwise sensitivity: mean and seed-level range", fontweight="bold")
+        ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
+        ax.set_xlabel("Change in average precision (percentage points)")
+    fig.suptitle("Pairwise sensitivity: mean and across-realization range", fontweight="bold")
     fig.legend(
         handles=[Line2D([0], [0], color=MODEL_COLORS[index], marker="o",
                         linestyle="none", label=name)
-                 for index, name in enumerate(("ESD / ESS", "LGD / LGS", "GDD / GDS"))],
+                 for index, name in enumerate(("EpiLink ES (ESD / ESS)", "Logistic (LGD / LGS)", "Genetic distance (GDD / GDS)"))],
         loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=3,
     )
     style.add_panel_labels(axes)

@@ -11,6 +11,41 @@ Outputs default to `evaluation/results/outputs/<study>/<run-id>/` and are named 
 | [Perturbation](../02_synthetic_perturbation/README.md#manuscript-displays-from-saved-results) | `fig11` pairwise sensitivity; `fig12` cluster sensitivity; `fig13` pairwise ranges; `fig14` cluster ranges; `fig15` mode effect; `fig16` all-pairwise supplement; `fig17` all-pipelines supplement | `tab03` fresh-control performance |
 | [Boston](../03_boston_application/README.md#manuscript-displays-from-frozen-results) | `fig18` exposure trade-offs; `fig19` partition context; `fig20` all-exposures supplement; `fig21` all-agreement supplement | `tab04` frozen exposures |
 
-The [evaluation methods draft](notes/methods.md) and [diagnostics manuscript draft and caption](notes/fig01.md) link to pinned figures and source evidence. Study READMEs describe the displays and their interpretation in detail. Reports and their workflow-generated figures remain with their respective runs.
+The [diagnostics manuscript draft and caption](notes/fig01.md) links to pinned figures and source evidence. Study READMEs describe the displays and their interpretation in detail. Reports and their workflow-generated figures remain with their respective runs.
+
+## Main results and appendix
+
+The [results draft](notes/results.md) contains a concise main narrative, four main
+figure captions, LaTeX table inputs, and captions for the selected appendix figures.
+Manuscript numbering is independent of the script identifiers:
+
+| Manuscript display | Producer | Content |
+| --- | --- | --- |
+| Figure 1 | `fig02` | Development precision–recall curves, with held-out AP in the legend |
+| Figure 2 | `fig22` | Held-out F1 versus distant-pair contamination for all selected graph/tree methods |
+| Figure 3 | `fig23` | Paired sensitivity of AP, cluster F1, and contamination |
+| Figure 4 | `fig18` | Boston exposure concentration and recovery |
+| Table 1 | `tab01` | Compact held-out pairwise and clustering comparison |
+| Table 2 | `tab04` | Boston exposure counts and representative-cluster summaries |
+| Appendix Table A1 | `tab02` | All primary-target selected methods and cluster summaries |
+| Appendix Table A2 | `tab03` | Fresh controls used for paired sensitivity comparisons |
+
+`fig22` and `fig23` also save the plotted means to same-named CSV files. These
+are descriptive extracts of validated saved results, without new method selection.
+The main table includes both ED and ES inference within each genetic observation
+process, and the score-weighted ES/logistic Leiden comparisons used downstream.
+The appendix table retains connected components and every selected weight policy.
+
+Rebuild the main and supplementary displays and all four tables together:
+
+```bash
+python -m evaluation.results.build
+```
+
+Use `--diagnostic-run`, `--baseline-run`, `--perturbation-run`, and `--boston-run`
+to pin the sources, and `--format pdf|png|both` to choose figure formats. The
+results draft records its specific source runs; its figure links and table inputs
+refer to those runs rather than to a moving current-run pointer. Table captions
+are generated inside the `.tex` files, ready for inclusion with `\input`.
 
 `fig00` passes one identical 0–15 SNP × 0–20 day input grid to the deterministic (ED) and stochastic (ES) **EpiLink inference models**, with primary M=0 target `AD(0)` or `CA(0,0)`. It does not compare two observed-genetics datasets. Both models use the pinned run's inference parameters, Monte Carlo sample count, and scorer seed. The shared colorbar shows a compatibility **score**, not a probability.

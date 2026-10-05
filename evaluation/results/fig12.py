@@ -22,11 +22,11 @@ def cluster_labels(process: str) -> list[str]:
     logit = "LGD" if process == "deterministic" else "LGS"
     gd = "GDD" if process == "deterministic" else "GDS"
     return [
-        f"{epilink}\nnative",
-        f"{logit}\nnative",
-        f"{gd}\nbinary",
-        "TC\nraw",
-        "TC\ndated",
+        f"{epilink}\nscore\nweights",
+        f"{logit}\nscore\nweights",
+        f"{gd}\nbinary\nedges",
+        "Tree\nundated",
+        "Tree\ndated",
     ]
 
 
@@ -59,7 +59,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
         sharey="row",
     )
     for col, process in enumerate(PROCESSES):
-        axes[0, col].set_title(f"{PROCESS_LABELS[process]} observed genetics")
+        axes[0, col].set_title(f"{PROCESS_LABELS[process]} genetic observations")
         for row, metric in enumerate(metrics):
             values, counts = matrices[metric, process]
             _ = delta_heatmap(
@@ -73,8 +73,8 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
                 labels_on_left=col == 0,
             )
             if col == 0:
-                axes[row, col].set_ylabel("M=0 F1" if row == 0 else "M≥3 contamination")
-        axes[1, col].set_xlabel("Frozen clustering pipeline")
+                axes[row, col].set_ylabel("Target-pair F1" if row == 0 else "Distant-pair contamination")
+        axes[1, col].set_xlabel("Clustering method at selected settings")
     # fig.suptitle("Sensitivity of frozen M=0 clustering settings", fontweight="bold")
     for row, metric in enumerate(metrics):
         fig.colorbar(
@@ -82,7 +82,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax=axes[row, :],
             orientation="horizontal",
             shrink=0.72,
-            label=("Δ M=0 F1" if row == 0 else "Δ M≥3 contamination")
+            label=("Change in target-pair F1" if row == 0 else "Change in distant-pair contamination")
             + " (percentage points)",
         )
     style.add_panel_labels(axes)

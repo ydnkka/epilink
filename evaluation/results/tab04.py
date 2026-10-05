@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from ._boston.common import FOCUS, BostonStudy, add_arguments, method_label
+from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments, method_label
 
 from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_table
 
@@ -19,7 +19,7 @@ def build_rows(study: BostonStudy) -> list[list[str]]:
             rows.append(
                 [
                     method_label(point),
-                    exposure,
+                    EXPOSURE_LABELS.get(exposure, exposure),
                     f"{int(named.n_exposure)} / {study.exposure_totals[exposure]}"
                     if named is not None
                     else "--",
@@ -51,27 +51,28 @@ def main() -> None:
     path = write_latex_grouped_column_table(
         study.output(args.output_dir) / "tab04_boston_frozen_exposures.tex",
         caption=(
-            "Boston exposure composition under baseline-frozen balanced M=0 settings "
-            f"for {study.inputs['n_cases']} cases ({focus}). Each exposure's representative "
-            "eligible cluster has the largest exposed-case count within that setting; "
-            "the setting itself was selected on synthetic development data, not Boston. "
-            "Selected reports exposed cases in that cluster over all cases carrying "
-            "the exposure label. Concentration is the percentage of cases in the "
-            "representative cluster with that exposure; recovery is the percentage "
-            "of all exposed cases in that one cluster. Cluster count includes "
-            "singletons; largest is the largest cluster size in cases. "
-            "The graph score table is distance-censored; observed candidate-pair "
-            f"coverage is {study.inputs['n_observed_pairs']:,} / "
-            f"{study.inputs['n_all_pairs']:,}, while raw and dated trees use "
-            "uncensored alignment-based distances. These exposure summaries are "
-            "descriptive, not transmission precision or recall."
+            f"Exposure concentration and recovery among {study.inputs['n_cases']} "
+            f"Boston cases ({focus}; SNF denotes skilled nursing facility). Methods "
+            "use settings selected for M=0 in synthetic development observations, "
+            "without adjustment using Boston exposure labels. For each exposure, "
+            "the representative cluster contains the most labelled cases among "
+            "clusters with at least two cases. Labelled n / total gives its labelled "
+            "case count over all cases with that exposure. Concentration is the "
+            "percentage of that cluster carrying the label; recovery is the "
+            "percentage of the exposure group captured by that one cluster. "
+            "Cluster counts include singletons, and largest n is the largest "
+            "cluster's case count. Graph methods use the distance-censored TN93 "
+            "observations; trees use the sequence alignment. D/S scorer labels "
+            "identify synthetic development conditions; all methods receive the "
+            "same empirical observations. These summaries describe exposure "
+            "correspondence rather than validated transmission accuracy."
         ),
-        short_caption="Boston exposure composition at frozen settings",
+        short_caption="Boston exposure concentration and recovery",
         label="tab:boston-frozen-exposures",
         row_columns=[
-            "Frozen pipeline",
+            "Method",
             "Exposure",
-            "Exposed n / total",
+            "Labelled n / total",
             "Cluster n",
             "Clusters",
             "Singleton cases",

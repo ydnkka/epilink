@@ -38,7 +38,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
             ax = axes[row, col]
             plot_grouped_bars(ax, graph_variants(approach, process), summary, points)
             if row == 0:
-                ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
+                ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
             if col == 0:
                 ax.set_ylabel(APPROACHES[approach] + "\n(%)")
     # fig.suptitle("Graph clustering at M=0 settings", fontweight="bold")

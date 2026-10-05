@@ -53,9 +53,9 @@ FOCUS_CLUSTER = {
 }
 PARAMETER_LABELS = {
     "incubation.mean": "Incubation mean",
-    "incubation.cv": "Incubation CV",
+    "incubation.cv": "Incubation variability",
     "testing_delay.mean": "Testing delay mean",
-    "testing_delay.cv": "Testing delay CV",
+    "testing_delay.cv": "Testing delay variability",
     "substitution_rate": "Substitution rate",
     "relaxation": "Clock relaxation",
 }

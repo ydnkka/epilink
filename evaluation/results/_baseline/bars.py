@@ -19,7 +19,7 @@ METRICS = (
     ("M0_precision", "Precision", "#0072B2"),
     ("M0_recall", "Recall", "#E69F00"),
     ("M0_f1", "F1", "#009E73"),
-    ("Mge3_contamination", "M≥3 contamination", "#CC79A7"),
+    ("Mge3_contamination", "Distant-pair contamination", "#CC79A7"),
 )
 GRAPH_APPROACHES = ("components", "leiden_binary", "leiden_native")
 TREE_KINDS = ("raw", "dated")

@@ -32,6 +32,18 @@ SCORE_LABELS = {
     "GD_S": "GDS",
     "LOGIT_S": "LGS",
 }
+SCORE_DESCRIPTIONS = {
+    "EDD": "EpiLink ED (EDD)",
+    "EDS": "EpiLink ED (EDS)",
+    "ESD": "EpiLink ES (ESD)",
+    "ESS": "EpiLink ES (ESS)",
+    "GD_D": "Genetic distance (GDD)",
+    "GD_S": "Genetic distance (GDS)",
+    "LOGIT_D": "Logistic regression (LGD)",
+    "LOGIT_S": "Logistic regression (LGS)",
+}
+WEIGHT_LABELS = {"binary": "binary edges", "native": "score weights"}
+TREE_KIND_LABELS = {"raw": "undated", "dated": "dated"}
 SCORE_COLORS = {
     "EDD": "#0072B2",
     "ESD": "#009E73",
@@ -141,7 +153,7 @@ def setting_label(definition: dict, config: dict) -> str:
     else:
         cutoff = f"score >= {threshold:g}"
     if kind == "leiden":
-        return f"{cutoff}; CPM {definition['resolution']:g} ({definition['weight_policy']})"
+        return f"{cutoff}; resolution {definition['resolution']:g}"
     return cutoff
 
 
@@ -149,13 +161,13 @@ def method_label(definition: dict) -> str:
     kind = definition["kind"]
     if kind == "treecluster":
         method = definition["method"].replace("_", " ").title()
-        return f"TreeCluster {definition['tree_kind']} ({method})"
-    label = {"pairwise": "Pairwise", "components": "Components", "leiden": "Leiden"}[
+        return f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})"
+    label = {"pairwise": "Pairwise", "components": "Connected components", "leiden": "Leiden"}[
         kind
     ]
     name = SCORE_LABELS[definition["score_name"]]
     if kind == "leiden":
-        return f"{label} {name} ({definition['weight_policy']})"
+        return f"{label} {name} ({WEIGHT_LABELS[definition['weight_policy']]})"
     return f"{label} {name}"
 
 

@@ -64,29 +64,34 @@ def main() -> None:
     path = write_latex_longtable(
         output_directory(run, args.output_dir) / "tab02_operating_points_full.tex",
         caption=(
-            "All selected balanced M=0 pipelines evaluated at their frozen settings. "
-            "Equal-realization means (sample SD) across held-out observations on one "
-            "transmission backbone; ratios are percentages and pairs are counts. "
-            "Precision includes every within-cluster pair, not just input edges. "
-            "M>=3 is distant contamination, not the entire M=0 false-positive fraction. "
-            "Raw-tree thresholds use SNP counts, dated-tree thresholds use days. "
-            "Dashes denote undefined metrics; n indicates a reduced defined-value count."
+            "Complete held-out comparison of methods for direct transmission and "
+            "infection from a shared source (M=0). All settings were selected during "
+            "development and applied unchanged. Values are equally weighted means "
+            "(sample SD) over three observation realizations on one transmission tree. "
+            "Fractions are percentages; selected pairs are counts. Cluster metrics "
+            "include all within-cluster pairs. Distant pairs (M>=3) account for only "
+            "part of the M=0 false positives. Direct and shared-source retention are "
+            "the fractions of the respective target pairs recovered. Singleton and "
+            "largest-cluster shares use all cases as their denominator. Undated-tree "
+            "cutoffs are shown in SNP counts and dated-tree cutoffs in days. "
+            "Dashes indicate undefined values; n gives the number of defined realizations "
+            "when fewer than three are available."
         ),
-        short_caption="All held-out M=0 operating points",
+        short_caption="Complete held-out method comparison",
         label="tab:baseline-operating-points-full",
         columns=[
-            "Observed",
+            "Genetic observations",
             "Method",
-            "Frozen cutoff",
+            "Selected setting",
             "Precision",
             "Recall",
             "F1",
-            "M>=3",
-            "AD0",
-            "CA00",
-            "Pairs",
-            "Singleton",
-            "Largest",
+            "Distant pairs",
+            "Direct retention",
+            "Shared-source retention",
+            "Selected pairs",
+            "Singleton share",
+            "Largest-cluster share",
         ],
         rows=rows,
         column_spec="lllrrrrrrrrr",

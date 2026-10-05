@@ -54,9 +54,9 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax.set_xlim(-bounds[row], bounds[row])
             ax.set_xlabel(f"Matched − baseline-fixed {label} (percentage points)")
             if row == 0:
-                ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
+                ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
             if col == 0:
-                ax.set_ylabel("Pairwise EpiLink" if row == 0 else "Native Leiden")
+                ax.set_ylabel("Pairwise EpiLink" if row == 0 else "Leiden with score weights")
     fig.suptitle("Effect of matching EpiLink inference parameters", fontweight="bold")
     style.add_panel_labels(axes)
     paths = style.save_figure(

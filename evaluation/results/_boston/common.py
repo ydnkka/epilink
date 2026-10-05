@@ -18,10 +18,10 @@ ROOT = (
     Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
 )
 FOCUS = (
-    ("ESD native", "leiden/ESD/native", "#0072B2"),
-    ("LGD native", "leiden/LOGIT_D/native", "#D55E00"),
-    ("GDD binary", "leiden/GD_D/binary", "#555555"),
-    ("TreeCluster raw", "treecluster/empirical/deterministic/raw", "#009E73"),
+    ("Leiden ESD (score weights)", "leiden/ESD/native", "#0072B2"),
+    ("Leiden LGD (score weights)", "leiden/LOGIT_D/native", "#D55E00"),
+    ("Leiden GDD (binary edges)", "leiden/GD_D/binary", "#555555"),
+    ("TreeCluster undated", "treecluster/empirical/deterministic/raw", "#009E73"),
     ("TreeCluster dated", "treecluster/empirical/deterministic/dated", "#CC79A7"),
 )
 CRITERIA = ("balanced_M0", "balanced_Mle1", "balanced_Mle2")
@@ -35,6 +35,7 @@ SCORE_LABELS = {
     "LOGIT_D": "LGD",
     "LOGIT_S": "LGS",
 }
+EXPOSURE_LABELS = {"Conference": "Conference", "SNF": "Skilled nursing facility"}
 
 
 def add_arguments(parser: argparse.ArgumentParser, *, figure: bool = False) -> None:
@@ -297,11 +298,12 @@ def method_label(point: dict) -> str:
     kind = definition["kind"]
     if kind == "treecluster":
         name = definition["method"].replace("_", " ").title()
-        return f"TreeCluster {definition['tree_kind']} ({name})"
+        tree = "undated" if definition["tree_kind"] == "raw" else "dated"
+        return f"TreeCluster {tree} ({name})"
     score = SCORE_LABELS[definition["score_name"]]
     label = (
-        "Components"
+        "Connected components"
         if kind == "components"
-        else f"Leiden {definition['weight_policy']}"
+        else "Leiden " + {"binary": "(binary edges)", "native": "(score weights)"}[definition["weight_policy"]]
     )
     return f"{score} {label}"

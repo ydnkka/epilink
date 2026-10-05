@@ -40,14 +40,14 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             grouped_range_axis(ax, study, ranges[metric, process], FOCUS_CLUSTER[process],
                                bound=bounds[metric], labels_on_left=col == 0)
             if row == 0:
-                ax.set_title(f"{PROCESS_LABELS[process]} observed genetics")
-            ax.set_xlabel(("Paired Δ M=0 F1" if row == 0 else
-                           "Paired Δ M≥3 contamination") + " (percentage points)")
+                ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
+            ax.set_xlabel(("Change in target-pair F1" if row == 0 else
+                           "Change in distant-pair contamination") + "\n(percentage points)")
             if col == 0:
-                ax.set_ylabel("M=0 F1" if row == 0 else "M≥3 contamination")
-    fig.suptitle("Frozen cluster settings: mean and seed-level range", fontweight="bold")
-    names = ("ESD / ESS native", "LGD / LGS native", "GDD / GDS binary",
-             "TreeCluster raw", "TreeCluster dated")
+                ax.set_ylabel("Target-pair F1" if row == 0 else "Distant-pair contamination")
+    fig.suptitle("Selected cluster settings: mean and across-realization range", fontweight="bold")
+    names = ("ESD / ESS (score weights)", "LGD / LGS (score weights)", "GDD / GDS (binary edges)",
+             "TreeCluster undated", "TreeCluster dated")
     fig.legend(
         handles=[Line2D([0], [0], color=MODEL_COLORS[index], marker="o",
                         linestyle="none", label=name)

@@ -92,7 +92,7 @@ def test_display_variants_match_available_pipelines():
     }}
     assert bars.treecluster_variant("raw", "deterministic", points, {
         "simulation": {"sequence_length": 5000}
-    }) == ("Deterministic\nAvg clade, 4 SNP", "treecluster/deterministic/raw")
+    }) == ("Deterministic\nAverage clade, 4 SNP", "treecluster/deterministic/raw")
 
 
 def test_shared_resolution_regret_uses_full_native_reference_and_minimax():

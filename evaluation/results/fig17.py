@@ -14,6 +14,7 @@ from ._perturbation.common import (
     Study, add_arguments, cluster_summary,
 )
 from ._perturbation.plotting import symmetric_bound
+from ._baseline.common import TREE_KIND_LABELS, WEIGHT_LABELS
 
 
 def pipelines(study: Study, criterion: str, process: str) -> tuple[list[str], list[str]]:
@@ -38,12 +39,12 @@ def pipelines(study: Study, criterion: str, process: str) -> tuple[list[str], li
         identifiers.append(point["pipeline"])
         if kind == "treecluster":
             method = definition["method"].replace("_", " ")
-            labels.append(f"TC {definition['tree_kind']} ({method})")
+            labels.append(f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})")
         else:
             score = SCORE_LABELS[definition["score_name"]]
             label = {"pairwise": "Pair", "components": "Components", "leiden": "Leiden"}[kind]
             if kind == "leiden":
-                label += f" {definition['weight_policy']}"
+                label += f" ({WEIGHT_LABELS[definition['weight_policy']]})"
             labels.append(f"{score} {label}")
     if not identifiers:
         raise ValueError(f"No frozen pipeline for {criterion}/{process}")
@@ -52,9 +53,9 @@ def pipelines(study: Study, criterion: str, process: str) -> tuple[list[str], li
 
 def short_scenario_labels(study: Study) -> list[str]:
     names = {
-        "incubation.mean": "Inc mean", "incubation.cv": "Inc CV",
-        "testing_delay.mean": "Test mean", "testing_delay.cv": "Test CV",
-        "substitution_rate": "Subst rate", "relaxation": "Relaxation",
+        "incubation.mean": "Incubation mean", "incubation.cv": "Incubation variability",
+        "testing_delay.mean": "Testing delay mean", "testing_delay.cv": "Testing delay variability",
+        "substitution_rate": "Substitution rate", "relaxation": "Clock relaxation",
     }
     result = []
     for scenario in study.variants:
@@ -104,7 +105,7 @@ def create_figure(study: Study, frame, criterion: str, output, *, fmt: str = "bo
             if row == 0:
                 ax.set_title("F1 change" if col == 0 else "Distant contamination change")
             if col == 0:
-                ax.set_ylabel(f"{PROCESS_LABELS[process]} observed genetics")
+                ax.set_ylabel(f"{PROCESS_LABELS[process]} genetic observations")
             if row == 1:
                 ax.set_xlabel("Perturbed parameter and level")
     endpoint_label = {"M0": "M=0", "Mle1": "M≤1", "Mle2": "M≤2"}[endpoint]

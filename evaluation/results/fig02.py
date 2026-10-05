@@ -13,7 +13,7 @@ from ._baseline.common import (
     PROCESS_LABELS,
     PROCESSES,
     SCORE_COLORS,
-    SCORE_LABELS,
+    SCORE_DESCRIPTIONS,
     SCORES_BY_PROCESS,
     add_arguments,
     load_run,
@@ -109,15 +109,15 @@ def create_figure(run, config, output, *, fmt="both") -> None:
                 color=SCORE_COLORS[score],
                 marker="D",
                 markersize=4,
-                label=f"{SCORE_LABELS[score]} ({ap[score]:.3f})",
+                label=f"{SCORE_DESCRIPTIONS[score]} ({ap[score]:.3f})",
             )
             for score in SCORES_BY_PROCESS[process]
         ]
-        ax.legend(handles=handles, title="Model (AP)", loc="upper right")
+        ax.legend(handles=handles, title="Model (held-out AP)", loc="upper right", fontsize=7)
         ax.set(
-            title=f"{PROCESS_LABELS[process]} observed genetics",
-            xlabel="M=0 recall",
-            ylabel="M=0 precision",
+            title=f"{PROCESS_LABELS[process]} genetic observations",
+            xlabel="Target-pair recovery (recall)",
+            ylabel="Target-pair fraction (precision)",
             xlim=(0, 1),
             ylim=(0, 1),
         )

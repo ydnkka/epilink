@@ -46,7 +46,7 @@ def agreement_grid(study: BostonStudy, criterion: str):
         raise ValueError("Undefined agreement among frozen Boston partitions")
     labels = [method_label(point) for point in graph]
     tree_labels = [
-        f"{point['definition']['tree_kind'].title()}\n"
+        f"{'Undated' if point['definition']['tree_kind'] == 'raw' else 'Dated'}\n"
         f"[{point['definition']['baseline_data_process'][0].upper()} source]"
         for point in trees
     ]
