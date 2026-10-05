@@ -22,8 +22,14 @@ ROOT = (
 PROCESSES = ("deterministic", "stochastic")
 PROCESS_LABELS = {"deterministic": "Deterministic", "stochastic": "Stochastic"}
 SCORE_LABELS = {
-    "EDD": "EDD", "ESD": "ESD", "GD_D": "GDD", "LOGIT_D": "LGD",
-    "EDS": "EDS", "ESS": "ESS", "GD_S": "GDS", "LOGIT_S": "LGS",
+    "EDD": "EDD",
+    "ESD": "ESD",
+    "GD_D": "GDD",
+    "LOGIT_D": "LGD",
+    "EDS": "EDS",
+    "ESS": "ESS",
+    "GD_S": "GDS",
+    "LOGIT_S": "LGS",
 }
 FOCUS_PAIR = {
     "deterministic": ("ESD", "LOGIT_D", "GD_D"),
@@ -31,12 +37,18 @@ FOCUS_PAIR = {
 }
 FOCUS_CLUSTER = {
     "deterministic": (
-        "leiden/ESD/native", "leiden/LOGIT_D/native", "leiden/GD_D/binary",
-        "treecluster/deterministic/raw", "treecluster/deterministic/dated",
+        "leiden/ESD/native",
+        "leiden/LOGIT_D/native",
+        "leiden/GD_D/binary",
+        "treecluster/deterministic/raw",
+        "treecluster/deterministic/dated",
     ),
     "stochastic": (
-        "leiden/ESS/native", "leiden/LOGIT_S/native", "leiden/GD_S/binary",
-        "treecluster/stochastic/raw", "treecluster/stochastic/dated",
+        "leiden/ESS/native",
+        "leiden/LOGIT_S/native",
+        "leiden/GD_S/binary",
+        "treecluster/stochastic/raw",
+        "treecluster/stochastic/dated",
     ),
 }
 PARAMETER_LABELS = {
@@ -48,13 +60,19 @@ PARAMETER_LABELS = {
     "relaxation": "Clock relaxation",
 }
 CRITERIA = {
-    "balanced_M0": "M0", "balanced_Mle1": "Mle1", "balanced_Mle2": "Mle2",
+    "balanced_M0": "M0",
+    "balanced_Mle1": "Mle1",
+    "balanced_Mle2": "Mle2",
 }
 
 
 def add_arguments(parser: argparse.ArgumentParser, *, figure: bool = False) -> None:
-    parser.add_argument("--run-dir", type=Path, help="Pinned run; default: perturbation/current.json")
-    parser.add_argument("--output-dir", type=Path, help="Override the run-specific results directory")
+    parser.add_argument(
+        "--run-dir", type=Path, help="Pinned run; default: perturbation/current.json"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, help="Override the run-specific results directory"
+    )
     if figure:
         parser.add_argument("--format", choices=("pdf", "png", "both"), default="both")
 
@@ -79,7 +97,9 @@ class Study:
         manifest = read_json(run / "manifest.json")
         config = manifest["config"]
         if manifest["status"] != "complete" or config["smoke_mode"]:
-            raise ValueError("Manuscript displays require a complete full perturbation run")
+            raise ValueError(
+                "Manuscript displays require a complete full perturbation run"
+            )
         scenarios = read_json(run / "scenarios.json")
         names = [row["name"] for row in scenarios]
         if names[0] != "baseline" or len(set(names)) != len(names):
@@ -124,16 +144,22 @@ class Study:
         labels = []
         for scenario in self.variants:
             level = (
-                f"{scenario['multiplier']:g}×" if scenario["multiplier"] is not None
+                f"{scenario['multiplier']:g}×"
+                if scenario["multiplier"] is not None
                 else f"{scenario['value']:g}"
             )
-            labels.append(f"{PARAMETER_LABELS.get(scenario['parameter'], scenario['parameter'])} · {level}")
+            labels.append(
+                f"{PARAMETER_LABELS.get(scenario['parameter'], scenario['parameter'])} · {level}"
+            )
         return labels
 
     @property
     def group_boundaries(self) -> list[float]:
-        return [i - 0.5 for i in range(1, len(self.variants))
-                if self.variants[i]["parameter"] != self.variants[i - 1]["parameter"]]
+        return [
+            i - 0.5
+            for i in range(1, len(self.variants))
+            if self.variants[i]["parameter"] != self.variants[i - 1]["parameter"]
+        ]
 
     def output(self, path: Path | None) -> Path:
         return results_output_directory(self.run, "02_synthetic_perturbation", path)
@@ -147,9 +173,17 @@ class Study:
     def table(self, name: str, columns: list[str]) -> pd.DataFrame:
         return pd.read_csv(self.run / name, usecols=columns)
 
-    def matrix(self, frame: pd.DataFrame, *, identifiers: tuple[str, ...],
-               key: str, metric: str, mode: str = "matched",
-               criterion: str | None = None, delta: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    def matrix(
+        self,
+        frame: pd.DataFrame,
+        *,
+        identifiers: tuple[str, ...],
+        key: str,
+        metric: str,
+        mode: str = "matched",
+        criterion: str | None = None,
+        delta: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Scenario × scorer/pipeline values and defined counts; fail on partial joins."""
         names = self.scenario_names if delta else ["baseline"]
         subset = frame.loc[frame["mode"] == mode]
@@ -167,12 +201,16 @@ class Study:
                 if (scenario, name) not in indexed.index:
                     raise ValueError(f"Missing {mode} evidence: {scenario}/{name}")
                 row = indexed.loc[scenario, name]
-                if (
-                    row.n_realizations != len(self.seeds)
-                    or (delta and row.n_controls != len(self.seeds))
+                if row.n_realizations != len(self.seeds) or (
+                    delta and row.n_controls != len(self.seeds)
                 ):
-                    raise ValueError(f"Incomplete seed/control coverage: {scenario}/{name}")
-                if criterion is not None and row.setting_id != self.point(name, criterion)["setting_id"]:
+                    raise ValueError(
+                        f"Incomplete seed/control coverage: {scenario}/{name}"
+                    )
+                if (
+                    criterion is not None
+                    and row.setting_id != self.point(name, criterion)["setting_id"]
+                ):
                     raise ValueError(f"Frozen setting mismatch: {criterion}/{name}")
                 count = int(row[f"{prefix}_count"])
                 if count < 0 or count > len(self.seeds):
@@ -181,35 +219,64 @@ class Study:
                 if count:
                     value = row[f"{prefix}_mean"]
                     if not np.isfinite(value):
-                        raise ValueError(f"Undefined mean with defined values: {scenario}/{name}")
+                        raise ValueError(
+                            f"Undefined mean with defined values: {scenario}/{name}"
+                        )
                     values[i, j] = float(value) * 100
         return values, counts
 
 
-def pair_summary(study: Study, metric: str = "M0_AP", *, delta: bool = True) -> pd.DataFrame:
+def pair_summary(
+    study: Study, metric: str = "M0_AP", *, delta: bool = True
+) -> pd.DataFrame:
     prefix = f"delta_{metric}" if delta else metric
-    columns = ["scenario", "mode", "score_name", "n_realizations",
-               f"{prefix}_mean", f"{prefix}_std", f"{prefix}_count"]
+    columns = [
+        "scenario",
+        "mode",
+        "score_name",
+        "n_realizations",
+        f"{prefix}_mean",
+        f"{prefix}_std",
+        f"{prefix}_count",
+    ]
     if delta:
         columns.append("n_controls")
-    return study.table("rankings_delta_summary.csv" if delta else "rankings_summary.csv", columns)
+    return study.table(
+        "rankings_delta_summary.csv" if delta else "rankings_summary.csv", columns
+    )
 
 
-def cluster_summary(study: Study, metrics: tuple[str, ...], *, delta: bool = True) -> pd.DataFrame:
-    columns = ["scenario", "mode", "criterion", "pipeline", "setting_id", "n_realizations"]
+def cluster_summary(
+    study: Study, metrics: tuple[str, ...], *, delta: bool = True
+) -> pd.DataFrame:
+    columns = [
+        "scenario",
+        "mode",
+        "criterion",
+        "pipeline",
+        "setting_id",
+        "n_realizations",
+    ]
     if delta:
         columns.append("n_controls")
     for metric in metrics:
         prefix = f"delta_{metric}" if delta else metric
         columns.extend((f"{prefix}_mean", f"{prefix}_std", f"{prefix}_count"))
-    return study.table("results_delta_summary.csv" if delta else "results_summary.csv", columns)
+    return study.table(
+        "results_delta_summary.csv" if delta else "results_summary.csv", columns
+    )
 
 
 def paired_range_summary(study: Study, metric: str, *, ranking: bool) -> pd.DataFrame:
     """Load the mean and *seed-level* min/max of each control-paired delta."""
     prefix = f"delta_{metric}"
-    columns = ["scenario", "mode", "n_realizations", "n_controls",
-               *(f"{prefix}_{stat}" for stat in ("mean", "min", "max", "count"))]
+    columns = [
+        "scenario",
+        "mode",
+        "n_realizations",
+        "n_controls",
+        *(f"{prefix}_{stat}" for stat in ("mean", "min", "max", "count")),
+    ]
     if ranking:
         columns.append("score_name")
         name = "rankings_delta_summary.csv"
@@ -219,9 +286,16 @@ def paired_range_summary(study: Study, metric: str, *, ranking: bool) -> pd.Data
     return study.table(name, columns)
 
 
-def paired_ranges(study: Study, frame: pd.DataFrame, *, metric: str, key: str,
-                  identifiers: tuple[str, ...], criterion: str | None = None,
-                  mode: str = "matched") -> pd.DataFrame:
+def paired_ranges(
+    study: Study,
+    frame: pd.DataFrame,
+    *,
+    metric: str,
+    key: str,
+    identifiers: tuple[str, ...],
+    criterion: str | None = None,
+    mode: str = "matched",
+) -> pd.DataFrame:
     """One mean/min/max across seeds per scenario and frozen scorer/pipeline."""
     subset = frame.loc[(frame["mode"] == mode) & frame[key].isin(identifiers)]
     if criterion is not None:
@@ -233,32 +307,54 @@ def paired_ranges(study: Study, frame: pd.DataFrame, *, metric: str, key: str,
     for scenario in study.scenario_names:
         for identifier in identifiers:
             if (scenario, identifier) not in indexed.index:
-                raise ValueError(f"Missing paired-delta summary: {scenario}/{identifier}")
+                raise ValueError(
+                    f"Missing paired-delta summary: {scenario}/{identifier}"
+                )
             row = indexed.loc[scenario, identifier]
-            if row.n_realizations != len(study.seeds) or row.n_controls != len(study.seeds):
-                raise ValueError(f"Incomplete seed/control coverage: {scenario}/{identifier}")
-            if criterion is not None and row.setting_id != study.point(identifier, criterion)["setting_id"]:
+            if row.n_realizations != len(study.seeds) or row.n_controls != len(
+                study.seeds
+            ):
+                raise ValueError(
+                    f"Incomplete seed/control coverage: {scenario}/{identifier}"
+                )
+            if (
+                criterion is not None
+                and row.setting_id != study.point(identifier, criterion)["setting_id"]
+            ):
                 raise ValueError(f"Frozen setting mismatch: {criterion}/{identifier}")
             count = int(row[f"delta_{metric}_count"])
             if count < 0 or count > len(study.seeds):
-                raise ValueError(f"Invalid defined-value count: {scenario}/{identifier}")
+                raise ValueError(
+                    f"Invalid defined-value count: {scenario}/{identifier}"
+                )
             values = [row[f"delta_{metric}_{stat}"] for stat in ("mean", "min", "max")]
             if count:
-                if not np.isfinite(values).all() or not values[1] - 1e-12 <= values[0] <= values[2] + 1e-12:
-                    raise ValueError(f"Inconsistent paired-delta mean/range: {scenario}/{identifier}")
+                if (
+                    not np.isfinite(values).all()
+                    or not values[1] - 1e-12 <= values[0] <= values[2] + 1e-12
+                ):
+                    raise ValueError(
+                        f"Inconsistent paired-delta mean/range: {scenario}/{identifier}"
+                    )
                 values = [float(value) * 100 for value in values]
             else:
                 values = [np.nan] * 3
-            records.append({
-                "scenario": scenario, "identifier": identifier,
-                "mean_pp": values[0], "min_pp": values[1], "max_pp": values[2],
-                "count": count,
-            })
+            records.append(
+                {
+                    "scenario": scenario,
+                    "identifier": identifier,
+                    "mean_pp": values[0],
+                    "min_pp": values[1],
+                    "max_pp": values[2],
+                    "count": count,
+                }
+            )
     return pd.DataFrame(records)
 
 
-def paired_mode_contrast(study: Study, *, ranking: bool, metric: str,
-                         identifiers: tuple[str, ...]) -> pd.DataFrame:
+def paired_mode_contrast(
+    study: Study, *, ranking: bool, metric: str, identifiers: tuple[str, ...]
+) -> pd.DataFrame:
     """Subtract EpiLink modes within scenario/seed, after their paired controls."""
     key = "score_name" if ranking else "pipeline"
     keys = ["scenario", "seed", key]
@@ -273,16 +369,24 @@ def paired_mode_contrast(study: Study, *, ranking: bool, metric: str,
         frame = frame.loc[frame.criterion == "balanced_M0"]
         for pipeline in identifiers:
             selected = study.point(pipeline)
-            if set(frame.loc[frame.pipeline == pipeline, "setting_id"]) != {selected["setting_id"]}:
-                raise ValueError(f"Mode evidence differs from frozen setting: {pipeline}")
+            if set(frame.loc[frame.pipeline == pipeline, "setting_id"]) != {
+                selected["setting_id"]
+            }:
+                raise ValueError(
+                    f"Mode evidence differs from frozen setting: {pipeline}"
+                )
     if frame.duplicated([*keys, "mode"]).any():
         raise ValueError("Duplicate seed-level mode evidence")
     matched = frame.loc[frame["mode"] == "matched"].set_index(keys)
     fixed = frame.loc[frame["mode"] == "baseline_fixed"].set_index(keys)
     if set(matched.index) != set(fixed.index):
         raise ValueError("Matched/fixed modes lack paired seed evidence")
-    expected = {(scenario, seed, name) for scenario in study.scenario_names
-                for seed in study.seeds for name in identifiers}
+    expected = {
+        (scenario, seed, name)
+        for scenario in study.scenario_names
+        for seed in study.seeds
+        for name in identifiers
+    }
     actual = {(index[0], index[1], index[2]) for index in matched.index}
     if actual != expected or len(matched) != len(expected):
         raise ValueError("Missing scenario/seed/ESD-or-ESS mode comparisons")
@@ -291,9 +395,11 @@ def paired_mode_contrast(study: Study, *, ranking: bool, metric: str,
         raise ValueError("Missing unperturbed control for mode comparison")
     difference = (matched[f"delta_{metric}"] - fixed[f"delta_{metric}"]) * 100
     records = difference.rename("difference_pp").reset_index()
-    return records.groupby(["scenario", key], sort=False).difference_pp.agg(
-        ["mean", "std", "min", "max", "count"]
-    ).reset_index()
+    return (
+        records.groupby(["scenario", key], sort=False)
+        .difference_pp.agg(["mean", "std", "min", "max", "count"])
+        .reset_index()
+    )
 
 
 def scenario_axis(ax: Axes, study: Study, *, show_labels: bool) -> None:

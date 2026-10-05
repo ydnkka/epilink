@@ -7,6 +7,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
+
+from epilink_evaluation.utils import style
+
 from .common import (
     PROCESS_LABELS,
     PROCESSES,
@@ -19,10 +24,6 @@ from .common import (
     read_json,
     selected_summary,
 )
-from matplotlib.axes import Axes
-from matplotlib.lines import Line2D
-
-from epilink_evaluation.utils import style
 
 APPROACHES = {
     "components": "Connected components",

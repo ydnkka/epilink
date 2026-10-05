@@ -50,7 +50,9 @@ def add_arguments(parser: argparse.ArgumentParser, *, figure: bool = False) -> N
         type=Path,
         help="Pinned baseline run; default: baseline/current.json",
     )
-    parser.add_argument("--output-dir", type=Path, help="Override the run-specific results directory")
+    parser.add_argument(
+        "--output-dir", type=Path, help="Override the run-specific results directory"
+    )
     if figure:
         parser.add_argument("--format", choices=("pdf", "png", "both"), default="both")
 

@@ -380,7 +380,9 @@ def parse_args() -> argparse.Namespace:
         description="Generate diagnostics manuscript figure"
     )
     parser.add_argument(
-        "--run-dir", type=Path, help="Pinned diagnostics run; default: diagnostics/current.json"
+        "--run-dir",
+        type=Path,
+        help="Pinned diagnostics run; default: diagnostics/current.json",
     )
     parser.add_argument(
         "--output-dir",

@@ -14,7 +14,9 @@ from epilink_evaluation.provenance import read_json
 
 from .._paths import output_directory as results_output_directory
 
-ROOT = Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
+ROOT = (
+    Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
+)
 FOCUS = (
     ("ESD native", "leiden/ESD/native", "#0072B2"),
     ("LGD native", "leiden/LOGIT_D/native", "#D55E00"),
@@ -39,7 +41,9 @@ def add_arguments(parser: argparse.ArgumentParser, *, figure: bool = False) -> N
     parser.add_argument(
         "--run-dir", type=Path, help="Pinned Boston run; default: boston/current.json"
     )
-    parser.add_argument("--output-dir", type=Path, help="Override the run-specific results directory")
+    parser.add_argument(
+        "--output-dir", type=Path, help="Override the run-specific results directory"
+    )
     if figure:
         parser.add_argument("--format", choices=("pdf", "png", "both"), default="both")
 

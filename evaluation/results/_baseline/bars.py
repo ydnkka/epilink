@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.patches import Patch
+
 from .common import (
     PROCESS_LABELS,
     SCORE_LABELS,
@@ -11,8 +14,6 @@ from .common import (
     setting_label,
 )
 from .plots import TREE_LABELS
-from matplotlib.axes import Axes
-from matplotlib.patches import Patch
 
 METRICS = (
     ("M0_precision", "Precision", "#0072B2"),
