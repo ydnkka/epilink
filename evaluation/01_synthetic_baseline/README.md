@@ -173,6 +173,39 @@ Each development `pairwise/evidence/` artifact checkpoints cumulative curves, ra
 
 Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs, phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do not compute evaluation metrics; clusterers do not access truth; reporting reads saved result tables. `inputs.synthetic.analysis_table` provides an optional joined view without duplicating stored truth for every model.
 
+## Manuscript figures and tables
+
+After completing `evaluate`, generate the standalone displays from saved results (no simulation or refitting):
+
+```bash
+python evaluation/01_synthetic_baseline/plot_pairwise.py
+python evaluation/01_synthetic_baseline/plot_components.py
+python evaluation/01_synthetic_baseline/plot_leiden_binary.py
+python evaluation/01_synthetic_baseline/plot_leiden_native.py
+python evaluation/01_synthetic_baseline/plot_treecluster_raw.py
+python evaluation/01_synthetic_baseline/plot_treecluster_dated.py
+python evaluation/01_synthetic_baseline/plot_graph_cluster_bars.py
+python evaluation/01_synthetic_baseline/plot_treecluster_bars.py
+python evaluation/01_synthetic_baseline/table_operating_points.py
+python evaluation/01_synthetic_baseline/table_operating_points_full.py
+```
+
+These scripts default to the baseline root's `current.json` and write to `<run>/manuscript/`. Each accepts `--run-dir <run>` and `--output-dir <directory>` for a pinned run and destination; the figure scripts also accept `--format pdf|svg|both` (default `both`). They require a completed evaluation and use only the frozen `balanced_M0` (`M0_f1`) selection. The two `.tex` files use the project's `thesistablebody`/`longtable` macros from `src/epilink_evaluation/utils/latex_tables.py` (and `landscape` for wide tables).
+
+Figure legends use short scorer labels without renaming the saved result columns: `GD_D`/`GD_S` are **GDD**/**GDS**, and `LOGIT_D`/`LOGIT_S` are **LGD**/**LGS**. Deterministic observed genetics include **EDD, ESD, GDD, LGD**; stochastic observed genetics include **EDS, ESS, GDS, LGS**. In each EpiLink code the second letter denotes inference genetics and the third observed genetics (D or S). All EpiLink and logistic scorers use temporal distance, whereas GDD/GDS use genetic distance alone. Compare scorers within an observed-process column.
+
+| Output | Source and interpretation |
+| --- | --- |
+| `pairwise_discrimination.pdf` / `.svg` | Tie-aware **development** M=0 PR curves, one line per observation seed; diamonds are the means at frozen development cutoffs. Separate columns compare four scorers within each observed genetic process. Legend AP values are equal-seed means from **held-out** `pairwise/rankings.csv`, independent of cutoffs. |
+| `components.pdf`, `leiden_binary.pdf`, `leiden_native.pdf` (and `.svg`) | One **development** trade-off figure per graph-clustering approach. Columns are observed genetic processes. Upper panels show M=0 precision versus recall; lower panels show M=0 F1 versus M≥3 contamination. Component lines trace native score/GD threshold sweeps. Leiden dots cover the threshold × CPM-resolution grid; lines trace non-dominated display envelopes, **not** a one-dimensional parameter sweep. Diamonds mark the frozen M=0 setting using its development metrics, even if it is off a display envelope. Native-weighted genetic Leiden is absent by design. |
+| `treecluster_raw.pdf`, `treecluster_dated.pdf` (and `.svg`) | Separate **development** figures with the same panel layout. Each line follows thresholds for a TreeCluster method (`max_clade`, `avg_clade`, or `single_linkage`). The diamond marks the method **and** threshold jointly selected within that raw/dated observed-process pipeline. Raw genetic thresholds are substitutions/site in the sweep and dated thresholds are days; axes display recovery or contamination rather than threshold values. |
+| `graph_cluster_operating_bars.pdf` / `.svg` | **Held-out** M=0 precision, recall, F1, and M≥3 contamination at frozen settings. Rows are components, binary Leiden, and native Leiden; columns are observed genetic processes, with the available score variants along each x-axis. Whiskers are sample SD across evaluation realizations. |
+| `treecluster_operating_bars.pdf` / `.svg` | **Held-out** metrics on the same percentage scale, with raw and dated trees in separate panels and deterministic/stochastic observed genetics as grouped-bar categories. Each category identifies its development-selected TreeCluster method and threshold (SNP for raw, days for dated). The raw/dated and deterministic/stochastic comparisons are between separately selected **frozen operating pipelines**, not one method/threshold held constant. Other TreeCluster methods were swept on development data but not replayed as distinct held-out settings. |
+| `operating_points.tex` | Main-text held-out comparison: for each observed process, the matched-genetics EpiLink scorer (EDD or ESS), GD, and logistic score as pairwise rules and binary Leiden inputs, plus raw and dated TreeCluster. This is an explicit presentation subset, not a held-out-data-driven choice of pipelines. |
+| `operating_points_full.tex` | Supplementary held-out longtable of **all** frozen selected pipelines, including cross-assumption EpiLink, components, and native-weighted Leiden. |
+
+All cluster panels evaluate **every within-cluster pair**, including graph nonedges. At M=0, M≥3 contamination counts only distant false positives, not all false positives. Tables report equal-realization means (sample SD) for the three evaluation observation seeds, with percentages for fractions and counts for selected pairs. TreeCluster raw cutoffs are displayed as SNP counts converted from the stored substitutions/site threshold using the pinned sequence length; dated cutoffs are days. Undefined ratios remain dashes. Pairwise rows have no cluster-size metrics. The run's `selection/operating_points.json` and `evaluation/selection_used.json` record the complete frozen definitions; the scripts verify summary and per-seed coverage against the latter. Between-seed SD is descriptive conditional on the fixed backbone, not a confidence interval across epidemics.
+
 ## Next studies
 
 After baseline evaluation, the [perturbation workflow](../02_synthetic_perturbation/README.md) replays frozen models and operating settings on paired new observations. Start with `python evaluation/02_synthetic_perturbation/run.py --smoke`, then omit `--smoke` for all configured parameter levels. Matched and baseline-fixed modes differ in EpiLink inference; logistic training stays baseline-fixed in both. Any retuning or retraining is a separate adaptation analysis.
