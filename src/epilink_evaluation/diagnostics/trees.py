@@ -34,7 +34,7 @@ def transmission_hop_tree(tree: nx.DiGraph, case_ids) -> Tree:
             "multi-root forests have no defined between-component hop distances"
         )
     if isinstance(case_ids, (str, bytes)):
-        raise ValueError("case_ids must be a collection of case identifiers")
+        raise TypeError("case_ids must be a collection of case identifiers")
     labels = list(map(str, case_ids))
     if not labels:
         raise ValueError("At least one observed case is required")
