@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_table
+
 from ._baseline.common import (
     PROCESS_LABELS,
     PROCESSES,
@@ -16,8 +18,6 @@ from ._baseline.common import (
     selected_summary,
     setting_label,
 )
-
-from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_table
 
 
 def main_pipelines(process: str) -> list[str]:
@@ -78,7 +78,7 @@ def main() -> None:
             "shown as pairwise rules and binary-edge Leiden inputs; score-weighted "
             "stochastic EpiLink and logistic Leiden and undated/dated TreeCluster "
             "provide additional clustering comparisons. Values are equally weighted "
-            "means (sample SD) across three observation realizations on one fixed "
+            "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "
             "every within-cluster pair. Distant pairs have M>=3; this measure does "
             "not include every false positive for M=0. Tree cutoffs are shown in SNP "

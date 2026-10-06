@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from epilink_evaluation.utils.latex_tables import write_latex_longtable
+
 from ._baseline.common import (
     PROCESS_LABELS,
     PROCESSES,
@@ -15,8 +17,6 @@ from ._baseline.common import (
     selected_summary,
     setting_label,
 )
-
-from epilink_evaluation.utils.latex_tables import write_latex_longtable
 
 
 def build_rows(summary, points, config):
@@ -67,7 +67,7 @@ def main() -> None:
             "Complete held-out comparison of methods for direct transmission and "
             "infection from a shared source (M=0). All settings were selected during "
             "development and applied unchanged. Values are equally weighted means "
-            "(sample SD) over three observation realizations on one transmission tree. "
+            "(sample SD) over three observation realisations on one transmission tree. "
             "Fractions are percentages; selected pairs are counts. Cluster metrics "
             "include all within-cluster pairs. Distant pairs (M>=3) account for only "
             "part of the M=0 false positives. Direct and shared recovery are "
@@ -75,7 +75,7 @@ def main() -> None:
             "and largest are the percentages of all cases in singleton clusters "
             "and in the largest cluster. Undated-tree "
             "cutoffs are shown in SNP counts and dated-tree cutoffs in days. "
-            "Dashes indicate undefined values; n gives the number of defined realizations "
+            "Dashes indicate undefined values; n gives the number of defined realisations "
             "when fewer than three are available."
         ),
         short_caption="Complete held-out method comparison",

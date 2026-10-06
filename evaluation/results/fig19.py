@@ -6,9 +6,10 @@ import argparse
 
 import matplotlib as mpl
 import numpy as np
-from ._boston.common import FOCUS, BostonStudy, add_arguments
 
 from epilink_evaluation.utils import style
+
+from ._boston.common import FOCUS, BostonStudy, add_arguments
 
 
 def agreement_matrix(study: BostonStudy) -> tuple[np.ndarray, np.ndarray]:
@@ -104,7 +105,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
     )
     heat.set_xticks(range(2), ["Undated", "Dated"])
     heat.set_yticks(range(3), [label for label, _, _ in FOCUS[:3]])
-    heat.set_title("Graph–tree agreement")
+    heat.set_title("Graph and tree agreement")
     heat.set_xlabel("TreeCluster at selected settings")
     for (row, col), value in np.ndenumerate(ari):
         heat.text(
@@ -117,9 +118,9 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
             color="white" if abs(value) > bound * 0.65 else "0.15",
         )
     fig.colorbar(image, ax=heat, shrink=0.65, label="Adjusted Rand index")
-    fig.suptitle(
-        "Cluster structure and graph–tree agreement in Boston", fontweight="bold"
-    )
+    # fig.suptitle(
+    #     "Cluster structure and graph tree agreement in Boston", fontweight="bold"
+    # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

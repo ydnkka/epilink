@@ -6,9 +6,16 @@ import argparse
 
 import matplotlib as mpl
 import numpy as np
-from ._boston.common import CRITERIA, EXPOSURE_LABELS, BostonStudy, add_arguments, method_label
 
 from epilink_evaluation.utils import style
+
+from ._boston.common import (
+    CRITERIA,
+    EXPOSURE_LABELS,
+    BostonStudy,
+    add_arguments,
+    method_label,
+)
 
 
 def all_rows(study: BostonStudy, criterion: str):
@@ -70,7 +77,10 @@ def create_figure(
         ax.set_title(title)
         ax.set_xticks(
             range(len(study.config["assessment"]["focus_exposures"])),
-            [EXPOSURE_LABELS.get(name, name) for name in study.config["assessment"]["focus_exposures"]],
+            [
+                EXPOSURE_LABELS.get(name, name)
+                for name in study.config["assessment"]["focus_exposures"]
+            ],
         )
         ax.set_yticks(range(len(labels)), labels, fontsize=7)
         ax.tick_params(axis="y", labelleft=show_labels)
@@ -91,13 +101,13 @@ def create_figure(
         shrink=0.6,
         label="Percentage of cases",
     )
-    endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
-        criterion
-    ]
-    fig.suptitle(
-        f"Boston exposure summaries: settings selected for {endpoint} in simulation",
-        fontweight="bold",
-    )
+    # endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
+    #     criterion
+    # ]
+    # fig.suptitle(
+    #     f"Boston exposure summaries: settings selected for {endpoint} in simulation",
+    #     fontweight="bold",
+    # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

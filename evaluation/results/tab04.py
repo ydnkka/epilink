@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import argparse
 
-from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments, method_label
-
 from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_table
+
+from ._boston.common import (
+    EXPOSURE_LABELS,
+    FOCUS,
+    BostonStudy,
+    add_arguments,
+    method_label,
+)
 
 
 def build_rows(study: BostonStudy) -> list[list[str]]:

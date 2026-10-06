@@ -8,11 +8,18 @@ import pandas as pd
 
 from epilink_evaluation.utils.latex_tables import write_latex_grouped_column_table
 
-from ._perturbation.common import (
-    FOCUS_CLUSTER, FOCUS_PAIR, PROCESSES, PROCESS_LABELS, SCORE_LABELS,
-    Study, add_arguments, cluster_summary, pair_summary,
-)
 from ._baseline.common import TREE_KIND_LABELS, TREE_METHOD_LABELS, WEIGHT_LABELS
+from ._perturbation.common import (
+    FOCUS_CLUSTER,
+    FOCUS_PAIR,
+    PROCESS_LABELS,
+    PROCESSES,
+    SCORE_LABELS,
+    Study,
+    add_arguments,
+    cluster_summary,
+    pair_summary,
+)
 
 
 def describe_setting(point: dict) -> str:
@@ -48,17 +55,27 @@ def metric_cell(row: pd.Series, metric: str, seeds: int) -> str:
     return result
 
 
-def control_row(frame: pd.DataFrame, key: str, identifier: str, study: Study,
-                *, criterion: str | None = None) -> pd.Series:
+def control_row(
+    frame: pd.DataFrame,
+    key: str,
+    identifier: str,
+    study: Study,
+    *,
+    criterion: str | None = None,
+) -> pd.Series:
     subset = frame.loc[
-        (frame.scenario == "baseline") & (frame["mode"] == "matched")
+        (frame.scenario == "baseline")
+        & (frame["mode"] == "matched")
         & (frame[key] == identifier)
     ]
     if criterion is not None:
         subset = subset.loc[subset.criterion == criterion]
     if len(subset) != 1 or subset.n_realizations.iloc[0] != len(study.seeds):
         raise ValueError(f"Incomplete fresh unperturbed control: {identifier}")
-    if criterion is not None and subset.setting_id.iloc[0] != study.point(identifier)["setting_id"]:
+    if (
+        criterion is not None
+        and subset.setting_id.iloc[0] != study.point(identifier)["setting_id"]
+    ):
         raise ValueError(f"Control differs from frozen setting: {identifier}")
     return subset.iloc[0]
 
@@ -83,20 +100,33 @@ def build_rows(study: Study) -> list[list[str]]:
         for score in FOCUS_PAIR[process]:
             point = study.point(f"pairwise/{score}")
             control = control_row(rank, "score_name", score, study)
-            rows.append([
-                PROCESS_LABELS[process], "Pairwise", SCORE_LABELS[score],
-                describe_setting(point), metric_cell(control, "M0_AP", len(study.seeds)),
-                "--", "--",
-            ])
+            rows.append(
+                [
+                    PROCESS_LABELS[process],
+                    "Pairwise",
+                    SCORE_LABELS[score],
+                    describe_setting(point),
+                    metric_cell(control, "M0_AP", len(study.seeds)),
+                    "--",
+                    "--",
+                ]
+            )
         for pipeline in FOCUS_CLUSTER[process]:
             point = study.point(pipeline)
-            control = control_row(results, "pipeline", pipeline, study, criterion="balanced_M0")
-            rows.append([
-                PROCESS_LABELS[process], "Cluster", pipeline_label(point),
-                describe_setting(point), "--",
-                metric_cell(control, "M0_f1", len(study.seeds)),
-                metric_cell(control, "Mge3_contamination", len(study.seeds)),
-            ])
+            control = control_row(
+                results, "pipeline", pipeline, study, criterion="balanced_M0"
+            )
+            rows.append(
+                [
+                    PROCESS_LABELS[process],
+                    "Cluster",
+                    pipeline_label(point),
+                    describe_setting(point),
+                    "--",
+                    metric_cell(control, "M0_f1", len(study.seeds)),
+                    metric_cell(control, "Mge3_contamination", len(study.seeds)),
+                ]
+            )
     return rows
 
 
@@ -115,7 +145,7 @@ def main() -> None:
             "and distant-pair contamination use settings selected in the baseline "
             "development study and include every within-cluster pair. Distant pairs "
             "have M>=3. Values are equally weighted means (sample SD) in percent "
-            "across three new observation realizations on the same transmission tree. "
+            "across three new observation realisations on the same transmission tree. "
             "These controls are paired with each perturbed scenario; they are "
             "separate from the earlier held-out observations. Dashes indicate "
             "metrics that do not apply to that analysis level."

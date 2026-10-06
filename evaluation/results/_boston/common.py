@@ -12,8 +12,8 @@ import pandas as pd
 
 from epilink_evaluation.provenance import read_json
 
-from .._paths import output_directory as results_output_directory
 from .._baseline.common import method_label as baseline_method_label
+from .._paths import output_directory as results_output_directory
 
 ROOT = (
     Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"

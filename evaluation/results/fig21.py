@@ -6,9 +6,10 @@ import argparse
 
 import matplotlib as mpl
 import numpy as np
-from ._boston.common import CRITERIA, BostonStudy, add_arguments, method_label
 
 from epilink_evaluation.utils import style
+
+from ._boston.common import CRITERIA, BostonStudy, add_arguments, method_label
 
 
 def agreement_grid(study: BostonStudy, criterion: str):
@@ -96,13 +97,13 @@ def create_figure(
                 color="white" if abs(value) > bound * 0.65 else "0.12",
             )
         fig.colorbar(image, ax=ax, shrink=0.6, label=title)
-    endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
-        criterion
-    ]
-    fig.suptitle(
-        f"Boston partition agreement for {endpoint}-selected settings",
-        fontweight="bold",
-    )
+    # endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
+    #     criterion
+    # ]
+    # fig.suptitle(
+    #     f"Boston partition agreement for {endpoint}-selected settings",
+    #     fontweight="bold",
+    # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

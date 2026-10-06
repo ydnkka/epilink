@@ -15,8 +15,13 @@ def main() -> None:
     study = Study.load(args.run_dir)
     print(f"Using run: {study.run}")
     for endpoint in ("M0", "Mle1", "Mle2"):
-        create_figure(study, study.output(args.output_dir), fmt=args.format,
-                      all_scorers=True, endpoint=endpoint)
+        create_figure(
+            study,
+            study.output(args.output_dir),
+            fmt=args.format,
+            all_scorers=True,
+            endpoint=endpoint,
+        )
 
 
 if __name__ == "__main__":

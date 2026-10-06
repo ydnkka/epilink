@@ -280,7 +280,7 @@ def create_approach_figure(
         )
     axes[0, 0].set_ylabel("Target-pair fraction (precision)")
     axes[1, 0].set_ylabel("Target-pair F1")
-    fig.suptitle(APPROACHES[approach], fontweight="bold")
+    # fig.suptitle(APPROACHES[approach], fontweight="bold")
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

@@ -6,10 +6,11 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments
 from matplotlib.lines import Line2D
 
 from epilink_evaluation.utils import style
+
+from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments
 
 
 def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
@@ -66,9 +67,9 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
             ax.set_ylabel("Exposure concentration in the cluster")
         ax.grid(axis="both", color="0.92")
         ax.set_axisbelow(True)
-    fig.suptitle(
-        "Boston exposure groups at settings selected in simulation", fontweight="bold"
-    )
+    # fig.suptitle(
+    #     "Boston exposure groups at settings selected in simulation", fontweight="bold"
+    # )
     fig.legend(
         handles=[
             Line2D(
