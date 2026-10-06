@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--format", choices=("pdf", "png", "both"), default="both")
     args = parser.parse_args()
     groups = (
-        (args.diagnostic_run, ("fig01",)),
+        (args.diagnostic_run, ("fig01", "fig24")),
         (
             args.baseline_run,
             (

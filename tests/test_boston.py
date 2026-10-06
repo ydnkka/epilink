@@ -263,7 +263,9 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
 
 def test_default_boston_config_covers_expanded_models():
     root = Path(__file__).resolve().parents[1]
-    config = load_study_config(config_path=root / "evaluation/03_boston_application/config.yaml")
+    config = load_study_config(
+        config_path=root / "evaluation/03_boston_application/config.yaml"
+    )
     assert config["schema_version"] == 1
     assert "exploration" not in config
     assert config["scorers"] == [
@@ -294,7 +296,9 @@ def test_boston_cli_rejects_removed_explore_stage():
     assert error.value.code == 2
 
 
-def test_boston_workflow_prepares_shared_inputs(evaluated_baseline, tmp_path, monkeypatch):
+def test_boston_workflow_prepares_shared_inputs(
+    evaluated_baseline, tmp_path, monkeypatch
+):
     from epilink_evaluation.inputs import boston as adapter
 
     config = boston_config(tmp_path, evaluated_baseline)
@@ -327,7 +331,9 @@ def test_boston_report_includes_tree_only_results(tmp_path):
     from epilink_evaluation.provenance import write_json
     from epilink_evaluation.reporting.boston import render_report
 
-    write_json(tmp_path / "manifest.json", {"status": "complete", "requested_stage": "trees"})
+    write_json(
+        tmp_path / "manifest.json", {"status": "complete", "requested_stage": "trees"}
+    )
     write_json(tmp_path / "reference.json", {"run_directory": "baseline/run"})
     write_json(
         tmp_path / "inputs.json",
@@ -347,7 +353,9 @@ def test_boston_report_includes_tree_only_results(tmp_path):
     write_json(tmp_path / "selection.json", {"operating_points": []})
     trees = tmp_path / "trees"
     trees.mkdir()
-    write_json(trees / "status.json", {"status": "complete", "configured": 1, "completed": 1})
+    write_json(
+        trees / "status.json", {"status": "complete", "configured": 1, "completed": 1}
+    )
     pd.DataFrame(
         {
             "setting_id": ["tree"],

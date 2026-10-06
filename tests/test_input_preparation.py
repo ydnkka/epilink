@@ -42,9 +42,7 @@ def scovmod_config(small_config, tmp_path):
 def test_default_shared_input_paths(tmp_path):
     root = Path(__file__).resolve().parents[1]
     baseline = load_config(root / "evaluation/01_synthetic_baseline/config.yaml")
-    expected = (
-        root / "evaluation/shared_synthetic/outputs/inputs/transmission_tree.gml"
-    )
+    expected = root / "evaluation/shared_synthetic/outputs/inputs/transmission_tree.gml"
     assert Path(baseline["inputs"]["tree_path"]) == expected
     assert smoke_config(baseline)["inputs"]["tree_path"] == str(expected)
     boston = load_study_config(
@@ -70,9 +68,19 @@ def test_scovmod_commands_and_baseline_share_cached_tree(
         raise AssertionError("Matching prepared inputs must not rebuild the tree")
 
     monkeypatch.setattr(scovmod, "build_tree", forbidden)
-    assert main([
-        "scovmod", "--stage", "prepare", "--config", str(scovmod_config), "--smoke"
-    ]) == 0
+    assert (
+        main(
+            [
+                "scovmod",
+                "--stage",
+                "prepare",
+                "--config",
+                str(scovmod_config),
+                "--smoke",
+            ]
+        )
+        == 0
+    )
     assert main(["scovmod", "--config", str(scovmod_config)]) == 0
     assert not Path(config["output_directory"]).exists()
     assert not Path(config["output_directory"] + "_smoke").exists()
@@ -117,9 +125,7 @@ def test_scovmod_cache_tracks_settings_sources_and_integrity(scovmod_config):
     second = read_json(manifest_path)
     assert second["fingerprint"] != first["fingerprint"]
     transmissions = Path(config["inputs"]["transmission_path"])
-    transmissions.write_text(
-        transmissions.read_text().replace("[11,12]", "[11,12,13]")
-    )
+    transmissions.write_text(transmissions.read_text().replace("[11,12]", "[11,12,13]"))
     scovmod.prepare_tree(config)
     assert len(nx.read_gml(path)) == 4
     third = read_json(manifest_path)
@@ -192,12 +198,20 @@ def test_boston_preparation_entry_points_share_inputs(tmp_path, explicit_paths):
     assert manifest["n_cases"] == 2
     assert manifest["n_observed_pairs"] == 1
     before = (prepared / "manifest.json").stat().st_mtime_ns
-    assert main(
-        [
-            "boston", "--stage", "prepare", "--config", str(config_path),
-            "--output", str(tmp_path / "custom_runs"),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "boston",
+                "--stage",
+                "prepare",
+                "--config",
+                str(config_path),
+                "--output",
+                str(tmp_path / "custom_runs"),
+            ]
+        )
+        == 0
+    )
     assert (prepared / "manifest.json").stat().st_mtime_ns == before
     assert valid_artifact(prepared, manifest["signature"])
     assert not (tmp_path / "outputs/boston/inputs").exists()

@@ -18,5 +18,7 @@ def test_primary_compatibility_surface_keeps_processes_and_axes_separate():
             return Model({"deterministic": 0, "stochastic": 10}[process])
 
     surfaces = score_surfaces(Context(), np.array([0, 1, 2]), np.array([0, 5]))
-    np.testing.assert_allclose(surfaces["deterministic"], [[0, 0.1, 0.2], [5, 5.1, 5.2]])
+    np.testing.assert_allclose(
+        surfaces["deterministic"], [[0, 0.1, 0.2], [5, 5.1, 5.2]]
+    )
     np.testing.assert_allclose(surfaces["stochastic"], surfaces["deterministic"] + 10)

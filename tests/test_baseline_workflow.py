@@ -16,7 +16,9 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
         baseline.evaluate()
     assert baseline.run("develop")
     report = (baseline.directory / "report.md").read_text()
-    assert report.index("Pre-baseline diagnostics") < report.index("Development pairwise comparison")
+    assert report.index("Pre-baseline diagnostics") < report.index(
+        "Development pairwise comparison"
+    )
     assert "[Diagnostic report]" in report
     development = pd.read_csv(baseline.directory / "development/metrics.csv")
     assert set(development.setting_id) == set(baseline.definitions)
@@ -44,9 +46,18 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
     for name in small_config["scorers"]:
         cutoffs = set()
         for seed in small_config["splits"]["development"]:
-            curve = pd.read_parquet(baseline.directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet")
+            curve = pd.read_parquet(
+                baseline.directory
+                / "development"
+                / f"seed_{seed}"
+                / "pairwise/precision_recall.parquet"
+            )
             cutoffs.update(curve.loc[curve.score_name == name, "threshold"])
-        assert {d["threshold"] for d in definitions.values() if d["kind"] == "pairwise" and d["score_name"] == name and not d["empty"]} == cutoffs
+        assert {
+            d["threshold"]
+            for d in definitions.values()
+            if d["kind"] == "pairwise" and d["score_name"] == name and not d["empty"]
+        } == cutoffs
     assert baseline.run("evaluate")
     assert baseline.definitions == definitions
     evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
@@ -61,9 +72,13 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
     secondary = summary.loc[summary.criterion == "balanced_Mle1"]
     assert (secondary.objective == "Mle1_f1").all()
     assert (secondary.objective_mean == secondary.Mle1_f1_mean).all()
-    assert {"M0", "Mle1", "Mle2"} == set(pd.read_csv(baseline.directory / "development/frontier.csv").endpoint)
+    assert {"M0", "Mle1", "Mle2"} == set(
+        pd.read_csv(baseline.directory / "development/frontier.csv").endpoint
+    )
     for endpoint in ("M0", "Mle1", "Mle2"):
-        assert (baseline.directory / f"figures/pairwise_precision_recall_{endpoint}.png").exists()
+        assert (
+            baseline.directory / f"figures/pairwise_precision_recall_{endpoint}.png"
+        ).exists()
     assert (baseline.directory / "development/grid_adequacy.csv").exists()
 
     # A fresh process-equivalent context reuses completed observations unchanged.
@@ -81,7 +96,9 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
 
     # A damaged data-derived registry cannot silently fall back to configured
     # thresholds and release a different replay.
-    (baseline.directory / "development/pairwise_candidates/definitions.json").write_text("{}")
+    (
+        baseline.directory / "development/pairwise_candidates/definitions.json"
+    ).write_text("{}")
     with pytest.raises(ValueError, match="candidate registry"):
         Baseline(deepcopy(small_config)).evaluate()
 

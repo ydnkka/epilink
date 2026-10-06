@@ -16,6 +16,7 @@ import pandas as pd
 from ..provenance import read_json
 from ..schemas import ENDPOINTS
 from .report import markdown_table, read_table
+from .backbone import backbone_caption, draw_backbone, load_backbone_evidence
 
 
 def render_report(directory):
@@ -73,12 +74,13 @@ def render_report(directory):
                     f"<figcaption>{html.escape(caption)}</figcaption></figure>")
 
     coverage, errors, indices = [], [], {}
-    for stage in ("observations", "graphs", "trees"):
+    for stage in ("backbone", "observations", "graphs", "trees"):
         path = directory / stage / "index.json"
         if path.exists():
             index = indices[stage] = read_json(path)
             coverage.append({"stage": stage, "status": index["status"],
-                             "seed_setting_rows": len(index["records"]),
+                              "record_rows": len(index["records"]),
+                              "scope": "one backbone" if stage == "backbone" else "development seeds",
                              "unique_artifacts": len({r["artifact"] for r in index["records"]})})
             errors.extend({"stage": stage, **error} for error in index["errors"])
         else:
@@ -88,6 +90,32 @@ def render_report(directory):
     section("Coverage", pd.DataFrame(coverage))
     if errors:
         section("Visible failures — incomplete coverage", pd.DataFrame(errors))
+
+    if indices.get("backbone", {}).get("status") == "complete":
+        try:
+            saved, backbone, tables = load_backbone_evidence(directory)
+        except ValueError as exc:
+            section("Backbone evidence unavailable", pd.DataFrame([{"error": str(exc)}]))
+        else:
+            metrics = (
+                "n_cases", "n_transmissions", "n_roots", "n_components", "largest_component_cases",
+                "mean_offspring", "offspring_variance", "max_offspring", "zero_offspring_fraction",
+                "dispersion_k", "fit_method", "poisson_percentile", "superspreading_operator",
+                "n_superspreaders", "superspreader_fraction", "superspreader_transmission_fraction",
+                "fraction_for_80_percent", "top20_transmission_fraction", "mean_depth", "max_depth",
+                "n_direct_transmission_pairs", "n_shared_infector_pairs", "n_M0_pairs", "M0_prevalence",
+            )
+            section("Fixed transmission-backbone characterisation", pd.DataFrame([
+                {"metric": name, "value": backbone[name]} for name in metrics
+            ]))
+            fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+            draw_backbone(axes, backbone, tables)
+            figure(fig, "backbone_characterisation", backbone_caption(saved, backbone))
+            bootstrap = backbone["bootstrap"]
+            if bootstrap["requested"]:
+                section("Optional exploratory offspring resampling", pd.DataFrame([
+                    {"metric": name, "value": value} for name, value in bootstrap.items()
+                ]))
 
     summary = read_table(directory / "observations/summary_aggregate.csv")
     if not summary.empty:
@@ -160,6 +188,7 @@ def render_report(directory):
 
     links = [f"[{stage}/{name}]({stage}/{name})"
              for stage, names in {
+                 "backbone": ("index.json", "summary.csv"),
                  "observations": ("summary.csv", "summary_aggregate.csv", "prevalence.csv", "relationships.csv"),
                  "graphs": ("metrics.csv", "summary.csv", "graph_summary.csv"),
                  "trees": ("metrics.csv", "summary.csv"),
@@ -167,7 +196,7 @@ def render_report(directory):
     text.extend(["## Saved tables", "\n\n".join(links)])
     body.append("<h2>Saved tables</h2><ul>" + "".join(
         f'<li><a href="{stage}/{name}">{stage}/{name}</a></li>'
-        for stage in ("observations", "graphs", "trees")
+        for stage in ("backbone", "observations", "graphs", "trees")
         for name in ("index.json", "metrics.csv", "summary.csv")
         if (directory / stage / name).exists()
     ) + "</ul>")

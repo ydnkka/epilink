@@ -59,9 +59,9 @@ def test_diagnostics_materialize_only_development(small_config, prepare_diagnost
     )
     assert {read_json(path)["signature"]["seed"] for path in manifests} == seeds
     assert len(manifests) == len(seeds)
-    assert {path.name for path in (experiment.directory / "observations").iterdir()} == {
-        f"seed_{seed}.json" for seed in seeds
-    }
+    assert {
+        path.name for path in (experiment.directory / "observations").iterdir()
+    } == {f"seed_{seed}.json" for seed in seeds}
     assert experiment.require_diagnostics()["status"] == "complete"
     assert not (experiment.root / "heldout_access").exists()
     assert not Path(small_config["output_directory"]).exists()
@@ -83,7 +83,9 @@ def test_baseline_reuses_exact_diagnostic_observations(
     before = artifact_inventory(diagnostics.exp.root / "artifacts")
 
     def forbidden(*args, **kwargs):
-        raise AssertionError("Baseline must reuse the prepared development observations")
+        raise AssertionError(
+            "Baseline must reuse the prepared development observations"
+        )
 
     monkeypatch.setattr(synthetic, "simulate_epidemic_dates", forbidden)
     monkeypatch.setattr(synthetic, "simulate_genomic_sequences", forbidden)
@@ -94,7 +96,10 @@ def test_baseline_reuses_exact_diagnostic_observations(
     for seed, directory in diagnostics.datasets.items():
         assert baseline.dataset(seed) == directory
         pairwise = read_json(
-            baseline.directory / "development" / f"seed_{seed}" / "pairwise/manifest.json"
+            baseline.directory
+            / "development"
+            / f"seed_{seed}"
+            / "pairwise/manifest.json"
         )
         scores = read_json(
             baseline.root
@@ -120,7 +125,9 @@ def test_both_inference_processes_match_the_pinned_generation(
         profiles.append(parameters)
         return original(parameters=parameters, rng_seed=rng_seed)
 
-    monkeypatch.setattr(scorer_registry, "InfectiousnessToTransmission", capture_profile)
+    monkeypatch.setattr(
+        scorer_registry, "InfectiousnessToTransmission", capture_profile
+    )
     baseline = Baseline(small_config)
     seed = small_config["splits"]["development"][0]
     observations, _, _, scores, score_id = baseline.scores(seed)
@@ -218,7 +225,9 @@ def test_accessed_holdouts_cannot_be_reassigned(released_baseline, role):
     assert not (experiment.directory / "observations" / f"seed_{seed}.json").exists()
 
 
-@pytest.mark.parametrize("change", ["diagnostics", "reporting", "thresholds", "scorers"])
+@pytest.mark.parametrize(
+    "change", ["diagnostics", "reporting", "thresholds", "scorers"]
+)
 def test_analysis_changes_preserve_generation_artifacts(
     small_config, prepare_diagnostics, monkeypatch, change
 ):
@@ -352,10 +361,14 @@ def test_corrupt_completed_diagnostic_evidence_blocks_baseline(
     elif evidence == "completion":
         path = diagnostics.directory / "completion/coverage.json"
     else:
-        records = read_json(diagnostics.directory / "observations/index.json")["records"]
+        records = read_json(diagnostics.directory / "observations/index.json")[
+            "records"
+        ]
         record = records[0]
         artifact = Path(record["artifact"])
-        path = artifact / ("manifest.json" if evidence == "manifest" else "cells.parquet")
+        path = artifact / (
+            "manifest.json" if evidence == "manifest" else "cells.parquet"
+        )
     if evidence == "manifest":
         saved = read_json(path)
         saved["completed_at"] = "changed after diagnostic completion"
@@ -406,7 +419,12 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
     shared_path.write_text(yaml.safe_dump(shared))
     baseline = deepcopy(small_config)
     for key in (
-        "inputs", "generation", "simulation", "splits", "inference", "experiment_root"
+        "inputs",
+        "generation",
+        "simulation",
+        "splits",
+        "inference",
+        "experiment_root",
     ):
         baseline.pop(key)
     baseline["experiment_config"] = shared_path.name
@@ -417,7 +435,9 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
     diagnostics = yaml.safe_load(
         (root / "evaluation/00_synthetic_diagnostics/config.yaml").read_text()
     )
-    diagnostics.update(experiment_config=shared_path.name, output_directory="diagnostics")
+    diagnostics.update(
+        experiment_config=shared_path.name, output_directory="diagnostics"
+    )
     diagnostics_path.write_text(yaml.safe_dump(diagnostics))
     loaded_baseline = load_config(baseline_path)
     loaded_diagnostics = load_diagnostics_config(diagnostics_path)
@@ -433,7 +453,9 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
         load_config(baseline_path)
 
 
-def test_pipeline_smoke_can_repeat_after_comparison_changes(small_config, prepare_diagnostics):
+def test_pipeline_smoke_can_repeat_after_comparison_changes(
+    small_config, prepare_diagnostics
+):
     small_config["inputs"]["smoke_cases"] = 12
     diagnostics = prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
@@ -447,7 +469,10 @@ def test_pipeline_smoke_can_repeat_after_comparison_changes(small_config, prepar
     assert repeated.directory != baseline.directory
     seed = small_config["splits"]["evaluation"][0]
     assert baseline.dataset(seed) == repeated.dataset(seed)
-    assert len(list((diagnostics.exp.root / "validation_access").glob("*/seed_*.json"))) == 2
+    assert (
+        len(list((diagnostics.exp.root / "validation_access").glob("*/seed_*.json")))
+        == 2
+    )
     assert not (diagnostics.exp.root / "heldout_access").exists()
 
 

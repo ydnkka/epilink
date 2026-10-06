@@ -10,6 +10,7 @@ import pandas as pd
 from Bio import Phylo
 
 from ..clusterers import components, leiden, treecluster
+from ..diagnostics.backbone import backbone_diagnostics, backbone_settings
 from ..diagnostics.graphs import graph_summary, oracle_graph
 from ..diagnostics.observations import observation_diagnostics
 from ..diagnostics.trees import transmission_hop_tree
@@ -34,6 +35,16 @@ LOG = logging.getLogger(__name__)
 
 def _implementation(full, stage):
     """Only computational dependencies participate in checkpoint identities."""
+    if stage == "backbone":
+        paths = {
+            "workflows/diagnostics.py", "provenance.py",
+            "diagnostics/backbone.py", "truth/relationships.py",
+        }
+        packages = {"numpy", "pandas", "scipy", "networkx", "pyarrow"}
+        return {
+            "evaluation": {p: full["evaluation"][p] for p in sorted(paths)},
+            "versions": {p: full["versions"].get(p) for p in sorted(packages)},
+        }
     paths = {
         "workflows/diagnostics.py",
         "provenance.py",
@@ -102,9 +113,10 @@ class Diagnostics:
         if not self.seeds or len(self.seeds) != len(set(self.seeds)):
             raise ValueError("Diagnostics require distinct development seeds")
         self.settings = config["diagnostics"]
+        self.backbone_config = backbone_settings(self.settings.get("backbone"))
         self.implementation = {
             stage: _implementation(full, stage)
-            for stage in ("observations", "graphs", "trees")
+            for stage in ("backbone", "observations", "graphs", "trees")
         }
         self.tools = {}
         if self.settings["treecluster"]["enabled"]:
@@ -119,8 +131,9 @@ class Diagnostics:
         self.signature = {
             "kind": "synthetic-diagnostics-v1",
             "experiment": self.exp.identity,
+            "backbone": self.exp.signature["backbone"],
             "implementation": self.implementation,
-            "settings": self.settings,
+            "settings": {**self.settings, "backbone": self.backbone_config},
             "tools": self.tools,
         }
         self.root = Path(config["output_directory"]).resolve()
@@ -181,14 +194,16 @@ class Diagnostics:
 
     def _stage_signature(self, stage):
         settings = {}
-        if stage == "graphs":
+        if stage == "backbone":
+            settings = self.backbone_config
+        elif stage == "graphs":
             settings = self.settings["leiden"]
         elif stage == "trees":
             settings = self.settings["treecluster"]
         return {
             "kind": f"diagnostics-{stage}-coverage-v1",
             "experiment": self.exp.identity,
-            "datasets": {str(s): p.name for s, p in self.datasets.items()},
+            "datasets": {} if stage == "backbone" else {str(s): p.name for s, p in self.datasets.items()},
             "implementation": self.implementation[stage],
             "settings": settings,
             "tools": self.tools if stage == "trees" else {},
@@ -201,8 +216,10 @@ class Diagnostics:
             "status": "partial" if errors else "complete",
             "records": records,
             "errors": errors,
-            "datasets": {str(s): p.name for s, p in self.datasets.items()},
+            "datasets": {} if stage == "backbone" else {str(s): p.name for s, p in self.datasets.items()},
         }
+        if stage == "backbone":
+            index["scope"] = "one fixed backbone"
         write_json(directory / "index.json", index)
         for name, table in tables.items():
             table.to_csv(directory / name, index=False)
@@ -236,6 +253,46 @@ class Diagnostics:
                 if not valid_artifact(artifact, signature):
                     return False
         return True
+
+    def backbone(self):
+        """Describe topology without generating or accessing observations."""
+        if self._stage_valid("backbone"):
+            return True
+        records, errors, tables = [], [], {}
+        signature = {
+            "kind": "diagnostic-backbone-v1",
+            "backbone": self.exp.signature["backbone"],
+            "implementation": self.implementation["backbone"],
+            "settings": self.backbone_config,
+        }
+        try:
+            def produce(directory):
+                summary, evidence = backbone_diagnostics(self.tree, self.backbone_config)
+                write_json(directory / "summary.json", summary)
+                for name, table in evidence.items():
+                    if name.endswith(".parquet"):
+                        table.to_parquet(directory / name, index=False)
+                    else:
+                        table.to_csv(directory / name, index=False)
+                write_json(directory / "provenance.json", {
+                    "backbone": signature["backbone"],
+                    "case_order": "full truth node order",
+                    "offspring": "direct children in the fixed transmission backbone, including zeros",
+                    "superspreading_rule": "offspring >= Poisson percentile at the backbone mean; no events if no transmissions",
+                    "replication": "one backbone, not observation-seed replicates",
+                })
+                return ["summary.json", "provenance.json", *evidence]
+
+            artifact = self._artifact("backbone", signature, produce)
+            records.append({"backbone": signature["backbone"], "artifact": str(artifact)})
+            summary = read_json(artifact / "summary.json")
+            tables["summary.csv"] = pd.DataFrame([
+                {k: v for k, v in summary.items() if k != "bootstrap"}
+            ])
+        except Exception as exc:
+            errors.append({"error": repr(exc)})
+            LOG.error("Backbone diagnostics failed: %s", exc)
+        return self._save_stage("backbone", records, errors, tables)
 
     def observations(self):
         self.prepare()
@@ -615,21 +672,35 @@ class Diagnostics:
 
     def _coverage(self):
         """Validate all checkpoints and save a checksummed inventory for baseline."""
+        stages = ["backbone", "observations", "graphs"]
+        if self.settings["treecluster"]["enabled"]:
+            stages.append("trees")
+        if any(not (self.directory / stage / "index.json").exists() for stage in stages):
+            return False
+        if not self.datasets:
+            # A standalone backbone rerun can validate saved coverage without
+            # generating development observations merely to describe a tree.
+            try:
+                self.datasets = {s: Path(self.exp.dataset(s)) for s in self.seeds}
+            except ValueError:
+                return False
         datasets = {str(s): p.name for s, p in self.datasets.items()}
         if set(datasets) != set(map(str, self.seeds)):
             return False
-        stages = ["observations", "graphs"]
-        if self.settings["treecluster"]["enabled"]:
-            stages.append("trees")
         artifacts = set()
         for stage in stages:
             directory = self.directory / stage
             if not valid_artifact(directory, self._stage_signature(stage)):
                 return False
             index = read_json(directory / "index.json")
-            if index["status"] != "complete" or index["datasets"] != datasets:
+            if index["status"] != "complete":
                 return False
-            if {r["seed"] for r in index["records"]} != set(self.seeds):
+            if stage == "backbone":
+                if (index["datasets"] or len(index["records"]) != 1
+                    or index["records"][0]["backbone"] != self.exp.signature["backbone"]):
+                    return False
+            elif (index["datasets"] != datasets
+                  or {r["seed"] for r in index["records"]} != set(self.seeds)):
                 return False
             artifacts.add(directory)
             for record in index["records"]:
@@ -654,7 +725,7 @@ class Diagnostics:
         coverage = {
             "status": "complete", "stages": stages, "datasets": datasets,
             "artifacts": inventory,
-            "aggregation": "equal development-seed weights; no pair-based CI",
+            "aggregation": "one backbone; other summaries use equal development-seed weights; no pair-based CI",
         }
         if not valid_artifact(completion, signature) or read_json(completion / "coverage.json") != coverage:
             write_json(
@@ -687,7 +758,7 @@ class Diagnostics:
             marker.unlink()
 
     def run(self, stage):
-        if stage not in {"prepare", "observations", "graphs", "trees", "report", "all"}:
+        if stage not in {"prepare", "backbone", "observations", "graphs", "trees", "report", "all"}:
             raise ValueError(f"Unknown diagnostics stage: {stage}")
         if stage == "report":
             # The CLI can call render_report directly to avoid even experiment setup.
@@ -707,7 +778,7 @@ class Diagnostics:
         complete = True
         try:
             for requested in (
-                ("observations", "graphs", "trees") if stage == "all" else (stage,)
+                ("backbone", "observations", "graphs", "trees") if stage == "all" else (stage,)
             ):
                 complete = getattr(self, requested)() and complete
             covered = self._coverage() if complete else False

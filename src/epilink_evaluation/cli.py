@@ -13,6 +13,7 @@ from .provenance import read_json, versions
 
 STAGES = (
     "prepare",
+    "backbone",
     "observations",
     "graphs",
     "pairwise",
@@ -111,6 +112,7 @@ def main(argv=None):
         if args.stage not in (
             None,
             "prepare",
+            "backbone",
             "observations",
             "graphs",
             "trees",
@@ -118,7 +120,7 @@ def main(argv=None):
             "all",
         ):
             parser.error(
-                "Diagnostics supports prepare, observations, graphs, trees, report or all"
+                "Diagnostics supports prepare, backbone, observations, graphs, trees, report or all"
             )
         config = load_diagnostics_config(
             args.config or "evaluation/00_synthetic_diagnostics/config.yaml"
@@ -226,8 +228,8 @@ def main(argv=None):
     args.stage = args.stage or "develop"
     if args.stage == "trees":
         parser.error("--stage trees applies to boston only")
-    if args.stage in ("observations", "graphs"):
-        parser.error("--stage observations/graphs applies to diagnostics only")
+    if args.stage in ("backbone", "observations", "graphs"):
+        parser.error("--stage backbone/observations/graphs applies to diagnostics only")
     config = load_config(args.config)
     if args.output:
         config["output_directory"] = str(args.output.resolve())

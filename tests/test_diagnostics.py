@@ -38,9 +38,7 @@ def category_truth(categories):
     truth = pd.DataFrame(
         [definitions[category] for category in categories],
         columns=["AD", "CA", "M", "m1", "m2"],
-    ).astype(
-        {"AD": "int8", "CA": "int8", "M": "Int32", "m1": "Int32", "m2": "Int32"}
-    )
+    ).astype({"AD": "int8", "CA": "int8", "M": "Int32", "m1": "Int32", "m2": "Int32"})
     truth.insert(0, "pair_id", np.arange(len(truth), dtype=np.int64))
     return truth
 
@@ -70,8 +68,18 @@ def sampled_pairs(tree, case_ids):
 def test_hand_counted_exact_cells_and_mixed_denominators():
     truth = category_truth(
         [
-            "AD0", "CA00", "AD1", "AD2", "AD0", "CA01", "CA00",
-            "ADge3", "CA02", "CA11", "CAge3", "separate",
+            "AD0",
+            "CA00",
+            "AD1",
+            "AD2",
+            "AD0",
+            "CA01",
+            "CA00",
+            "ADge3",
+            "CA02",
+            "CA11",
+            "CAge3",
+            "separate",
         ]
     )
     observations = observations_for(
@@ -307,8 +315,13 @@ def test_nontransitive_oracle_graph_and_within_cluster_false_positive():
 def test_oracle_horizons_unsampled_intermediates_and_isolates(endpoint):
     tree = nx.DiGraph(
         [
-            ("R", "A"), ("A", "u"), ("u", "B"), ("B", "C"),
-            ("C", "v"), ("v", "D"), ("R", "S"),
+            ("R", "A"),
+            ("A", "u"),
+            ("u", "B"),
+            ("B", "C"),
+            ("C", "v"),
+            ("v", "D"),
+            ("R", "S"),
         ]
     )
     tree.add_node("I")
@@ -390,8 +403,14 @@ def test_closed_wedges_and_graph_validation():
 def test_hop_tree_preserves_sampled_ancestors_intermediates_and_all_distances():
     tree = nx.DiGraph(
         [
-            ("R", "A"), ("A", "u"), ("u", "B"), ("B", "C"),
-            ("A", "D"), ("A", "E"), ("R", "dead"), ("dead", "dead_tip"),
+            ("R", "A"),
+            ("A", "u"),
+            ("u", "B"),
+            ("B", "C"),
+            ("A", "D"),
+            ("A", "E"),
+            ("R", "dead"),
+            ("dead", "dead_tip"),
         ]
     )
     original_edges = set(tree.edges)
