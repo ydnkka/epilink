@@ -268,6 +268,9 @@ def test_backbone_stage_uses_all_cases_without_observation_generation(diagnostic
     from epilink_evaluation.reporting.backbone import load_backbone_evidence
 
     diagnostics_config["simulation"]["fraction_sampled"] = 0.4
+    diagnostics_config["diagnostics"]["backbone"] = {
+        "bootstrap_replicates": 12, "bootstrap_seed": 31,
+    }
     diagnostics = Diagnostics(diagnostics_config)
 
     def unexpected(*args, **kwargs):
@@ -284,6 +287,7 @@ def test_backbone_stage_uses_all_cases_without_observation_generation(diagnostic
     _, summary, _ = load_backbone_evidence(diagnostics.directory)
     assert summary["n_cases"] == 15
     assert summary["n_transmissions"] == 14
+    assert summary["bootstrap"]["completed"] == 12
     assert summary["superspreading_operator"] == ">="
     artifact = Path(index["records"][0]["artifact"])
     nodes = pd.read_parquet(artifact / "nodes.parquet")

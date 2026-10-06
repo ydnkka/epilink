@@ -32,9 +32,9 @@ def create_figure(run: Path, output: Path, *, fmt="both"):
         layout="constrained",
     )
     draw_backbone(axes, summary, tables)
-    smoke = manifest["config"]["inputs"].get("smoke_cases") is not None
-    scope = "Smoke backbone" if smoke else "Selected transmission backbone"
-    fig.suptitle(f"{scope}: {summary['n_cases']:,} cases", fontsize=11)
+    # smoke = manifest["config"]["inputs"].get("smoke_cases") is not None
+    # scope = "Smoke backbone" if smoke else "Selected transmission backbone"
+    # fig.suptitle(f"{scope}: {summary['n_cases']:,} cases", fontsize=11)
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

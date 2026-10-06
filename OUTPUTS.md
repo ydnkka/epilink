@@ -791,12 +791,45 @@ Here `<diagnostics-root>` is `evaluation/00_synthetic_diagnostics/outputs/diagno
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<diagnostics-root>/current.json`                         | `run_directory`, diagnostics `fingerprint`, and shared `experiment` identity.                                                                                                          |
 | `<diagnostics-run>/manifest.json`                         | `signature`, `status`, `requested_stage`, `experiment`, resolved `config`, `run_directory`, `coverage_complete`, and optional `error`.                                                 |
-| `<diagnostics-run>/<stage>/index.json`                    | For `observations`, `graphs`, or `trees`: `status`, `records`, `errors`, and exact seed-to-dataset map. Records link absolute `artifact` paths; graph/tree records also link `source`. |
+| `<diagnostics-run>/<stage>/index.json`                    | `status`, `records`, `errors`, and seed-to-dataset map. `backbone` has one record and an empty dataset map; other stages use exact development datasets. Records link absolute `artifact` paths; graph/tree records also link `source`. |
 | `<diagnostics-root>/artifacts/<kind>/<full-fingerprint>/` | Diagnostic feature tables or known-truth controls with completion manifests; failed artifacts retain `status: failed` and `error`. Kinds are described below.                          |
 | `<diagnostics-run>/completion/`                           | Checksummed `coverage.json` and manifest, released only when all required stages and their evidence validate.                                                                          |
 | `<diagnostics-run>/report.md`, `report.html`, `figures/`  | Saved-table reports with stage coverage, visible errors, descriptive summaries, and figures.                                                                                           |
 
 Completion signature fields are `experiment`, `diagnostics` (run fingerprint), and `datasets`. `coverage.json` has `status`, required `stages`, `datasets`, `aggregation`, and `artifacts`: absolute directory → `manifest_sha256` plus the file-name-to-SHA256 `files` inventory. Baseline validates this inventory as well as the marker. A complete requested `prepare` or individual stage is insufficient without full required coverage. Disabled tree controls are explicitly labeled; enabled but failed controls prevent completion. Report-only execution reads saved files without generating observations.
+
+### Fixed transmission-backbone characterisation
+
+`<diagnostics-run>/backbone/index.json` has `scope: "one fixed backbone"`, an empty `datasets` map, and exactly one record containing the pinned `backbone` ID and an absolute `artifact` path. `backbone/summary.csv` contains one row of scalar summaries; it is not replicated by observation seed. The stage and its evidence participate in the diagnostics completion inventory.
+
+`<diagnostics-root>/artifacts/backbone/<id>/` is keyed by the immutable backbone ID, scoped computational implementation and resolved `diagnostics.backbone` settings. Sampling fractions, genetic processes and observation seeds do not independently repeat this artefact. It contains:
+
+| File | Row unit and contents |
+| --- | --- |
+| `nodes.parquet` | One row per full-backbone case: `node_index`, string `case_id`, string `root_case_id`, `depth` in transmission hops, direct `offspring`, all-generation `descendant_count`, and Boolean `is_superspreader`. Node indices align with this backbone's truth nodes, including unobserved cases. |
+| `offspring.csv` | One row per integer `offspring` from zero through the larger of the maximum observed count and Poisson cutoff. `n_cases`, `case_fraction`, `poisson_probability`, `negative_binomial_probability`, and `qualifies_superspreading`. Model probabilities are not renormalised to the displayed support. |
+| `concentration.csv` | Ranks 0 through N after sorting offspring descending: `rank`, `case_fraction`, `cumulative_transmissions`, `transmission_fraction`. Includes all zero-offspring cases and retains whole cases when reaching 80%. |
+| `generations.csv` | One row per root-relative `depth`: `n_cases` and `case_fraction`, pooling introductions at equal hop depth. |
+| `components.csv` | One row per `root_case_id`: `n_cases`, `n_transmissions`, `max_depth`. |
+| `bootstrap.csv` | One row per optional case-resampling `replicate`: `mean_offspring`, nullable `dispersion_k`, `fit_method`. Disabled resampling produces a header-only table. |
+| `summary.json` | Scalar structure, concentration, fitting and superspreading summaries, plus `bootstrap` metadata. Undefined numeric values are JSON null. |
+| `provenance.json` | Backbone identity, full-truth case order, offspring definition, inclusive superspreading rule and single-backbone replication scope. |
+
+`summary.json` uses counts for `n_cases`, `n_transmissions`, `max_offspring`, `n_zero_offspring`, `n_roots`, `n_components`, `largest_component_cases`, `n_superspreaders`, `superspreader_transmissions`, `n_cases_for_80_percent`, and `top20_n_cases`. Fractions use these denominators:
+
+- `zero_offspring_fraction`, `superspreader_fraction`, `largest_component_fraction`, `fraction_for_80_percent`, `top20_case_fraction`: all backbone cases.
+- `superspreader_transmission_fraction`, `top20_transmission_fraction`: all direct transmission edges. The top-20% summary includes `ceil(0.2 * N)` whole cases and records the actual selected case fraction.
+- `M0_prevalence`: all unordered backbone pairs. `n_direct_transmission_pairs` is the edge count; `n_shared_infector_pairs = sum_i offspring_i * (offspring_i - 1) / 2`; `n_M0_pairs` is their sum.
+
+`mean_offspring = n_transmissions / n_cases`; `offspring_variance` uses `ddof=0`, `offspring_sample_variance` uses `ddof=1`, and `variance_to_mean` uses the population variance. `mean_depth` and `max_depth` are transmission-hop depths. In a single-parent forest the mean offspring is `(N - C) / N`, where C is the number of introductions. This is a descriptive reference for the selected backbone.
+
+`dispersion_k` describes the negative-binomial fit with mean fixed at the empirical mean and variance `R + R²/k`. `fit_method` is `mle`, `moments_fallback`, `poisson_limit`, `degenerate`, or `insufficient_cases`; `fit_notes` exposes fallback/boundary details. There is no finite `k` at the Poisson limit. Its model probabilities use the Poisson limiting distribution; degenerate or insufficient fits leave the NB probabilities undefined.
+
+The saved superspreading definition is **inclusive**: `offspring >= poisson_percentile`, where `poisson_percentile = Poisson(mean_offspring).ppf(superspreading_quantile)` and the default quantile is 0.99. `superspreading_reference` is `backbone_mean_offspring`; `superspreading_operator` is `>=`; `minimum_superspreading_offspring` equals that percentile. With no transmissions, no case is flagged, the minimum qualifying count and transmission-share/80%-concentration summaries are undefined.
+
+The `bootstrap` object records `requested`, `completed`, `seed`, `interpretation`, `mean_offspring_kept`, `dispersion_k_kept`, and their `*_interval95` arrays. Intervals are 2.5th/97.5th percentiles of finite case-resampling estimates; dispersion intervals condition on finite fits and retain their contributing count. These optional exploratory IID intervals are disabled by default. Neither seed replication nor the fixed tree supplies independent epidemic replicates.
+
+`fig24_backbone_characterisation` exports the three plotted distributions, component/resampling tables, scalar summary CSV, source-pinned JSON summary, and Markdown caption under the manuscript result directory. Full and smoke backbone scopes are labelled from the saved run configuration.
 
 ### Exact observation feature cells
 
@@ -852,6 +885,7 @@ Graph/tree controls are keyed by truth and the canonical sampled-case set, indep
 ### Diagnostic figures
 
 - `feature_cells_deterministic.png`, `feature_cells_stochastic.png`: exact GD_TD target fraction and occupancy for the lowest completed development seed, explicitly labeled as a single-realization example; occupancy uses log color.
+- `backbone_characterisation.png`: offspring frequencies with saved negative-binomial/Poisson fits and the inclusive superspreading cutoff, transmission concentration, and cases by root-relative generation; one full or smoke backbone, without seed replication.
 - `oracle_graph_precision_recall.png`: equal-seed within-pair precision/recall for components and Leiden, with Leiden resolution labels, by graph endpoint.
 - `transmission_hop_thresholds.png`: mean endpoint precision/recall against hop threshold for each TreeCluster method.
 

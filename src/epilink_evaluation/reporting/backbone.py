@@ -73,7 +73,8 @@ def draw_backbone(axes, summary, tables):
     k = summary["dispersion_k"]
     fit_label = f"k = {k:.3g}" if k is not None and np.isfinite(k) else summary["fit_method"].replace("_", " ")
     ax.text(0.02, 0.03, f"Mean = {summary['mean_offspring']:.3g}\n{fit_label}",
-            transform=ax.transAxes, fontsize=7, va="bottom")
+            transform=ax.transAxes, fontsize=7, va="bottom",
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.9, "pad": 2})
 
     curve = tables["concentration"]
     concentration_ax.step(100 * curve.case_fraction, 100 * curve.transmission_fraction,

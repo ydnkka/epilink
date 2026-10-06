@@ -302,13 +302,14 @@ With `--smoke`, that override becomes `evaluation/01_synthetic_baseline/outputs/
 | `--stage`      | Work performed                                                                                      |
 | ---------------- | --------------------------------------------------------------------------------------------------- |
 | `prepare`      | Prepare/reuse the shared backbone, truth, and development observations only.                        |
+| `backbone`     | Describe all pinned backbone cases: offspring heterogeneity, inclusive Poisson-percentile superspreading, concentration and generations; no observation generation. |
 | `observations` | Exact GD and GD/TD cells, ambiguity, prevalence, and relationship summaries.                        |
 | `graphs`       | One unit-weight oracle graph per M horizon; components and configured Leiden controls.              |
 | `trees`        | Known transmission-hop tree; TreeCluster method/hop-threshold controls evaluated at every endpoint. |
-| `all`          | All three diagnostic analyses, with preparation as a dependency.                                    |
+| `all`          | Backbone characterisation and all three diagnostic controls, with preparation as a dependency.       |
 | `report`       | Render saved tables and coverage through the diagnostics root's`current.json`.                    |
 
-Computational stages prepare development data as needed. Baseline is released only when all required diagnostics (including trees when enabled) have complete, checksummed coverage of the exact development datasets. A successful diagnostics `prepare` alone is insufficient. Oracle graph/tree controls reuse identical truth and sampled-case sets across seeds and genetic processes; full sampling gives one graph per horizon and one hop tree, rather than independent control replicates. The tree preserves sampled ancestors as zero-length tips and retains unsampled intermediates. Forests are unsupported for this tree control and produce visible failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
+The standalone `backbone` stage describes all backbone cases once without generating observations. Other computational stages prepare development data as needed. Baseline is released only when all required diagnostics (backbone, observations, graphs, and trees when enabled) have complete, checksummed coverage of the exact development datasets. A successful diagnostics `prepare` or `backbone` alone is insufficient. Oracle graph/tree controls reuse identical truth and sampled-case sets across seeds and genetic processes; full sampling gives one graph per horizon and one hop tree, rather than independent control replicates. The tree preserves sampled ancestors as zero-length tips and retains unsampled intermediates. Forests are unsupported for this tree control and produce visible failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
 
 The following table applies to the **synthetic baseline**. All computational stages require a matching shared experiment and completed diagnostics. They reuse shared truth/development observations and prepare their training/model/score dependencies. Baseline `prepare` is optional before `develop`.
 

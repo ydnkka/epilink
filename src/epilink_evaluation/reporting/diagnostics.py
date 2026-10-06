@@ -106,7 +106,8 @@ def render_report(directory):
                 "n_direct_transmission_pairs", "n_shared_infector_pairs", "n_M0_pairs", "M0_prevalence",
             )
             section("Fixed transmission-backbone characterisation", pd.DataFrame([
-                {"metric": name, "value": backbone[name]} for name in metrics
+                {"metric": name, "value": backbone[name] if backbone[name] is not None else np.nan}
+                for name in metrics
             ]))
             fig, axes = plt.subplots(1, 3, figsize=(15, 4))
             draw_backbone(axes, backbone, tables)
