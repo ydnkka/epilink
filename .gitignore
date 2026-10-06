@@ -33,3 +33,4 @@ data/derived/
 .pytest_cache/
 build/
 dist/
+AGENTS.md

@@ -5,7 +5,7 @@ preserved file (including ignored local artifacts), original path, byte count,
 SHA-256, tracking status, and the original Git revision. All 755 files were
 verified after relocation. The original project README is `README.md` here.
 
-The three synthetic workflows, `src/evaluation`, tests, notebooks, configurations,
+ `src/evaluation`, tests, notebooks, configurations,
 results, phylogenetic products, and manuscript schematics are reference material.
 `data` is a relative symlink to the preserved repository input directory.
 Git LFS continues to manage the previously tracked data formats. Ignored large
