@@ -127,9 +127,12 @@ def plot_feature_ambiguity(
 ) -> None:
     """Plot feature-cell ambiguity for one endpoint."""
     subset = data[data["endpoint"].astype(str) == endpoint].copy()
-    subset["error_mag"] = (
+    subset["error_lower"] = (
+        subset["mixed_cell_fraction_mean"] - subset["mixed_cell_fraction_min"]
+    ).clip(lower=0)
+    subset["error_upper"] = (
         subset["mixed_cell_fraction_max"] - subset["mixed_cell_fraction_mean"]
-    )
+    ).clip(lower=0)
 
     x_pos = range(len(FEATURE_SETS))
     bar_width = 0.35
@@ -137,7 +140,7 @@ def plot_feature_ambiguity(
     for i, process in enumerate(PROCESSES):
         process_data = subset[subset["process"].astype(str) == process]
         y_vals = []
-        y_err = []
+        y_err = [[], []]
 
         for feature_set in FEATURE_SETS:
             feature_data = process_data[
@@ -145,11 +148,13 @@ def plot_feature_ambiguity(
             ]
             if feature_data.empty:
                 y_vals.append(0)
-                y_err.append(0)
+                y_err[0].append(0)
+                y_err[1].append(0)
                 continue
 
             y_vals.append(feature_data["mixed_cell_fraction_mean"].iloc[0])
-            y_err.append(feature_data["error_mag"].iloc[0])
+            y_err[0].append(feature_data["error_lower"].iloc[0])
+            y_err[1].append(feature_data["error_upper"].iloc[0])
 
         offset = (-bar_width / 2, bar_width / 2)[i]
         ax.bar(
@@ -192,12 +197,17 @@ def plot_f1_error_bars(
     endpoint: str,
     x_col: str,
 ) -> None:
+    """Show the observed minimum–maximum range around mean F1."""
     f1_mean = f"{endpoint}_f1_mean"
     f1_min = f"{endpoint}_f1_min"
+    f1_max = f"{endpoint}_f1_max"
     ax.errorbar(
         data[x_col],
         data[f1_mean],
-        yerr=(data[f1_mean] - data[f1_min]).abs(),
+        yerr=[
+            (data[f1_mean] - data[f1_min]).clip(lower=0),
+            (data[f1_max] - data[f1_mean]).clip(lower=0),
+        ],
         fmt="none",
         capsize=3,
         elinewidth=1,
@@ -207,7 +217,7 @@ def plot_f1_error_bars(
 
 
 def plot_oracle_pr(ax: Axes, data: pd.DataFrame, endpoint: str) -> None:
-    """Plot Leiden oracle F1, precision, recall, and contamination."""
+    """Compare Leiden with connected components on exact target links."""
     leiden_data = data[
         (data["endpoint"].astype(str) == endpoint)
         & (data["algorithm"].astype(str) == "leiden")
@@ -218,7 +228,25 @@ def plot_oracle_pr(ax: Axes, data: pd.DataFrame, endpoint: str) -> None:
     plot_score_metrics(ax, leiden_data, endpoint, "resolution_float", SCORE_METRICS)
     plot_f1_error_bars(ax, leiden_data, endpoint, "resolution_float")
 
-    ax.set_xlim(0.05, 1.05)
+    components_data = data[
+        (data["endpoint"].astype(str) == endpoint)
+        & (data["algorithm"].astype(str) == "components")
+    ].copy()
+    # CC is a separate reference, not a point on the Leiden resolution curve.
+    components_data["reference_position"] = -0.15
+    for metric in SCORE_METRICS:
+        ax.plot(
+            components_data["reference_position"],
+            components_data[metric_column(endpoint, metric.suffix)],
+            marker=metric.marker,
+            linestyle="none",
+            color=metric.color,
+            alpha=metric.alpha,
+        )
+    plot_f1_error_bars(ax, components_data, endpoint, "reference_position")
+    ax.axvline(-0.025, color="0.75", linestyle=":", linewidth=0.8)
+
+    ax.set_xlim(-0.25, 1.05)
     ax.set_ylim(-0.05, 1.05)
 
 
@@ -279,8 +307,8 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
 def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
     """Align each row label with its axes rather than fixed figure heights."""
     labels = [
-        "Feature\nAmbiguity",
-        "Leiden\nCPM objective",
+        "Observation\nambiguity",
+        "Exact target links\nCC / Leiden",
         *[f"TreeCluster\n{METHOD_LABELS[method]}" for method in TREE_METHODS],
     ]
     for ax, label in zip(row_axes, labels):
@@ -350,12 +378,17 @@ def create_figure(
 
     axes[0, 0].yaxis.set_major_locator(MaxNLocator(nbins=4))
     axes[1, 0].set_yticks([0, 0.5, 1])
-    axes[1, 0].xaxis.set_major_locator(MaxNLocator(nbins=5))
+    axes[1, 0].set_xticks(
+        [-0.15, 0.2, 0.4, 0.6, 0.8, 1.0],
+        ["CC", "0.2", "0.4", "0.6", "0.8", "1.0"],
+    )
     axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
 
     x_labels = ("Observed information", "Leiden resolution") + ("Cutoff (transmission hops)",) * len(TREE_METHODS)
     for row, row_axes in enumerate(axes):
-        row_axes[0].set_ylabel("Mixed observation groups" if row == 0 else "Metric value")
+        row_axes[0].set_ylabel(
+            "Fraction of mixed\nobserved combinations" if row == 0 else "Metric value"
+        )
         for col, ax in enumerate(row_axes):
             ax.set_axisbelow(True)
             ax.grid(axis="y", color="0.9")
