@@ -126,6 +126,7 @@ def render_latex_longtable(
     column_spec: str | None = None,
     short_caption: str | None = None,
     caption_is_latex: bool = False,
+    headers_are_latex: bool = False,
     addlinespace_after: set[int] | None = None,
     landscape: bool = True,
     dense: bool = True,
@@ -133,8 +134,10 @@ def render_latex_longtable(
 ) -> str:
     """Render a dense longtable that can span pages.
 
-    Set caption_is_latex for authored LaTeX captions containing math or
+    Set caption_is_latex for authored LaTeX captions containing maths or
     cross-references. An explicit short_caption is always treated as plain text.
+    Set headers_are_latex for authored LaTeX column headers. Body cells remain
+    plain text and are always escaped.
     """
     rendered_caption = caption if caption_is_latex else latex_escape(caption)
     rendered_short_caption = (
@@ -143,7 +146,8 @@ def render_latex_longtable(
     addlinespace_after = addlinespace_after or set()
     column_count = len(columns)
     column_spec = latex_column_spec(column_spec, column_count)
-    header = " & ".join(f"\\textbf{{{latex_escape(col)}}}" for col in columns)
+    render_header = str if headers_are_latex else latex_escape
+    header = " & ".join(f"\\textbf{{{render_header(col)}}}" for col in columns)
 
     lines = []
     if landscape:
@@ -221,15 +225,28 @@ def render_latex_grouped_column_table(
     column_spec: str,
     addlinespace_after: set[int] | None = None,
     short_caption: str | None = None,
+    caption_is_latex: bool = False,
+    headers_are_latex: bool = False,
     font_size: str = r"\scriptsize",
     tabcolsep: str = "2.5pt",
     landscape: bool = False,
 ) -> str:
+    """Render grouped columns with optional authored LaTeX captions and headers.
+
+    Set caption_is_latex for captions containing maths or cross-references.
+    Set headers_are_latex for row-column and within-group column headers.
+    Group titles, explicit short captions and body cells remain plain text.
+    """
+    rendered_caption = caption if caption_is_latex else latex_escape(caption)
+    rendered_short_caption = (
+        latex_escape(short_caption) if short_caption else rendered_caption
+    )
+    render_header = str if headers_are_latex else latex_escape
     addlinespace_after = addlinespace_after or set()
     n_columns = len(row_columns) + sum(len(periods) for _, periods in column_groups)
     column_spec = latex_column_spec(column_spec, n_columns)
 
-    top_header = [f"\\textbf{{{latex_escape(column)}}}" for column in row_columns]
+    top_header = [f"\\textbf{{{render_header(column)}}}" for column in row_columns]
     cmidrules = []
     col_start = len(row_columns) + 1
     for era, periods in column_groups:
@@ -243,7 +260,7 @@ def render_latex_grouped_column_table(
     period_header = [""] * len(row_columns)
     for _, periods in column_groups:
         period_header.extend(
-            f"\\textbf{{{latex_escape(period)}}}" for period in periods
+            f"\\textbf{{{render_header(period)}}}" for period in periods
         )
 
     lines = []
@@ -256,8 +273,8 @@ def render_latex_grouped_column_table(
             font_size,
             f"\\setlength{{\\tabcolsep}}{{{tabcolsep}}}",
             (
-                f"\\caption[{latex_escape(short_caption or caption)}]"
-                f"{{{latex_escape(caption)}}}\\label{{{label}}}"
+                f"\\caption[{rendered_short_caption}]"
+                f"{{{rendered_caption}}}\\label{{{label}}}"
             ),
             f"\\begin{{thesistablebody}}{{{column_spec}}}",
             r"\toprule",

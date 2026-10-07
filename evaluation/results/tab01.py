@@ -73,24 +73,26 @@ def main() -> None:
         caption=(
             "Identification of direct transmission and infection from a shared source "
             "in held-out synthetic observations. Cutoffs and clustering settings were "
-            "selected by mean development F1 and applied unchanged. Both EpiLink "
+            "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
             "inference formulations, genetic distance, and logistic regression are "
             "shown as pairwise rules and binary-edge Leiden inputs; score-weighted "
             "stochastic EpiLink and logistic Leiden and undated/dated TreeCluster "
             "provide additional clustering comparisons. Values are equally weighted "
             "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "
-            "every within-cluster pair. Distant pairs have M>=3; this measure does "
-            "not include every false positive for M=0. Tree cutoffs are shown in SNP "
-            "counts for undated trees and days for dated trees. Dashes indicate "
-            "undefined values. The complete method comparison is in the appendix."
+            r"every within-cluster pair. Distant pairs have $M\ge3$; this measure does "
+            "not include every false positive for $M=0$. Tree cutoffs are shown in SNP "
+            "counts for undated trees and days for dated trees. The complete method "
+            r"comparison is in the Appendix~Table~\ref{tab:baseline_operating_points_full}."
         ),
+        caption_is_latex=True,
+        headers_are_latex=True,
         short_caption="Held-out identification of recent transmission relationships",
-        label="tab:baseline-operating-points",
+        label="tab:baseline_operating_points",
         row_columns=["Genetic observations", "Method", "Selected setting"],
         column_groups=[
-            ("Target-pair performance (%)", ["Precision", "Recall", "F1"]),
-            ("Distant pairs (%)", ["M>=3"]),
+            ("Target-pair performance (%)", ["Precision", "Recall", "$F_1$"]),
+            ("Distant pairs (%)", [r"$M\ge3$"]),
         ],
         rows=rows,
         column_spec="lllrrrr",

@@ -59,30 +59,32 @@ def main() -> None:
         caption=(
             f"Exposure concentration and recovery among {study.inputs['n_cases']} "
             f"Boston cases ({focus}; SNF denotes skilled nursing facility). Methods "
-            "use settings selected for M=0 in synthetic development observations, "
+            "use settings selected for $M=0$ in synthetic development observations, "
             "without adjustment using Boston exposure labels. For each exposure, "
             "the representative cluster contains the most labelled cases among "
-            "clusters with at least two cases. Labelled n / total gives its labelled "
+            "clusters with at least two cases. Labelled $n$ / total gives its labelled "
             "case count over all cases with that exposure. Concentration is the "
             "percentage of that cluster carrying the label; recovery is the "
             "percentage of the exposure group captured by that one cluster. "
-            "Cluster counts include singletons, and largest n is the largest "
+            "Cluster counts include singletons, and largest $n$ is the largest "
             "cluster's case count. Graph methods use the distance-censored TN93 "
             "observations; trees use the sequence alignment. D/S scorer labels "
             "identify synthetic development conditions; all methods receive the "
             "same empirical observations. These summaries describe exposure "
             "correspondence rather than validated transmission accuracy."
         ),
+        caption_is_latex=True,
+        headers_are_latex=True,
         short_caption="Boston exposure concentration and recovery",
-        label="tab:boston-frozen-exposures",
+        label="tab:boston_frozen_exposures",
         row_columns=[
             "Method",
             "Exposure",
-            "Labelled n / total",
-            "Cluster n",
+            "Labelled $n$ / total",
+            "Cluster $n$",
             "Clusters",
             "Singleton cases",
-            "Largest n",
+            "Largest $n$",
         ],
         column_groups=[("Representative cluster (%)", ["Concentration", "Recovery"])],
         rows=rows,

@@ -65,28 +65,30 @@ def main() -> None:
         output_directory(run, args.output_dir) / "tab02_operating_points_full.tex",
         caption=(
             "Complete held-out comparison of methods for direct transmission and "
-            "infection from a shared source (M=0). All settings were selected during "
-            "development and applied unchanged. Values are equally weighted means "
-            "(sample SD) over three observation realisations on one transmission tree. "
+            "infection from a shared source ($M=0$). All settings were selected during "
+            "development (maximised $F_1$) and applied unchanged. Values are equally "
+            "weighted means (sample SD) over three observation realisations on one "
+            "transmission tree. "
             "Fractions are percentages; selected pairs are counts. Cluster metrics "
-            "include all within-cluster pairs. Distant pairs (M>=3) account for only "
-            "part of the M=0 false positives. Direct and shared recovery are "
+            r"include all within-cluster pairs. Distant pairs ($M\ge3$) account for only "
+            "part of the $M=0$ false positives. Direct and shared recovery are "
             "the percentages of the respective target pairs recovered. Singletons "
             "and largest are the percentages of all cases in singleton clusters "
             "and in the largest cluster. Undated-tree "
             "cutoffs are shown in SNP counts and dated-tree cutoffs in days. "
-            "Dashes indicate undefined values; n gives the number of defined realisations "
-            "when fewer than three are available."
+            "Dashes indicate undefined values."
         ),
+        caption_is_latex=True,
+        headers_are_latex=True,
         short_caption="Complete held-out method comparison",
-        label="tab:baseline-operating-points-full",
+        label="tab:baseline_operating_points_full",
         columns=[
             "Genetics",
             "Method",
             "Setting",
             "Precision",
             "Recall",
-            "F1",
+            "$F_1$",
             "Distant pairs",
             "Direct recovery",
             "Shared recovery",

@@ -141,19 +141,21 @@ def main() -> None:
         caption=(
             "Performance on the fresh unperturbed controls used for sensitivity "
             "analysis. The target is direct transmission or infection from a shared "
-            "source (M=0). AP is average precision across score cutoffs. Cluster F1 "
+            "source ($M=0$). AP is average precision across score cutoffs. Cluster $F_1$ "
             "and distant-pair contamination use settings selected in the baseline "
             "development study and include every within-cluster pair. Distant pairs "
-            "have M>=3. Values are equally weighted means (sample SD) in percent "
+            r"have $M\ge3$. Values are equally weighted means (sample SD) in percent "
             "across three new observation realisations on the same transmission tree. "
             "These controls are paired with each perturbed scenario; they are "
             "separate from the earlier held-out observations. Dashes indicate "
             "metrics that do not apply to that analysis level."
         ),
+        caption_is_latex=True,
+        headers_are_latex=True,
         short_caption="Fresh unperturbed controls for sensitivity comparisons",
-        label="tab:perturbation-control",
+        label="tab:perturbation_control",
         row_columns=["Genetic observations", "Level", "Method", "Selected setting"],
-        column_groups=[("Control performance (%)", ["AP", "F1", "Distant pairs"])],
+        column_groups=[("Control performance (%)", ["AP", "$F_1$", "Distant pairs"])],
         rows=rows,
         column_spec="llllrrr",
         addlinespace_after={2, 7, 10},
