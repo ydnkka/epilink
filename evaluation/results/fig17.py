@@ -164,7 +164,7 @@ def create_figure(
                     )
             if row == 0:
                 ax.set_title(
-                    "F1 change" if col == 0 else "Distant contamination change"
+                    "$F_1$ change" if col == 0 else "Distant contamination change"
                 )
             if col == 0:
                 ax.set_ylabel(f"{PROCESS_LABELS[process]} genetic observations")
@@ -180,7 +180,7 @@ def create_figure(
             ax=axes[:, col],
             orientation="horizontal",
             shrink=0.67,
-            label=(f"Δ {endpoint_label} F1" if col == 0 else "Δ M≥3 contamination")
+            label=(f"Δ {endpoint_label} $F_1$" if col == 0 else "Δ M≥3 contamination")
             + " (percentage points)",
         )
     style.add_panel_labels(axes)

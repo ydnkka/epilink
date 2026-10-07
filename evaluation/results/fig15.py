@@ -33,7 +33,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
     cluster = cluster.set_index(["scenario", "pipeline"])
     groups = (
         (pair, ("ESD", "ESS"), "Δ AP"),
-        (cluster, ("leiden/ESD/native", "leiden/ESS/native"), "Δ F1"),
+        (cluster, ("leiden/ESD/native", "leiden/ESS/native"), "Δ $F_1$"),
     )
     bounds = [
         symmetric_bound(group[["min", "max"]].to_numpy()) for group, _, _ in groups

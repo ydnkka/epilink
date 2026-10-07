@@ -73,7 +73,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
                 labels_on_left=col == 0,
             )
             if col == 0:
-                axes[row, col].set_ylabel("Target-pair F1" if row == 0 else "Distant-pair contamination")
+                axes[row, col].set_ylabel("Target-pair $F_1$" if row == 0 else "Distant-pair contamination")
         axes[1, col].set_xlabel("Clustering method at selected settings")
     # fig.suptitle("Sensitivity of frozen M=0 clustering settings", fontweight="bold")
     for row, metric in enumerate(metrics):
@@ -82,7 +82,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax=axes[row, :],
             orientation="horizontal",
             shrink=0.72,
-            label=("Change in target-pair F1" if row == 0 else "Change in distant-pair contamination")
+            label=("Change in target-pair $F_1$" if row == 0 else "Change in distant-pair contamination")
             + " (percentage points)",
         )
     style.add_panel_labels(axes)

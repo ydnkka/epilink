@@ -67,7 +67,7 @@ class MetricSpec:
 
 
 SCORE_METRICS = (
-    MetricSpec("F1", "f1", "o", COLORS["f1"]),
+    MetricSpec("$F_1$", "f1", "o", COLORS["f1"]),
     MetricSpec("Precision", "precision", "s", COLORS["precision"], alpha=0.8),
     MetricSpec("Recall", "recall", "^", COLORS["recall"], alpha=0.8),
     MetricSpec(

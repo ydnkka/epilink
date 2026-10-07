@@ -67,7 +67,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
                 ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
             ax.set_xlabel(
                 (
-                    "Change in target-pair F1"
+                    "Change in target-pair $F_1$"
                     if row == 0
                     else "Change in distant-pair contamination"
                 )
@@ -75,7 +75,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             )
             if col == 0:
                 ax.set_ylabel(
-                    "Target-pair F1" if row == 0 else "Distant-pair contamination"
+                    "Target-pair $F_1$" if row == 0 else "Distant-pair contamination"
                 )
     # fig.suptitle(
     #     "Selected cluster settings: mean and across-realization range",

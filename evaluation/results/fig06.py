@@ -247,7 +247,7 @@ def create_figure(summary: pd.DataFrame, output, *, fmt: str = "both") -> None:
     )
     ax.set(
         xlabel="Leiden resolution",
-        ylabel="F1 loss relative to each method's best setting\n(percentage points)",
+        ylabel="$F_1$ loss relative to each method's best setting\n(percentage points)",
         ylim=(0, None),
     )
     ax.set_xticks(summary.resolution, [f"{gamma:g}" for gamma in summary.resolution])

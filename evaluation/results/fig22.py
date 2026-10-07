@@ -120,7 +120,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
         )
         ax.grid(color="0.92")
         ax.set_axisbelow(True)
-    axes[0].set_ylabel("Target-pair F1 (%)")
+    axes[0].set_ylabel("Target-pair $F_1$ (%)")
     fig.legend(
         handles=[
             Line2D(
