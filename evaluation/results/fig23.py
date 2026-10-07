@@ -24,10 +24,16 @@ from ._perturbation.plotting import delta_heatmap, symmetric_bound
 from .fig12 import cluster_labels
 
 METRICS = (
-    ("M0_AP", "Pairwise average precision"),
-    ("M0_f1", "Cluster F1"),
+    ("M0_AP", "Pairwise average precision (AP)"),
+    ("M0_f1", "Cluster $F_1$ score"),
     ("Mge3_contamination", "Distant-pair contamination"),
 )
+
+COLORBAR = {
+    "M0_AP": "Change in AP",
+    "M0_f1": "Change in $F_1$",
+    "Mge3_contamination": "Change in distant-pair contamination",
+}
 
 
 def create_figure(study: Study, output, *, fmt="both") -> None:
@@ -61,7 +67,7 @@ def create_figure(study: Study, output, *, fmt="both") -> None:
                     )
     fig, axes = style.new_figure(
         width="double",
-        height_in=10.2,
+        height_in=8,
         nrows=3,
         ncols=2,
         layout="constrained",
@@ -96,16 +102,16 @@ def create_figure(study: Study, output, *, fmt="both") -> None:
             axes[row, col].tick_params(axis="y", labelsize=7)
             axes[row, col].tick_params(axis="x", labelsize=7)
             axes[row, col].set_title(
-                f"{PROCESS_LABELS[process]} genetic observations\n{label}"
+                f"{PROCESS_LABELS[process]} genetic observations\n\n{label}"
                 if row == 0
                 else label
             )
         fig.colorbar(
             image,
             ax=axes[row, :],
-            orientation="horizontal",
+            orientation="vertical",
             shrink=0.75,
-            label=f"Change in {label.lower()} (percentage points)",
+            label=f"{COLORBAR[metric]}\n(percentage points)",
         )
     style.add_panel_labels(axes)
     paths = style.save_figure(
