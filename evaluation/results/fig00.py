@@ -34,27 +34,42 @@ def score_surfaces(
             ),
             dtype=float,
         )
-        if scores.size != snp_grid.size or not np.isfinite(scores).all() or (scores < 0).any():
+        if (
+            scores.size != snp_grid.size
+            or not np.isfinite(scores).all()
+            or (scores < 0).any()
+        ):
             raise ValueError(f"Invalid {process} EpiLink compatibility surface")
         surfaces[process] = scores.reshape(snp_grid.shape)
     return surfaces
 
 
-def create_figure(surfaces: dict[str, np.ndarray], output: Path, *, fmt: str = "both") -> None:
+def create_figure(
+    surfaces: dict[str, np.ndarray], output: Path, *, fmt: str = "both"
+) -> None:
     """Use identical integer cells and a shared compatibility scale in both panels."""
     vmax = max(float(surface.max()) for surface in surfaces.values())
     if vmax <= 0:
         raise ValueError("Compatibility surface has no positive scores")
     fig, axes = style.new_figure(
-        width="double", height_in=4.5, ncols=2, sharex=True, sharey=True,
+        width="onehalf",
+        height_in=2.5,
+        ncols=2,
+        sharex=True,
+        sharey=True,
         layout="constrained",
     )
     image = None
     for ax, (process, title) in zip(axes, INFERENCE_MODELS):
         image = ax.imshow(
-            surfaces[process], origin="lower", interpolation="nearest", aspect="equal",
+            surfaces[process],
+            origin="lower",
+            interpolation="nearest",
+            aspect="equal",
             extent=(-0.5, SNPS[-1] + 0.5, -0.5, DAYS[-1] + 0.5),
-            cmap="viridis", vmin=0, vmax=vmax,
+            cmap="viridis",
+            vmin=0,
+            vmax=vmax,
         )
         ax.set_title(title)
         ax.set_xlabel("Genetic distance (SNPs)")
@@ -62,11 +77,14 @@ def create_figure(surfaces: dict[str, np.ndarray], output: Path, *, fmt: str = "
         ax.set_yticks([0, 5, 10, 15, 20])
         ax.grid(False)
     axes[0].set_ylabel("Sampling-time difference (days)")
-    fig.colorbar(image, ax=axes, shrink=0.9, pad=0.02, label="M=0 compatibility score")
+    fig.colorbar(image, ax=axes, shrink=0.75, pad=0.02, label="M=0 compatibility score")
     style.add_panel_labels(axes)
     paths = style.save_figure(
-        fig, output / "fig00_primary_compatibility_surfaces", width="double",
-        save_pdf=fmt in ("pdf", "both"), save_png=fmt in ("png", "both"),
+        fig,
+        output / "fig00_primary_compatibility_surfaces",
+        width="double",
+        save_pdf=fmt in ("pdf", "both"),
+        save_png=fmt in ("png", "both"),
     )
     for path in paths.values():
         print(f"Figure saved to: {path}")
