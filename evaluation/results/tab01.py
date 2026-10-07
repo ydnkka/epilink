@@ -75,12 +75,13 @@ def main() -> None:
             "in held-out synthetic observations. Cutoffs and clustering settings were "
             "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
             "inference formulations, genetic distance, and logistic regression are "
-            "shown as pairwise rules and binary-edge Leiden inputs; score-weighted "
-            "stochastic EpiLink and logistic Leiden and undated/dated TreeCluster "
-            "provide additional clustering comparisons. Values are equally weighted "
+            "shown as pairwise rules and inputs to Leiden with binary weights. "
+            "Leiden with stochastic EpiLink or logistic scores as edge weights, "
+            "alongside undated and dated TreeCluster, provides additional clustering "
+            "comparisons. Values are equally weighted "
             "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "
-            r"every within-cluster pair. Distant pairs have $M\ge3$; this measure does "
+            r"every pair in the same cluster. Distant pairs have $M\ge3$; this measure does "
             "not include every false positive for $M=0$. Tree cutoffs are shown in SNP "
             "counts for undated trees and days for dated trees. The complete method "
             r"comparison is in the Appendix~Table~\ref{tab:baseline_operating_points_full}."
@@ -91,7 +92,7 @@ def main() -> None:
         label="tab:baseline_operating_points",
         row_columns=["Genetic observations", "Method", "Selected setting"],
         column_groups=[
-            ("Target-pair performance (%)", ["Precision", "Recall", "$F_1$"]),
+            ("Target performance (%)", ["Precision", "Recall", "$F_1$"]),
             ("Distant pairs (%)", [r"$M\ge3$"]),
         ],
         rows=rows,

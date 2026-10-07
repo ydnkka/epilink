@@ -70,12 +70,12 @@ def main() -> None:
             "weighted means (sample SD) over three observation realisations on one "
             "transmission tree. "
             "Fractions are percentages; selected pairs are counts. Cluster metrics "
-            r"include all within-cluster pairs. Distant pairs ($M\ge3$) account for only "
+            r"include all pairs in the same cluster. Distant pairs ($M\ge3$) account for only "
             "part of the $M=0$ false positives. Direct and shared recovery are "
             "the percentages of the respective target pairs recovered. Singletons "
             "and largest are the percentages of all cases in singleton clusters "
-            "and in the largest cluster. Undated-tree "
-            "cutoffs are shown in SNP counts and dated-tree cutoffs in days. "
+            "and in the largest cluster. Cutoffs for undated trees "
+            "are shown in SNP counts and cutoffs for dated trees in days. "
             "Dashes indicate undefined values."
         ),
         caption_is_latex=True,
