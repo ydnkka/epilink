@@ -46,6 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+benchmark = ["matplotlib>=3.8"]
 phylogeny = ["biopython>=1.85"]
 dev = [
     "pytest>=7.3",
