@@ -122,12 +122,15 @@ def simulate_genomic_sequences(
         Length of the simulated genome sequences.
     return_raw : bool, default=False
         If ``True``, include the unpacked integer sequence matrices in the
-        returned dictionary.
+        returned result.
 
     Returns
     -------
-    dict
-        Dictionary with packed genomic data and, optionally, raw sequences.
+    SimulationResult
+        Result with packed genomic data, optional raw node sequences, and the
+        original reference sequence. The reference is always included as a
+        one-dimensional int8 array encoded as 0=A, 1=C, 2=G, and 3=T, with a
+        decoded A/C/G/T string available through ``reference_sequence_string``.
     """
 
     if genome_length <= 0:
@@ -224,7 +227,11 @@ def simulate_genomic_sequences(
         deterministic=deterministic_sequences, stochastic=stochastic_sequences
     )
 
-    return SimulationResult(packed=packed_sequences, raw=raw_sequences if return_raw else None)
+    return SimulationResult(
+        packed=packed_sequences,
+        raw=raw_sequences if return_raw else None,
+        reference_sequence=reference_sequence,
+    )
 
 
 def build_pairwise_case_table(

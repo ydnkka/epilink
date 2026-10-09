@@ -173,7 +173,23 @@ print(pair_table.head())
 
 `simulate_genomic_sequences(...)` returns a `SimulationResult` with `packed` and
 optional `raw` sequence sets. Each sequence set exposes `deterministic` and
-`stochastic` members.
+`stochastic` members. The original, unmutated reference is always available as
+`simulated.reference_sequence` (or `simulated["reference_sequence"]`), including
+when `return_raw=False`. It is a one-dimensional NumPy `int8` array of length
+`genome_length`, encoded as `0=A`, `1=C`, `2=G`, and `3=T`.
+
+The decoded A/C/G/T string is available as `simulated.reference_sequence_string`
+(or `simulated["reference_sequence_string"]`) and is also included in `to_dict()`.
+To export node sequences and the reference together for phylogenetic inference:
+
+```python
+simulated.packed.stochastic.write_fasta("sequences.fasta")
+with open("sequences.fasta", "a") as fasta:
+    fasta.write(f">reference\n{simulated.reference_sequence_string}\n")
+```
+
+Use the `reference` sequence as the outgroup in your tree inference/rooting tool.
+Use `simulated.packed.deterministic` to export the deterministic sequences instead.
 
 ### Score a CSV File
 

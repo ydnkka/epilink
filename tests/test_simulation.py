@@ -235,6 +235,15 @@ class TestSimulationHelpers(unittest.TestCase):
 
         self.assertIsInstance(result, SimulationResult)
         self.assertIsInstance(result.packed, SimulationSequenceSet)
+        expected_reference = np.random.default_rng(9).integers(0, 4, size=12, dtype=np.int8)
+        self.assertEqual(result.reference_sequence.shape, (12,))
+        self.assertEqual(result.reference_sequence.dtype, np.int8)
+        np.testing.assert_array_equal(result.reference_sequence, expected_reference)
+        self.assertEqual(
+            result.reference_sequence_string,
+            "".join(BASE_MAP[int(base)] for base in expected_reference),
+        )
+        self.assertTrue(np.any(result.reference_sequence != result.raw.deterministic[0]))
         self.assertEqual(set(result["packed"]), {"deterministic", "stochastic"})
         self.assertEqual(set(result["raw"]), {"deterministic", "stochastic"})
         self.assertEqual(result.packed.deterministic.node_to_idx, {"root": 0, "child": 1})
@@ -262,6 +271,8 @@ class TestSimulationHelpers(unittest.TestCase):
             return_raw=False,
         )
         self.assertIsNone(without_raw["raw"])
+        np.testing.assert_array_equal(without_raw.reference_sequence, expected_reference)
+        self.assertEqual(without_raw.reference_sequence_string, result.reference_sequence_string)
 
     def test_simulate_genomic_sequences_rejects_non_positive_genome_length(self) -> None:
         tree = nx.DiGraph([("root", "child")])
@@ -343,7 +354,11 @@ class TestSimulationHelpers(unittest.TestCase):
             stochastic=packed["stochastic"],
         )
         table_from_result = build_pairwise_case_table(
-            SimulationResult(packed=sequence_set, raw=None),
+            SimulationResult(
+                packed=sequence_set,
+                raw=None,
+                reference_sequence=np.zeros(4, dtype=np.int8),
+            ),
             tree,
         )
 
@@ -416,33 +431,45 @@ class TestSimulationResult(unittest.TestCase):
         if with_raw:
             arr = np.zeros((1, 4), dtype=np.int8)
             raw = SimulationSequenceSet(deterministic=arr, stochastic=arr)
-        return SimulationResult(packed=packed, raw=raw)
+        return SimulationResult(
+            packed=packed,
+            raw=raw,
+            reference_sequence=np.array([0, 1, 2, 3], dtype=np.int8),
+        )
 
-    def test_getitem_packed_and_raw_return_correct_types(self) -> None:
+    def test_getitem_returns_correct_members(self) -> None:
         result = self._make_result(with_raw=True)
         self.assertIsInstance(result["packed"], SimulationSequenceSet)
         self.assertIsInstance(result["raw"], SimulationSequenceSet)
+        self.assertIs(result["reference_sequence"], result.reference_sequence)
+        self.assertEqual(result.reference_sequence_string, "ACGT")
+        self.assertEqual(result["reference_sequence_string"], "ACGT")
 
     def test_getitem_raw_none_when_not_requested(self) -> None:
         result = self._make_result(with_raw=False)
         self.assertIsNone(result["raw"])
+        self.assertEqual(result["reference_sequence_string"], "ACGT")
 
     def test_getitem_invalid_key_raises_key_error(self) -> None:
         result = self._make_result()
         with self.assertRaises(KeyError):
             _ = result["missing"]
 
-    def test_iter_yields_packed_and_raw_keys(self) -> None:
+    def test_iter_yields_all_keys(self) -> None:
         result = self._make_result()
-        self.assertEqual(list(result), ["packed", "raw"])
+        self.assertEqual(
+            list(result), ["packed", "raw", "reference_sequence", "reference_sequence_string"]
+        )
 
-    def test_len_returns_two(self) -> None:
-        self.assertEqual(len(self._make_result()), 2)
+    def test_len_returns_four(self) -> None:
+        self.assertEqual(len(self._make_result()), 4)
 
     def test_contains_valid_and_invalid_keys(self) -> None:
         result = self._make_result()
         self.assertIn("packed", result)
         self.assertIn("raw", result)
+        self.assertIn("reference_sequence", result)
+        self.assertIn("reference_sequence_string", result)
         self.assertNotIn("other", result)
 
     def test_to_dict_with_raw(self) -> None:
@@ -452,11 +479,15 @@ class TestSimulationResult(unittest.TestCase):
         self.assertIn("raw", d)
         self.assertIsInstance(d["packed"], dict)
         self.assertIsInstance(d["raw"], dict)
+        self.assertIs(d["reference_sequence"], result.reference_sequence)
+        self.assertEqual(d["reference_sequence_string"], "ACGT")
 
     def test_to_dict_without_raw(self) -> None:
         result = self._make_result(with_raw=False)
         d = result.to_dict()
         self.assertIsNone(d["raw"])
+        self.assertIs(d["reference_sequence"], result.reference_sequence)
+        self.assertEqual(d["reference_sequence_string"], "ACGT")
 
 
 if __name__ == "__main__":
