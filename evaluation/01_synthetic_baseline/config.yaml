@@ -34,7 +34,7 @@ treecluster:
   genetic_thresholds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   threshold_days:
     [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 91, 98, 105]
-  days_per_year: 365.25
+  days_per_year: 365
   fastme_method: N
   raw_rooting: midpoint
   negative_branches: clip_zero
