@@ -133,8 +133,8 @@ class PackedGenomicData:
         if not np.issubdtype(int8_matrix.dtype, np.integer):
             raise TypeError("int8_matrix must be an integer array with values in {0, 1, 2, 3}.")
         if int8_matrix.size:
-            min_val = int8_matrix.min()
-            max_val = int8_matrix.max()
+            min_val = int(np.min(int8_matrix, axis=None))
+            max_val = int(np.max(int8_matrix, axis=None))
             if min_val < 0 or max_val > 3:
                 raise ValueError("int8_matrix contains values outside {0, 1, 2, 3}.")
         if int8_matrix.dtype != np.int8 or not int8_matrix.flags["C_CONTIGUOUS"]:

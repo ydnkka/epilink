@@ -9,7 +9,8 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
+from datetime import date, datetime
 from numbers import Integral, Real
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -30,6 +31,8 @@ _DATE_COLUMNS = ["node", "case_id", "is_tip", "date", "sample_date"]
 _NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _DATE_PATTERN = re.compile(rf'(?:^|[&,])\s*date\s*=\s*"?({_NUMBER})"?(?=,|$)')
 _RATE_PATTERN = re.compile(rf"^\s*rate\s+({_NUMBER})(?=\s|,|$)", re.MULTILINE)
+_DNA_ALPHABET = frozenset("ACGTRYSWKMBDHVN-?")
+_DateSource = Mapping[str, float | str | date] | str | os.PathLike[str]
 
 
 class PhylogenyError(EpiLinkError, RuntimeError):
@@ -136,7 +139,12 @@ def _restore_tips(tree: Tree, labels: dict[str, str], expected: set[str]) -> Non
     tree.rooted = True
 
 
-def _node_dates(tree: Tree, nodes: list[Hashable], sample_dates: dict[str, float]) -> pd.DataFrame:
+def _node_dates(
+    tree: Tree,
+    nodes: list[Hashable],
+    sample_dates: dict[str, float],
+    date_origin: date | None = None,
+) -> pd.DataFrame:
     case_ids = {str(node): node for node in nodes}
     used_names = set(case_ids)
     rows = []
@@ -168,7 +176,249 @@ def _node_dates(tree: Tree, nodes: list[Hashable], sample_dates: dict[str, float
         )
     frame = pd.DataFrame(rows, columns=_DATE_COLUMNS)
     frame["case_id"] = pd.Series([row["case_id"] for row in rows], dtype=object)
+    if date_origin is not None:
+        origin = pd.Timestamp(date_origin)
+        frame["calendar_date"] = origin + pd.to_timedelta(frame["date"], unit="D")
+        sample_offsets = pd.to_timedelta(frame["sample_date"].fillna(0.0), unit="D")
+        frame["sample_calendar_date"] = (origin + sample_offsets).where(
+            frame["sample_date"].notna()
+        )
+        for clade, calendar_date in zip(
+            tree.find_clades(order="preorder"), frame["calendar_date"], strict=True
+        ):
+            clade.comment += f',calendar_date="{calendar_date.isoformat()}"'
     return frame
+
+
+def _validate_options(
+    dated: bool,
+    model: str,
+    threads: int,
+    seed: int,
+    clock_rate: float | None,
+    timeout: float | None,
+) -> None:
+    for name, value in (("threads", threads), ("seed", seed)):
+        if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+            raise ConfigurationError(f"{name} must be a positive integer.")
+    if not isinstance(model, str) or not model or any(char.isspace() for char in model):
+        raise ConfigurationError("model must be a nonempty IQ-TREE model without whitespace.")
+    for name, positive_number in (("clock_rate", clock_rate), ("timeout", timeout)):
+        if positive_number is not None and (
+            isinstance(positive_number, bool)
+            or not isinstance(positive_number, Real)
+            or not math.isfinite(positive_number)
+            or positive_number <= 0
+        ):
+            raise ConfigurationError(f"{name} must be finite and positive.")
+    if not dated and clock_rate is not None:
+        raise ConfigurationError("clock_rate requires dated=True.")
+
+
+def _read_fasta(filepath: str | os.PathLike[str]) -> dict[str, str]:
+    try:
+        from Bio import SeqIO
+    except ImportError as error:
+        raise ImportError(
+            "Phylogeny inference requires Biopython: pip install 'epilink[phylogeny]'."
+        ) from error
+    records: dict[str, str] = {}
+    path = Path(filepath).expanduser()
+    try:
+        with path.open(encoding="utf-8") as handle:
+            for record in SeqIO.parse(handle, "fasta"):
+                identifier = record.id
+                if not identifier or identifier in records:
+                    raise ConfigurationError(
+                        f"FASTA IDs must be nonempty and unique: {identifier!r}."
+                    )
+                sequence = str(record.seq).upper()
+                if not sequence or set(sequence) - _DNA_ALPHABET:
+                    raise ConfigurationError(
+                        f"Sequence {identifier!r} must contain aligned DNA (IUPAC bases, '-' or '?')."
+                    )
+                records[identifier] = sequence
+    except (OSError, ValueError) as error:
+        raise ConfigurationError(f"Cannot read aligned FASTA {path}: {error}") from error
+    if not records or len({len(sequence) for sequence in records.values()}) != 1:
+        raise ConfigurationError("FASTA must contain nonempty sequences of equal aligned length.")
+    return records
+
+
+def _load_dates(source: _DateSource) -> dict[str, object]:
+    values: dict[str, object]
+    if isinstance(source, Mapping):
+        values = dict(source)
+    else:
+        path = Path(source).expanduser()
+        try:
+            table = pd.read_csv(
+                path,
+                sep="\t" if path.suffix.lower() in {".tsv", ".txt"} else ",",
+                dtype=str,
+                keep_default_na=False,
+            )
+        except (OSError, ValueError, pd.errors.ParserError) as error:
+            raise ConfigurationError(f"Cannot read sampling dates {path}: {error}") from error
+        if not {"case_id", "sample_date"} <= set(table.columns):
+            raise ConfigurationError("Dates CSV/TSV needs case_id and sample_date columns.")
+        if table["case_id"].duplicated().any():
+            raise ConfigurationError("Dates file contains duplicate case_id values.")
+        values = dict(zip(table["case_id"], table["sample_date"], strict=True))
+    if any(not isinstance(identifier, str) or not identifier for identifier in values):
+        raise ConfigurationError("Date identifiers must be nonempty strings matching FASTA IDs.")
+    return values
+
+
+def _parse_sample_date(value: object, identifier: str) -> float | date:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            try:
+                return date.fromisoformat(value)
+            except ValueError as error:
+                raise ConfigurationError(
+                    f"Invalid calendar date for {identifier!r}: {value!r}."
+                ) from error
+        try:
+            value = float(value)
+        except ValueError as error:
+            raise ConfigurationError(
+                f"Invalid sampling date for {identifier!r}: {value!r}."
+            ) from error
+    if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value):
+        raise ConfigurationError(f"{identifier!r} needs a finite numeric day or YYYY-MM-DD date.")
+    return float(value)
+
+
+def _normalise_dates(
+    source: _DateSource | None,
+    identifiers: list[Hashable],
+    reference_name: str,
+    clock_rate: float | None,
+) -> tuple[dict[str, float], date | None]:
+    if source is None:
+        raise ConfigurationError("dates is required when dated=True.")
+    values = _load_dates(source)
+    names = {str(identifier) for identifier in identifiers}
+    missing = names - values.keys()
+    extra = values.keys() - names - {reference_name}
+    if missing or extra:
+        raise ConfigurationError(
+            f"Date IDs do not match the alignment: missing={sorted(missing)}, extra={sorted(extra)}."
+        )
+    parsed = {
+        identifier: _parse_sample_date(values[identifier], identifier) for identifier in names
+    }
+    calendar_dates = {
+        identifier: value for identifier, value in parsed.items() if isinstance(value, date)
+    }
+    origin = None
+    if calendar_dates:
+        if len(calendar_dates) != len(parsed):
+            raise ConfigurationError("Use either numeric days or calendar dates, not a mixture.")
+        origin = min(calendar_dates.values())
+        normalised = {
+            identifier: float((value - origin).days) for identifier, value in calendar_dates.items()
+        }
+    else:
+        normalised = {
+            identifier: value for identifier, value in parsed.items() if isinstance(value, float)
+        }
+    if clock_rate is None and len(set(normalised.values())) < 2:
+        raise ConfigurationError(
+            "Distinct sampling dates or a fixed clock_rate are required for dating."
+        )
+    return normalised, origin
+
+
+def build_phylogenetic_tree_from_fasta(
+    alignment_fasta: str | os.PathLike[str],
+    *,
+    reference_id: str | None = None,
+    reference_fasta: str | os.PathLike[str] | None = None,
+    dates: _DateSource | None = None,
+    dated: bool = True,
+    output_dir: str | os.PathLike[str] = "phylogeny",
+    model: str = "MFP",
+    threads: int = 1,
+    seed: int = 2026,
+    clock_rate: float | None = None,
+    iqtree_executable: str | os.PathLike[str] | None = None,
+    timeout: float | None = None,
+) -> PhylogenyResult:
+    """Infer genetic and dated trees from an aligned DNA FASTA.
+
+    Supply exactly one of ``reference_id`` (an ID inside the alignment) or
+    ``reference_fasta`` (a separate aligned, single-record FASTA). The reference
+    must have the same alignment columns as the sample sequences. IDs are the
+    first whitespace-delimited token of FASTA headers. At least three sample
+    sequences, excluding the reference, are required. Gaps and IUPAC ambiguity
+    bases are preserved; no alignment or gap filtering is performed.
+
+    ``dates`` is an ID-to-date mapping or CSV/TSV path with ``case_id`` and
+    ``sample_date`` columns. Every sample needs a date when ``dated=True``.
+    Values must be finite numeric days, or all YYYY-MM-DD strings/``date``
+    objects. Calendar dates are normalised to days from the earliest sample;
+    the result retains ``date_origin`` and calendar node/sample dates. Numeric
+    origins are preserved. An optional reference date is ignored: the reference
+    is used for rooting and excluded from the dated tree. With ``dated=False``,
+    dates are not needed or read.
+
+    ``model="MFP"`` selects a substitution model with IQ-TREE ModelFinder.
+    Other options and requirements match :func:`build_phylogenetic_tree`.
+    In particular, fixed/returned clock rates are substitutions/site/day for
+    either date format, and dated branch lengths are always days. Separate
+    run directories preserve source FASTA/date files and prior inference runs.
+    """
+    _validate_options(dated, model, threads, seed, clock_rate, timeout)
+    if (reference_id is None) == (reference_fasta is None):
+        raise ConfigurationError("Supply exactly one of reference_id or reference_fasta.")
+    records = _read_fasta(alignment_fasta)
+    if reference_fasta is not None:
+        reference_records = _read_fasta(reference_fasta)
+        if len(reference_records) != 1:
+            raise ConfigurationError("reference_fasta must contain exactly one sequence.")
+        reference_name, reference_sequence = next(iter(reference_records.items()))
+        if reference_name in records:
+            raise ConfigurationError(
+                "Reference ID already exists in the alignment; use reference_id."
+            )
+        if len(reference_sequence) != len(next(iter(records.values()))):
+            raise ConfigurationError(
+                "Reference and sample sequences must have equal aligned length."
+            )
+    else:
+        if reference_id not in records:
+            raise ConfigurationError(f"Reference ID {reference_id!r} is not in the alignment.")
+        reference_name = str(reference_id)
+        reference_sequence = records.pop(reference_name)
+    nodes: list[Hashable] = list(records)
+    if len(nodes) < 3:
+        raise ConfigurationError(
+            "At least three sample sequences are required, plus the reference."
+        )
+    normalised_dates, origin = (
+        _normalise_dates(dates, nodes, reference_name, clock_rate) if dated else ({}, None)
+    )
+    return _run_phylogeny(
+        nodes,
+        list(records.values()),
+        reference_sequence,
+        reference_name,
+        normalised_dates,
+        dated=dated,
+        output_dir=output_dir,
+        model=model,
+        threads=threads,
+        seed=seed,
+        clock_rate=clock_rate,
+        iqtree_executable=iqtree_executable,
+        timeout=timeout,
+        date_origin=origin,
+    )
 
 
 def build_phylogenetic_tree(
@@ -235,24 +485,44 @@ def build_phylogenetic_tree(
     PhylogenyError
         IQ-TREE is unavailable, fails, times out, or produces invalid outputs.
     """
-    for name, value in (("threads", threads), ("seed", seed)):
-        if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
-            raise ConfigurationError(f"{name} must be a positive integer.")
-    if not isinstance(model, str) or not model or any(char.isspace() for char in model):
-        raise ConfigurationError("model must be a nonempty IQ-TREE model without whitespace.")
-    for name, positive_number in (("clock_rate", clock_rate), ("timeout", timeout)):
-        if positive_number is not None and (
-            isinstance(positive_number, bool)
-            or not isinstance(positive_number, Real)
-            or not math.isfinite(positive_number)
-            or positive_number <= 0
-        ):
-            raise ConfigurationError(f"{name} must be finite and positive.")
-    if not dated and clock_rate is not None:
-        raise ConfigurationError("clock_rate requires dated=True.")
+    _validate_options(dated, model, threads, seed, clock_rate, timeout)
     nodes, sequences, dates, reference_name = _prepare_samples(
         simulation, epidemic_tree, sequence_model, dated, clock_rate
     )
+    return _run_phylogeny(
+        nodes,
+        sequences,
+        simulation.reference_sequence_string,
+        reference_name,
+        dates,
+        dated=dated,
+        output_dir=output_dir,
+        model=model,
+        threads=threads,
+        seed=seed,
+        clock_rate=clock_rate,
+        iqtree_executable=iqtree_executable,
+        timeout=timeout,
+    )
+
+
+def _run_phylogeny(
+    nodes: list[Hashable],
+    sequences: list[str],
+    reference_sequence: str,
+    reference_name: str,
+    dates: dict[str, float],
+    *,
+    dated: bool,
+    output_dir: str | os.PathLike[str],
+    model: str,
+    threads: int,
+    seed: int,
+    clock_rate: float | None,
+    iqtree_executable: str | os.PathLike[str] | None,
+    timeout: float | None,
+    date_origin: date | None = None,
+) -> PhylogenyResult:
     try:
         from Bio import Phylo
         from Bio.Nexus.Nexus import NexusError
@@ -277,9 +547,7 @@ def build_phylogenetic_tree(
     labels = {f"epilink_tip_{i}": str(node) for i, node in enumerate(nodes)}
     labels[_REFERENCE_ID] = reference_name
     with paths["alignment"].open("w", encoding="utf-8") as fasta:
-        for alias, sequence in zip(
-            labels, [*sequences, simulation.reference_sequence_string], strict=True
-        ):
+        for alias, sequence in zip(labels, [*sequences, reference_sequence], strict=True):
             fasta.write(f">{alias}\n{textwrap.fill(sequence, width=100)}\n")
     pd.DataFrame({"taxon": list(labels), "case_id": list(labels.values())}).to_csv(
         paths["taxon_labels"], sep="\t", index=False
@@ -314,6 +582,9 @@ def build_phylogenetic_tree(
                 "node_dates": run_dir / "node_dates.tsv",
             }
         )
+        if date_origin is not None:
+            paths["date_origin"] = run_dir / "date_origin.txt"
+            paths["date_origin"].write_text(f"{date_origin.isoformat()}\n", encoding="utf-8")
         with paths["sampling_dates"].open("w", encoding="utf-8") as date_file:
             for alias, label in labels.items():
                 if alias != _REFERENCE_ID:
@@ -356,7 +627,7 @@ def build_phylogenetic_tree(
             # LSD2's .timetree.nwk is in substitution units; its NEXUS has time lengths.
             dated_tree = Phylo.read(paths["lsd_tree"], "nexus")
             _restore_tips(dated_tree, labels, set(labels) - {_REFERENCE_ID})
-            node_dates = _node_dates(dated_tree, nodes, dates)
+            node_dates = _node_dates(dated_tree, nodes, dates, date_origin)
             rate_match = _RATE_PATTERN.search(paths["lsd_report"].read_text(encoding="utf-8"))
             if rate_match is None:
                 raise PhylogenyError("LSD2 did not report a dating rate.")
@@ -380,7 +651,7 @@ def build_phylogenetic_tree(
                 encoding="utf-8",
             )
             node_dates.to_csv(paths["node_dates"], sep="\t", index=False)
-    except (OSError, ValueError, NewickError, NexusError, PhylogenyError) as error:
+    except (OSError, ValueError, OverflowError, NewickError, NexusError, PhylogenyError) as error:
         raise PhylogenyError(
             f"Invalid IQ-TREE/LSD2 output: {error}. See {paths['log']}."
         ) from error
@@ -393,7 +664,13 @@ def build_phylogenetic_tree(
         sample_ids=tuple(nodes),
         reference_name=reference_name,
         clock_rate=inferred_rate,
+        date_origin=date_origin,
     )
 
 
-__all__ = ["PhylogenyError", "PhylogenyResult", "build_phylogenetic_tree"]
+__all__ = [
+    "PhylogenyError",
+    "PhylogenyResult",
+    "build_phylogenetic_tree",
+    "build_phylogenetic_tree_from_fasta",
+]

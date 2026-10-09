@@ -6,6 +6,7 @@ import subprocess
 import sys
 import unittest
 from dataclasses import replace
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -22,6 +23,7 @@ from epilink import (
     SimulationResult,
     SimulationSequenceSet,
     build_phylogenetic_tree,
+    build_phylogenetic_tree_from_fasta,
 )
 
 try:
@@ -100,7 +102,8 @@ class TestPhylogenyDependencies(unittest.TestCase):
                 sys.executable,
                 "-c",
                 "import sys; sys.modules['Bio'] = None; import epilink; "
-                "assert callable(epilink.build_phylogenetic_tree)",
+                "assert callable(epilink.build_phylogenetic_tree); "
+                "assert callable(epilink.build_phylogenetic_tree_from_fasta)",
             ],
             capture_output=True,
             text=True,
@@ -115,6 +118,13 @@ class TestPhylogenyDependencies(unittest.TestCase):
             self.assertRaisesRegex(ImportError, r"epilink\[phylogeny\]"),
         ):
             build_phylogenetic_tree(simulation, tree)
+
+    def test_fasta_interface_imports_biopython_lazily(self):
+        with (
+            patch.dict(sys.modules, {"Bio": None}),
+            self.assertRaisesRegex(ImportError, r"epilink\[phylogeny\]"),
+        ):
+            build_phylogenetic_tree_from_fasta("unused.fasta", reference_id="ref", dated=False)
 
 
 @unittest.skipUnless(Phylo is not None, "Install epilink[phylogeny] for phylogeny tests")
@@ -291,9 +301,9 @@ class TestPhylogeneticInference(unittest.TestCase):
         self.backend.assert_not_called()
 
     def test_invalid_sample_dates(self):
-        for date in (None, "2026-01-01", float("nan"), float("inf"), True):
-            with self.subTest(date=date):
-                self.tree.nodes[42]["sample_date"] = date
+        for sample_date in (None, "2026-01-01", float("nan"), float("inf"), True):
+            with self.subTest(date=sample_date):
+                self.tree.nodes[42]["sample_date"] = sample_date
                 with self.assertRaisesRegex(ConfigurationError, "finite numeric sample_date"):
                     self.build()
         self.backend.assert_not_called()
@@ -375,10 +385,288 @@ class TestPhylogeneticInference(unittest.TestCase):
                     self.build()
 
 
+@unittest.skipUnless(Phylo is not None, "Install epilink[phylogeny] for FASTA tests")
+class TestFastaPhylogeneticInference(unittest.TestCase):
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        self.output_dir = self.directory / "output with spaces"
+        self.alignment = self.directory / "aligned.fasta"
+        self.sample_sequences = {
+            "001": "acgtn-?ryswkmbdhv",
+            "002": "ACGTN-?RYSWKMBDHV",
+            "NA": "ACGTN-?RYSWKMBDHV",
+        }
+        self.reference_sequence = "ACGTACGTACGTACGTN"
+        self.write_alignment(include_reference=True)
+        self.dates = {"001": 10.5, "002": 20.5, "NA": 30.5}
+        discovery = patch("epilink.simulation.phylogeny.shutil.which", return_value="/test/iqtree3")
+        discovery.start()
+        self.addCleanup(discovery.stop)
+        backend = patch(
+            "epilink.simulation.phylogeny.subprocess.run", side_effect=_write_backend_outputs
+        )
+        self.backend = backend.start()
+        self.addCleanup(backend.stop)
+
+    def write_alignment(self, *, include_reference):
+        text = "".join(
+            f">{name} sample description\n{seq}\n" for name, seq in self.sample_sequences.items()
+        )
+        if include_reference:
+            text += f">ref reference description\n{self.reference_sequence}\n"
+        self.alignment.write_text(text, encoding="utf-8")
+
+    def build(self, **kwargs):
+        options = {"reference_id": "ref", "dates": self.dates, "output_dir": self.output_dir}
+        options.update(kwargs)
+        return build_phylogenetic_tree_from_fasta(self.alignment, **options)
+
+    def test_numeric_dates_and_ambiguous_alignment_are_preserved(self):
+        before_alignment = self.alignment.read_text()
+        before_dates = self.dates.copy()
+        result = self.build()
+        self.assertEqual(result.sample_ids, ("001", "002", "NA"))
+        self.assertEqual(result.reference_name, "ref")
+        self.assertIsNone(result.date_origin)
+        self.assertNotIn("calendar_date", result.node_dates)
+        self.assertEqual(
+            result.node_dates[result.node_dates.is_tip].set_index("node").sample_date.to_dict(),
+            self.dates,
+        )
+        sequences = [
+            str(record.seq) for record in SeqIO.parse(result.output_paths["alignment"], "fasta")
+        ]
+        self.assertEqual(
+            sequences,
+            [seq.upper() for seq in self.sample_sequences.values()] + [self.reference_sequence],
+        )
+        self.assertEqual(
+            {tip.name for tip in result.raw_tree.get_terminals()}, {"001", "002", "NA", "ref"}
+        )
+        self.assertEqual(
+            {tip.name for tip in result.dated_tree.get_terminals()}, {"001", "002", "NA"}
+        )
+        command = self.backend.call_args.args[0]
+        self.assertEqual(command[command.index("-m") + 1], "MFP")
+        self.assertEqual(self.alignment.read_text(), before_alignment)
+        self.assertEqual(self.dates, before_dates)
+
+    def test_calendar_origin_leap_days_and_pre_origin_internal_dates(self):
+        result = self.build(
+            dates={
+                "001": "2024-02-28",
+                "002": date(2024, 3, 1),
+                "NA": "2024-03-02",
+                "ref": "1900-01-01",  # The outgroup date is not a calibration.
+            }
+        )
+        self.assertEqual(result.date_origin, date(2024, 2, 28))
+        tips = result.node_dates[result.node_dates.is_tip].set_index("node")
+        self.assertEqual(tips.sample_date.to_dict(), {"001": 0.0, "002": 2.0, "NA": 3.0})
+        self.assertEqual(tips.loc["002", "calendar_date"], pd.Timestamp("2024-03-01"))
+        self.assertEqual(tips.loc["NA", "sample_calendar_date"], pd.Timestamp("2024-03-02"))
+        root = result.node_dates.set_index("node").loc[result.dated_tree.root.name]
+        self.assertEqual(root.date, -5.0)
+        self.assertEqual(root.calendar_date, pd.Timestamp("2024-02-23"))
+        self.assertTrue(pd.isna(root.sample_calendar_date))
+        self.assertEqual(result.output_paths["date_origin"].read_text(), "2024-02-28\n")
+        self.assertIn("2024-03-01", result.output_paths["node_dates"].read_text())
+        self.assertIn("calendar_date=", result.output_paths["dated_nexus"].read_text())
+        self.assertEqual(result.to_dict()["date_origin"], date(2024, 2, 28))
+
+    def test_csv_and_tsv_dates_match_ids_not_row_order(self):
+        for extension, separator in (("csv", ","), ("tsv", "\t")):
+            for calendar in (False, True):
+                with self.subTest(extension=extension, calendar=calendar):
+                    path = self.directory / f"dates.{extension}"
+                    values = (
+                        ["2026-10-09", "2026-10-01", "2026-10-04", ""]
+                        if calendar
+                        else [30.5, 10.5, 20.5, ""]
+                    )
+                    pd.DataFrame(
+                        {"case_id": ["NA", "001", "002", "ref"], "sample_date": values}
+                    ).to_csv(path, sep=separator, index=False)
+                    source = path.read_text()
+                    result = self.build(dates=path)
+                    self.assertEqual(result.sample_ids, ("001", "002", "NA"))
+                    tips = result.node_dates[result.node_dates.is_tip].set_index("node")
+                    self.assertEqual(
+                        tips.sample_date.to_dict(),
+                        {"001": 0.0, "002": 3.0, "NA": 8.0} if calendar else self.dates,
+                    )
+                    self.assertEqual(path.read_text(), source)
+
+    def test_separate_reference_and_genetic_only_inference(self):
+        self.write_alignment(include_reference=False)
+        reference = self.directory / "reference.fasta"
+        reference.write_text(f">external_ref\n{self.reference_sequence}\n", encoding="utf-8")
+        result = self.build(reference_id=None, reference_fasta=reference)
+        self.assertEqual(result.reference_name, "external_ref")
+        self.assertIn("external_ref", [tip.name for tip in result.raw_tree.get_terminals()])
+        genetic = self.build(
+            reference_id=None,
+            reference_fasta=reference,
+            dated=False,
+            dates=self.directory / "unused_dates.csv",
+            model="GTR+G",
+        )
+        self.assertIsNone(genetic.dated_tree)
+        self.assertIsNone(genetic.date_origin)
+        self.assertTrue(genetic.node_dates.empty)
+        self.assertNotIn("--date", self.backend.call_args.args[0])
+
+    def test_same_day_calendar_samples_need_a_fixed_rate(self):
+        dates = dict.fromkeys(self.dates, "2024-02-29")
+        with self.assertRaisesRegex(ConfigurationError, "Distinct sampling dates"):
+            self.build(dates=dates)
+        result = self.build(dates=dates, clock_rate=0.002)
+        self.assertEqual(result.date_origin, date(2024, 2, 29))
+        self.assertEqual(set(result.node_dates.loc[result.node_dates.is_tip, "sample_date"]), {0.0})
+
+    def test_reference_selection_and_separate_reference_validation(self):
+        for kwargs in (
+            {"reference_id": None},
+            {"reference_fasta": self.alignment},
+            {"reference_id": "missing"},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ConfigurationError):
+                self.build(**kwargs)
+        path = self.directory / "reference.fasta"
+        for content in (
+            f">a\n{self.reference_sequence}\n>b\n{self.reference_sequence}\n",
+            f">ref\n{self.reference_sequence}\n",
+            ">different\nACGT\n",
+        ):
+            with self.subTest(content=content):
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaises(ConfigurationError):
+                    self.build(reference_id=None, reference_fasta=path)
+        self.backend.assert_not_called()
+
+    def test_invalid_fastas_fail_before_inference(self):
+        for content in (
+            "",
+            ">ref\nACGT\n>001\nACG\n",
+            ">ref\nACGT\n>001\nACGT\n",
+            ">ref\nACGT\n>001\nACGT\n>001\nACGT\n",
+            ">ref\nACGT\n>001\nACGZ\n",
+            ">ref\n\n",
+            ">\nACGT\n",
+        ):
+            with self.subTest(content=content):
+                self.alignment.write_text(content, encoding="utf-8")
+                with self.assertRaises(ConfigurationError):
+                    self.build()
+        with self.assertRaisesRegex(ConfigurationError, "Cannot read aligned FASTA"):
+            build_phylogenetic_tree_from_fasta(self.directory / "missing.fasta", reference_id="ref")
+        self.backend.assert_not_called()
+        self.assertFalse(self.output_dir.exists())
+
+    def test_invalid_or_mismatched_dates_fail_before_inference(self):
+        sources = [
+            None,
+            {"001": 10},
+            {**self.dates, "extra": 40},
+            {1: 10, "002": 20, "NA": 30},
+            {"": 10, "002": 20, "NA": 30},
+        ]
+        sources += [
+            {**self.dates, "001": value}
+            for value in (
+                "2024-02-30",
+                "2024-02-28",
+                "not-a-date",
+                float("nan"),
+                "inf",
+                True,
+                None,
+                datetime(2024, 2, 28, 12),
+            )
+        ]
+        for source in sources:
+            with self.subTest(source=source), self.assertRaises(ConfigurationError):
+                self.build(dates=source)
+        self.backend.assert_not_called()
+
+    def test_invalid_dates_files_fail_before_inference(self):
+        path = self.directory / "dates.csv"
+        for content in (
+            "",
+            "id,date\n001,10\n",
+            "case_id,sample_date\n001,10\n001,20\n002,20\nNA,30\n",
+            'case_id,sample_date\n"unterminated',
+        ):
+            with self.subTest(content=content):
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaises(ConfigurationError):
+                    self.build(dates=path)
+        with self.assertRaisesRegex(ConfigurationError, "Cannot read sampling dates"):
+            self.build(dates=self.directory / "missing.csv")
+        self.backend.assert_not_called()
+
+
 @unittest.skipUnless(
     IQTREE and Phylo is not None, "Set EPILINK_IQTREE or install IQ-TREE for integration tests"
 )
 class TestIQTreeIntegration(unittest.TestCase):
+    def test_real_fasta_inference_with_calendar_and_separate_reference(self):
+        base = "ACGT" * 250
+        sample_ids = ["001", "002", "NA", "004"]
+        sequences = {}
+        for index, name in enumerate(sample_ids):
+            sequence = list(base)
+            for site in range((index + 1) * 20):
+                sequence[site] = "ACGT"[("ACGT".index(sequence[site]) + 1) % 4]
+            sequences[name] = "".join(sequence) + "N-?R"
+        reference_sequence = base + "N-?R"
+        with TemporaryDirectory() as temp:
+            directory = Path(temp)
+            alignment = directory / "alignment.fasta"
+            reference = directory / "reference.fasta"
+            reference.write_text(f">ref\n{reference_sequence}\n", encoding="utf-8")
+            for inside in (True, False):
+                with self.subTest(reference_inside=inside):
+                    text = "".join(f">{name}\n{seq}\n" for name, seq in sequences.items())
+                    if inside:
+                        text += f">ref\n{reference_sequence}\n"
+                    alignment.write_text(text, encoding="utf-8")
+                    numeric_dates = {name: float(i * 10) for i, name in enumerate(sample_ids)}
+                    dates = (
+                        {
+                            name: (date(2024, 2, 28) + timedelta(days=value)).isoformat()
+                            for name, value in numeric_dates.items()
+                        }
+                        if inside
+                        else numeric_dates
+                    )
+                    result = build_phylogenetic_tree_from_fasta(
+                        alignment,
+                        reference_id="ref" if inside else None,
+                        reference_fasta=None if inside else reference,
+                        dates=dates,
+                        model="JC",
+                        clock_rate=0.002,
+                        output_dir=directory / "output with spaces",
+                        iqtree_executable=IQTREE,
+                        timeout=60,
+                    )
+                    self.assertEqual(result.sample_ids, tuple(sample_ids))
+                    self.assertEqual(
+                        {tip.name for tip in result.dated_tree.get_terminals()}, set(sample_ids)
+                    )
+                    tips = result.node_dates[result.node_dates.is_tip].set_index("node")
+                    np.testing.assert_allclose(tips.date, tips.sample_date, atol=1e-4)
+                    self.assertEqual(tips.sample_date.to_dict(), numeric_dates)
+                    self.assertAlmostEqual(result.clock_rate, 0.002)
+                    self.assertEqual(result.date_origin, date(2024, 2, 28) if inside else None)
+                    if inside:
+                        self.assertEqual(
+                            tips.loc["002", "sample_calendar_date"], pd.Timestamp("2024-03-09")
+                        )
+
     def test_real_inference_estimated_and_fixed_clock(self):
         base = np.tile(np.array([0, 1, 2, 3], dtype=np.int8), 250)
         sequences = np.tile(base, (5, 1))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Iterator
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, Literal, TypeVar, overload
 
@@ -125,8 +126,11 @@ class PhylogenyResult:
     substitutions/site and includes the reference outgroup. ``dated_tree`` has
     branch lengths in days and excludes the undated reference. ``node_dates``
     contains ``node``, ``case_id``, ``is_tip``, ``date``, and ``sample_date``
-    columns, with dates relative to the original simulation time origin.
+    columns, with dates relative to the original simulation/numeric time origin.
     ``clock_rate`` is in substitutions/site/day, or ``None`` without dating.
+    For calendar inputs, ``date_origin`` is the earliest sample date and the
+    numeric dates are days relative to it. ``node_dates`` additionally contains
+    ``calendar_date`` and ``sample_calendar_date`` datetime columns.
     """
 
     raw_tree: Tree
@@ -136,6 +140,7 @@ class PhylogenyResult:
     sample_ids: tuple[Hashable, ...]
     reference_name: str
     clock_rate: float | None
+    date_origin: date | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -146,6 +151,7 @@ class PhylogenyResult:
             "sample_ids": self.sample_ids,
             "reference_name": self.reference_name,
             "clock_rate": self.clock_rate,
+            "date_origin": self.date_origin,
         }
 
 

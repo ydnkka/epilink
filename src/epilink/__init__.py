@@ -24,6 +24,7 @@ from .simulation import (
     SimulationSequenceSet,
     build_pairwise_case_table,
     build_phylogenetic_tree,
+    build_phylogenetic_tree_from_fasta,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
 )
@@ -54,4 +55,5 @@ __all__ = [
     "simulate_genomic_sequences",
     "build_pairwise_case_table",
     "build_phylogenetic_tree",
+    "build_phylogenetic_tree_from_fasta",
 ]

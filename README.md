@@ -193,6 +193,9 @@ Use `simulated.packed.deterministic` to export the deterministic sequences inste
 
 ### Infer Sampled Phylogenies
 
+See [the small demonstration notebook](docs/phylogeny_demo.ipynb) for simulation,
+inference, and side-by-side genetic and dated tree plots.
+
 Install the optional tree-parsing dependency:
 
 ```bash
@@ -251,6 +254,66 @@ IDs recorded in `taxon_labels.tsv`; returned/exported tree labels are the
 original case IDs. Inputs are preserved, and failures raise `PhylogenyError`
 with the inference log path. Dated Newick is exported from LSD2's time-scaled
 NEXUS, since its own `.timetree.nwk` file uses substitution lengths.
+
+#### Use an Aligned FASTA and Sampling Dates
+
+`build_phylogenetic_tree_from_fasta()` accepts an existing aligned DNA FASTA,
+including gaps and IUPAC ambiguity bases. Choose a reference already in it:
+
+```python
+from epilink import build_phylogenetic_tree_from_fasta
+
+phylogeny = build_phylogenetic_tree_from_fasta(
+    "aligned_samples_with_reference.fasta",
+    reference_id="reference",
+    dates="sampling_dates.csv",
+    output_dir="phylogeny",
+)
+```
+
+Or supply a separate, single-record reference FASTA aligned to the same columns:
+
+```python
+phylogeny = build_phylogenetic_tree_from_fasta(
+    "aligned_samples_only.fasta",
+    reference_fasta="aligned_reference.fasta",
+    dates={
+        "sample-1": "2026-10-01",
+        "sample-2": "2026-10-04",
+        "sample-3": "2026-10-09",
+    },
+)
+```
+
+Supply exactly one reference form. FASTA IDs are the first token of each header,
+and at least three sample sequences are needed in addition to the reference.
+All sequences must already share alignment columns. The default `model="MFP"`
+uses IQ-TREE ModelFinder; inference options match the simulation helper.
+
+Date files can be CSV or TSV with `case_id` and `sample_date` columns:
+
+```csv
+case_id,sample_date
+sample-1,2026-10-01
+sample-2,2026-10-04
+sample-3,2026-10-09
+```
+
+Date mappings/files may instead use numeric days, such as
+`{"sample-1": 0.0, "sample-2": 3.5, "sample-3": 8.0}`. Calendar values can also
+be Python `datetime.date` objects. Use one date format per dataset; sample IDs
+must match exactly (including leading zeros), with a date for every sample.
+An optional reference date is ignored because the reference is an outgroup.
+
+Both interfaces return `PhylogenyResult`. For calendar inputs, `date_origin` is
+the earliest sample date; `node_dates.date` and `node_dates.sample_date` are days
+relative to it. Additional `calendar_date` and `sample_calendar_date` columns
+retain reconstructed and observed calendar datetimes, including ancestral dates
+before the origin. The origin is also exported as `date_origin.txt`, with calendar
+dates in node-date TSV and dated-tree comments. Numeric time origins are
+preserved and have `date_origin=None`. Branch lengths and clock rates remain in
+days and substitutions/site/day for either input format. Use `dated=False` for
+a genetic tree without sampling dates. Source files are preserved.
 
 ### Score a CSV File
 
