@@ -166,8 +166,8 @@ def main() -> None:
 
         logger.info("Scoring %d pairs...", len(df))
         scores = model.score_target(
-            sample_time_difference=df["sample_time_difference"].values,
-            genetic_distance=df["genetic_distance"].values,
+            sample_time_difference=df["sample_time_difference"].to_numpy(),
+            genetic_distance=df["genetic_distance"].to_numpy(),
         )
 
         df["epilink_score"] = scores
