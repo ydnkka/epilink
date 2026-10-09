@@ -191,6 +191,67 @@ with open("sequences.fasta", "a") as fasta:
 Use the `reference` sequence as the outgroup in your tree inference/rooting tool.
 Use `simulated.packed.deterministic` to export the deterministic sequences instead.
 
+### Infer Sampled Phylogenies
+
+Install the optional tree-parsing dependency:
+
+```bash
+python -m pip install 'epilink[phylogeny]'
+```
+
+Install [IQ-TREE](https://iqtree.github.io/#download) version 2.0.6 or later
+separately. EpiLink discovers `iqtree3`, `iqtree2`, or `iqtree` on `PATH`, or you
+can provide its path with `iqtree_executable`.
+
+Using the simulation above:
+
+```python
+from epilink import build_phylogenetic_tree
+
+phylogeny = build_phylogenetic_tree(
+    simulated,
+    dated_tree,  # Epidemic graph supplying sampled flags and sampling dates
+    sequence_model="stochastic",  # Or "deterministic"
+    dated=True,
+    output_dir="phylogeny",
+    model="JC",
+    threads=1,
+    seed=2026,
+)
+
+raw_tree = phylogeny.raw_tree      # Biopython Tree; substitutions/site
+time_tree = phylogeny.dated_tree   # Biopython Tree; days
+print(phylogeny.node_dates)
+print(phylogeny.output_paths["raw_tree"])
+print(phylogeny.output_paths["dated_tree"])
+```
+
+The helper lives in `epilink.simulation.phylogeny`. It selects only nodes marked
+`sampled=True`, requires at least three sampled cases, and works with
+`return_raw=False`. Sequence rows are matched by case ID; transmission edges
+are not used to infer the phylogeny.
+
+IQ-TREE infers a maximum-likelihood genetic tree with the original reference as
+the outgroup. LSD2 then dates the sampled-case tree using numeric `sample_date`
+values. The genetic tree retains the reference (`phylogeny.reference_name`);
+the dated tree excludes it because the reference has no sampling date. Dates
+and branch lengths remain in simulation days, without assigning calendar dates.
+
+`model="JC"` matches the simulator's symmetric nucleotide changes. Other IQ-TREE
+models, including `"GTR+G"` and automatic selection with `"MFP"`, are supported.
+The clock rate is estimated by default; supply `clock_rate` in
+**substitutions/site/day** to fix it. Identical sampling dates require a fixed
+rate. Use `dated=False` to infer only the genetic tree without sampling dates.
+`timeout` optionally limits inference runtime in seconds.
+
+Each call creates a separate `run-*` directory beneath `output_dir`, containing
+sampled FASTA, label mappings, genetic Newick, dated Newick/NEXUS, node-date TSV,
+sampling dates, IQ-TREE/LSD2 reports, and logs. Alignment labels are safe backend
+IDs recorded in `taxon_labels.tsv`; returned/exported tree labels are the
+original case IDs. Inputs are preserved, and failures raise `PhylogenyError`
+with the inference log path. Dated Newick is exported from LSD2's time-scaled
+NEXUS, since its own `.timetree.nwk` file uses substitution lengths.
+
 ### Score a CSV File
 
 The command-line interface expects an input CSV with these columns:

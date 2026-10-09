@@ -17,10 +17,13 @@ from .model import (
 )
 from .simulation import (
     PackedGenomicData,
+    PhylogenyError,
+    PhylogenyResult,
     SequencePacker64,
     SimulationResult,
     SimulationSequenceSet,
     build_pairwise_case_table,
+    build_phylogenetic_tree,
     simulate_epidemic_dates,
     simulate_genomic_sequences,
 )
@@ -43,9 +46,12 @@ __all__ = [
     "SimulationError",
     "SequencePacker64",
     "PackedGenomicData",
+    "PhylogenyError",
+    "PhylogenyResult",
     "SimulationResult",
     "SimulationSequenceSet",
     "simulate_epidemic_dates",
     "simulate_genomic_sequences",
     "build_pairwise_case_table",
+    "build_phylogenetic_tree",
 ]

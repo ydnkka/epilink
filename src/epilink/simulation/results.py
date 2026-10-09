@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Hashable, Iterator
 from dataclasses import dataclass
-from typing import Generic, Literal, TypeVar, overload
+from pathlib import Path
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, overload
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 
 from .genome import PackedGenomicData
+
+if TYPE_CHECKING:
+    from Bio.Phylo.BaseTree import Tree
 
 T = TypeVar("T", covariant=True)
 NDArrayInt8 = npt.NDArray[np.int8]
@@ -112,4 +117,36 @@ class SimulationResult:
         }
 
 
-__all__ = ["SimulationResult", "SimulationSequenceSet"]
+@dataclass(frozen=True, slots=True)
+class PhylogenyResult:
+    """Sequence-based and optionally dated phylogenies of sampled cases.
+
+    Trees are Biopython ``Tree`` objects. ``raw_tree`` has branch lengths in
+    substitutions/site and includes the reference outgroup. ``dated_tree`` has
+    branch lengths in days and excludes the undated reference. ``node_dates``
+    contains ``node``, ``case_id``, ``is_tip``, ``date``, and ``sample_date``
+    columns, with dates relative to the original simulation time origin.
+    ``clock_rate`` is in substitutions/site/day, or ``None`` without dating.
+    """
+
+    raw_tree: Tree
+    dated_tree: Tree | None
+    node_dates: pd.DataFrame
+    output_paths: dict[str, Path]
+    sample_ids: tuple[Hashable, ...]
+    reference_name: str
+    clock_rate: float | None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "raw_tree": self.raw_tree,
+            "dated_tree": self.dated_tree,
+            "node_dates": self.node_dates,
+            "output_paths": self.output_paths,
+            "sample_ids": self.sample_ids,
+            "reference_name": self.reference_name,
+            "clock_rate": self.clock_rate,
+        }
+
+
+__all__ = ["PhylogenyResult", "SimulationResult", "SimulationSequenceSet"]
