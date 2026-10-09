@@ -32,8 +32,8 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
     pair = pair.set_index(["scenario", "score_name"])
     cluster = cluster.set_index(["scenario", "pipeline"])
     groups = (
-        (pair, ("ESD", "ESS"), "Δ AP"),
-        (cluster, ("leiden/ESD/native", "leiden/ESS/native"), "Δ $F_1$"),
+        (pair, ("ESD", "ESS"), r"$\Delta$ AP"),
+        (cluster, ("leiden/ESD/native", "leiden/ESS/native"), r"$\Delta$ $F_1$"),
     )
     bounds = [
         symmetric_bound(group[["min", "max"]].to_numpy()) for group, _, _ in groups
@@ -82,7 +82,7 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax.axvline(0, color="0.45", linestyle="--", lw=0.9)
             ax.grid(axis="x", color="0.9")
             ax.set_xlim(-bounds[row], bounds[row])
-            ax.set_xlabel(f"Matched − baseline-fixed {label} (percentage points)")
+            ax.set_xlabel(f"Matched − baseline {label}\n(percentage points)")
             if row == 0:
                 ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
             if col == 0:
