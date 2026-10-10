@@ -1,139 +1,17 @@
-"""Compact main-results sensitivity figure: AP, cluster F1, and contamination (fig23)."""
-
-from __future__ import annotations
+"""Main-results overview of the four full-graph EpiLink clustering modes (fig23)."""
 
 import argparse
 
-import numpy as np
-import pandas as pd
-
-from epilink_evaluation.utils import style
-
-from ._perturbation.common import (
-    FOCUS_CLUSTER,
-    FOCUS_PAIR,
-    PROCESS_LABELS,
-    PROCESSES,
-    SCORE_LABELS,
-    Study,
-    add_arguments,
-    cluster_summary,
-    pair_summary,
-)
-from ._perturbation.plotting import delta_heatmap, symmetric_bound
-from .fig12 import cluster_labels
-
-METRICS = (
-    ("M0_AP", "Pairwise average precision (AP)"),
-    ("M0_f1", "Cluster $F_1$ score"),
-    ("Mge3_contamination", "Distant-pair contamination"),
-)
-
-COLORBAR = {
-    "M0_AP": "Change in AP",
-    "M0_f1": "Change in $F_1$",
-    "Mge3_contamination": "Change in distant-pair contamination",
-}
+from ._perturbation.common import Study, add_arguments
+from .fig12 import create_figure
 
 
-def create_figure(study: Study, output, *, fmt="both") -> None:
-    rank = pair_summary(study)
-    clusters = cluster_summary(study, ("M0_f1", "Mge3_contamination"))
-    matrices = {}
-    records = []
-    for metric, _ in METRICS:
-        for process in PROCESSES:
-            ranking = metric == "M0_AP"
-            identifiers = FOCUS_PAIR[process] if ranking else FOCUS_CLUSTER[process]
-            values, counts = study.matrix(
-                rank if ranking else clusters,
-                key="score_name" if ranking else "pipeline",
-                metric=metric,
-                identifiers=identifiers,
-                criterion=None if ranking else "balanced_M0",
-            )
-            matrices[metric, process] = values, counts
-            for i, scenario in enumerate(study.scenario_names):
-                for j, identifier in enumerate(identifiers):
-                    records.append(
-                        {
-                            "scenario": scenario,
-                            "process": process,
-                            "metric": metric,
-                            "method": identifier,
-                            "mean_change_pp": values[i, j],
-                            "defined_realizations": int(counts[i, j]),
-                        }
-                    )
-    fig, axes = style.new_figure(
-        width="double",
-        height_in=8,
-        nrows=3,
-        ncols=2,
-        layout="constrained",
-        sharey="row",
-    )
-    for row, (metric, label) in enumerate(METRICS):
-        bound = symmetric_bound(
-            *(matrices[metric, process][0] for process in PROCESSES)
-        )
-        for col, process in enumerate(PROCESSES):
-            values, counts = matrices[metric, process]
-            labels = (
-                [SCORE_LABELS[score] for score in FOCUS_PAIR[process]]
-                if metric == "M0_AP"
-                else cluster_labels(process)
-            )
-            image = delta_heatmap(
-                axes[row, col],
-                study,
-                values,
-                counts,
-                labels,
-                bound=bound,
-                improvement_positive=metric != "Mge3_contamination",
-                labels_on_left=col == 0,
-                annotate=False,
-            )
-            for i, j in zip(*np.where(counts < len(study.seeds))):
-                axes[row, col].text(
-                    j, i, f"n={counts[i, j]}", ha="center", va="center", fontsize=6
-                )
-            axes[row, col].tick_params(axis="y", labelsize=7)
-            axes[row, col].tick_params(axis="x", labelsize=7)
-            axes[row, col].set_title(
-                f"{PROCESS_LABELS[process]} genetic observations\n\n{label}"
-                if row == 0
-                else label
-            )
-        fig.colorbar(
-            image,
-            ax=axes[row, :],
-            orientation="vertical",
-            shrink=0.75,
-            label=f"{COLORBAR[metric]}\n(percentage points)",
-        )
-    style.add_panel_labels(axes)
-    paths = style.save_figure(
-        fig,
-        output / "fig23_parameter_sensitivity_overview",
-        width="double",
-        save_pdf=fmt in ("pdf", "both"),
-        save_png=fmt in ("png", "both"),
-    )
-    pd.DataFrame(records).to_csv(
-        output / "fig23_parameter_sensitivity_overview.csv", index=False
-    )
-    for path in paths.values():
-        print(f"Figure saved to: {path}")
-
-
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     add_arguments(parser, figure=True)
     args = parser.parse_args()
     study = Study.load(args.run_dir)
-    create_figure(study, study.output(args.output_dir), fmt=args.format)
+    create_figure(study, study.output(args.output_dir), fmt=args.format, stem="fig23_parameter_sensitivity_overview")
 
 
 if __name__ == "__main__":

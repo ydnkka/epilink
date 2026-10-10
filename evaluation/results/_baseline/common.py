@@ -145,7 +145,9 @@ def setting_label(definition: dict, config: dict) -> str:
     """Present native cutoffs with their meaning and physical units."""
     kind = definition["kind"]
     threshold = definition.get("threshold")
-    if threshold is None:
+    if kind == "leiden" and definition.get("graph_mode") == "full":
+        cutoff = "full graph"
+    elif threshold is None:
         cutoff = "empty selection"
     elif kind == "treecluster":
         if definition["tree_kind"] == "raw":

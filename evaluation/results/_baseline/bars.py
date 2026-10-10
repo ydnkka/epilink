@@ -31,6 +31,8 @@ def graph_variants(approach: str, process: str) -> list[tuple[str, str]]:
     scorers = SCORES_BY_PROCESS[process]
     if approach == "leiden_native":
         scorers = tuple(score for score in scorers if not score.startswith("GD_"))
+    elif approach == "leiden_binary":
+        scorers = tuple(score for score in scorers if score.startswith(("GD_", "LOGIT_")))
     return [
         (
             SCORE_LABELS[score],

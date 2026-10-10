@@ -134,37 +134,24 @@ def endpoint_figures(directory, definitions, development, endpoint):
             )
             axis.legend(fontsize=7, ncol=2)
         save(fig, "components_thresholds")
-    leiden = summary.loc[(summary.kind == "leiden") & summary.threshold.notna()]
+    leiden = summary.loc[summary.kind == "leiden"]
     if not leiden.empty:
         pipelines = sorted(leiden.pipeline.unique())
         fig, axes = plt.subplots(
             len(pipelines), 2, figsize=(12, 2.7 * len(pipelines)), squeeze=False
         )
         for row, pipeline in enumerate(pipelines):
-            group = leiden.loc[leiden.pipeline == pipeline]
+            group = leiden.loc[leiden.pipeline == pipeline].sort_values("resolution")
             for column, metric in enumerate((f"{endpoint}_f1", "Mge3_contamination")):
-                table = group.pivot(
-                    index="resolution", columns="threshold", values=metric
-                ).sort_index()
                 axis = axes[row, column]
-                image = axis.imshow(
-                    table.to_numpy(float), origin="lower", aspect="auto", vmin=0, vmax=1
-                )
+                axis.plot(group.resolution, group[metric], ".-")
                 axis.set(
                     title=f"{pipeline}: {metric}",
-                    xlabel="Graph threshold",
-                    ylabel="Resolution",
+                    xlabel="Full-graph Leiden resolution",
+                    ylabel=metric,
+                    ylim=(0, 1),
                 )
-                axis.set_xticks(
-                    range(len(table.columns)),
-                    [f"{x:g}" for x in table.columns],
-                    rotation=45,
-                )
-                axis.set_yticks(
-                    range(len(table.index)), [f"{x:g}" for x in table.index]
-                )
-                fig.colorbar(image, ax=axis)
-        save(fig, "leiden_threshold_resolution")
+        save(fig, "leiden_resolution")
     tc = summary.loc[summary.kind == "treecluster"]
     if not tc.empty:
         pipelines = sorted(tc.pipeline.unique())

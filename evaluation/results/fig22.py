@@ -44,6 +44,8 @@ def cluster_rows(run, config) -> pd.DataFrame:
         for kind, _, marker in METHODS:
             scores = (None,) if kind in ("raw", "dated") else SCORES_BY_PROCESS[process]
             for score in scores:
+                if kind == "binary" and not score.startswith(("GD_", "LOGIT_")):
+                    continue
                 if kind == "native" and score.startswith("GD_"):
                     continue
                 if kind in ("raw", "dated"):

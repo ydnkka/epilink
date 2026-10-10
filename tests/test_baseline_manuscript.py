@@ -143,26 +143,25 @@ def test_display_variants_match_available_pipelines():
 def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
     regret = importlib.import_module("evaluation.results.fig06")
     specs = [
-        ("b1", "binary", 0.1, 0.2, 0.8),
-        ("b2", "binary", 0.1, 0.4, 0.7),
-        ("b3", "binary", 0.2, 0.2, 0.55),
-        ("b4", "binary", 0.2, 0.4, 0.6),
-        ("nref", "native", 0.05, 0.2, 0.8),
-        ("n1", "native", 0.1, 0.2, 0.5),
-        ("n2", "native", 0.2, 0.2, 0.65),
+        ("b1", "EDD", 0.1, 0.8),
+        ("b4", "EDD", 0.2, 0.6),
+        ("nref", "ESD", 0.05, 0.8),
+        ("n1", "ESD", 0.1, 0.5),
+        ("n2", "ESD", 0.2, 0.65),
     ]
     definitions = {}
     rows = []
-    for identifier, policy, resolution, threshold, f1 in specs:
-        pipeline = f"leiden/EDD/{policy}"
+    for identifier, score, resolution, f1 in specs:
+        pipeline = f"leiden/{score}/native"
         definitions[identifier] = {
             "kind": "leiden",
             "pipeline": pipeline,
-            "score_name": "EDD",
+            "score_name": score,
             "data_process": "deterministic",
-            "weight_policy": policy,
+            "weight_policy": "native",
             "resolution": resolution,
-            "threshold": threshold,
+            "threshold": None,
+            "graph_mode": "full",
         }
         for seed in (11, 12):
             rows.append(
@@ -175,7 +174,7 @@ def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
                     **{name: 0.5 for name in regret.SECONDARY_METRICS},
                 }
             )
-    pipelines = ("leiden/EDD/binary", "leiden/EDD/native")
+    pipelines = ("leiden/EDD/native", "leiden/ESD/native")
     details, summary, reference = regret.regret_tables(
         pd.DataFrame(rows),
         definitions,
@@ -184,14 +183,7 @@ def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
         pipelines,
     )
     assert regret.common_resolutions(definitions, pipelines) == [0.1, 0.2]
-    assert reference["leiden/EDD/native"]["definition"]["resolution"] == 0.05
-    assert (
-        details.loc[
-            (details.resolution == 0.2) & (details.pipeline == "leiden/EDD/binary"),
-            "selected_threshold",
-        ].iloc[0]
-        == 0.4
-    )
+    assert reference["leiden/ESD/native"]["definition"]["resolution"] == 0.05
     assert summary.loc[summary.resolution == 0.1, "mean_regret_pp"].iloc[
         0
     ] == pytest.approx(15)

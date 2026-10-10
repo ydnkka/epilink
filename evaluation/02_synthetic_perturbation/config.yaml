@@ -1,11 +1,19 @@
-schema_version: 1
+schema_version: 2
 name: natural_history_perturbation
 # Resolved once at startup; alternatively specify a runs/<id> directory.
 baseline_run: ../01_synthetic_baseline/outputs/baseline/current.json
 output_directory: outputs/perturbation
-# Fresh observations, paired across all scenarios and inference modes.
+# Select updated full-graph Leiden resolutions on fresh development observations.
+development_seeds: [80001, 80002, 80003]
+# Evaluate all four modes on separate, paired observations.
 seeds: [81001, 81002, 81003]
-modes: [matched, baseline_fixed]
+scorers: [EDD, EDS, ESD, ESS]
+criterion: balanced_M0
+modes:
+  - baseline_inference_baseline_clustering
+  - baseline_inference_updated_clustering
+  - matched_inference_baseline_clustering
+  - matched_inference_updated_clustering
 perturbations:
   - parameter: incubation.mean
     multipliers: [0.75, 1.25]
@@ -22,4 +30,5 @@ perturbations:
 smoke:
   cases: 64
   seed: 91001
+  development_seed: 90001
   parameters: [incubation.mean]

@@ -173,7 +173,7 @@ In the named-exposure assessment a representative cluster is the eligible cluste
 
 The Boston empirical application demonstrates how frozen operating settings from a synthetic baseline transfer to real outbreak data. It does **not** claim transmission truth recovery, as complete epidemiological links are unavailable. The analysis is descriptive: it reports cluster sizes, exposure composition, and method agreement, without asserting correctness.
 
-For sensitivity to natural-history parameters, use the **perturbation workflow** on synthetic data. Adaptation (retraining or retuning) under changed parameters is a separate analysis not performed here.
+For sensitivity to natural-history parameters, use the **perturbation workflow** on synthetic data. It crosses baseline/matched inference with baseline/updated full-graph Leiden resolution using separate development observations. Boston applies the baseline full-graph resolutions directly; every observed pair is retained, and binary-edge EpiLink Leiden is excluded.
 
 ## See also
 

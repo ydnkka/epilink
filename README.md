@@ -17,15 +17,15 @@ Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared
 
 ## Implementation status
 
-| Capability               | Active implementation                                                                                           |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| SCoVMod tree preparation | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                      |
-| Synthetic diagnostics    | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls. |
-| Synthetic baseline       | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.    |
-| Parameter sensitivity    | Available:`epilink-evaluate perturbation`, with paired matched/baseline-fixed scenarios and frozen settings.    |
-| Boston input preparation | Available:`epilink-evaluate boston --stage prepare`.                                                            |
-| Boston frozen transfer   | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster.  |
-| Output cleanup           | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.          |
+| Capability               | Active implementation                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SCoVMod tree preparation | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                                                          |
+| Synthetic diagnostics    | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls.                                     |
+| Synthetic baseline       | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.                                        |
+| Parameter sensitivity    | Available:`epilink-evaluate perturbation`, with four full-graph EpiLink clustering modes: baseline/matched inference × baseline/updated resolution. |
+| Boston input preparation | Available:`epilink-evaluate boston --stage prepare`.                                                                                                |
+| Boston frozen transfer   | Available:`epilink-evaluate boston --stage all`, including graph clustering and enabled raw/dated TreeCluster.                                      |
+| Output cleanup           | Available:`epilink-evaluate reset-outputs`, with selective clearing by evaluation and dry-run preview.                                              |
 
 See the guide for [perturbation and Boston execution](OPERATIONS.md#12-perturbation-and-boston-application) and [clearing outputs](OPERATIONS.md#11-clear-outputs-with-reset-outputs).
 
@@ -59,7 +59,7 @@ python evaluation/02_synthetic_perturbation/run.py --smoke
 python evaluation/02_synthetic_perturbation/run.py
 ```
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run selection, parameter levels, and paired-result interpretation.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run selection, separate development/evaluation seeds, parameter levels, and paired-result interpretation. Leiden uses full observed graphs and selects resolution only; EpiLink uses native score weights, with its binary-edge Leiden variant removed.
 
 Apply the baseline reference to Boston and render the report:
 
@@ -70,7 +70,7 @@ python evaluation/03_boston_application/run.py --stage report
 
 Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and assessment. `report` re-renders the saved results.
 
-**Phylogenetic tools:** IQ-TREE ≥2.0.6 (external executable) and TreeCluster (Python). IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH; override with `phylogeny.iqtree_executable`. TreeCluster is a Python dependency. `epilink-evaluate check` prints tool identity and experiment size. Boston uses IQ-TREE directly from the alignment; TN93 is no longer required for tree construction.
+**Phylogenetic tools:** IQ-TREE ≥2.0.6 (external executable) and TreeCluster (Python). IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH; baseline overrides use `phylogeny.executable` (Boston also supports `phylogeny.iqtree_executable`). TreeCluster is a Python dependency. `epilink-evaluate check` prints tool identity and experiment size. Boston uses IQ-TREE directly from the alignment; TN93 is no longer required for tree construction.
 
 ## Layout
 
@@ -83,7 +83,7 @@ Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and ass
 | `evaluation/03_boston_application/`                | Empirical transfer and epidemiological assessment                                             |
 | `evaluation/results/`                              | Numbered manuscript figures, tables, notes, and run-specific generated displays               |
 | `src/epilink_evaluation/`                          | Shared input, scoring, clustering, metrics, selection and reporting modules                   |
-| `data/raw/`, `data/processed/`, `data/sars-cov-2/` | Preserved source inputs and reference data                                                    |
+| `data/raw/`, `data/sars-cov-2/`                    | Preserved source inputs and reference data                                                    |
 | `evaluation/shared_synthetic/outputs/inputs/`      | Prepared transmission backbone and provenance                                                 |
 | `evaluation/03_boston_application/outputs/inputs/` | Prepared Boston tables and provenance                                                         |
 | `tests/`                                           | Independent scientific correctness and integration checks                                     |

@@ -60,7 +60,10 @@ class Baseline:
         self._evaluation_released = False
         self.tools = {}
         if config["treecluster"]["enabled"]:
-            for name, command in config["treecluster"]["executables"].items():
+            executables = config["treecluster"].get("executables", {
+                "treecluster": config["treecluster"].get("executable", "TreeCluster.py")
+            })
+            for name, command in executables.items():
                 try:
                     self.tools[name] = command_identity(command)
                 except FileNotFoundError as exc:
@@ -521,6 +524,7 @@ class Baseline:
                             spec.name,
                             definition["threshold"],
                             definition["weight_policy"],
+                            definition.get("graph_mode"),
                         )
                         if requested_graph != graph_key:
                             graph = build_graph(
@@ -531,6 +535,7 @@ class Baseline:
                                 definition["threshold"],
                                 definition["weight_policy"],
                                 definition["empty"],
+                                full=definition.get("graph_mode") == "full",
                             )
                             graph_key = requested_graph
                         if definition["kind"] == "components":

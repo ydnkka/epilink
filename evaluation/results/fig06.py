@@ -1,9 +1,7 @@
 """Single-panel regret plot for one shared EpiLink Leiden CPM resolution (fig06).
 
-Regret compares the best development M=0 F1 at each common resolution (with a
-scorer/policy-specific graph threshold) to that pipeline's best setting over
-its entire saved development grid. Neither held-out results nor per-seed
-threshold optima are used to choose the default.
+Regret compares development M=0 F1 at each common resolution on full score-weighted
+graphs to each pipeline's best resolution. Held-out results are not used.
 """
 
 from __future__ import annotations
@@ -21,7 +19,7 @@ from epilink_evaluation.utils import style
 from ._baseline.common import add_arguments, load_run, output_directory, read_json
 
 SCORERS = ("EDD", "EDS", "ESD", "ESS")
-POLICIES = ("binary", "native")
+POLICIES = ("native",)
 PIPELINES = tuple(
     f"leiden/{score}/{policy}" for score in SCORERS for policy in POLICIES
 )
@@ -70,7 +68,7 @@ def load_evidence(run, config):
             )
     if set(frame.pipeline) != set(PIPELINES):
         raise ValueError(
-            "Expected all four EpiLink variants under both Leiden policies"
+            "Expected all four EpiLink variants with native score weights"
         )
     criteria = [
         row for row in config["selection"]["criteria"] if row["name"] == "balanced_M0"
@@ -95,7 +93,7 @@ def common_resolutions(definitions: dict, pipelines: tuple[str, ...]) -> list[fl
         raise ValueError("Missing EpiLink Leiden resolution grid")
     shared = sorted(set.intersection(*grids))
     if not shared:
-        raise ValueError("Binary and native EpiLink grids have no common resolution")
+        raise ValueError("EpiLink grids have no common resolution")
     return shared
 
 
@@ -135,7 +133,7 @@ def validate_reference(run, reference: dict, pipelines: tuple[str, ...]) -> None
 
 
 def regret_tables(frame, definitions, criterion, seeds, pipelines):
-    """Select one threshold per pipeline/resolution, then compare with its grid optimum."""
+    """Compare each pipeline/resolution with its full-grid development optimum."""
     reference = chosen_settings(frame, definitions, criterion, seeds)
     if set(reference) != set(pipelines) or any(
         point["status"] != "selected" for point in reference.values()
@@ -168,7 +166,6 @@ def regret_tables(frame, definitions, criterion, seeds, pipelines):
                 "status": point["status"],
                 "reference_setting_id": optimum["setting_id"],
                 "reference_resolution": source["resolution"],
-                "reference_threshold": source["threshold"],
                 "reference_M0_f1_mean": optimum["development_objective_mean"],
                 "selected_setting_id": point.get("setting_id"),
             }
@@ -188,7 +185,6 @@ def regret_tables(frame, definitions, criterion, seeds, pipelines):
                 if regret < -1e-10:
                     raise ValueError(f"Negative regret for {pipeline}/{resolution:g}")
                 row.update(
-                    selected_threshold=point["definition"]["threshold"],
                     selected_M0_f1_mean=point["development_objective_mean"],
                     selected_M0_f1_sd=point["development_objective_sd"],
                     regret_pp=max(0.0, regret),

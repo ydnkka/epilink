@@ -5,7 +5,7 @@ from ..scorers import SCORERS
 
 
 def settings_registry(config, pairwise_thresholds=None):
-    """Graph grids stay finite; exact pairwise candidates come from development."""
+    """Leiden selects resolution on full graphs; other cutoffs remain independent."""
     definitions = {}
 
     def add(definition):
@@ -46,27 +46,30 @@ def settings_registry(config, pairwise_thresholds=None):
                         "pipeline": f"components/{name}",
                     }
                 )
-            if "leiden" in config["clustering"]["algorithms"]:
-                leiden = config["clustering"]["leiden"]
-                for policy in leiden["weight_policies"]:
-                    if policy == "native" and spec.family == "genetic":
-                        continue
-                    resolution_grid = leiden.get("resolution_grid_by_weight_policy", {}).get(
-                        policy, leiden["default_resolution_grid"]
+        if "leiden" in config["clustering"]["algorithms"]:
+            leiden = config["clustering"]["leiden"]
+            for policy in ("binary", "native"):
+                if policy == "binary" and spec.family == "epilink":
+                    continue
+                if policy == "native" and spec.family == "genetic":
+                    continue
+                for resolution in sorted(set(leiden["resolutions"])):
+                    add(
+                        {
+                            "score_name": name,
+                            "data_process": spec.data_process,
+                            "threshold": None,
+                            "empty": False,
+                            "graph_mode": "full",
+                            "kind": "leiden",
+                            "weight_policy": policy,
+                            "objective": leiden["objective"],
+                            "resolution": float(resolution),
+                            "restarts": leiden["restarts"],
+                            "algorithm_seed": leiden["seed"],
+                            "pipeline": f"leiden/{name}/{policy}",
+                        }
                     )
-                    for resolution in sorted(set(resolution_grid)):
-                        add(
-                            {
-                                **base,
-                                "kind": "leiden",
-                                "weight_policy": policy,
-                                "objective": leiden["objective"],
-                                "resolution": float(resolution),
-                                "restarts": leiden["restarts"],
-                                "algorithm_seed": leiden["seed"],
-                                "pipeline": f"leiden/{name}/{policy}",
-                            }
-                        )
     tc = config["treecluster"]
     if tc["enabled"]:
         processes = sorted(
@@ -78,7 +81,7 @@ def settings_registry(config, pairwise_thresholds=None):
         for process in processes:
             for kind, thresholds, units in (
                 ("raw", tc["genetic_threshold_snps"], "snps"),
-                ("dated", tc["threshold_days"], "days"),
+                ("dated", tc["temporal_threshold_days"], "days"),
             ):
                 for method in tc["methods"]:
                     for snp_count in thresholds:

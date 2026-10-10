@@ -1,4 +1,4 @@
-"""One-at-a-time natural-history perturbations around a frozen baseline."""
+"""One-at-a-time perturbations with a two-by-two EpiLink clustering design."""
 
 from copy import deepcopy
 from pathlib import Path
@@ -16,14 +16,19 @@ PARAMETERS = {
     "substitution_rate",
     "relaxation",
 }
-MODES = {"matched", "baseline_fixed"}
+MODES = {
+    "baseline_inference_baseline_clustering": ("baseline", "baseline"),
+    "baseline_inference_updated_clustering": ("baseline", "updated"),
+    "matched_inference_baseline_clustering": ("matched", "baseline"),
+    "matched_inference_updated_clustering": ("matched", "updated"),
+}
 
 
 def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
     path = Path(path).resolve()
     config = yaml.safe_load(path.read_text())
-    if config.get("schema_version") != 1:
-        raise ValueError("Expected perturbation schema_version: 1")
+    if config.get("schema_version") != 2:
+        raise ValueError("Expected clustering-only perturbation schema_version: 2")
     for key in ("baseline_run", "output_directory"):
         config[key] = str((path.parent / config[key]).resolve())
     if output is not None:
@@ -31,18 +36,25 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
     if baseline_run is not None:
         config["baseline_run"] = str(Path(baseline_run).resolve())
     config["config_path"] = str(path)
-    seeds = config["seeds"]
-    if (
-        not seeds
-        or any(type(seed) is not int or seed < 0 for seed in seeds)
-        or len(set(seeds)) != len(seeds)
-    ):
-        raise ValueError("Perturbation seeds must be distinct nonnegative integers")
+    all_seeds = []
+    for role in ("development_seeds", "seeds"):
+        seeds = config[role]
+        if not seeds or any(type(seed) is not int or seed < 0 for seed in seeds):
+            raise ValueError(f"{role} must contain nonnegative integer seeds")
+        all_seeds.extend(seeds)
+    if len(set(all_seeds)) != len(all_seeds):
+        raise ValueError("Perturbation development and evaluation seeds must be distinct")
     modes = config["modes"]
-    if not modes or not set(modes) <= MODES or len(set(modes)) != len(modes):
-        raise ValueError(
-            "Modes must be a unique nonempty subset of matched, baseline_fixed"
-        )
+    if set(modes) != set(MODES) or len(modes) != len(MODES):
+        raise ValueError("Configure all four unique inference/clustering modes")
+    scorers = config["scorers"]
+    if (
+        not scorers or not set(scorers) <= {"EDD", "EDS", "ESD", "ESS"}
+        or len(set(scorers)) != len(scorers)
+    ):
+        raise ValueError("Perturbation scorers must be unique EpiLink identifiers")
+    if not isinstance(config["criterion"], str) or not config["criterion"]:
+        raise ValueError("Specify a baseline operating criterion")
     if not config["perturbations"]:
         raise ValueError("Configure at least one parameter perturbation")
     parameters = []
@@ -70,10 +82,16 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
     config["case_limit"] = None
     if smoke:
         settings = config["smoke"]
-        seed, cases = settings["seed"], settings["cases"]
-        if type(seed) is not int or seed < 0 or seed in seeds:
+        seed, development_seed, cases = (
+            settings["seed"], settings["development_seed"], settings["cases"]
+        )
+        if (
+            any(type(s) is not int or s < 0 or s in all_seeds for s in (seed, development_seed))
+            or seed == development_seed
+        ):
             raise ValueError(
-                "Smoke seed must be nonnegative and separate from study seeds"
+                "Smoke development/evaluation seeds must be distinct "
+                "and separate from study seeds"
             )
         if type(cases) is not int or cases < 4:
             raise ValueError("Smoke cases must be an integer of at least four")
@@ -83,6 +101,7 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
                 "Smoke parameters must be a nonempty subset of configured parameters"
             )
         config["seeds"] = [seed]
+        config["development_seeds"] = [development_seed]
         config["case_limit"] = cases
         config["perturbations"] = [
             x for x in config["perturbations"] if x["parameter"] in chosen

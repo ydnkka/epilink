@@ -189,14 +189,13 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `pairwise.threshold_mode`                        | `all_development_scores` (supplied): union of unique development cutoffs plus empty selection; `configured`: use `thresholds`. One shared cutoff is evaluated across seeds. |
 | `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                                                              |
 | `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                                                           |
-| `clustering.leiden.weight_policies`              | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                                                          |
-| `clustering.leiden.default_resolution_grid` | Fallback resolution grid crossed with graph thresholds for scorer/weight policies without an override. |
-| `clustering.leiden.resolution_grid_by_weight_policy` | Optional `binary`/`native` grids; each replaces the default for that policy. Unlisted policies use `default_resolution_grid`. |
+| `clustering.leiden.resolutions` | Resolution grid on full observed graphs. EpiLink uses native scores including zeros; GD/LOGIT retain binary controls. No graph cutoff or binary EpiLink Leiden. |
 | `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                      |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
 | `treecluster.genetic_threshold_snps`             | Raw-tree SNP counts; converted to substitutions/site using `alignment_length` (preserves absolute SNP counts).                                                                    |
-| `treecluster.threshold_days`                     | Dated-tree cutoffs in days; passed directly to TreeCluster (no conversion).                                                                                                       |
-| `treecluster.command_timeout_seconds`            | Timeout for TreeCluster invocation.                                                                                                                                               |
+| `treecluster.temporal_threshold_days` | Dated-tree cutoffs in days, passed directly to TreeCluster. |
+| `treecluster.executable` | TreeCluster executable, default `TreeCluster.py`. |
+| `treecluster.timeout` | Timeout for TreeCluster invocation in seconds. |
 | `phylogeny.model`                                | IQ-TREE substitution model (e.g., JC for synthetic, MFP for Boston).                                                                                                              |
 | `phylogeny.threads`                              | IQ-TREE parallel threads.                                                                                                                                                         |
 | `phylogeny.seed`                                 | IQ-TREE random seed.                                                                                                                                                              |
@@ -390,7 +389,7 @@ Files appear as their stages complete. Reports, aggregate tables, and status fil
 1. **Coverage:** confirm expected seeds and methods completed. Inspect `development/seed_<seed>/clusters/status.json` for missing comparisons.
 2. **Pairwise discrimination:** compare scorers within the same observed genetic process using `figures/pairwise_precision_recall_<endpoint>.png` and each seed's `pairwise/rankings.csv`. `<endpoint>` is `M0`, `Mle1`, or `Mle2`. AP summarizes rankings; threshold-specific precision, recall, F1, and selected counts are in `pairwise/metrics.csv`.
 3. **Workload and calibration:** inspect `pairwise/budgets.csv` for achieved tie-aware candidate budgets and `pairwise/calibration.csv` for logistic reliability. Brier score and log loss are in `rankings.csv`.
-4. **Clustering trade-offs:** use `components_thresholds_<endpoint>.png`, `leiden_threshold_resolution_<endpoint>.png`, `treecluster_thresholds_<endpoint>.png`, and `cluster_tradeoffs_<endpoint>.png` under `figures/`. Inspect singleton/largest-cluster behavior alongside recovery and contamination for the endpoint being optimized.
+4. **Clustering trade-offs:** use `components_thresholds_<endpoint>.png`, `leiden_resolution_<endpoint>.png`, `treecluster_thresholds_<endpoint>.png`, and `cluster_tradeoffs_<endpoint>.png` under `figures/`. Leiden plots sweep resolution on full graphs. Inspect singleton/largest-cluster behavior alongside recovery and contamination.
 5. **Grid adequacy:** inspect `development/grid_adequacy.csv` and `grid_neighbors.csv`. Extend arbitrary search boundaries and refine useful intervals. Keep declared reference clustering settings in the expanded sweep for a complete comparison. A gain within tolerance is only a numerical diagnostic; unchanged grids are labelled `not_refined`, and zero GD is a natural boundary.
 6. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by endpoint and pipeline, keeping `_mean` column suffixes. Use `settings.json` to translate a setting ID into thresholds and algorithms.
 
@@ -510,7 +509,7 @@ Use `--dry-run` to inspect the selected paths. The command targets the standard 
 
 ## 12. Perturbation and Boston application
 
-**Parameter sensitivity is available after baseline evaluation completes.** Use the separate perturbation entry point, which loads the baseline's frozen models/settings rather than fitting and selecting again:
+**EpiLink clustering sensitivity is available after baseline evaluation completes.** The perturbation entry point crosses baseline/matched inference with baseline/updated full-graph Leiden resolution:
 
 ```bash
 python evaluation/02_synthetic_perturbation/run.py --smoke
@@ -519,9 +518,9 @@ python evaluation/02_synthetic_perturbation/run.py
 
 The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default configuration is `evaluation/02_synthetic_perturbation/config.yaml`; the baseline `check` command expects a baseline configuration. Perturbation validates its reference and levels at startup. Use `--baseline-run` to pin a completed run directory instead of the default current-baseline pointer.
 
-The workflow compares `matched` EpiLink inference with `baseline_fixed` inference on paired observations. Both logistic models and every operating setting stay fixed. Fresh unperturbed controls provide paired metric differences. Smoke uses 64 cases and the incubation-mean levels; full mode uses all six configured parameter families on the frozen backbone. Outputs are separate under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
+The workflow evaluates ESD/ESS score-weighted clustering in four modes. Graphs include every observed pair and have no cutoff. Updated resolutions use separate fresh development seeds and the baseline selection criterion/grid; all arms use paired evaluation seeds and fresh unperturbed controls. Smoke uses 64 cases and the incubation-mean levels; full mode uses all six configured parameter families on the frozen backbone. Outputs are separate under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for all configuration fields, resumption, reference compatibility, and the validation checkpoint, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Retuning or retraining under changed parameters remains a separate adaptation analysis. Perturbation accepts `all` (the default) and `report` stages.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-2 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
 
 **Boston applies the baseline reference to real observations.** Its computational stages use frozen selection and held-out evaluation provenance; preparation alone does not need a completed baseline. Prepare only the derived input tables with:
 

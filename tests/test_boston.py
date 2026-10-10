@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from epilink_evaluation.provenance import fingerprint, read_json
+from epilink_evaluation.workflows import boston as boston_module
 from epilink_evaluation.workflows.boston import (
     BostonEmpirical,
     build_observations,
@@ -202,7 +203,7 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
     monkeypatch.setattr(baseline_module, "select_operating_points", forbidden)
     monkeypatch.setattr(LogisticScorer, "predict", forbidden)
     monkeypatch.setattr(reference_module, "checked_artifact", forbidden)
-    monkeypatch.setattr(reference_module, "command_identity", forbidden)
+    monkeypatch.setattr(boston_module, "command_identity", forbidden)
     study = BostonEmpirical(config)
     assert study.n_cases == 5
     assert study.n_observed_pairs == 5

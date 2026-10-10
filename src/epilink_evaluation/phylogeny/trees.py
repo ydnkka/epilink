@@ -85,7 +85,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
     threads = phylo_config.get("threads", 1)
     seed = phylo_config.get("seed", 2026)
     clock_rate = phylo_config.get("clock_rate")
-    iqtree_executable = phylo_config.get("iqtree_executable", "iqtree")
+    iqtree_executable = phylo_config.get("executable", phylo_config.get("iqtree_executable", "iqtree"))
     timeout = phylo_config.get("timeout", 1800)
     
     signature = {

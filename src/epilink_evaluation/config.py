@@ -43,6 +43,9 @@ def _load(path):
 def load_config(path):
     config = _load(path)
     config.setdefault("inference", deepcopy(config["generation"]))
+    pairwise = config.setdefault("pairwise", {})
+    pairwise.setdefault("threshold_mode", "all_development_scores")
+    pairwise.setdefault("selected_fractions", [])
     validate(config)
     return config
 
@@ -85,14 +88,9 @@ def validate(config):
     if config["clustering"]["leiden"]["restarts"] < 1:
         raise ValueError("Leiden requires at least one restart")
     leiden = config["clustering"]["leiden"]
-    overrides = leiden.get("resolution_grid_by_weight_policy", {})
-    if set(overrides) - {"binary", "native"}:
-        raise ValueError(
-            "Resolution overrides require binary or native weight policies"
-        )
-    for grid in [leiden["default_resolution_grid"], *overrides.values()]:
-        if not grid or any(not np.isfinite(r) or r <= 0 for r in grid):
-            raise ValueError("Leiden resolutions must be finite and positive")
+    grid = leiden.get("resolutions", [])
+    if not grid or any(not np.isfinite(r) or r <= 0 for r in grid):
+        raise ValueError("Leiden resolutions must be finite and positive")
     if config["pairwise"].get("threshold_mode", "configured") not in (
         "configured",
         "all_development_scores",
@@ -108,7 +106,7 @@ def validate(config):
             raise ValueError(f"Invalid {family} threshold grid")
         if family == "logistic" and any(t < 0 or t > 1 for t in thresholds):
             raise ValueError("Probability thresholds must be in [0, 1]")
-    for name in ("threshold_days",):
+    for name in ("temporal_threshold_days",):
         if any(not np.isfinite(t) or t < 0 for t in config["treecluster"][name]):
             raise ValueError("TreeCluster thresholds must be finite and nonnegative")
     genetic_threshold_snps = config["treecluster"]["genetic_threshold_snps"]
@@ -132,7 +130,7 @@ def validate(config):
             raise ValueError("Unknown reference threshold family")
         if set(reference.get("treecluster", {})) - {
             "genetic_threshold_snps",
-            "threshold_days",
+            "temporal_threshold_days",
         }:
             raise ValueError("Reference TreeCluster overrides must be threshold grids")
         coarse = reference_grid_config(config)
@@ -147,8 +145,7 @@ def reference_grid_config(config):
     result["pairwise"]["threshold_mode"] = "configured"
     result["thresholds"].update(reference.get("thresholds", {}))
     if "leiden_resolution_grid" in reference:
-        result["clustering"]["leiden"]["default_resolution_grid"] = reference["leiden_resolution_grid"]
-        result["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {}
+        result["clustering"]["leiden"]["resolutions"] = reference["leiden_resolution_grid"]
     result["treecluster"].update(reference.get("treecluster", {}))
     return result
 

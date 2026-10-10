@@ -1,127 +1,64 @@
-"""Manuscript figure: clustering F1 and contamination means with seed ranges (fig14)."""
+"""EpiLink clustering paired mean/ranges for the four modes (fig14)."""
 
 from __future__ import annotations
 
 import argparse
 
+import numpy as np
 from matplotlib.lines import Line2D
 
 from epilink_evaluation.utils import style
 
-from ._perturbation.common import (
-    FOCUS_CLUSTER,
-    PROCESS_LABELS,
-    PROCESSES,
-    Study,
-    add_arguments,
-    paired_range_summary,
-    paired_ranges,
-)
-from ._perturbation.plotting import MODEL_COLORS, grouped_range_axis, symmetric_bound
+from ._perturbation.common import MODE_LABELS, PROCESS_LABELS, PROCESSES, Study, add_arguments, cluster_summary, scenario_axis
+from ._perturbation.plotting import MODEL_COLORS, symmetric_bound
 
 
-def create_figure(study: Study, output, *, fmt: str = "both") -> None:
+def create_figure(study: Study, output, *, fmt="both"):
     metrics = ("M0_f1", "Mge3_contamination")
-    ranges = {}
+    frame = cluster_summary(study, metrics)
+    processes = [p for p in PROCESSES if study.pipelines(p)]
+    # Validate joins and settings before displaying saved seed-level ranges.
     for metric in metrics:
-        frame = paired_range_summary(study, metric, ranking=False)
-        for process in PROCESSES:
-            ranges[metric, process] = paired_ranges(
-                study,
-                frame,
-                metric=metric,
-                key="pipeline",
-                identifiers=FOCUS_CLUSTER[process],
-                criterion="balanced_M0",
-            )
-    bounds = {
-        metric: symmetric_bound(
-            *(
-                ranges[metric, process][["min_pp", "max_pp"]].to_numpy()
-                for process in PROCESSES
-            )
-        )
-        for metric in metrics
-    }
-    fig, axes = style.new_figure(
-        width="double",
-        height_in=9.3,
-        nrows=2,
-        ncols=2,
-        layout="constrained",
-        sharex="row",
-        sharey="row",
-    )
+        for process in processes:
+            for mode in study.config["modes"]:
+                study.matrix(frame, identifiers=study.pipelines(process), metric=metric, mode=mode)
+    fig, axes = style.new_figure(width="double", height_in=8.6, nrows=2, ncols=len(processes), squeeze=False, layout="constrained")
     for row, metric in enumerate(metrics):
-        for col, process in enumerate(PROCESSES):
+        bound = symmetric_bound(frame[[f"delta_{metric}_min", f"delta_{metric}_max"]].to_numpy() * 100)
+        for col, process in enumerate(processes):
             ax = axes[row, col]
-            grouped_range_axis(
-                ax,
-                study,
-                ranges[metric, process],
-                FOCUS_CLUSTER[process],
-                bound=bounds[metric],
-                labels_on_left=col == 0,
-            )
+            pipelines = study.pipelines(process)
+            for index, mode in enumerate(study.config["modes"]):
+                for pipeline_index, pipeline in enumerate(pipelines):
+                    group = frame.loc[frame["mode"].eq(mode) & frame.pipeline.eq(pipeline)].set_index("scenario").loc[study.scenario_names]
+                    mean, low, high = (group[f"delta_{metric}_{stat}"].to_numpy(float) * 100 for stat in ("mean", "min", "max"))
+                    valid = np.isfinite(mean)
+                    if np.any(valid & ((mean < low - 1e-10) | (mean > high + 1e-10))):
+                        raise ValueError("Inconsistent paired mean/range")
+                    position = np.arange(len(group)) + (index - 1.5) * 0.15 + pipeline_index * 0.04
+                    ax.errorbar(mean[valid], position[valid], xerr=np.vstack((np.maximum(0, mean[valid] - low[valid]), np.maximum(0, high[valid] - mean[valid]))), fmt="o", color=MODEL_COLORS[index], markersize=3.5, capsize=2)
+                    for y, count in zip(position, group[f"delta_{metric}_count"]):
+                        if count < len(study.seeds):
+                            ax.text(bound * 0.96, y, f"n={count}", ha="right", va="center", fontsize=6, color=MODEL_COLORS[index])
+            scenario_axis(ax, study, show_labels=col == 0)
+            ax.axvline(0, color="0.4", linestyle="--", lw=0.8)
+            ax.set_xlim(-bound, bound)
+            ax.grid(axis="x", color="0.9")
+            ax.set_xlabel(("Δ M=0 $F_1$" if row == 0 else "Δ M≥3 contamination") + " (percentage points)")
             if row == 0:
                 ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
-            ax.set_xlabel(
-                (
-                    "Change in target-pair $F_1$"
-                    if row == 0
-                    else "Change in distant-pair contamination"
-                )
-                + "\n(percentage points)"
-            )
-            if col == 0:
-                ax.set_ylabel(
-                    "Target-pair $F_1$" if row == 0 else "Distant-pair contamination"
-                )
-    # fig.suptitle(
-    #     "Selected cluster settings: mean and across-realization range",
-    #     fontweight="bold",
-    # )
-    names = (
-        "ESD / ESS (score weights)",
-        "LGD / LGS (score weights)",
-        "GDD / GDS (binary edges)",
-        "TreeCluster undated",
-        "TreeCluster dated",
-    )
-    fig.legend(
-        handles=[
-            Line2D(
-                [0],
-                [0],
-                color=MODEL_COLORS[index],
-                marker="o",
-                linestyle="none",
-                label=name,
-            )
-            for index, name in enumerate(names)
-        ],
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.06),
-        ncol=3,
-    )
+    fig.legend(handles=[Line2D([0], [0], color=MODEL_COLORS[i], marker="o", linestyle="none", label=MODE_LABELS[mode].replace("\n", " / ")) for i, mode in enumerate(study.config["modes"])], loc="lower center", bbox_to_anchor=(0.5, -0.07), ncol=2)
     style.add_panel_labels(axes)
-    paths = style.save_figure(
-        fig,
-        output / "fig14_cluster_f1_contamination_ranges",
-        width="double",
-        save_pdf=fmt in ("pdf", "both"),
-        save_png=fmt in ("png", "both"),
-    )
+    paths = style.save_figure(fig, output / "fig14_cluster_f1_contamination_ranges", width="double", save_pdf=fmt in ("pdf", "both"), save_png=fmt in ("png", "both"))
     for path in paths.values():
         print(f"Figure saved to: {path}")
 
 
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     add_arguments(parser, figure=True)
     args = parser.parse_args()
     study = Study.load(args.run_dir)
-    print(f"Using run: {study.run}")
     create_figure(study, study.output(args.output_dir), fmt=args.format)
 
 

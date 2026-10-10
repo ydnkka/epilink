@@ -37,13 +37,9 @@ def main() -> None:
         (
             args.perturbation_run,
             (
-                "fig11",
                 "fig12",
-                "fig13",
                 "fig14",
                 "fig15",
-                "fig16",
-                "fig17",
                 "fig23",
                 "tab03",
             ),

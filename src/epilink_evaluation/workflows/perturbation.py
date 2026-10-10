@@ -1,4 +1,4 @@
-"""Replay frozen baseline models/settings on paired parameter perturbations."""
+"""Paired EpiLink clustering sensitivity: inference × clustering adaptation."""
 
 import logging
 from copy import deepcopy
@@ -7,15 +7,10 @@ from pathlib import Path
 import networkx as nx
 import pandas as pd
 
-from ..diagnostics.observations import observation_diagnostics
-from ..inputs.synthetic import (
-    load_observations,
-    load_truth,
-    prepare_observations,
-    prepare_truth,
-)
+from ..inputs.synthetic import prepare_observations, prepare_truth
 from ..provenance import (
     complete_artifact,
+    digest_file,
     fingerprint,
     git_revision,
     implementation_signature,
@@ -24,10 +19,11 @@ from ..provenance import (
     write_json,
 )
 from ..scorers import ScoringContext
-from ..schemas import DISTANCES, ENDPOINTS
+from ..selection.operating import select_operating_points
 from .baseline import Baseline
-from .perturbation_config import scenarios
-from .reference import BaselineReference
+from .perturbation_config import MODES, scenarios
+from .reference import EpiLinkClusteringReference
+from .settings import settings_registry
 
 LOG = logging.getLogger(__name__)
 METADATA_NUMBERS = {"seed", "value", "baseline_value", "multiplier"}
@@ -42,28 +38,29 @@ def read_table(path):
 
 def numeric_metrics(frame):
     return [
-        name
-        for name in frame.select_dtypes(include="number")
+        name for name in frame.select_dtypes(include="number")
         if name not in METADATA_NUMBERS
     ]
 
 
 def paired_deltas(frame, keys, metrics):
-    """Keep missing controls visible; differences are perturbed minus baseline."""
+    """Pair by analysis arm, not setting ID: updated settings can change by scenario."""
     if frame.empty:
         return frame.copy()
-    control = frame.loc[frame.scenario == "baseline", [*keys, *metrics]]
+    metadata = (
+        ["setting_id"] if "setting_id" in frame and "setting_id" not in keys else []
+    )
+    control = frame.loc[frame.scenario == "baseline", [*keys, *metadata, *metrics]]
     control = control.rename(
-        columns={name: f"baseline_{name}" for name in metrics}
+        columns={name: f"baseline_{name}" for name in [*metadata, *metrics]}
     ).copy()
-    paired = (
-        frame.loc[frame.scenario != "baseline"]
-        .copy()
-        .merge(control, on=keys, how="left", validate="many_to_one", indicator=True)
+    paired = frame.loc[frame.scenario != "baseline"].copy().merge(
+        control, on=keys, how="left", validate="many_to_one", indicator=True
     )
     paired["control_available"] = paired.pop("_merge").eq("both")
     differences = {
-        f"delta_{name}": paired[name] - paired[f"baseline_{name}"] for name in metrics
+        f"delta_{name}": paired[name] - paired[f"baseline_{name}"]
+        for name in metrics
     }
     return pd.concat([paired, pd.DataFrame(differences, index=paired.index)], axis=1)
 
@@ -80,45 +77,53 @@ def summarize(frame, keys, metrics):
     return summary.reset_index()
 
 
-class FrozenReplay(Baseline):
-    """Reuse baseline evaluation machinery without baseline init, fitting or selection."""
+class ClusteringReplay(Baseline):
+    """Use shared scoring/partition machinery without fitting or pairwise analysis."""
 
     def __init__(self, study, scenario, mode):
+        self.inference_mode, self.clustering_mode = MODES[mode]
         self.config = study.observation_config(scenario)
         self.config["inference"] = deepcopy(
-            scenario["generation"]
-            if mode == "matched"
+            scenario["generation"] if self.inference_mode == "matched"
             else study.reference.config["inference"]
         )
-        self.config["splits"]["evaluation"] = study.config["seeds"]
-        self.implementation, self.tools = study.implementation, study.reference.tools
+        self.config["splits"] = {
+            "train": [], "development": study.config["development_seeds"],
+            "evaluation": study.config["seeds"],
+        }
+        self.config["scorers"] = study.config["scorers"]
+        self.config["clustering"]["algorithms"] = ["leiden"]
+        self.config["treecluster"]["enabled"] = False
+        self.implementation, self.tools = study.implementation, {}
         self.root, self.tree, self.truth_directory = (
-            study.root,
-            study.tree,
-            study.truth_directory,
+            study.root, study.tree, study.truth_directory
         )
         self.directory = study.directory / "scenarios" / scenario["name"] / mode
         self.directory.mkdir(parents=True, exist_ok=True)
         self.definitions = deepcopy(study.reference.selected)
-        self.training_id = study.reference.training_id
-        self.context = ScoringContext(self.config, deepcopy(study.reference.models))
+        self.points = deepcopy(study.reference.frozen["operating_points"])
+        self.criterion = deepcopy(self.points[0]["rule"])
+        self.training_id = None
+        self.context = ScoringContext(self.config, {})
         self.datasets = {}
+        self._evaluation_released = False
         self.signature = {
-            "kind": "frozen-perturbation-replay-v1",
-            "study": fingerprint(study.signature),
-            "scenario": scenario,
-            "mode": mode,
-            "config": self.config,
+            "kind": "epilink-clustering-replay-v2", "study": fingerprint(study.signature),
+            "scenario": scenario, "mode": mode, "config": self.config,
         }
 
     def train(self):
-        """Models were loaded from the reference; this path never fits a classifier."""
-        return
+        return  # EpiLink scores are training-free.
 
     def dataset(self, seed):
-        """Fresh scenario observations; baseline holdout access is not inherited."""
-        if seed not in self.config["splits"]["evaluation"]:
+        role = next(
+            (role for role, seeds in self.config["splits"].items() if seed in seeds),
+            None,
+        )
+        if role is None:
             raise ValueError("Perturbation may only access its configured fresh seeds")
+        if role == "evaluation" and not self._evaluation_released:
+            raise ValueError("Freeze clustering settings before accessing evaluation observations")
         if seed not in self.datasets:
             self.datasets[seed] = prepare_observations(
                 self.config, self.tree, self.truth_directory, seed, self.implementation
@@ -126,23 +131,59 @@ class FrozenReplay(Baseline):
         return self.datasets[seed]
 
     def select(self):
-        raise ValueError(
-            "Perturbation replays use frozen settings; retuning is a separate study"
+        """Reselect only resolution on the baseline grid and fresh development."""
+        candidates = {
+            key: d for key, d in settings_registry(self.config).items()
+            if d["kind"] == "leiden"
+        }
+        if not candidates or not self.clusters("development", candidates):
+            raise ValueError("Updated clustering requires a complete development sweep")
+        evidence = self.collect("development")
+        expected = {
+            (seed, key)
+            for seed in self.config["splits"]["development"]
+            for key in candidates
+        }
+        if (
+            evidence.duplicated(["seed", "setting_id"]).any()
+            or set(zip(evidence.seed, evidence.setting_id)) != expected
+        ):
+            raise ValueError("Incomplete updated-clustering development matrix")
+        self.points = select_operating_points(
+            evidence, candidates, [self.criterion], self.config["splits"]["development"]
         )
+        if (
+            len(self.points) != len(self.config["scorers"])
+            or any(p["status"] != "selected" for p in self.points)
+        ):
+            raise ValueError("No feasible updated clustering setting for every EpiLink pipeline")
+        self.definitions = {p["setting_id"]: p["definition"] for p in self.points}
 
     def run(self):
-        manifest = {
-            "status": "running",
-            "signature": self.signature,
-            "config": self.config,
-        }
+        manifest = {"status": "running", "signature": self.signature, "config": self.config}
         write_json(self.directory / "manifest.json", manifest)
         try:
-            self.pairwise("evaluation", self.definitions)
+            if self.clustering_mode == "updated":
+                self.select()
+            selection = {
+                "run_fingerprint": fingerprint(self.signature),
+                "inference_mode": self.inference_mode, "clustering_mode": self.clustering_mode,
+                "development_seeds": self.config["splits"]["development"] if self.clustering_mode == "updated" else [],
+                "development_evidence_sha256": digest_file(self.directory / "development/metrics.csv")
+                if self.clustering_mode == "updated" else None,
+                "operating_points": self.points,
+            }
+            write_json(self.directory / "selection.json", selection)
+            write_json(self.directory / "settings.json", self.definitions)
+            self._evaluation_released = True
+            write_json(self.directory / "evaluation/heldout_access.json", {
+                "seeds": self.config["splits"]["evaluation"],
+                "selection_fingerprint": fingerprint(selection),
+            })
             complete = self.clusters("evaluation", self.definitions)
             manifest["status"] = "complete" if complete else "partial"
         except Exception as exc:
-            LOG.exception("Replay failed: %s", self.directory)
+            LOG.exception("Clustering replay failed: %s", self.directory)
             manifest.update(status="failed", error=repr(exc))
         finally:
             write_json(self.directory / "manifest.json", manifest)
@@ -153,85 +194,64 @@ class PerturbationStudy:
     def __init__(self, config):
         self.config = deepcopy(config)
         self.implementation = implementation_signature()
-        self.reference = BaselineReference(config["baseline_run"], self.implementation)
+        self.reference = EpiLinkClusteringReference(
+            config["baseline_run"], self.implementation, config["scorers"], config["criterion"]
+        )
         used_seeds = {
             seed for seeds in self.reference.config["splits"].values() for seed in seeds
         }
-        if used_seeds.intersection(config["seeds"]):
-            raise ValueError(
-                "Perturbation seeds must be fresh relative to every baseline split"
-            )
+        study_seeds = [*config["development_seeds"], *config["seeds"]]
         if (
-            self.reference.config["inputs"].get("smoke_cases")
-            and not config["smoke_mode"]
+            len(set(study_seeds)) != len(study_seeds)
+            or used_seeds.intersection(study_seeds)
         ):
             raise ValueError(
-                "A full perturbation study requires a full baseline reference"
+                "Perturbation development/evaluation seeds must be distinct "
+                "and fresh relative to every baseline split"
             )
+        if self.reference.config["inputs"].get("smoke_cases") and not config["smoke_mode"]:
+            raise ValueError("A full perturbation study requires a full baseline reference")
         self.scenarios = scenarios(config, self.reference.config["generation"])
         self.root = Path(config["output_directory"]).resolve()
         source = self.reference.root.resolve()
         if (
-            self.root == source
-            or self.root.is_relative_to(source)
+            self.root == source or self.root.is_relative_to(source)
             or source.is_relative_to(self.root)
         ):
-            raise ValueError(
-                "Perturbation output must be separate from baseline outputs"
-            )
+            raise ValueError("Perturbation output must be separate from baseline outputs")
         self.tree = self.reference.tree.copy()
         if config["case_limit"] is not None:
-            keep = list(nx.topological_sort(self.tree))[: config["case_limit"]]
+            keep = list(nx.topological_sort(self.tree))[:config["case_limit"]]
             self.tree = self.tree.subgraph(keep).copy()
         backbone_signature = {
-            "kind": "frozen-backbone-v1",
-            "reference_truth": self.reference.identity["truth_fingerprint"],
-            "nodes": list(self.tree),
-            "edges": list(self.tree.edges()),
+            "kind": "frozen-backbone-v1", "reference_truth": self.reference.identity["truth_fingerprint"],
+            "nodes": list(self.tree), "edges": list(self.tree.edges()),
         }
-        backbone = (
-            self.root / "artifacts/backbones" / fingerprint(backbone_signature)[:20]
-        )
+        backbone = self.root / "artifacts/backbones" / fingerprint(backbone_signature)[:20]
         self.backbone_path = backbone / "transmission_tree.gml"
         if not valid_artifact(backbone, backbone_signature):
             backbone.mkdir(parents=True, exist_ok=True)
             nx.write_gml(self.tree, self.backbone_path)
             complete_artifact(backbone, backbone_signature, [self.backbone_path.name])
-        truth_config = {
-            "output_directory": str(self.root),
-            "inputs": {"tree_path": str(self.backbone_path)},
-        }
-        self.truth_directory = prepare_truth(
-            truth_config, self.tree, self.implementation
-        )
-        self.reference.copy_models(self.root)
+        self.truth_directory = prepare_truth({
+            "output_directory": str(self.root), "inputs": {"tree_path": str(self.backbone_path)},
+        }, self.tree, self.implementation)
         self.signature = {
-            "schema": 1,
-            "kind": "perturbation-study-v1",
-            "config": {
-                k: v
-                for k, v in config.items()
-                if k not in ("config_path", "output_directory", "baseline_run")
-            },
-            "reference": self.reference.identity,
-            "scenarios": self.scenarios,
-            "implementation": self.implementation,
-            "tools": self.reference.tools,
-            "truth": self.truth_directory.name,
+            "schema": 2, "kind": "epilink-clustering-perturbation-v2",
+            "config": {k: v for k, v in config.items() if k not in ("config_path", "output_directory", "baseline_run")},
+            "reference": self.reference.identity, "scenarios": self.scenarios,
+            "implementation": self.implementation, "truth": self.truth_directory.name,
         }
         self.directory = self.root / "runs" / fingerprint(self.signature)[:20]
         self.directory.mkdir(parents=True, exist_ok=True)
-        write_json(self.directory / "reference.json", self.reference.identity)
-        write_json(self.directory / "selection.json", self.reference.frozen)
-        write_json(self.directory / "settings.json", self.reference.selected)
-        write_json(self.directory / "scenarios.json", self.scenarios)
-        write_json(
-            self.root / "current.json",
-            {
-                "run_directory": str(self.directory),
-                "fingerprint": fingerprint(self.signature),
-            },
-        )
+        for name, value in (
+            ("reference", self.reference.identity), ("selection", self.reference.frozen),
+            ("settings", self.reference.selected), ("scenarios", self.scenarios),
+        ):
+            write_json(self.directory / f"{name}.json", value)
+        write_json(self.root / "current.json", {
+            "run_directory": str(self.directory), "fingerprint": fingerprint(self.signature),
+        })
 
     def observation_config(self, scenario):
         config = deepcopy(self.reference.config)
@@ -241,216 +261,89 @@ class PerturbationStudy:
         config["inputs"]["smoke_cases"] = self.config["case_limit"]
         return config
 
-    def observations(self):
-        """Diagnose exact feature ambiguity once per scenario/seed, across modes."""
-        records, coverage = [], []
-        paths = (
-            "diagnostics/observations.py", "metrics/pairwise.py",
-            "schemas.py", "provenance.py",
-        )
-        implementation = {
-            "evaluation": {p: self.implementation["evaluation"][p] for p in paths},
-            "versions": {
-                p: self.implementation["versions"].get(p)
-                for p in ("numpy", "pandas", "pyarrow")
-            },
-        }
-        truth_manifest = read_json(self.truth_directory / "manifest.json")
-        truth_identity = {
-            "fingerprint": truth_manifest["fingerprint"],
-            "files": truth_manifest["files"],
-        }
-        expected = len(DISTANCES) * 2 * len(ENDPOINTS)
-        for scenario in self.scenarios:
-            config = self.observation_config(scenario)
-            for seed in self.config["seeds"]:
-                row = {
-                    "scenario": scenario["name"], "seed": seed,
-                    "status": "failed", "completed": 0, "expected": expected,
-                    "dataset": None, "artifact": None, "error": None,
-                }
-                artifact, signature = None, None
-                try:
-                    dataset = prepare_observations(
-                        config, self.tree, self.truth_directory, seed,
-                        self.implementation,
-                    )
-                    signature = {
-                        "kind": "diagnostic-feature-cells-v1",
-                        "dataset": dataset.name,
-                        "truth": truth_identity,
-                        "implementation": implementation,
-                    }
-                    artifact = self.root / "artifacts/feature_cells" / fingerprint(signature)
-                    row.update(dataset=dataset.name, artifact=str(artifact))
-                    if not valid_artifact(artifact, signature):
-                        LOG.info("Feature ambiguity scenario=%s seed=%s", scenario["name"], seed)
-                        artifact.mkdir(parents=True, exist_ok=True)
-                        write_json(artifact / "manifest.json", {
-                            "status": "running", "signature": signature,
-                        })
-                        observations, _ = load_observations(dataset)
-                        truth = load_truth(self.truth_directory, observations.pair_id)
-                        cells, summary, prevalence, relationships = observation_diagnostics(
-                            observations, truth
-                        )
-                        cells.assign(seed=seed).to_parquet(
-                            artifact / "cells.parquet", index=False
-                        )
-                        for name, table in (
-                            ("summary", summary), ("prevalence", prevalence),
-                            ("relationships", relationships),
-                        ):
-                            table.assign(seed=seed).to_csv(artifact / f"{name}.csv", index=False)
-                        complete_artifact(artifact, signature, [
-                            "cells.parquet", "summary.csv", "prevalence.csv",
-                            "relationships.csv",
-                        ])
-                        del observations, truth, cells, summary, prevalence, relationships
-                    summary = pd.read_csv(artifact / "summary.csv")
-                    records.append(summary.assign(**{
-                        "scenario": scenario["name"],
-                        **{k: scenario[k] for k in ("parameter", "value", "baseline_value", "multiplier")},
-                    }))
-                    row.update(
-                        status="complete" if len(summary) == expected else "partial",
-                        completed=len(summary),
-                    )
-                except Exception as exc:
-                    LOG.exception("Feature ambiguity failed: %s seed=%s", scenario["name"], seed)
-                    row["error"] = repr(exc)
-                    if artifact is not None:
-                        write_json(artifact / "manifest.json", {
-                            "status": "failed", "signature": signature, "error": repr(exc),
-                        })
-                coverage.append(row)
-        coverage = pd.DataFrame(coverage)
-        coverage.to_csv(self.directory / "ambiguity_coverage.csv", index=False)
-        keys = ["process", "feature_set", "endpoint"]
-        frame = pd.concat(records, ignore_index=True) if records else pd.DataFrame(
-            columns=["scenario", "seed", *keys]
-        )
-        metrics = numeric_metrics(frame)
-        group = ["scenario", *keys]
-        frame.to_csv(self.directory / "ambiguity.csv", index=False)
-        summarize(frame, group, metrics).to_csv(
-            self.directory / "ambiguity_summary.csv", index=False
-        )
-        paired = paired_deltas(frame, ["seed", *keys], metrics)
-        paired.to_csv(self.directory / "ambiguity_deltas.csv", index=False)
-        summarize(paired, group, [f"delta_{m}" for m in metrics]).to_csv(
-            self.directory / "ambiguity_delta_summary.csv", index=False
-        )
-        return bool(
-            coverage.status.eq("complete").all()
-            and coverage.completed.eq(coverage.expected).all()
-        )
-
     def collect(self):
-        records, rankings, coverage = [], [], []
-        decisions = pd.DataFrame(
-            [
-                {"setting_id": p["setting_id"], "criterion": p["criterion"]}
-                for p in self.reference.frozen["operating_points"]
-                if p["status"] == "selected"
-            ]
-        )
-        expected = len(self.reference.selected) * len(self.config["seeds"])
+        records, coverage = [], []
+        expected = len(self.config["scorers"]) * len(self.config["seeds"])
         for scenario in self.scenarios:
             for mode in self.config["modes"]:
                 directory = self.directory / "scenarios" / scenario["name"] / mode
                 path = directory / "manifest.json"
                 saved = read_json(path) if path.exists() else {"status": "not_run"}
-                base = {"scenario": scenario["name"], "mode": mode}
+                inference, clustering = MODES[mode]
+                base = {
+                    "scenario": scenario["name"], "mode": mode,
+                    "inference_mode": inference, "clustering_mode": clustering,
+                }
                 frame = (
                     read_table(directory / "evaluation/metrics.csv")
                     if saved["status"] in ("complete", "partial")
                     else pd.DataFrame()
                 )
-                coverage.append(
-                    {
-                        **base,
-                        "status": saved["status"],
-                        "completed": len(frame),
-                        "expected": expected,
-                        "error": saved.get("error"),
-                    }
-                )
+                coverage.append({
+                    **base, "status": saved["status"], "completed": len(frame),
+                    "expected": expected, "error": saved.get("error"),
+                })
                 if frame.empty:
                     continue
+                selection = read_json(directory / "selection.json")
+                decisions = pd.DataFrame([
+                    {"setting_id": p["setting_id"], "criterion": p["criterion"]}
+                    for p in selection["operating_points"] if p["status"] == "selected"
+                ])
                 metadata = {
                     **base,
-                    **{
-                        k: scenario[k]
-                        for k in ("parameter", "value", "baseline_value", "multiplier")
-                    },
+                    **{k: scenario[k] for k in (
+                        "parameter", "value", "baseline_value", "multiplier"
+                    )},
                 }
                 records.append(
-                    frame.merge(
-                        decisions, on="setting_id", validate="many_to_many"
-                    ).assign(**metadata)
+                    frame.merge(decisions, on="setting_id", validate="many_to_one")
+                    .assign(**metadata)
                 )
-                for seed in self.config["seeds"]:
-                    ranking = read_table(
-                        directory
-                        / "evaluation"
-                        / f"seed_{seed}"
-                        / "pairwise/rankings.csv"
-                    )
-                    if not ranking.empty:
-                        rankings.append(ranking.assign(**metadata))
         coverage = pd.DataFrame(coverage)
         coverage.to_csv(self.directory / "coverage.csv", index=False)
-        for name, frames, keys in (
-            ("results", records, ["criterion", "pipeline", "setting_id"]),
-            ("rankings", rankings, ["score_name", "data_process", "score_family"]),
-        ):
-            frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-            frame.to_csv(self.directory / f"{name}.csv", index=False)
-            metrics = numeric_metrics(frame)
-            group = ["scenario", "mode", *keys]
-            summary = summarize(frame, group, metrics)
-            summary.to_csv(self.directory / f"{name}_summary.csv", index=False)
-            paired = paired_deltas(frame, ["mode", "seed", *keys], metrics)
-            paired.to_csv(self.directory / f"{name}_deltas.csv", index=False)
-            summarize(paired, group, [f"delta_{m}" for m in metrics]).to_csv(
-                self.directory / f"{name}_delta_summary.csv", index=False
-            )
+        frame = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+        frame.to_csv(self.directory / "results.csv", index=False)
+        metrics = numeric_metrics(frame)
+        group = [
+            "scenario", "mode", "inference_mode", "clustering_mode",
+            "criterion", "pipeline", "setting_id",
+        ]
+        summarize(frame, group, metrics).to_csv(
+            self.directory / "results_summary.csv", index=False
+        )
+        paired = paired_deltas(frame, ["mode", "seed", "criterion", "pipeline"], metrics)
+        paired.to_csv(self.directory / "results_deltas.csv", index=False)
+        summarize(paired, group, [f"delta_{m}" for m in metrics]).to_csv(
+            self.directory / "results_delta_summary.csv", index=False
+        )
         return bool(
             coverage.status.eq("complete").all()
             and coverage.completed.eq(coverage.expected).all()
         )
 
     def run(self, stage="all"):
-        if stage not in {"all", "observations"}:
+        if stage != "all":
             raise ValueError(f"Unknown perturbation stage: {stage}")
         manifest = {
-            "status": "running",
-            "requested_stage": stage,
-            "config": self.config,
-            "signature": self.signature,
-            "git_revision": git_revision(),
-            "n_cases": len(self.tree),
-            "run_directory": str(self.directory),
+            "status": "running", "requested_stage": stage, "config": self.config,
+            "signature": self.signature, "git_revision": git_revision(),
+            "n_cases": len(self.tree), "run_directory": str(self.directory),
         }
         write_json(self.directory / "manifest.json", manifest)
         try:
-            complete = self.observations()
-            if stage == "all":
-                for scenario in self.scenarios:
-                    for mode in self.config["modes"]:
-                        LOG.info("Perturbation scenario=%s mode=%s", scenario["name"], mode)
-                        FrozenReplay(self, scenario, mode).run()
-                        self.collect()
-                complete = self.collect() and complete
-            manifest["status"] = "complete" if complete else "partial"
+            for scenario in self.scenarios:
+                for mode in self.config["modes"]:
+                    LOG.info("EpiLink clustering scenario=%s mode=%s", scenario["name"], mode)
+                    ClusteringReplay(self, scenario, mode).run()
+                    self.collect()
+            manifest["status"] = "complete" if self.collect() else "partial"
         except Exception as exc:
             manifest.update(status="failed", error=repr(exc))
             raise
         finally:
             write_json(self.directory / "manifest.json", manifest)
             from ..reporting.perturbation import render_report
-
             render_report(self.directory)
         LOG.info("Perturbation report: %s", self.directory / "report.html")
         return manifest["status"] == "complete"

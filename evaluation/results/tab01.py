@@ -22,12 +22,11 @@ from ._baseline.common import (
 
 def main_pipelines(process: str) -> list[str]:
     suffix = "D" if process == "deterministic" else "S"
-    epilink_es = "ESD" if process == "deterministic" else "ESS"
     scorers = SCORES_BY_PROCESS[process]
     return [
         *(f"pairwise/{scorer}" for scorer in scorers),
-        *(f"leiden/{scorer}/binary" for scorer in scorers),
-        f"leiden/{epilink_es}/native",
+        *(f"leiden/{scorer}/binary" for scorer in scorers if scorer.startswith(("GD_", "LOGIT_"))),
+        *(f"leiden/{scorer}/native" for scorer in scorers if not scorer.startswith(("GD_", "LOGIT_"))),
         f"leiden/LOGIT_{suffix}/native",
         f"treecluster/{process}/raw",
         f"treecluster/{process}/dated",
@@ -75,10 +74,9 @@ def main() -> None:
             "in held-out synthetic observations. Cutoffs and clustering settings were "
             "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
             "inference formulations, genetic distance, and logistic regression are "
-            "shown as pairwise rules and inputs to Leiden with binary weights. "
-            "Leiden with stochastic EpiLink or logistic scores as edge weights, "
-            "alongside undated and dated TreeCluster, provides additional clustering "
-            "comparisons. Values are equally weighted "
+            "shown as pairwise rules. Full-graph Leiden uses EpiLink and logistic "
+            "scores as edge weights, with binary GD/logistic comparisons and "
+            "undated and dated TreeCluster. Leiden selects resolution only. Values are equally weighted "
             "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "
             r"every pair in the same cluster. Distant pairs have $M\ge3$; this measure does "

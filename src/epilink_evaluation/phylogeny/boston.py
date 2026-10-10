@@ -38,6 +38,9 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     
     alignment_length = len(next(SeqIO.parse(alignment_path, "fasta")).seq)
     case_ids = cases.case_id.tolist()
+    iqtree_executable = phylo_config.get(
+        "executable", phylo_config.get("iqtree_executable", "iqtree")
+    )
     
     signature = {
         "kind": "boston-phylogeny-v1",
@@ -49,7 +52,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         "iqtree_threads": phylo_config.get("threads", 1),
         "iqtree_seed": phylo_config.get("seed", 2026),
         "clock_rate": phylo_config.get("clock_rate"),
-        "iqtree_executable": command_identity(phylo_config.get("iqtree_executable", "iqtree")),
+        "iqtree_executable": command_identity(iqtree_executable),
         "implementation": implementation,
     }
     
@@ -80,7 +83,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
             threads=phylo_config.get("threads", 1),
             seed=phylo_config.get("seed", 2026),
             clock_rate=phylo_config.get("clock_rate"),
-            iqtree_executable=phylo_config.get("iqtree_executable", "iqtree"),
+            iqtree_executable=iqtree_executable,
             timeout=phylo_config.get("timeout", 7200),
         )
     except PhylogenyError as exc:

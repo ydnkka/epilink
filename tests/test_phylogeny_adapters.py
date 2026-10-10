@@ -18,7 +18,7 @@ from epilink_evaluation.workflows.settings import settings_registry
 
 def test_treecluster_preserves_each_unclustered_case(small_config, tmp_path):
     try:
-        executable(small_config["treecluster"]["executables"]["treecluster"])
+        executable(small_config["treecluster"]["executable"])
     except FileNotFoundError as exc:
         pytest.skip(str(exc))
     path = tmp_path / "tree.nwk"
@@ -116,7 +116,7 @@ def test_iqtree_adapter_mocked(small_config, observation_bundle, mocked_iqtree, 
         "threads": phylogeny["threads"],
         "seed": phylogeny["seed"],
         "clock_rate": phylogeny["clock_rate"],
-        "iqtree_executable": phylogeny["iqtree_executable"],
+        "iqtree_executable": phylogeny["executable"],
         "timeout": phylogeny["timeout"],
     }
     cases = pd.read_parquet(observation_bundle / "cases.parquet").case_id
@@ -137,7 +137,7 @@ def test_day_thresholds_no_conversion(small_config):
     small_config["simulation"]["alignment_length"] = 5000
     small_config["treecluster"].update(
         enabled=True, methods=["max_clade"],
-        genetic_threshold_snps=[0, 1, 2], threshold_days=[0, 365, 730],
+        genetic_threshold_snps=[0, 1, 2], temporal_threshold_days=[0, 365, 730],
     )
     definitions = settings_registry(small_config).values()
     dated = [d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "dated"]
@@ -191,7 +191,7 @@ def test_baseline_treecluster_uses_observation_paths(
 ):
     small_config["treecluster"].update(
         enabled=True, methods=["max_clade"],
-        genetic_threshold_snps=[1], threshold_days=[7],
+        genetic_threshold_snps=[1], temporal_threshold_days=[7],
     )
 
     def cluster(path, cases, *args):

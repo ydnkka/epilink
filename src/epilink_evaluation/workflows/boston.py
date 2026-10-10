@@ -126,7 +126,9 @@ class BostonEmpirical:
             self.alignment_path = Path(config["trees"]["alignment_path"])
             for tool in ("iqtree", "treecluster"):
                 if tool == "iqtree":
-                    executable = config["phylogeny"].get("iqtree_executable", "iqtree")
+                    executable = config["phylogeny"].get(
+                        "executable", config["phylogeny"].get("iqtree_executable", "iqtree")
+                    )
                 else:
                     executable = config["treecluster"]["executables"]["treecluster"]
                 self.tree_tools[tool] = command_identity(executable)
@@ -287,6 +289,7 @@ class BostonEmpirical:
                     definition["threshold"],
                     definition["weight_policy"],
                     definition["empty"],
+                    definition.get("graph_mode"),
                 )
                 if requested_graph not in graphs:
                     graphs[requested_graph] = build_graph(
@@ -297,6 +300,7 @@ class BostonEmpirical:
                         definition["threshold"],
                         definition["weight_policy"],
                         definition.get("empty", False),
+                        full=definition.get("graph_mode") == "full",
                     )
                 graph = graphs[requested_graph]
                 if definition["kind"] == "components":

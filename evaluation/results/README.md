@@ -1,6 +1,6 @@
 # Manuscript results
 
-Generate numbered manuscript displays from saved evaluation runs. From the repository root, after installing the project, run `python -m evaluation.results.fig01` (or `tab01`, etc.). Scripts accept `--run-dir <run>` to pin their source run and `--output-dir <directory>` to override the destination. Figure scripts accept `--format pdf|png|both` (default `both`). Supplementary `fig17`, `fig20`, and `fig21` also accept `--criterion`.
+Generate numbered manuscript displays from saved evaluation runs. From the repository root, after installing the project, run `python -m evaluation.results.fig01` (or `tab01`, etc.). Scripts accept `--run-dir <run>` to pin their source run and `--output-dir <directory>` to override the destination. Figure scripts accept `--format pdf|png|both` (default `both`). Supplementary `fig20` and `fig21` also accept `--criterion`.
 
 Outputs default to `evaluation/results/outputs/<study>/<run-id>/` and are named after the producing script: `fig##_description.pdf` / `.png` or `tab##_description.tex`. Scripts with multiple endpoints or criteria append that name to each file. The `fig06` calculation CSVs share its prefix. The output tree is ignored by Git; pinned inputs remain in the study output directories. Previously generated SVGs are retained alongside migrated artifacts, but new figure exports use PDF/PNG.
 
@@ -8,7 +8,7 @@ Outputs default to `evaluation/results/outputs/<study>/<run-id>/` and are named 
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Diagnostics](../00_synthetic_diagnostics/README.md)                                          | `fig01` feature ambiguity and known-truth controls; `fig24` offspring distribution, transmission concentration and generation profile                                                                                                                                                              | —                                                            |
 | [Baseline](../01_synthetic_baseline/README.md#manuscript-figures-and-tables)                  | `fig00` primary-target compatibility surfaces; `fig02` pairwise discrimination; `fig03` components; `fig04` binary Leiden; `fig05` native Leiden; `fig06` resolution regret; `fig07` raw TreeCluster; `fig08` dated TreeCluster; `fig09` graph operating bars; `fig10` TreeCluster operating bars | `tab01` main operating points; `tab02` full operating points |
-| [Perturbation](../02_synthetic_perturbation/README.md#manuscript-displays-from-saved-results) | `fig11` pairwise sensitivity; `fig12` cluster sensitivity; `fig13` pairwise ranges; `fig14` cluster ranges; `fig15` mode effect; `fig16` all-pairwise supplement; `fig17` all-pipelines supplement                                                                                                | `tab03` fresh-control performance                            |
+| [Perturbation](../02_synthetic_perturbation/README.md#manuscript-displays-from-saved-results) | `fig12` four-mode clustering sensitivity; `fig14` paired mean/ranges; `fig15` inference contrast at baseline/updated resolution; `fig23` four-mode overview | `tab03` four-mode fresh-control clustering |
 | [Boston](../03_boston_application/README.md#manuscript-displays-from-frozen-results)          | `fig18` exposure trade-offs; `fig19` partition context; `fig20` all-exposures supplement; `fig21` all-agreement supplement                                                                                                                                                                        | `tab04` frozen exposures                                     |
 
 The [diagnostics manuscript draft and caption](notes/fig01.md) links to pinned figures and source evidence. Study READMEs describe the displays and their interpretation in detail. Reports and their workflow-generated figures remain with their respective runs.
@@ -25,7 +25,7 @@ Manuscript numbering is independent of the script identifiers:
 | ------------------ | -------- | --------------------------------------------------------------------------------- |
 | Figure 1           | `fig02`  | Development precision–recall curves, with held-out AP in the legend               |
 | Figure 2           | `fig22`  | Held-out F1 versus distant-pair contamination for all selected graph/tree methods |
-| Figure 3           | `fig23`  | Paired sensitivity of AP, cluster F1, and contamination                           |
+| Figure 3           | `fig23`  | Four-mode full-graph EpiLink clustering F1 and contamination sensitivity |
 | Figure 4           | `fig18`  | Boston exposure concentration and recovery                                        |
 | Table 1            | `tab01`  | Compact held-out pairwise and clustering comparison                               |
 | Table 2            | `tab04`  | Boston exposure counts and representative-cluster summaries                       |
@@ -36,7 +36,7 @@ Manuscript numbering is independent of the script identifiers:
 are descriptive extracts of validated saved results, without new method selection.
 The main table includes both ED and ES inference within each genetic observation
 process, and the score-weighted ES/logistic Leiden comparisons used downstream.
-The appendix table retains connected components and every selected weight policy.
+The appendix table retains connected components and active full-graph Leiden policies. EpiLink Leiden uses native weights only. The former pairwise/all-method perturbation producers (`fig11`, `fig13`, `fig16`, `fig17`) have been removed; script-number gaps are intentional. Historical manuscript drafts and retained generated outputs describe their pinned earlier analyses.
 
 Rebuild the main and supplementary displays and all four tables together:
 

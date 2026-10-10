@@ -1,4 +1,4 @@
-# Boston source-data processing: 4 March–9 May 2020
+# Boston source-data processing: 4 March to 9 May 2020
 
 Sequences and metadata from [Lemieux et al. (2021)](https://www.science.org/doi/10.1126/science.abe3261) were downloaded from the project's [Terra Workspace](https://app.terra.bio/#workspaces/pathogen-genomic-surveillance/COVID-19_Broad_Viral_NGS).
 
@@ -61,10 +61,3 @@ and a provenance manifest under `evaluation/03_boston_application/outputs/inputs
 Missing pairs from the censored TN93 table remain unobserved, not zero-distance.
 The [output reference](../../../OUTPUTS.md#10-boston-inputs-and-results) defines
 the columns and exposure-label assignment.
-
-Boston tree construction separately runs TN93 with `-t 1` on the alignment and
-requires every distinct case pair to have a finite distance. It builds raw trees
-with FastME and dated trees with TreeTime using collection dates. These all-pair
-distances are stored with tree artifacts; they do not replace the censored table
-used by the graph-scoring workflow. EpiLink produces compatibility scores, while
-the baseline-fitted logistic models produce probabilities.

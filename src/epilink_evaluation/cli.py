@@ -44,18 +44,9 @@ def smoke_config(config):
         "genetic": [0, 2],
         "logistic": [0.01, 0.25],
     }
-    config["clustering"]["leiden"].update(default_resolution_grid=[0.05, 0.5], restarts=2)
-    config["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {
-        "binary": [0.05, 0.5],
-        "native": [0.05, 0.5],
-    }
-    if "grid_audit" in config:
-        config["grid_audit"]["reference"] = {
-            "thresholds": deepcopy(config["thresholds"]),
-            "leiden_resolution_grid": [0.5],
-        }
+    config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
     config["treecluster"].update(
-        genetic_threshold_snps=[1, 10], threshold_days=[14, 56]
+        genetic_threshold_snps=[1, 10], temporal_threshold_days=[14, 56]
     )
     if "phylogeny" not in config:
         config["phylogeny"] = {}
@@ -150,9 +141,9 @@ def main(argv=None):
     if args.command == "perturbation":
         from .workflows.perturbation_config import load_study_config
 
-        if args.stage not in (None, "all", "observations", "report"):
+        if args.stage not in (None, "all", "report"):
             parser.error(
-                "Perturbation supports --stage all, observations or report; settings are already frozen"
+                "Perturbation supports --stage all or report; all includes development selection and held-out clustering"
             )
         config = load_study_config(
             args.config or "evaluation/02_synthetic_perturbation/config.yaml",
@@ -252,17 +243,14 @@ def main(argv=None):
         from .workflows.settings import settings_registry
 
         tools = {}
-        treecluster_exec = (
-            config["treecluster"]
-            .get("executables", {})
-            .get("treecluster", "TreeCluster.py")
-        )
+        treecluster_exec = config["treecluster"].get("executable") or config["treecluster"].get("executables", {}).get("treecluster", "TreeCluster.py")
         try:
             tools["treecluster"] = command_identity(treecluster_exec)
         except FileNotFoundError as exc:
             tools["treecluster"] = {"unavailable": str(exc)}
 
-        iqtree_exec = config.get("phylogeny", {}).get("iqtree_executable", "iqtree")
+        phylogeny = config.get("phylogeny", {})
+        iqtree_exec = phylogeny.get("executable", phylogeny.get("iqtree_executable", "iqtree"))
         try:
             tools["iqtree"] = command_identity(iqtree_exec)
         except FileNotFoundError as exc:

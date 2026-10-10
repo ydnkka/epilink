@@ -9,9 +9,8 @@ inputs:
   tree_seed: 12345
   smoke_cases: null
 splits:
-  train: [61001, 61002]
+  train: [61001, 61002, 61003]
   development: [62001, 62002, 62003]
-  # Fresh held-out observations for the refined comparison; 63001–63003 were accessed.
   evaluation: [63101, 63102, 63103]
 generation:
   incubation: { mean: 5.505036, cv: 0.4149770576 }

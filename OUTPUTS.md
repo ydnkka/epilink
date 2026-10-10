@@ -745,76 +745,63 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 
 | File             | Fields / purpose                                                                                                                                                                                                                                                |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`  | Study `status`, `requested_stage` (`all` or `observations`), normalized `config`, full `signature`, `git_revision`, actual study `n_cases`, `run_directory`, and optional caught `error`. Status is running/complete/partial/failed.                            |
-| `reference.json` | Source `run_directory`, `run_fingerprint`, `selection_fingerprint`, `training_fingerprint`, `truth_fingerprint`, reference `n_cases`, `model_sha256`, and `baseline_implementation`.                                                                            |
-| `selection.json` | Exact frozen baseline selection document, including infeasible decisions.                                                                                                                                                                                       |
-| `settings.json`  | Only the selected setting definitions; definitions and setting IDs are unchanged from baseline.                                                                                                                                                                 |
+| `manifest.json`  | Study `status`, `requested_stage: all`, schema-2 `config`, full `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`. |
+| `reference.json` | Source `run_directory`, `run_fingerprint`, original `selection_fingerprint`, `truth_fingerprint`, reference `n_cases`, and `baseline_implementation`. No fitted models are needed. |
+| `selection.json` | Baseline selection metadata with operating points filtered to the requested native EpiLink pipelines and criterion. |
+| `settings.json`  | Baseline-selected full-graph EpiLink Leiden definitions. `graph_mode: full`, `threshold: null`, `empty: false`; only resolution is selected. |
 | `scenarios.json` | List of `name`, `parameter`, absolute `value`, `baseline_value`, `multiplier` (null for absolute levels), and complete scenario `generation` parameters. The unperturbed scenario is named `baseline` and its parameter metadata is null.                       |
-| `coverage.csv`   | One row per `scenario`, `mode`: replay `status`, `completed` metric rows, `expected` rows, and `error` when a whole replay failed. Expected count is unique selected settings times effective observation seeds, before duplicating rows for multiple criteria. |
+| `coverage.csv`   | One row per scenario/mode with `inference_mode`, `clustering_mode`, `status`, `completed`, `expected`, `error`. Expected count is requested EpiLink scorers × evaluation seeds. |
 
-Study signatures include effective configuration, resolved reference identity, scenarios, current implementation/tool identities, and study truth ID. Each `scenarios/<scenario>/<mode>/manifest.json` records replay `status`, its exact configuration and signature, and an optional whole-replay error. A partial replay can contribute completed rows; failed/not-run replays contribute none to the top-level result tables. Study status remains partial until all requested scenario/mode comparisons have complete coverage.
+Study signatures include effective configuration, resolved reference identity, scenarios, implementation and truth ID. Each `scenarios/<scenario>/<mode>/manifest.json` records replay status, configuration/signature and an optional error. Failed/not-run arms contribute no result rows. Complete status requires all four arms in every scenario.
 
-For `requested_stage: observations`, status describes ambiguity coverage only. An `all` run additionally requires complete ambiguity coverage.
+### Absolute clustering results
 
-### Perturbed observation ambiguity
-
-The shared synthetic diagnostic implementation computes exact GD and GD/TD feature cells for every scenario/seed, including the fresh baseline control. Genetic processes and relationship endpoints match [exact observation feature cells](#exact-observation-feature-cells). Inference modes share observations, so these tables have **no `mode` column**.
-
-| File                          | Groups and values                                                                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ambiguity_coverage.csv`      | One row per `(scenario, seed)`: `status`, `completed` / `expected` summary rows (12 per dataset), source `dataset` ID, diagnostic `artifact` path, and optional `error`. |
-| `ambiguity.csv`               | One row per `(scenario, seed, process, feature_set, endpoint)`, containing the diagnostic summary counts/ratios and scenario parameter metadata. Includes controls.      |
-| `ambiguity_summary.csv`       | Absolute metrics grouped by `(scenario, process, feature_set, endpoint)` with `_mean`, `_std`, `_min`, `_max`, `_count` and `n_realizations`.                            |
-| `ambiguity_deltas.csv`        | Perturbed rows matched to controls by `(seed, process, feature_set, endpoint)`, with `baseline_<metric>`, `delta_<metric>` and `control_available`.                      |
-| `ambiguity_delta_summary.csv` | Paired metrics grouped like absolute summaries, with the same statistic suffixes plus `n_controls`.                                                                      |
-
-`artifacts/feature_cells/<full-fingerprint>/` retains `cells.parquet`, `summary.csv`, `prevalence.csv` and `relationships.csv` with seed identifiers, using the diagnostic schemas in section 13. Completion manifests are keyed by source dataset, truth checksums and scoped diagnostic implementation/dependencies; changed evidence is rebuilt. `ambiguity_coverage.csv` links scenarios/seeds to these artifacts. Feature ambiguity measures exact-cell target/non-target mixing; minimum feature-only error is empirical. Missing controls and undefined ratios remain visible in the deltas and per-metric counts.
-
-### Absolute results and rankings
-
-`results.csv` contains baseline-style operating metric rows joined to frozen `criterion` names. `rankings.csv` contains the scorer ranking/calibration summaries from section 3. Both add:
+`results.csv` contains evaluation partition metrics from section 4, joined to the configured baseline criterion. The study produces no pairwise rankings or ambiguity tables. Added metadata:
 
 | Column           | Definition                                                                      |
 | ---------------- | ------------------------------------------------------------------------------- |
 | `scenario`       | Resolved scenario name from `scenarios.json`, including the `baseline` control. |
-| `mode`           | `matched` or `baseline_fixed`.                                                  |
+| `mode`           | One of the four `baseline_inference_*_clustering` / `matched_inference_*_clustering` arms. |
+| `inference_mode` | `baseline` or `matched`. |
+| `clustering_mode` | `baseline` or `updated` resolution. |
 | `parameter`      | Changed natural-history field, such as `incubation.mean`; blank for controls.   |
 | `value`          | Absolute perturbed value in the parameter's native units.                       |
 | `baseline_value` | Original natural-history parameter value, not a performance metric.             |
 | `multiplier`     | Requested relative multiplier, or blank for absolute levels and controls.       |
 
-`split` is `evaluation` throughout these replays; `seed` is a fresh study seed, rather than an original baseline evaluation seed. Results retain `pipeline` and `setting_id`; rankings retain `score_name`, `data_process`, and `score_family`. Multiple criteria choosing the same setting duplicate its operating rows by criterion, while ranking summaries are independent of operating criteria.
+Top-level rows use `split: evaluation` and fresh evaluation seeds; development evidence remains inside each updated arm. `pipeline` is `leiden/<EpiLink-scorer>/native`. `setting_id` identifies the actual resolution/definition used for that scenario and arm.
 
 ### Paired deltas
 
-`results_deltas.csv` and `rankings_deltas.csv` contain perturbed rows only. They retain original row columns and add, for every numeric performance/count metric:
+`results_deltas.csv` contains perturbed rows only and adds:
 
 | Column pattern      | Meaning                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------- |
 | `baseline_<metric>` | Unperturbed control's metric on the same seed, mode, and comparison identity.           |
 | `delta_<metric>`    | `metric - baseline_<metric>`, in the original metric's units.                           |
 | `control_available` | Whether a matching control row exists; true does not guarantee every metric is defined. |
+| `baseline_setting_id` | Control's actual resolution/definition ID, potentially different from the perturbed `setting_id`. |
 
-Operating comparisons match on `(mode, seed, criterion, pipeline, setting_id)`; rankings match on `(mode, seed, score_name, data_process, score_family)`. Parameter values and seeds are identifiers/metadata and are not differenced. Missing controls are retained via a left join, with missing control metrics and deltas. Missing metrics in an otherwise present control also yield missing deltas. Negative AP/F1 changes indicate worse recovery; positive contamination changes indicate more distant selected pairs. These deltas compare fresh paired controls, not the reference baseline's old held-out scores.
+Controls match on `(mode, seed, criterion, pipeline)`, **excluding setting ID** because updated resolution may change between scenario and control. Parameter metadata/seeds are not differenced. Missing controls survive the left join with missing metrics/deltas. Negative F1 changes indicate reduced recovery; positive contamination changes indicate more distant within-cluster pairs. Controls are fresh paired observations, not the reference's old held-out observations.
 
 ### Summary tables
 
 | File                         | Groups and values                                                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `results_summary.csv`        | Absolute metrics by `(scenario, mode, criterion, pipeline, setting_id)`. Includes controls.                |
-| `rankings_summary.csv`       | Absolute ranking metrics by `(scenario, mode, score_name, data_process, score_family)`. Includes controls. |
 | `results_delta_summary.csv`  | Delta metrics grouped like operating results, excluding control scenarios.                                 |
-| `rankings_delta_summary.csv` | Delta metrics grouped like rankings, excluding control scenarios.                                          |
 
 Each metric receives `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. Means give each nonmissing realization equal weight; SD is sample SD (`ddof=1`), undefined with fewer than two valid values. `_count` is the number of nonmissing values for that specific metric. `n_realizations` counts group rows; delta summaries additionally report `n_controls`, the number with a matching control row. For example, `delta_M0_f1_count` can be smaller than `n_controls` when F1 is undefined. Join `scenario` to `scenarios.json` for absolute parameter values.
 
 ### Detailed artifacts and reports
 
-`scenarios/<scenario>/<mode>/evaluation/seed_<seed>/` contains the same pairwise, membership, cluster, algorithm, and status schemas as sections 3–4. Per-seed pairwise and per-setting cluster manifests point to shared score artifacts under the perturbation root. Their run fingerprint identifies that frozen replay. Modes reuse an observation artifact within each scenario/seed; raw/dated tree artifacts also reuse the same observations independently of EpiLink inference.
+`scenarios/<scenario>/<mode>/selection.json` records actual operating points, inference/clustering modes, development seeds (empty for baseline-resolution arms), and development-evidence checksum (null for baseline arms). `settings.json` stores replayed definitions. `evaluation/heldout_access.json` pins selection fingerprint and evaluation seeds before observations are released.
 
-`artifacts/backbones/<id>/transmission_tree.gml` stores the frozen reference topology, or its smoke prefix. Its manifest signature has `kind`, `reference_truth`, `nodes`, and `edges`, with normal completion checksums. Frozen logistic model bytes/manifests are copied to `artifacts/models/<training-id-prefix>/`; their original training dataset IDs refer to the reference baseline's pinned shared experiment. Perturbation's newly generated truth and observations remain under its own `artifacts/truth/` and `artifacts/observations/`; they are independent of the diagnostics/baseline shared observation pool. Boston's paths and schemas in section 10 are unchanged by shared synthetic preparation.
+Updated arms have `development/metrics.csv`, summaries, and per-setting development artifacts. All arms have `evaluation/seed_<seed>/clusters/<setting-id>/` memberships, cluster tables, metrics, algorithm metadata and checksummed manifests, using section 4's schemas. Full graphs retain every observed edge including zero weights. All arms share scenario/seed observations; arms with the same inference share scores.
 
-`report.md` and `report.html` show comparison and feature-ambiguity coverage, absolute ambiguity and paired changes, parameter levels, frozen decisions, paired AP changes, and fixed-setting metric changes. `figures/paired_f1_<index>.png` contains a paired F1 heatmap for each criterion in sorted criterion-name order. Each heatmap has one panel per mode, pipelines as rows, and perturbations as columns. Smoke reports are explicitly labeled pipeline validation.
+`artifacts/backbones/<id>/transmission_tree.gml` stores the frozen reference topology or smoke prefix. Truth, observations and training-free scores live under the study's `artifacts/truth/`, `artifacts/observations/` and `artifacts/scores/`; score signatures have `training: null`. No models or phylogenetic artifacts are generated.
+
+`report.md` and `report.html` show coverage, parameter levels, actual resolutions, absolute clustering performance and paired changes. Smoke reports are labeled pipeline validation. Standalone `fig12`, `fig14`, `fig15`, `fig23` and `tab03` consume these clustering-only tables; see the study guide for display interpretation.
 
 ## 13. Shared experiments and diagnostics
 

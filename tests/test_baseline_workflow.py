@@ -150,7 +150,7 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
     # Set up treecluster methods and thresholds
     small_config["treecluster"]["methods"] = ["max_clade"]
     small_config["treecluster"]["genetic_threshold_snps"] = [0, 1, 2]
-    small_config["treecluster"]["threshold_days"] = [0, 7, 14]
+    small_config["treecluster"]["temporal_threshold_days"] = [0, 7, 14]
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     baseline.run("develop")

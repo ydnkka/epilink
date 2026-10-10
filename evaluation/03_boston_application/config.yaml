@@ -21,7 +21,7 @@ phylogeny:
   threads: 4
   seed: 2026
   clock_rate: null
-  iqtree_executable: iqtree
+  executable: iqtree
   timeout: 7200
 
 trees:

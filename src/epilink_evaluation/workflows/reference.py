@@ -1,13 +1,11 @@
 """Read-only, integrity-checked access to an evaluated baseline experiment."""
 
-import shutil
 from copy import deepcopy
 from pathlib import Path
 
 import networkx as nx
 
 from ..inputs.experiment import SyntheticExperiment
-from ..phylogeny.external import command_identity
 from ..provenance import digest_file, fingerprint, read_json, valid_artifact
 from ..truth import TreeIndex
 
@@ -141,40 +139,40 @@ class OperatingReference:
         }
 
 
-class BaselineReference(OperatingReference):
-    """Full reference, including fitted models and completed held-out artifacts."""
+class EpiLinkClusteringReference(OperatingReference):
+    """Training-free reference for the requested score-weighted Leiden pipelines."""
 
-    def __init__(self, path, implementation):
+    def __init__(self, path, implementation, scorers, criterion):
         super().__init__(path, implementation)
-        path = self.directory
-        signature = self.manifest["signature"]
-        run_id = self.identity["run_fingerprint"]
-        old = signature["implementation"]
-        self.tools = {}
-        if self.config["treecluster"]["enabled"]:
-            for name, executable in self.config["treecluster"]["executables"].items():
-                self.tools[name] = command_identity(executable)
-                if self.tools[name]["sha256"] != signature["tools"][name].get("sha256"):
-                    raise ValueError(f"Reference executable changed: {name}")
-        self.training_id = self.frozen["training_fingerprint"]
-        self.model_directory = self.root / "artifacts/models" / self.training_id[:20]
-        model_manifest = checked_artifact(self.model_directory)
+        pipelines = {f"leiden/{name}/native" for name in scorers}
+        points = [
+            p for p in self.frozen["operating_points"]
+            if p["criterion"] == criterion and p["pipeline"] in pipelines
+        ]
         if (
-            model_manifest["fingerprint"] != self.training_id
-            or model_manifest["seeds"] != self.config["splits"]["train"]
+            len(points) != len(pipelines)
+            or {p["pipeline"] for p in points} != pipelines
+            or any(p["status"] != "selected" for p in points)
         ):
             raise ValueError(
-                "Reference training identity differs from frozen selection"
+                "Reference requires a feasible native EpiLink setting "
+                "for every requested pipeline"
             )
-        self.models = read_json(self.model_directory / "models.json")
-        experiment_identity = signature["experiment"]
+        self.frozen = {**self.frozen, "operating_points": points}
+        self.selected = {p["setting_id"]: p["definition"] for p in points}
+        if any(d.get("graph_mode") != "full" for d in self.selected.values()):
+            raise ValueError(
+                "Perturbation requires baseline full-graph Leiden settings; "
+                "regenerate the baseline reference"
+            )
+        experiment_identity = self.manifest["signature"]["experiment"]
         self.experiment = SyntheticExperiment(
             experiment_identity["experiment_directory"], implementation
         )
         if self.experiment.identity != experiment_identity:
             raise ValueError("Reference synthetic experiment identity differs")
         self.truth_directory = self.experiment.truth_directory
-        if self.truth_directory.name != signature["truth"]:
+        if self.truth_directory.name != self.manifest["signature"]["truth"]:
             raise ValueError("Reference truth differs from the pinned experiment")
         truth_manifest = checked_artifact(self.truth_directory)
         topology = truth_manifest["signature"]
@@ -184,49 +182,23 @@ class BaselineReference(OperatingReference):
         TreeIndex(self.tree)
         if len(self.tree) != truth_manifest["n_cases"]:
             raise ValueError("Reference truth topology size differs from its manifest")
-
-        # Check completed held-out artifacts, not just the latest command status
-        # (which may have been overwritten by a later development/report action).
-        pairs = {k: v for k, v in self.selected.items() if v["kind"] == "pairwise"}
-        clusters = {k: v for k, v in self.selected.items() if v["kind"] != "pairwise"}
         for seed in self.config["splits"]["evaluation"]:
-            directory = path / "evaluation" / f"seed_{seed}"
-            pair_manifest = checked_artifact(directory / "pairwise")
-            score_id = pair_manifest["signature"]["score_id"]
-            common = {
-                "run": run_id,
-                "score_id": score_id,
-                "split": "evaluation",
-                "seed": seed,
-            }
-            checked_artifact(directory / "pairwise", {**common, "definitions": pairs})
-            status = read_json(directory / "clusters/status.json")
-            if (
-                status["status"] != "complete"
-                or status["errors"]
-                or status["completed"] != len(clusters)
-                or status["configured"] != len(clusters)
-            ):
-                raise ValueError(f"Reference evaluation is incomplete for seed {seed}")
-            for key, definition in clusters.items():
-                checked_artifact(
-                    directory / "clusters" / key, {**common, "definition": definition}
+            for key, definition in self.selected.items():
+                artifact = (
+                    self.directory / "evaluation" / f"seed_{seed}" / "clusters" / key
                 )
-        self.identity = {
-            "run_directory": str(path),
-            "run_fingerprint": run_id,
-            "selection_fingerprint": fingerprint(self.frozen),
-            "training_fingerprint": self.training_id,
-            "truth_fingerprint": truth_manifest["fingerprint"],
-            "n_cases": len(self.tree),
-            "model_sha256": digest_file(self.model_directory / "models.json"),
-            "baseline_implementation": old,
-        }
-
-    def copy_models(self, root):
-        destination = Path(root) / "artifacts/models" / self.training_id[:20]
-        manifest = read_json(self.model_directory / "manifest.json")
-        if not valid_artifact(destination, manifest["signature"]):
-            destination.mkdir(parents=True, exist_ok=True)
-            for name in (*manifest["files"], "manifest.json"):
-                shutil.copyfile(self.model_directory / name, destination / name)
+                saved = checked_artifact(artifact)
+                signature = saved["signature"]
+                checked_artifact(
+                    artifact,
+                    {
+                        "run": self.identity["run_fingerprint"],
+                        "score_id": signature["score_id"],
+                        "definition": definition, "split": "evaluation", "seed": seed,
+                    },
+                )
+                checked_artifact(self.root / "artifacts/scores" / signature["score_id"])
+        self.identity.update(
+            truth_fingerprint=truth_manifest["fingerprint"],
+            n_cases=len(self.tree),
+        )

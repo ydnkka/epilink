@@ -71,6 +71,16 @@ def test_inclusive_thresholds_native_weights_and_isolates():
         build_graph(observations, 4, values, genetic, 1, policy="native")
 
 
+def test_full_graph_keeps_all_observed_pairs_and_original_zero_weights():
+    observations = pd.DataFrame({"a": [0, 0, 1], "b": [1, 2, 2]})
+    graph = build_graph(observations, 4, [2.0, 0.005, 0.0], SCORERS["ESD"].spec, None, "native", full=True)
+    assert graph.vcount() == 4
+    assert graph.get_edgelist() == [(0, 1), (0, 2), (1, 2)]
+    assert graph.es["weight"] == [2.0, 0.005, 0.0]
+    with pytest.raises(ValueError, match="no cutoff"):
+        build_graph(observations, 4, [2, 0.005, 0], SCORERS["ESD"].spec, 0.1, "native", full=True)
+
+
 def test_leiden_restarts_are_reproducible_and_selected_by_objective():
     a, b = np.triu_indices(6, 1)
     observations = pd.DataFrame({"a": a, "b": b})

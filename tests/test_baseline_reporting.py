@@ -60,26 +60,25 @@ def test_one_shared_development_cutoff_beats_coarse_grid_without_per_seed_optimi
     assert point["status"] == "infeasible"  # undefined precision also fails bounds
 
 
-def test_exact_cutoffs_do_not_expand_graph_grids_and_resolutions_follow_policy(
+def test_exact_cutoffs_do_not_expand_full_graph_resolution_grid(
     small_config,
 ):
     small_config["scorers"] = ["LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     leiden = small_config["clustering"]["leiden"]
-    leiden["default_resolution_grid"] = [0.2, 0.8]
-    leiden["resolution_grid_by_weight_policy"] = {"native": [0.01, 0.02]}
+    leiden["resolutions"] = [0.2, 0.8]
     definitions = settings_registry(
         small_config, {"LOGIT_D": np.linspace(0, 1, 101).tolist()}
     )
     assert sum(d["kind"] == "pairwise" for d in definitions.values()) == 102
     for definition in definitions.values():
-        if definition["kind"] != "pairwise" and not definition["empty"]:
+        if definition["kind"] == "components" and not definition["empty"]:
             assert definition["threshold"] in small_config["thresholds"]["logistic"]
         if definition["kind"] == "leiden":
-            expected = (
-                [0.01, 0.02] if definition["weight_policy"] == "native" else [0.2, 0.8]
-            )
-            assert definition["resolution"] in expected
+            assert definition["resolution"] in [0.2, 0.8]
+            assert definition["threshold"] is None
+            assert definition["graph_mode"] == "full"
+    assert sum(d["kind"] == "leiden" for d in definitions.values()) == 4
 
 
 def test_operating_summary_uses_frozen_objective_not_criterion_name():
@@ -202,12 +201,10 @@ def test_invalid_search_configuration_is_rejected(small_config, field):
     if field == "mode":
         small_config["pairwise"]["threshold_mode"] = "evaluation_scores"
     elif field == "resolution":
-        small_config["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {
-            "native": [0]
-        }
+        small_config["clustering"]["leiden"]["resolutions"] = [0]
     elif field == "tolerance":
-        small_config["grid_audit"]["objective_tolerance"] = -1
+        small_config["grid_audit"] = {"objective_tolerance": -1}
     else:
-        small_config["grid_audit"]["reference"]["thresholds"]["logistic"] = [-0.1]
+        small_config["grid_audit"] = {"reference": {"thresholds": {"logistic": [-0.1]}}}
     with pytest.raises(ValueError):
         validate(small_config)

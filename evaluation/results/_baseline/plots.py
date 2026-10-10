@@ -210,6 +210,8 @@ def create_approach_figure(
                 scorers = tuple(
                     score for score in scorers if not score.startswith("GD_")
                 )
+            elif approach == "leiden_binary":
+                scorers = tuple(score for score in scorers if score.startswith(("GD_", "LOGIT_")))
             variants = []
             for score in scorers:
                 pipeline = (

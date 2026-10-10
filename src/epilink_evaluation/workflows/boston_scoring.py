@@ -108,6 +108,12 @@ def operating_settings(reference, names, include_trees=False):
     definitions, points = {}, []
     for source in reference.frozen["operating_points"]:
         parts = source["pipeline"].split("/")
+        if (
+            parts[0] == "leiden" and parts[-1] == "binary"
+            and parts[1] in aliases
+            and BOSTON_SPECS[aliases[parts[1]]].family == "epilink"
+        ):
+            continue
         if parts[0] == "treecluster":
             if not include_trees:
                 continue
