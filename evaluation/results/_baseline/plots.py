@@ -57,7 +57,7 @@ METRIC_PAIRS = (
 def approach_matches(definition: dict, approach: str) -> bool:
     if approach in ("components", "leiden"):
         return definition["kind"] == approach
-    kind, subtype = approach.split("_", 1)
+    _, subtype = approach.split("_", 1)
     return definition["kind"] == "treecluster" and definition["tree_kind"] == subtype
 
 
