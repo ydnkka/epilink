@@ -18,12 +18,12 @@ The study has three objectives:
 
 ### How the studies fit together
 
-| Study                                                                | Scientific role                                                                        | Main evidence                                                                               |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells and endpoint-oracle graph partitions. |
-| **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.          | Truth-based performance and frozen models/operating points.                                 |
-| [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test all four EpiLink scorers under inference mismatch and resolution adaptation.      | Paired clustering changes in the four inference/resolution modes.                           |
-| [**Boston application**](../03_boston_application/README.md)         | Apply frozen settings to empirical observations.                                       | Exposure concentration/recovery and graph/tree partition agreement.                         |
+| Study                                                                | Scientific role                                                                        | Main evidence                                                       |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells and endpoint-oracle graph partitions.          |
+| **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.          | Truth-based performance and frozen models/operating points.         |
+| [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test all four EpiLink scorers under inference mismatch and resolution adaptation.      | Paired clustering changes in the four inference/resolution modes.   |
+| [**Boston application**](../03_boston_application/README.md)         | Apply frozen settings to empirical observations.                                       | Exposure concentration/recovery and graph/tree partition agreement. |
 
 The completed baseline supplies the reference for both downstream studies. Perturbation and Boston each consume that reference directly; Boston does not select its primary settings from perturbation results.
 
