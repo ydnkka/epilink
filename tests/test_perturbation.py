@@ -234,7 +234,7 @@ def test_four_arms_development_selection_pairing_and_cache(
         ["mode", "seed", "pipeline"]
     )
     for row in deltas.to_dict('records'):
-        control = controls.loc[[(row["mode"], row["seed"], row["pipeline"])]]
+        control = controls.loc[[(row["mode"], row["seed"], row["pipeline"])]].iloc[0]
         assert row["delta_M0_f1"] == pytest.approx(row["M0_f1"] - control.M0_f1)
         assert row["baseline_setting_id"] == control.setting_id
     cached = {
