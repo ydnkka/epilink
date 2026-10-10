@@ -70,9 +70,7 @@ def score_observations(observations, context, names):
     scores = {}
     for name in names:
         spec = BOSTON_SPECS[name]
-        if not len(observations):
-            values = gd.copy()
-        elif spec.family == "genetic":
+        if not len(observations) or spec.family == "genetic":
             values = gd.copy()
         elif spec.family == "logistic":
             process = name.rsplit("_", 1)[1]
@@ -96,7 +94,9 @@ def score_observations(observations, context, names):
     return pd.DataFrame(scores, index=observations.index)
 
 
-def operating_settings(reference, names, include_trees=False, target_alignment_length=None):
+def operating_settings(
+    reference, names, include_trees=False, target_alignment_length=None
+):
     """Transfer frozen rules, preserving raw-tree SNP counts across alignment lengths."""
     validate_scorers(names)
     aliases = {BASELINE_SCORES[name]: name for name in names}
@@ -140,8 +140,12 @@ def operating_settings(reference, names, include_trees=False, target_alignment_l
                 and target_alignment_length is not None
             ):
                 simulation = reference.config["simulation"]
-                source_length = simulation.get("alignment_length", simulation["sequence_length"])
-                snps = definition["threshold"] * source_length
+                source_length = simulation.get(
+                    "alignment_length", simulation["sequence_length"]
+                )
+                snps = definition.get(
+                    "threshold_input", definition["threshold"] * source_length
+                )
                 definition.update(
                     baseline_threshold=definition["threshold"],
                     threshold_snps=snps,

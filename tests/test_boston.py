@@ -593,7 +593,7 @@ def test_boston_enabled_trees_use_iqtree_and_frozen_snp_rules(
     )
     definitions = {
         key: definition
-        for key, definition in settings_registry(source).items()
+        for key, definition in settings_registry(source, {"GD_D": [0]}).items()
         if definition["kind"] == "treecluster"
         or (definition["kind"] == "components" and definition["threshold"] == 0)
     }

@@ -52,7 +52,7 @@ Compare scorers within the same observed process, on identical cases/pairs/seeds
 
 **Evidence:** full tie-aware precision–recall curves, AP, absolute precision, recall, F1, enrichment over prevalence, selected counts/fractions, and AD/CA/M composition. Genetic ties are not broken using time or truth. Empty selections have undefined precision and zero recall when positive pairs exist. Calibration curves, Brier score, and log loss apply to logistic probabilities. Compatibility is not treated as a calibrated probability, clipped to [0,1], or normalized into one.
 
-Pairwise selection always evaluates the union of distinct score values across **development** realizations, plus an empty selection. Each candidate is one inclusive cutoff shared across seeds, evaluated from cumulative whole-tie PR curves. Selection uses equal-seed means and per-seed constraints. Evaluation replays the frozen cutoff. Components use the finite `thresholds` lists; full-graph Leiden selects only resolution.
+Pairwise and component selection share the union of distinct score values across **development** realizations, plus an empty selection. Each candidate is one inclusive cutoff shared across seeds. Pairwise metrics come from cumulative whole-tie PR curves; component metrics come from an incremental connectivity sweep that counts newly co-clustered pairs at each merge and reuses unchanged partitions. Each pipeline independently maximizes the equal-seed mean objective, subject to constraints in every seed. Evaluation replays its own frozen cutoff.
 
 ## 3. What relationships do clusters contain?
 
@@ -65,7 +65,37 @@ Pairwise selection always evaluates the union of distinct score values across **
 
 All clusterers return one membership per sampled case, including isolates and distinct TreeCluster `-1` singletons. Evaluate **all within-cluster pairs**, not only retained graph edges. Report M=0 precision/recall/F1, broader endpoint recovery, M≥3 contamination, direct-transmission retention, shared-infector retention, singleton fraction, cluster-size distribution, and largest-cluster fraction. Pair metrics exclude self-pairs. ARI between methods, if added, would measure agreement rather than truth accuracy.
 
-Leiden uses **full observed graphs with no cutoff** and selects **resolution only**. EpiLink/logistic edges use the original scores, including zeros; genetic-distance graphs use unit weights as unweighted controls. Each scorer has one `leiden/<scorer>` pipeline. Components retain inclusive cutoff sweeps. Leiden's objective is explicit (default CPM); restarts are selected by that objective, never by truth metrics. `clustering.leiden.resolutions` supplies the grid. Resolution scales depend on objective and scorer.
+Leiden uses **full observed graphs with no cutoff** and selects **resolution only**. EpiLink/logistic edges use the original scores, including zeros; genetic-distance graphs use unit weights as unweighted controls. Each scorer has one `leiden/<scorer>` pipeline. Leiden's objective is explicit (default CPM); restarts are selected by that objective, never by truth metrics. `clustering.leiden.resolutions` supplies bounds and a search budget. Resolution scales depend on objective and scorer.
+
+```yaml
+resolutions:
+  min: 0.01
+  max: 1.0
+  initial_points: 8
+  budget: 28
+  scale: log
+```
+
+The search includes both bounds, starts with logarithmically spaced trials, and refines promising intervals using every pipeline/criterion's development objective and per-seed constraints. Each refinement batch also explores a widest interval. All scorers share the evaluated resolution values, allowing paired resolution comparisons; their selected optima remain independent. Graph construction is reused within each batch, and completed trials are checkpointed. The budget counts distinct resolutions, each evaluated on all development seeds/scorers. `scale: linear` is also available; the optional `tolerance` (default 0.001) stops refinement of sufficiently narrow intervals in the chosen linear/log coordinate. Selection returns the best feasible evaluated value within the declared bounds, without claiming an exact global optimum.
+
+TreeCluster uses the same bounded coarse-to-fine search for its two cutoff types:
+
+```yaml
+genetic_threshold_snps:
+  min: 0
+  max: 10
+  initial_points: 4
+  budget: 11
+  scale: linear
+temporal_threshold_days:
+  min: 0
+  max: 105
+  initial_points: 8
+  budget: 28
+  scale: linear
+```
+
+Raw-tree trials are whole SNP counts, converted once to substitutions/site using the alignment length. Refinement selects an untested integer strictly inside an interval and stops when the budget or integer domain is exhausted; the supplied 0–10 range contains only eleven possible cutoffs. Dated-tree trials are nonnegative real days, passed directly to TreeCluster, including fractional-day refinements. Both searches start at their bounds and share trial cutoffs across the configured genetic processes and methods. Promising intervals are ranked using each process/method/criterion's feasible development objective; final selection independently chooses the best method/cutoff pair for each raw/dated pipeline. Each budget counts distinct cutoffs for that tree kind, not method or seed calls. Existing explicit cutoff lists remain supported for fixed comparisons. Phylogenies and completed partitions are reused, and frozen evaluation/Boston transfer do not discover new cutoff values.
 
 TreeCluster compares `max_clade`, `avg_clade`, and `single_linkage`. IQ-TREE infers raw trees with the ancestral reference as outgroup; that tip is pruned before partitioning. LSD2 calibrates dated trees and excludes the undated reference. Raw branches are substitutions/site, dated branches are days, and non-finite/negative branches are rejected. Root splits and units are recorded. Temporal cutoffs denote tree branch distances, not simply sample-date spans.
 
@@ -167,11 +197,11 @@ Column definitions, formulas, missing-value conventions, metadata fields, and an
 
 `outputs/baseline/` contains `artifacts/` for fitted models, scores, and inferred trees, and fingerprinted `runs/<id>/` directories. `current.json` points to the current run. Each run contains `development/` (pairwise curves and clustering sweeps), `selection/operating_points.json`, `evaluation/` (fixed-setting results), and `report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after accessing evaluation data requires fresh evaluation seeds in the shared config and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`. The revised supplied design reserves fresh full-evaluation seeds 63101–63103; 63001–63003 belong to the previous completed comparison. Smoke retains its separate validation seeds and never substitutes for full scientific evaluation.
 
-Each development `pairwise/evidence/` artifact checkpoints cumulative curves, rankings, calibration, and empty-selection metrics. Once every seed's evidence is available, `development/pairwise_candidates/` pins the candidate definitions and source-manifest hashes. `settings.json` includes these definitions alongside the static clustering grids; a fresh process restores them before replay.
+Each development `pairwise/evidence/` artifact checkpoints cumulative curves, rankings, calibration, and empty-selection metrics. Once every seed's evidence is available, `development/cutoff_candidates/` pins the shared pairwise/component definitions and source-manifest hashes. Component sweep evidence lives in `development/seed_<seed>/clusters/component_sweeps/<scorer>/`; one set of membership/cluster tables is retained per distinct partition, and selected settings receive ordinary `<setting-id>/` artifacts. `development/resolution_search/` saves adaptive Leiden trials; `development/treecluster_search/raw/` and `dated/` save the cutoff trials and search status in SNP/day input units. `settings.json` includes all evaluated candidates; a fresh process restores them before replay.
 
 Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs, phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do not compute evaluation metrics; clusterers do not access truth; reporting reads saved result tables. `inputs.synthetic.analysis_table` provides an optional joined view without duplicating stored truth for every model.
 
-No `pairwise` configuration block is needed; exact development-score cutoffs are the fixed selection policy and remain independent of the full-graph Leiden resolution grid.
+No `pairwise` or scorer `thresholds` configuration block is needed. Pairwise and components share exact development-score candidates; full-graph Leiden uses the bounded adaptive resolution search.
 
 ## Manuscript figures and tables
 

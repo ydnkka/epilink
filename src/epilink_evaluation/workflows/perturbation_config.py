@@ -27,8 +27,8 @@ MODES = {
 def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
     path = Path(path).resolve()
     config = yaml.safe_load(path.read_text())
-    if config.get("schema_version") != 2:
-        raise ValueError("Expected clustering-only perturbation schema_version: 2")
+    if config.get("schema_version") != 1:
+        raise ValueError("Expected clustering-only perturbation schema_version: 1")
     for key in ("baseline_run", "output_directory"):
         config[key] = str((path.parent / config[key]).resolve())
     if output is not None:
@@ -43,13 +43,16 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
             raise ValueError(f"{role} must contain nonnegative integer seeds")
         all_seeds.extend(seeds)
     if len(set(all_seeds)) != len(all_seeds):
-        raise ValueError("Perturbation development and evaluation seeds must be distinct")
+        raise ValueError(
+            "Perturbation development and evaluation seeds must be distinct"
+        )
     modes = config["modes"]
     if set(modes) != set(MODES) or len(modes) != len(MODES):
         raise ValueError("Configure all four unique inference/clustering modes")
     scorers = config["scorers"]
     if (
-        not scorers or not set(scorers) <= {"EDD", "EDS", "ESD", "ESS"}
+        not scorers
+        or not set(scorers) <= {"EDD", "EDS", "ESD", "ESS"}
         or len(set(scorers)) != len(scorers)
     ):
         raise ValueError("Perturbation scorers must be unique EpiLink identifiers")
@@ -83,10 +86,15 @@ def load_study_config(path, *, smoke=False, output=None, baseline_run=None):
     if smoke:
         settings = config["smoke"]
         seed, development_seed, cases = (
-            settings["seed"], settings["development_seed"], settings["cases"]
+            settings["seed"],
+            settings["development_seed"],
+            settings["cases"],
         )
         if (
-            any(type(s) is not int or s < 0 or s in all_seeds for s in (seed, development_seed))
+            any(
+                type(s) is not int or s < 0 or s in all_seeds
+                for s in (seed, development_seed)
+            )
             or seed == development_seed
         ):
             raise ValueError(

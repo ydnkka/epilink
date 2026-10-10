@@ -138,7 +138,8 @@ class SyntheticExperiment:
                     or saved["signature"]["seed"] != seed
                     or saved["signature"]["generation"] != self.config["generation"]
                     or saved["signature"]["simulation"] != self.config["simulation"]
-                    or saved["signature"]["implementation"] != self.signature["producer"]
+                    or saved["signature"]["implementation"]
+                    != self.signature["producer"]
                 ):
                     raise ValueError(
                         "Observation provenance differs from the experiment"

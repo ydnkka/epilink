@@ -8,6 +8,7 @@ not zero. Coverage is explicit and reported.
 from __future__ import annotations
 
 import logging
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 
@@ -139,7 +140,8 @@ class BostonEmpirical:
             for tool in ("iqtree", "treecluster"):
                 if tool == "iqtree":
                     executable = config["phylogeny"].get(
-                        "executable", config["phylogeny"].get("iqtree_executable", "iqtree")
+                        "executable",
+                        config["phylogeny"].get("iqtree_executable", "iqtree"),
                     )
                 else:
                     executable = treecluster_executable(self.treecluster_config)
@@ -169,7 +171,7 @@ class BostonEmpirical:
         else:
             self.models_sha256 = None
         self.context = ScoringContext(
-            self.scoring_config, logistic_models=logistic_models
+            config=self.scoring_config, logistic_models=logistic_models
         )
         self.signature = {
             "kind": "boston-empirical-v3",
@@ -188,9 +190,7 @@ class BostonEmpirical:
             else None,
             "phylogeny": config.get("phylogeny") if self.trees_enabled else None,
             "tree_tools": self.tree_tools,
-            "tree_settings": self.treecluster_config
-            if self.trees_enabled
-            else None,
+            "tree_settings": self.treecluster_config if self.trees_enabled else None,
             "implementation": config["implementation"],
             "scorers": {
                 name: BOSTON_SPECS[name].metadata() for name in config["scorers"]
@@ -328,6 +328,8 @@ class BostonEmpirical:
                         definition["algorithm_seed"],
                     )
                 metadata["retained_graph_edges"] = graph.ecount()
+                if labels is None:
+                    raise RuntimeError("Clustering did not return labels")
                 _, labels = np.unique(labels, return_inverse=True)
                 partition_id = fingerprint(labels.tolist())
                 if partition_id not in partitions:
@@ -370,7 +372,11 @@ class BostonEmpirical:
                     ],
                 )
                 rows.append({**base, **metrics_dict})
-            except Exception as exc:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                ValueError,
+            ) as exc:
                 LOG.error("Cluster failed setting=%s: %s", key, exc)
                 error = {**base, "definition": definition, "error": repr(exc)}
                 write_json(artifact / "manifest.json", {"status": "failed", **error})
@@ -512,7 +518,11 @@ class BostonEmpirical:
                     ],
                 )
                 rows.append({**base, **metrics})
-            except Exception as exc:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                ValueError,
+            ) as exc:
                 LOG.error("TreeCluster failed setting=%s: %s", key, exc)
                 error = {**base, "definition": definition, "error": repr(exc)}
                 write_json(artifact / "manifest.json", {"status": "failed", **error})

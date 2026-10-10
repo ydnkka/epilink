@@ -59,6 +59,8 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
             for d in definitions.values()
             if d["kind"] == "pairwise" and d["score_name"] == name and not d["empty"]
         } == cutoffs
+        assert {d["threshold"] for d in definitions.values()
+                if d["kind"] == "components" and d["score_name"] == name and not d["empty"]} == cutoffs
     assert baseline.run("evaluate")
     assert baseline.definitions == definitions
     evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
@@ -101,7 +103,7 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
     # A damaged data-derived registry cannot silently fall back to configured
     # thresholds and release a different replay.
     (
-        baseline.directory / "development/pairwise_candidates/definitions.json"
+        baseline.directory / "development/cutoff_candidates/definitions.json"
     ).write_text("{}")
     with pytest.raises(ValueError, match="candidate registry"):
         Baseline(deepcopy(small_config)).evaluate()

@@ -12,25 +12,46 @@ def objective_endpoint(objective):
 
 def operating_summary(evaluation, frozen):
     """Keep all endpoints while labelling the objective actually replayed."""
-    metrics = [f"{ep}_{metric}" for ep in ENDPOINTS for metric in ("precision", "recall", "f1", "enrichment")]
+    metrics = [
+        f"{ep}_{metric}"
+        for ep in ENDPOINTS
+        for metric in ("precision", "recall", "f1", "enrichment")
+    ]
     metrics += [
-        "Mge3_contamination", "separate_fraction", "direct_edge_retention",
-        "shared_infector_retention", "selected_pairs", "selected_fraction",
-        "singleton_fraction", "largest_cluster_fraction", "n_clusters",
+        "Mge3_contamination",
+        "separate_fraction",
+        "direct_edge_retention",
+        "shared_infector_retention",
+        "selected_pairs",
+        "selected_fraction",
+        "singleton_fraction",
+        "largest_cluster_fraction",
+        "n_clusters",
     ]
     rules = {
         (point["criterion"], point["pipeline"]): point
-        for point in frozen["operating_points"] if point["status"] == "selected"
+        for point in frozen["operating_points"]
+        if point["status"] == "selected"
     }
     rows = []
-    for (criterion, pipeline), group in evaluation.groupby(["criterion", "pipeline"], sort=True):
+    for (criterion, pipeline), group in evaluation.groupby(
+        ["criterion", "pipeline"], sort=True
+    ):
         point = rules[criterion, pipeline]
-        if set(group.setting_id) != {point["setting_id"]} or group.seed.duplicated().any():
-            raise ValueError("Operating results differ from the frozen criterion/setting mapping")
+        if (
+            set(group.setting_id) != {point["setting_id"]}
+            or group.seed.duplicated().any()
+        ):
+            raise ValueError(
+                "Operating results differ from the frozen criterion/setting mapping"
+            )
         objective = point["rule"]["objective"]
         row = {
-            "criterion": criterion, "pipeline": pipeline, "setting_id": point["setting_id"],
-            "objective": objective, "objective_endpoint": objective_endpoint(objective),
+            "criterion": criterion,
+            "pipeline": pipeline,
+            "setting_id": point["setting_id"],
+            "objective": objective,
+            "objective_endpoint": objective_endpoint(objective),
             "n_realizations": group.seed.nunique(),
         }
         for metric in dict.fromkeys([*metrics, objective]):

@@ -106,7 +106,7 @@ def endpoint_figures(directory, definitions, development, endpoint):
     ].mean()
     for key in ("kind", "threshold", "resolution", "method", "tree_kind"):
         summary[key] = summary.setting_id.map(
-            lambda identifier: definitions[identifier].get(key)
+            lambda identifier, key=key: definitions[identifier].get(key)
         )
     components = summary.loc[summary.kind == "components"]
     if not components.empty:

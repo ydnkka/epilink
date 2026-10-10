@@ -191,9 +191,13 @@ def metrics_at_thresholds(curve, thresholds, higher_is_better, empty_metrics):
     if ordered.empty:
         return pd.DataFrame([empty_metrics] * len(queries))
     indices = np.clip(indices, 0, len(ordered) - 1)
-    return pd.DataFrame({
-        column: np.where(
-            valid, ordered[column].to_numpy()[indices], np.nan if empty is None else empty
-        )
-        for column, empty in empty_metrics.items()
-    })
+    return pd.DataFrame(
+        {
+            column: np.where(
+                valid,
+                ordered[column].to_numpy()[indices],
+                np.nan if empty is None else empty,
+            )
+            for column, empty in empty_metrics.items()
+        }
+    )

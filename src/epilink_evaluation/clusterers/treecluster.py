@@ -14,7 +14,9 @@ def treecluster(tree_path, cases, method, threshold, config, directory):
     tool = command_identity(treecluster_executable(config))
     argv = [tool["path"], "-i", str(tree_path), "-t", str(threshold), "-m", method]
     output = run_command(
-        argv, directory, "treecluster",
+        argv,
+        directory,
+        "treecluster",
         config.get("timeout", config.get("command_timeout_seconds", 1800)),
     )
     frame = pd.read_csv(io.StringIO(output), sep="\t", dtype={"SequenceName": str})

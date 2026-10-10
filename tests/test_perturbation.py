@@ -28,7 +28,7 @@ def evaluated_baseline(small_config, prepare_diagnostics):
 
 def study_config(tmp_path, reference, *, smoke=False):
     config = {
-        "schema_version": 2, "name": "integration_perturbation",
+        "schema_version": 1, "name": "integration_perturbation",
         "baseline_run": str(reference.directory), "output_directory": "perturbation_outputs",
         "development_seeds": [80001, 80002], "seeds": [81001, 81002],
         "scorers": ["EDD", "EDS", "ESD", "ESS"], "criterion": "balanced_M0", "modes": list(MODES),
@@ -205,7 +205,7 @@ def test_failed_development_selection_never_releases_evaluation(evaluated_baseli
         assert split == "development"
         return False
 
-    monkeypatch.setattr(replay, "clusters", failed_development)
+    monkeypatch.setattr(replay, "_clusters", failed_development)
     assert replay.run()["status"] == "failed"
     assert not replay._evaluation_released
     assert not (replay.directory / "evaluation").exists()

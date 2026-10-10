@@ -2,6 +2,48 @@
 
 from ..provenance import fingerprint
 from ..scorers import SCORERS
+from ..selection.search import initial_cutoffs, initial_resolutions
+
+TREE_CUTOFF_FIELDS = {
+    "raw": "genetic_threshold_snps",
+    "dated": "temporal_threshold_days",
+}
+
+
+def leiden_definition(config, name, resolution):
+    spec = SCORERS[name].spec
+    settings = config["clustering"]["leiden"]
+    return {
+        "score_name": name,
+        "data_process": spec.data_process,
+        "threshold": None,
+        "empty": False,
+        "graph_mode": "full",
+        "kind": "leiden",
+        "objective": settings["objective"],
+        "resolution": float(resolution),
+        "restarts": settings["restarts"],
+        "algorithm_seed": settings["seed"],
+        "pipeline": f"leiden/{name}",
+    }
+
+
+def treecluster_definition(config, process, kind, method, value):
+    """Keep the searched cutoff in input units alongside the executed tree units."""
+    alignment_length = config["simulation"].get(
+        "alignment_length", config["simulation"]["sequence_length"]
+    )
+    value = int(value) if kind == "raw" else float(value)
+    return {
+        "kind": "treecluster",
+        "tree_kind": kind,
+        "data_process": process,
+        "method": method,
+        "threshold_input": value,
+        "threshold": value / alignment_length if kind == "raw" else value,
+        "threshold_units": "snps" if kind == "raw" else "days",
+        "pipeline": f"treecluster/{process}/{kind}",
+    }
 
 
 def settings_registry(config, pairwise_thresholds=None):
@@ -14,21 +56,22 @@ def settings_registry(config, pairwise_thresholds=None):
 
     for name in config["scorers"]:
         spec = SCORERS[name].spec
-        thresholds = [None, *sorted(set(config["thresholds"][spec.family]))]
         if pairwise_thresholds is not None:
             pair_thresholds = [None, *sorted(set(pairwise_thresholds[name]))]
         else:
             pair_thresholds = []  # Not known until all development curves exist.
         for threshold in pair_thresholds:
-            add({
-                "score_name": name,
-                "data_process": spec.data_process,
-                "threshold": threshold,
-                "empty": threshold is None,
-                "kind": "pairwise",
-                "pipeline": f"pairwise/{name}",
-            })
-        for threshold in thresholds:
+            add(
+                {
+                    "score_name": name,
+                    "data_process": spec.data_process,
+                    "threshold": threshold,
+                    "empty": threshold is None,
+                    "kind": "pairwise",
+                    "pipeline": f"pairwise/{name}",
+                }
+            )
+        for threshold in pair_thresholds:
             base = {
                 "score_name": name,
                 "data_process": spec.data_process,
@@ -45,51 +88,18 @@ def settings_registry(config, pairwise_thresholds=None):
                 )
         if "leiden" in config["clustering"]["algorithms"]:
             leiden = config["clustering"]["leiden"]
-            for resolution in sorted(set(leiden["resolutions"])):
-                add(
-                    {
-                        "score_name": name,
-                        "data_process": spec.data_process,
-                        "threshold": None,
-                        "empty": False,
-                        "graph_mode": "full",
-                        "kind": "leiden",
-                        "objective": leiden["objective"],
-                        "resolution": float(resolution),
-                        "restarts": leiden["restarts"],
-                        "algorithm_seed": leiden["seed"],
-                        "pipeline": f"leiden/{name}",
-                    }
-                )
+            for resolution in initial_resolutions(leiden["resolutions"]):
+                add(leiden_definition(config, name, resolution))
     tc = config["treecluster"]
     if tc["enabled"]:
         processes = sorted(
             {SCORERS[name].spec.data_process for name in config["scorers"]}
         )
-        alignment_length = config["simulation"].get(
-            "alignment_length", config["simulation"]["sequence_length"]
-        )
         for process in processes:
-            for kind, thresholds, units in (
-                ("raw", tc["genetic_threshold_snps"], "snps"),
-                ("dated", tc["temporal_threshold_days"], "days"),
-            ):
+            for kind, field in TREE_CUTOFF_FIELDS.items():
                 for method in tc["methods"]:
-                    for snp_count in thresholds:
-                        threshold_value = (
-                            float(snp_count) / alignment_length
-                            if kind == "raw"
-                            else float(snp_count)
-                        )
+                    for value in initial_cutoffs(tc[field], integer=kind == "raw"):
                         add(
-                            {
-                                "kind": "treecluster",
-                                "tree_kind": kind,
-                                "data_process": process,
-                                "method": method,
-                                "threshold": threshold_value,
-                                "threshold_units": units,
-                                "pipeline": f"treecluster/{process}/{kind}",
-                            }
+                            treecluster_definition(config, process, kind, method, value)
                         )
     return definitions

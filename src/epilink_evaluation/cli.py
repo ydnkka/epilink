@@ -35,17 +35,24 @@ def smoke_config(config):
     config["inputs"]["smoke_cases"] = 64
     config["splits"] = {"train": [71001], "development": [72001], "evaluation": [73001]}
     if "diagnostics" in config:
-        config["diagnostics"]["leiden"].update(resolutions=[0.1, 0.5], restarts=2)
+        config["diagnostics"]["leiden"].update(
+            resolutions={"min": 0.1, "max": 0.5, "initial_points": 3, "budget": 5},
+            restarts=2,
+        )
         return config
     config["scorer"]["mc_samples"] = 1024
-    config["thresholds"] = {
-        "epilink": [0.1, 0.5],
-        "genetic": [0, 2],
-        "logistic": [0.01, 0.25],
-    }
-    config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
+    config["clustering"]["leiden"].update(
+        resolutions={"min": 0.05, "max": 0.5, "initial_points": 3, "budget": 5},
+        restarts=2,
+    )
     config["treecluster"].update(
-        genetic_threshold_snps=[1, 10], temporal_threshold_days=[14, 56]
+        genetic_threshold_snps={"min": 1, "max": 10, "initial_points": 3, "budget": 5},
+        temporal_threshold_days={
+            "min": 14,
+            "max": 56,
+            "initial_points": 3,
+            "budget": 5,
+        },
     )
     if "phylogeny" not in config:
         config["phylogeny"] = {}
@@ -248,7 +255,9 @@ def main(argv=None):
             tools["treecluster"] = {"unavailable": str(exc)}
 
         phylogeny = config.get("phylogeny", {})
-        iqtree_exec = phylogeny.get("executable", phylogeny.get("iqtree_executable", "iqtree"))
+        iqtree_exec = phylogeny.get(
+            "executable", phylogeny.get("iqtree_executable", "iqtree")
+        )
         try:
             tools["iqtree"] = command_identity(iqtree_exec)
         except FileNotFoundError as exc:
@@ -264,9 +273,9 @@ def main(argv=None):
                     "splits": config["splits"],
                     "output": config["output_directory"],
                     "operating_definitions_per_realization": None,
-                    "configured_clustering_definitions_per_realization": sum(
-                        d["kind"] != "pairwise" for d in settings.values()
-                    ),
+                    "initial_clustering_definitions_per_realization": len(settings),
+                    "component_candidates_pending_development": "components"
+                    in config["clustering"]["algorithms"],
                     "pairwise_candidates_pending_development": True,
                     "tree_input_exists": Path(config["inputs"]["tree_path"]).exists(),
                 },

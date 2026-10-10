@@ -62,9 +62,9 @@ def select_operating_points(frame, definitions, criteria, development_seeds):
                 "rule": criterion,
             }
             if candidates:
-                mean, sd, setting_id = sorted(
+                mean, sd, setting_id = min(
                     candidates, key=lambda row: (-row[0], row[1], row[2])
-                )[0]
+                )
                 records.append(
                     {
                         **base,

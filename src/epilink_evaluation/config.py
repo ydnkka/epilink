@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 
 from .natural_history import natural_history
+from .selection.search import cutoff_settings, resolution_settings
 
 
 def _load(path):
@@ -86,22 +87,9 @@ def validate(config):
     if config["clustering"]["leiden"]["restarts"] < 1:
         raise ValueError("Leiden requires at least one restart")
     leiden = config["clustering"]["leiden"]
-    grid = leiden.get("resolutions", [])
-    if not grid or any(not np.isfinite(r) or r <= 0 for r in grid):
-        raise ValueError("Leiden resolutions must be finite and positive")
-    for family, thresholds in config["thresholds"].items():
-        if not thresholds or any(not np.isfinite(t) for t in thresholds):
-            raise ValueError(f"Invalid {family} threshold grid")
-        if family == "logistic" and any(t < 0 or t > 1 for t in thresholds):
-            raise ValueError("Probability thresholds must be in [0, 1]")
-    for name in ("temporal_threshold_days",):
-        if any(not np.isfinite(t) or t < 0 for t in config["treecluster"][name]):
-            raise ValueError("TreeCluster thresholds must be finite and nonnegative")
-    genetic_threshold_snps = config["treecluster"]["genetic_threshold_snps"]
-    if not genetic_threshold_snps or any(
-        not np.isfinite(t) or t < 0 or int(t) != t for t in genetic_threshold_snps
-    ):
-        raise ValueError("genetic_threshold_snps must be nonnegative integers")
+    resolution_settings(leiden["resolutions"])
+    cutoff_settings(config["treecluster"]["genetic_threshold_snps"], integer=True)
+    cutoff_settings(config["treecluster"]["temporal_threshold_days"])
     tree_seed = config["treecluster"].get("rng_seed")
     if tree_seed is not None and (type(tree_seed) is not int or tree_seed < 0):
         raise ValueError("rng_seed must be a nonnegative integer")
@@ -126,8 +114,5 @@ def load_diagnostics_config(path):
         raise ValueError("Leiden requires positive integer restarts")
     if type(leiden["seed"]) is not int or leiden["seed"] < 0:
         raise ValueError("Leiden seed must be a nonnegative integer")
-    if not leiden["resolutions"] or any(
-        not np.isfinite(r) or r <= 0 for r in leiden["resolutions"]
-    ):
-        raise ValueError("Leiden resolutions must be finite and positive")
+    resolution_settings(leiden["resolutions"])
     return config

@@ -4,7 +4,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from Bio import Phylo
+from Bio.Phylo._io import read as read_phylo
+from Bio.Phylo._io import write as write_phylo
 from Bio.Phylo.BaseTree import Tree
 
 from ..inputs.synthetic import load_tree_inputs
@@ -14,7 +15,7 @@ from .external import command_identity
 
 def validate_tree(source, case_ids):
     """Validate a parsed tree or Newick file against the sampled case universe."""
-    tree = source if isinstance(source, Tree) else Phylo.read(source, "newick")
+    tree = source if isinstance(source, Tree) else read_phylo(source, "newick")
     names = [str(tip.name) for tip in tree.get_terminals()]
     if len(names) != len(set(names)) or set(names) != set(map(str, case_ids)):
         raise ValueError("Tree tips do not exactly match the sampled case universe")
@@ -39,6 +40,7 @@ def root_signature(tree):
 def _prune_reference_tip(tree, reference_name):
     """Remove reference tip from tree. Returns pruned tree (does not modify input)."""
     from copy import deepcopy
+
     tree = deepcopy(tree)
     for clade in list(tree.find_clades()):
         if clade.name == reference_name and clade.is_terminal():
@@ -49,7 +51,7 @@ def _prune_reference_tip(tree, reference_name):
 
 def prepare_phylogeny(config, observation_dir, process, dataset_id, implementation):
     """Build IQ-TREE genetic + dated trees from persisted FASTA.
-    
+
     Parameters
     ----------
     config : dict
@@ -62,7 +64,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         Dataset identifier for artifact signature
     implementation : dict
         Implementation signature for provenance
-        
+
     Returns
     -------
     Path
@@ -79,16 +81,18 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         if process == "deterministic"
         else inputs["stochastic_fasta"]
     )
-    
+
     phylo_config = config.get("phylogeny", {})
     model = phylo_config.get("model", "JC")
     threads = phylo_config.get("threads", 1)
     seed = phylo_config.get("seed", 2026)
     clock_rate = phylo_config.get("clock_rate")
-    iqtree_executable = phylo_config.get("executable", phylo_config.get("iqtree_executable", "iqtree"))
+    iqtree_executable = phylo_config.get(
+        "executable", phylo_config.get("iqtree_executable", "iqtree")
+    )
     iqtree_tool = command_identity(iqtree_executable)
     timeout = phylo_config.get("timeout", 1800)
-    
+
     signature = {
         "kind": "phylogeny-v1",
         "dataset": dataset_id,
@@ -104,22 +108,26 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         "iqtree_executable": iqtree_tool,
         "implementation": implementation,
     }
-    
+
     directory = (
         Path(config["output_directory"])
         / "artifacts/trees"
         / fingerprint(signature)[:20]
     )
-    
+
     if valid_artifact(directory, signature):
-        validate_tree(directory / "raw.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id)
-        validate_tree(directory / "dated.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id)
+        validate_tree(
+            directory / "raw.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id
+        )
+        validate_tree(
+            directory / "dated.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id
+        )
         return directory
-    
+
     directory.mkdir(parents=True, exist_ok=True)
-    
-    from epilink import build_phylogenetic_tree_from_fasta, PhylogenyError
-    
+
+    from epilink import PhylogenyError, build_phylogenetic_tree_from_fasta
+
     try:
         result = build_phylogenetic_tree_from_fasta(
             alignment_fasta=str(fasta_path),
@@ -136,21 +144,25 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         )
     except PhylogenyError as exc:
         raise RuntimeError(f"IQ-TREE inference failed: {exc}")
-    
-    raw_tree = Phylo.read(str(result.output_paths["raw_tree"]), "newick")
+
+    raw_tree = read_phylo(str(result.output_paths["raw_tree"]), "newick")
     reference_name = result.reference_name
     case_ids = pd.read_parquet(inputs["cases_parquet"]).case_id
-    
+
     raw_pruned = _prune_reference_tip(raw_tree, reference_name)
     validate_tree(raw_pruned, case_ids)
-    Phylo.write(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
-    
-    dated_tree = Phylo.read(str(result.output_paths["dated_tree"]), "newick")
+    write_phylo(
+        raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g"
+    )
+
+    dated_tree = read_phylo(str(result.output_paths["dated_tree"]), "newick")
     validate_tree(dated_tree, case_ids)
-    Phylo.write(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
-    
+    write_phylo(
+        dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g"
+    )
+
     result.node_dates.to_csv(directory / "node_dates.tsv", sep="\t", index=False)
-    
+
     phylogeny_meta = {
         "model": model,
         "threads": threads,
@@ -164,8 +176,10 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         },
         "backend_paths": {k: str(v) for k, v in result.output_paths.items()},
     }
-    pd.DataFrame([phylogeny_meta]).to_json(directory / "phylogeny.json", orient="records", indent=2)
-    
+    pd.DataFrame([phylogeny_meta]).to_json(
+        directory / "phylogeny.json", orient="records", indent=2
+    )
+
     complete_artifact(
         directory,
         signature,
@@ -175,5 +189,5 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         root_split=root_signature(raw_pruned),
         dated_root_split=root_signature(dated_tree),
     )
-    
+
     return directory

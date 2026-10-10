@@ -26,7 +26,6 @@ def test_one_shared_development_cutoff_beats_coarse_grid_without_per_seed_optimi
         ),
     }
     small_config["scorers"] = ["LOGIT_D"]
-    small_config["thresholds"]["logistic"] = [0.1, 0.9]
     definitions = settings_registry(small_config, {"LOGIT_D": [0.4, 0.6, 0.7, 0.8]})
     choices = {key: d for key, d in definitions.items() if d["kind"] == "pairwise"}
     rows = []
@@ -70,12 +69,13 @@ def test_exact_cutoffs_do_not_expand_full_graph_resolutions(
     assert sum(d["kind"] == "pairwise" for d in definitions.values()) == 102
     for definition in definitions.values():
         if definition["kind"] == "components" and not definition["empty"]:
-            assert definition["threshold"] in small_config["thresholds"]["logistic"]
+            assert definition["threshold"] in np.linspace(0, 1, 101)
         if definition["kind"] == "leiden":
             assert definition["resolution"] in [0.2, 0.8]
             assert definition["threshold"] is None
             assert definition["graph_mode"] == "full"
     assert sum(d["kind"] == "leiden" for d in definitions.values()) == 2
+    assert sum(d["kind"] == "components" for d in definitions.values()) == 102
 
 
 def test_operating_summary_uses_frozen_objective_not_criterion_name():

@@ -146,7 +146,8 @@ class EpiLinkClusteringReference(OperatingReference):
         super().__init__(path, implementation)
         pipelines = {f"leiden/{name}" for name in scorers}
         points = [
-            p for p in self.frozen["operating_points"]
+            p
+            for p in self.frozen["operating_points"]
             if p["criterion"] == criterion and p["pipeline"] in pipelines
         ]
         if (
@@ -194,7 +195,9 @@ class EpiLinkClusteringReference(OperatingReference):
                     {
                         "run": self.identity["run_fingerprint"],
                         "score_id": signature["score_id"],
-                        "definition": definition, "split": "evaluation", "seed": seed,
+                        "definition": definition,
+                        "split": "evaluation",
+                        "seed": seed,
                     },
                 )
                 checked_artifact(self.root / "artifacts/scores" / signature["score_id"])

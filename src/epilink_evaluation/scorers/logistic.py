@@ -40,21 +40,26 @@ def fit_logistic(cells, regularization=1.0):
     if positives.sum() <= 0 or negatives.sum() <= 0:
         raise ValueError("Logistic training requires both target and non-target pairs")
     scaler = StandardScaler().fit(x, sample_weight=cells["count"].to_numpy(float))
+    scale = scaler.scale_
+    mean = scaler.mean_
+    if mean is None or scale is None:
+        raise RuntimeError("Logistic scaler did not compute feature scales")
     scaled = scaler.transform(x)
     features = np.concatenate([scaled, scaled])
     labels = np.r_[np.ones(len(x)), np.zeros(len(x))]
     weights = np.r_[positives, negatives]
     keep = weights > 0
+    max_iter = 2000
     classifier = LogisticRegression(
-        C=regularization, solver="lbfgs", max_iter=2000, tol=1e-9
+        C=regularization, solver="lbfgs", max_iter=max_iter, tol=1e-9
     ).fit(features[keep], labels[keep], sample_weight=weights[keep])
-    if classifier.n_iter_[0] >= classifier.max_iter:
+    if classifier.n_iter_[0] >= max_iter:
         raise RuntimeError("Logistic optimizer did not converge")
     return {
         "features": ["GD", "TD"],
         "target": "M0",
-        "mean": scaler.mean_.tolist(),
-        "scale": scaler.scale_.tolist(),
+        "mean": mean.tolist(),
+        "scale": scale.tolist(),
         "coef": classifier.coef_[0].tolist(),
         "intercept": float(classifier.intercept_[0]),
         "C": regularization,

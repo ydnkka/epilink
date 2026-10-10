@@ -7,15 +7,16 @@ scorer:
   seed: 64001
   logistic_C: 1.0
 scorers: [EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S]
-thresholds:
-  epilink: [0.001, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-  genetic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  logistic: [0.001, 0.003, 0.005, 0.0075, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 clustering:
   algorithms: [components, leiden]
   leiden:
     objective: CPM
-    resolutions: [0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    resolutions:
+      min: 0.01
+      max: 1.0
+      initial_points: 8
+      budget: 28
+      scale: log
     restarts: 5
     seed: 65001
 phylogeny:
@@ -29,9 +30,18 @@ phylogeny:
 treecluster:
   enabled: true
   methods: [max_clade, avg_clade, single_linkage]
-  genetic_threshold_snps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  genetic_threshold_snps:
+    min: 0
+    max: 10
+    initial_points: 4
+    budget: 11
+    scale: linear
   temporal_threshold_days:
-    [0, 7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 91, 98, 105]
+    min: 0
+    max: 105
+    initial_points: 8
+    budget: 28
+    scale: linear
   timeout: 1800
   executable: TreeCluster.py
 selection:
@@ -43,7 +53,7 @@ selection:
       objective: M0_f1
       constraints: {}
 
-    # Secondary endpoint: M≤1 (AD0/AD1 and CA00/CA01; M is not hop distance)
+    # Secondary endpoint: M≤1 (AD0/AD1 and CA00/CA01)
     - name: balanced_Mle1
       objective: Mle1_f1
       constraints: {}

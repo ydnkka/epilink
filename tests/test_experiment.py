@@ -183,15 +183,15 @@ def released_baseline(small_config, prepare_diagnostics):
     return baseline
 
 
-@pytest.mark.parametrize("change", ["thresholds", "selection", "generation"])
+@pytest.mark.parametrize("change", ["resolutions", "selection", "generation"])
 def test_accessed_holdouts_cannot_be_reused_for_changed_analysis(
     released_baseline, prepare_diagnostics, tmp_path, change
 ):
     baseline = released_baseline
     config = deepcopy(baseline.config)
     config["output_directory"] = str(tmp_path / "another_baseline")
-    if change == "thresholds":
-        config["thresholds"]["genetic"] = [0, 1, 3]
+    if change == "resolutions":
+        config["clustering"]["leiden"]["resolutions"]["budget"] = 4
     elif change == "selection":
         config["selection"]["criteria"][0]["name"] = "revised_analysis"
     else:
@@ -226,7 +226,7 @@ def test_accessed_holdouts_cannot_be_reassigned(released_baseline, role):
 
 
 @pytest.mark.parametrize(
-    "change", ["diagnostics", "reporting", "thresholds", "scorers"]
+    "change", ["diagnostics", "reporting", "resolutions", "scorers"]
 )
 def test_analysis_changes_preserve_generation_artifacts(
     small_config, prepare_diagnostics, monkeypatch, change
@@ -248,8 +248,8 @@ def test_analysis_changes_preserve_generation_artifacts(
         monkeypatch.setattr(
             diagnostics_module, "implementation_signature", lambda: implementation
         )
-    elif change == "thresholds":
-        config["thresholds"]["genetic"] = [0, 1, 3]
+    elif change == "resolutions":
+        config["clustering"]["leiden"]["resolutions"]["budget"] = 4
     else:
         config["scorers"] = ["GD_D", "GD_S"]
     updated = prepare_diagnostics(config)
@@ -452,7 +452,7 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
     assert set(loaded_diagnostics["diagnostics"]) == {"backbone", "leiden"}
     smoke = smoke_config(loaded_diagnostics)
     assert set(smoke["diagnostics"]) == {"backbone", "leiden"}
-    assert smoke["diagnostics"]["leiden"]["resolutions"] == [0.1, 0.5]
+    assert smoke["diagnostics"]["leiden"]["resolutions"] == {"min": 0.1, "max": 0.5, "initial_points": 3, "budget": 5}
     diagnostics["diagnostics"]["treecluster"] = {"enabled": True}
     diagnostics_path.write_text(yaml.safe_dump(diagnostics))
     with pytest.raises(ValueError, match="Unknown diagnostic settings.*treecluster"):
@@ -473,7 +473,7 @@ def test_pipeline_smoke_can_repeat_after_comparison_changes(
     baseline.select()
     assert baseline.evaluate()
     changed = deepcopy(small_config)
-    changed["thresholds"]["genetic"] = [0, 1, 3]
+    changed["clustering"]["leiden"]["resolutions"]["budget"] = 4
     repeated = Baseline(changed)
     repeated.select()
     assert repeated.evaluate()

@@ -76,7 +76,7 @@ def prepare_truth(config, tree, implementation):
 
 def _export_sampled_fasta(packed_data, sampled_node_ids, filepath):
     """Export only sampled cases to FASTA file.
-    
+
     Parameters
     ----------
     packed_data : PackedGenomicData
@@ -86,21 +86,25 @@ def _export_sampled_fasta(packed_data, sampled_node_ids, filepath):
     filepath : Path
         Output FASTA file path
     """
-    base_lookup = np.array([packed_data.bases_map[idx] for idx in range(4)], dtype="<U1")
-    
+    base_lookup = np.array(
+        [packed_data.bases_map[idx] for idx in range(4)], dtype="<U1"
+    )
+
     with open(filepath, "w") as f:
         for node_id in sampled_node_ids:
             idx = packed_data.node_to_idx[node_id]
             blocks = packed_data.packed_u64[idx]
             L = packed_data.original_length
             unpacked = np.empty((len(blocks), 32), dtype=np.int8)
-            
+
             for position, shift in enumerate(_PACK_SHIFTS):
-                unpacked[:, position] = ((blocks >> shift) & np.uint64(3)).astype(np.int8)
-            
+                unpacked[:, position] = ((blocks >> shift) & np.uint64(3)).astype(
+                    np.int8
+                )
+
             seq = unpacked.reshape(len(blocks) * 32)[:L]
             seq_str = "".join(base_lookup[seq])
-            
+
             header = f">{node_id}"
             body = textwrap.fill(seq_str, width=100)
             f.write(f"{header}\n{body}\n")
@@ -108,7 +112,7 @@ def _export_sampled_fasta(packed_data, sampled_node_ids, filepath):
 
 def _export_reference(reference_sequence_string, filepath):
     """Export ancestral reference sequence to FASTA file.
-    
+
     Parameters
     ----------
     reference_sequence_string : str
@@ -123,7 +127,7 @@ def _export_reference(reference_sequence_string, filepath):
 
 def _export_sampling_dates(cases, filepath):
     """Export sampling dates as TSV file.
-    
+
     Parameters
     ----------
     cases : pd.DataFrame
@@ -183,11 +187,13 @@ def prepare_observations(config, tree, truth_directory, seed, implementation):
     node_a = selected.CaseA.astype(str).map(full_lookup).to_numpy(np.int64)
     node_b = selected.CaseB.astype(str).map(full_lookup).to_numpy(np.int64)
     low, high = np.minimum(node_a, node_b), np.maximum(node_a, node_b)
+    tree_size = np.full(low.shape, len(tree), dtype=np.int64)
+    pair_ids = low * (2 * tree_size - low - 1) // 2 + high - low - 1
     rank = {int(index): i for i, index in enumerate(cases.node_index)}
     observations = (
         pd.DataFrame(
             {
-                "pair_id": low * (2 * len(tree) - low - 1) // 2 + high - low - 1,
+                "pair_id": pair_ids,
                 "a": [rank[int(i)] for i in low],
                 "b": [rank[int(i)] for i in high],
                 "TD": np.rint(
@@ -207,27 +213,24 @@ def prepare_observations(config, tree, truth_directory, seed, implementation):
     truth = truth.set_index("pair_id").loc[observations.pair_id]
     original_labels = pd.Series(
         selected.IsRelated.to_numpy(bool),
-        index=low * (2 * len(tree) - low - 1) // 2 + high - low - 1,
+        index=pair_ids,
     ).loc[observations.pair_id]
     np.testing.assert_array_equal(truth.M.eq(0).fillna(False), original_labels)
-    
+
     sampled_case_ids = cases.case_id.tolist()
     _export_sampled_fasta(
         genomes.packed.deterministic,
         sampled_case_ids,
-        directory / "sampled_deterministic.fasta"
+        directory / "sampled_deterministic.fasta",
     )
     _export_sampled_fasta(
         genomes.packed.stochastic,
         sampled_case_ids,
-        directory / "sampled_stochastic.fasta"
+        directory / "sampled_stochastic.fasta",
     )
-    _export_reference(
-        genomes.reference_sequence_string,
-        directory / "reference.fasta"
-    )
+    _export_reference(genomes.reference_sequence_string, directory / "reference.fasta")
     _export_sampling_dates(cases, directory / "sampling_dates.tsv")
-    
+
     observations.to_parquet(directory / "pairs.parquet", index=False)
     cases.to_parquet(directory / "cases.parquet", index=False)
     complete_artifact(
@@ -264,12 +267,12 @@ def load_observations(directory):
 
 def load_tree_inputs(directory):
     """Return paths to FASTA, reference, and dates for tree inference.
-    
+
     Parameters
     ----------
     directory : Path or str
         Observation artifact directory
-        
+
     Returns
     -------
     dict

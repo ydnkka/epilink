@@ -177,22 +177,19 @@ Shared `generation` configures observation simulation. Baseline derives `inferen
 
 The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE infers genetic branch lengths from aligned sequences. LSD2 dates them using numeric simulation days for synthetic data and calendar collection dates for Boston; exported dated branch lengths are days in both cases.
 
-### Scorers, grids, and comparison settings
+### Scorers, searches, and comparison settings
 
 | Field                                 | Meaning                                                                                                                                                                     |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scorers`                             | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.                                        |
 | `scorer.logistic_C`                   | Fixed inverse regularization strength for logistic fitting.                                                                                                                 |
-| `thresholds.epilink`                  | Graph compatibility cutoffs; retain scores **\>=** the cutoff. Values can exceed one.                                                                                         |
-| `thresholds.genetic`                  | Hamming-distance cutoffs in substitutions; retain distances**\<=** the cutoff.                                                                                              |
-| `thresholds.logistic`                 | Probability cutoffs in`[0, 1]`; retain scores **\>=** the cutoff.                                                                                                           |
 | `clustering.algorithms`               | `components`, `leiden`, or both.                                                                                                                                            |
 | `clustering.leiden.objective`         | `CPM` or `modularity`; resolution scales depend on objective and scorer.                                                                                                    |
-| `clustering.leiden.resolutions`       | Full-graph resolution grid. EpiLink/logistic use original scores including zeros; genetic-distance graphs use unit weights. One `leiden/<scorer>` pipeline per scorer.      |
+| `clustering.leiden.resolutions`       | Bounded adaptive search: `min`, `max`, `initial_points`, `budget`, `scale` (`log`/`linear`), optional `tolerance`. One full-graph `leiden/<scorer>` pipeline per scorer.       |
 | `treecluster.enabled`                 | Whether raw and dated phylogenetic comparisons are included.                                                                                                                |
 | `treecluster.methods`                 | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
-| `treecluster.genetic_threshold_snps`  | Raw-tree SNP counts; converted to substitutions/site using `alignment_length` (preserves absolute SNP counts).                                                              |
-| `treecluster.temporal_threshold_days` | Dated-tree cutoffs in days, passed directly to TreeCluster.                                                                                                                 |
+| `treecluster.genetic_threshold_snps`  | Bounded integer-SNP search: `min`, `max`, `initial_points`, `budget`, `scale`, optional `tolerance`; converted to substitutions/site using `alignment_length`.                  |
+| `treecluster.temporal_threshold_days` | Bounded real-day search with the same fields; days, including fractional refinements, are passed directly to TreeCluster.                                                    |
 | `treecluster.executable`              | TreeCluster executable, default `TreeCluster.py`.                                                                                                                           |
 | `treecluster.timeout`                 | Timeout for TreeCluster invocation in seconds.                                                                                                                              |
 | `phylogeny.model`                     | IQ-TREE substitution model (e.g., JC for synthetic, MFP for Boston).                                                                                                        |
@@ -203,11 +200,11 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `phylogeny.executable`                | IQ-TREE name/path; `iqtree` discovers versioned executable names.                                                                                                           |
 | `selection.criteria`                  | Objectives and constraints for freezing settings; see section 8.                                                                                                            |
 
-Pairwise and component grids include an explicit empty-selection setting. Inclusive component cutoffs retain zero-valued observations when the cutoff allows them. Full Leiden graphs retain every observed edge, including zero score weights; `threshold` is null and `empty` is false.
-Exact pairwise candidates are generated only after all development curves exist;
-they always cover the union of distinct development score cutoffs plus empty selection,
-and never expand the clustering grids. `check` reports the configured clustering
-count and marks the total operating count as unknown until these candidates exist.
+Pairwise and component searches share every distinct development-score cutoff and an explicit empty-selection setting. Inclusive cutoffs retain whole ties; genetic distances use `<=` and EpiLink/logistic scores use `>=`. Each pipeline chooses its own optimum using the same development seeds and criteria. Components add edges incrementally and count each newly co-clustered pair once, retaining one membership table per changed partition. Full Leiden graphs retain every observed edge, including zero score weights; `threshold` is null and `empty` is false.
+
+Leiden starts with `initial_points` trials spanning `min`/`max`, then refines promising intervals and explores a widest interval in each batch, up to `budget` distinct resolutions. Every trial covers all scorers and development seeds. Completed trials are reused on restart; selected settings are frozen before evaluation. `check` reports initial clustering definitions and marks both pairwise and component candidate counts as pending development. The supplied baseline bounds are 0.01–1 with 8 initial points and a 28-resolution budget, in log coordinates.
+
+TreeCluster applies the same search separately to raw SNP counts and dated day cutoffs. A cutoff trial covers every configured process/method and development seed; refinement considers each process/method/criterion, and final selection chooses a method/cutoff pair within each pipeline. SNP bounds and trials must be integers; the search stops when all integers in the range have been tried. Day cutoffs can be fractional. The supplied searches use 0–10 SNPs (4 initial points, budget 11) and 0–105 days (8 initial points, budget 28), both in linear coordinates so zero remains a valid bound. Completed partitions and inferred trees are reused. Explicit lists also remain supported for fixed comparisons.
 
 ## 4. Prepare or regenerate the SCoVMod tree
 
@@ -265,7 +262,7 @@ python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthet
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage develop
 ```
 
-Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. `check` reports the static clustering count; exact pairwise candidate counts depend on development scores. Work scales with the graph/tree grids, replicates, and number of pairs: `n * (n - 1) / 2`. Exact pairwise candidates use cumulative-curve lookups rather than repeated pair scans. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
+Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. Pairwise/component candidate counts depend on development scores; Leiden and TreeCluster have declared search budgets. Work also scales with methods, replicates, and number of pairs: `n * (n - 1) / 2`. Pairwise candidates use cumulative-curve lookups and components use incremental merges. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
 ### Observed full-run wall times
 
@@ -359,10 +356,14 @@ Baseline layout:
     diagnostics.json      matching diagnostics completion reference
     development/
       metrics.csv, summary.csv, frontier.csv
-      pairwise_candidates/definitions.json, manifest.json
+      cutoff_candidates/definitions.json, manifest.json
+      resolution_search/definitions.json, search.json, manifest.json
+      treecluster_search/raw/       definitions.json, search.json, manifest.json
+      treecluster_search/dated/     definitions.json, search.json, manifest.json
       seed_<seed>/pairwise/
         evidence/            cached curves and empty-selection metrics
       seed_<seed>/clusters/
+        component_sweeps/<scorer>/  metrics.parquet, algorithm.json, partitions/, manifest.json
     selection/operating_points.json
     evaluation/
       seed_<seed>/pairwise/, seed_<seed>/clusters/
@@ -514,7 +515,7 @@ python evaluation/02_synthetic_perturbation/run.py
 
 The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default configuration is `evaluation/02_synthetic_perturbation/config.yaml`; the baseline `check` command expects a baseline configuration. Perturbation validates its reference and levels at startup. Use `--baseline-run` to pin a completed run directory instead of the default current-baseline pointer.
 
-The workflow evaluates EDD/EDS/ESD/ESS clustering in four modes. Graphs include every observed pair with its score as weight and have no cutoff. Updated resolutions use separate fresh development seeds and the baseline criterion/grid; all arms use paired evaluation seeds and fresh controls. Full coverage is 13 scenarios × four modes × four scorers × three evaluation seeds = 624 rows. Smoke uses up to 64 cases and the incubation-mean levels, yielding 48 rows. Outputs are under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
+The workflow evaluates EDD/EDS/ESD/ESS clustering in four modes. Graphs include every observed pair with its score as weight and have no cutoff. Updated resolutions use separate fresh development seeds, the baseline bounds/search budget, and the frozen operating criterion; all arms use paired evaluation seeds and fresh controls. Full coverage is 13 scenarios × four modes × four scorers × three evaluation seeds = 624 rows. Smoke uses up to 64 cases and the incubation-mean levels, yielding 48 rows. Outputs are under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
 
 See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-2 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
 

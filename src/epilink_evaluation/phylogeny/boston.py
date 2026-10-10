@@ -3,7 +3,9 @@
 from pathlib import Path
 
 import pandas as pd
-from Bio import Phylo, SeqIO
+from Bio import SeqIO
+from Bio.Phylo._io import read as read_phylo
+from Bio.Phylo._io import write as write_phylo
 
 from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
 from .external import command_identity
@@ -87,7 +89,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     dates_path = directory / "sampling_dates.csv"
     dates_df.to_csv(dates_path, index=False)
     
-    from epilink import build_phylogenetic_tree_from_fasta, PhylogenyError
+    from epilink import PhylogenyError, build_phylogenetic_tree_from_fasta
     
     try:
         result = build_phylogenetic_tree_from_fasta(
@@ -106,15 +108,15 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     except PhylogenyError as exc:
         raise RuntimeError(f"IQ-TREE inference failed: {exc}")
     
-    raw_tree = Phylo.read(str(result.output_paths["raw_tree"]), "newick")
+    raw_tree = read_phylo(str(result.output_paths["raw_tree"]), "newick")
     reference_name = result.reference_name
     raw_pruned = _prune_reference_tip(raw_tree, reference_name)
     validate_tree(raw_pruned, cases.case_id)
-    Phylo.write(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
+    write_phylo(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
     
-    dated_tree = Phylo.read(str(result.output_paths["dated_tree"]), "newick")
+    dated_tree = read_phylo(str(result.output_paths["dated_tree"]), "newick")
     validate_tree(dated_tree, cases.case_id)
-    Phylo.write(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
+    write_phylo(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
     
     result.node_dates.to_csv(directory / "node_dates.tsv", sep="\t", index=False)
     

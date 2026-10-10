@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,7 @@ from ..provenance import (
     write_json,
 )
 from ..schemas import ENDPOINTS
+from ..selection.search import initial_resolutions, next_resolutions
 
 LOG = logging.getLogger(__name__)
 
@@ -33,8 +35,10 @@ def _implementation(full, stage):
     """Only computational dependencies participate in checkpoint identities."""
     if stage == "backbone":
         paths = {
-            "workflows/diagnostics.py", "provenance.py",
-            "diagnostics/backbone.py", "truth/relationships.py",
+            "workflows/diagnostics.py",
+            "provenance.py",
+            "diagnostics/backbone.py",
+            "truth/relationships.py",
         }
         packages = {"numpy", "pandas", "scipy", "networkx", "pyarrow"}
         return {
@@ -59,6 +63,7 @@ def _implementation(full, stage):
                 "diagnostics/graphs.py",
                 "diagnostics/observations.py",
                 "clusterers/graph.py",
+                "selection/search.py",
             }
         )
         packages.add("igraph")
@@ -175,7 +180,9 @@ class Diagnostics:
         return {
             "kind": f"diagnostics-{stage}-coverage-v1",
             "experiment": self.exp.identity,
-            "datasets": {} if stage == "backbone" else {str(s): p.name for s, p in self.datasets.items()},
+            "datasets": {}
+            if stage == "backbone"
+            else {str(s): p.name for s, p in self.datasets.items()},
             "implementation": self.implementation[stage],
             "settings": settings,
             "tools": {},
@@ -188,7 +195,9 @@ class Diagnostics:
             "status": "partial" if errors else "complete",
             "records": records,
             "errors": errors,
-            "datasets": {} if stage == "backbone" else {str(s): p.name for s, p in self.datasets.items()},
+            "datasets": {}
+            if stage == "backbone"
+            else {str(s): p.name for s, p in self.datasets.items()},
         }
         if stage == "backbone":
             index["scope"] = "one fixed backbone"
@@ -238,30 +247,42 @@ class Diagnostics:
             "settings": self.backbone_config,
         }
         try:
+
             def produce(directory):
-                summary, evidence = backbone_diagnostics(self.tree, self.backbone_config)
+                summary, evidence = backbone_diagnostics(
+                    self.tree, self.backbone_config
+                )
                 write_json(directory / "summary.json", summary)
                 for name, table in evidence.items():
                     if name.endswith(".parquet"):
                         table.to_parquet(directory / name, index=False)
                     else:
                         table.to_csv(directory / name, index=False)
-                write_json(directory / "provenance.json", {
-                    "backbone": signature["backbone"],
-                    "case_order": "full truth node order",
-                    "offspring": "direct children in the fixed transmission backbone, including zeros",
-                    "superspreading_rule": "offspring >= Poisson percentile at the backbone mean; no events if no transmissions",
-                    "replication": "one backbone, not observation-seed replicates",
-                })
+                write_json(
+                    directory / "provenance.json",
+                    {
+                        "backbone": signature["backbone"],
+                        "case_order": "full truth node order",
+                        "offspring": "direct children in the fixed transmission backbone, including zeros",
+                        "superspreading_rule": "offspring >= Poisson percentile at the backbone mean; no events if no transmissions",
+                        "replication": "one backbone, not observation-seed replicates",
+                    },
+                )
                 return ["summary.json", "provenance.json", *evidence]
 
             artifact = self._artifact("backbone", signature, produce)
-            records.append({"backbone": signature["backbone"], "artifact": str(artifact)})
+            records.append(
+                {"backbone": signature["backbone"], "artifact": str(artifact)}
+            )
             summary = read_json(artifact / "summary.json")
-            tables["summary.csv"] = pd.DataFrame([
-                {k: v for k, v in summary.items() if k != "bootstrap"}
-            ])
-        except Exception as exc:
+            tables["summary.csv"] = pd.DataFrame(
+                [{k: v for k, v in summary.items() if k != "bootstrap"}]
+            )
+        except (
+            OSError,
+            subprocess.SubprocessError,
+            ValueError,
+        ) as exc:
             errors.append({"error": repr(exc)})
             LOG.error("Backbone diagnostics failed: %s", exc)
         return self._save_stage("backbone", records, errors, tables)
@@ -281,7 +302,12 @@ class Diagnostics:
                     "implementation": self.implementation["observations"],
                 }
 
-                def produce(directory):
+                def produce(
+                    directory,
+                    dataset=dataset,
+                    seed=seed,
+                    collected=collected,
+                ):
                     observations, _ = load_observations(dataset)
                     truth = load_truth(self.truth_directory, observations.pair_id)
                     cells, summary, prevalence, relationships = observation_diagnostics(
@@ -302,9 +328,13 @@ class Diagnostics:
                 records.append(
                     {"seed": seed, "dataset": dataset.name, "artifact": str(artifact)}
                 )
-                for name in collected:
-                    collected[name].append(pd.read_csv(artifact / f"{name}.csv"))
-            except Exception as exc:
+                for name, value in collected.items():
+                    value.append(pd.read_csv(artifact / f"{name}.csv"))
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                ValueError,
+            ) as exc:
                 errors.append({"seed": seed, "error": repr(exc)})
                 LOG.error("Observation diagnostics failed seed=%s: %s", seed, exc)
         keys = {
@@ -398,7 +428,7 @@ class Diagnostics:
                     "implementation": self.implementation["graphs"],
                 }
 
-                def produce(directory):
+                def produce(directory, graph=graph, endpoint=endpoint):
                     cases.to_parquet(directory / "cases.parquet", index=False)
                     pd.DataFrame(graph.get_edgelist(), columns=["a", "b"]).assign(
                         weight=1
@@ -424,7 +454,11 @@ class Diagnostics:
                     ]
 
                 source = self._artifact("graphs", signature, produce)
-            except Exception as exc:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                ValueError,
+            ) as exc:
                 errors.append({**base, "error": repr(exc)})
                 continue
             definitions = [{"algorithm": "components", "resolution": None}]
@@ -437,7 +471,7 @@ class Diagnostics:
                     "seed": settings["seed"],
                     "restart_selection": "maximum objective",
                 }
-                for resolution in settings["resolutions"]
+                for resolution in initial_resolutions(settings["resolutions"])
             )
             for setting in definitions:
                 try:
@@ -448,7 +482,7 @@ class Diagnostics:
                         "implementation": self.implementation["graphs"],
                     }
 
-                    def partition(_directory):
+                    def partition(_directory, setting=setting, graph=graph):
                         if setting["algorithm"] == "components":
                             return components(graph)
                         return leiden(
@@ -481,7 +515,60 @@ class Diagnostics:
                             "artifact": str(artifact),
                         }
                     )
-                except Exception as exc:
+                    if setting is definitions[-1] and setting["algorithm"] == "leiden":
+                        trial_records = [
+                            r
+                            for r in records
+                            if r["endpoint"] == endpoint and r["algorithm"] == "leiden"
+                        ]
+                        trials = {
+                            Path(r["artifact"]).name: {
+                                "kind": "leiden",
+                                "pipeline": "leiden",
+                                "resolution": r["resolution"],
+                            }
+                            for r in trial_records
+                        }
+                        evidence = pd.DataFrame(
+                            [
+                                {
+                                    "split": "development",
+                                    "seed": 0,
+                                    "setting_id": Path(r["artifact"]).name,
+                                    **read_json(Path(r["artifact"]) / "metrics.json"),
+                                }
+                                for r in trial_records
+                            ]
+                        )
+                        values = next_resolutions(
+                            settings["resolutions"],
+                            evidence,
+                            trials,
+                            [
+                                {
+                                    "name": endpoint,
+                                    "objective": f"{endpoint}_f1",
+                                    "constraints": {},
+                                }
+                            ],
+                            [0],
+                        )
+                        definitions.extend(
+                            {
+                                "algorithm": "leiden",
+                                "resolution": value,
+                                "objective": settings["objective"],
+                                "restarts": settings["restarts"],
+                                "seed": settings["seed"],
+                                "restart_selection": "maximum objective",
+                            }
+                            for value in values
+                        )
+                except (
+                    OSError,
+                    subprocess.SubprocessError,
+                    ValueError,
+                ) as exc:
                     errors.append({**base, "setting": setting, "error": repr(exc)})
         return records, errors
 
@@ -502,7 +589,11 @@ class Diagnostics:
                     {"seed": seed, "dataset": dataset.name, **r} for r in completed
                 )
                 errors.extend({"seed": seed, **r} for r in failed)
-            except Exception as exc:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                ValueError,
+            ) as exc:
                 errors.append({"seed": seed, "error": repr(exc)})
         for error in errors:
             LOG.error("%s diagnostics failed: %s", stage, error)
@@ -527,9 +618,7 @@ class Diagnostics:
             for (seed, endpoint), source in sources.items()
         ]
         frame = (
-            pd.DataFrame(rows)
-            if rows
-            else pd.DataFrame(columns=["seed", "endpoint"])
+            pd.DataFrame(rows) if rows else pd.DataFrame(columns=["seed", "endpoint"])
         )
         tables.update(
             {
@@ -542,7 +631,9 @@ class Diagnostics:
     def _coverage(self):
         """Validate all checkpoints and save a checksummed inventory for baseline."""
         stages = ["backbone", "observations", "graphs"]
-        if any(not (self.directory / stage / "index.json").exists() for stage in stages):
+        if any(
+            not (self.directory / stage / "index.json").exists() for stage in stages
+        ):
             return False
         if not self.datasets:
             # A standalone backbone rerun can validate saved coverage without
@@ -563,11 +654,15 @@ class Diagnostics:
             if index["status"] != "complete":
                 return False
             if stage == "backbone":
-                if (index["datasets"] or len(index["records"]) != 1
-                    or index["records"][0]["backbone"] != self.exp.signature["backbone"]):
+                if (
+                    index["datasets"]
+                    or len(index["records"]) != 1
+                    or index["records"][0]["backbone"] != self.exp.signature["backbone"]
+                ):
                     return False
-            elif (index["datasets"] != datasets
-                  or {r["seed"] for r in index["records"]} != set(self.seeds)):
+            elif index["datasets"] != datasets or {
+                r["seed"] for r in index["records"]
+            } != set(self.seeds):
                 return False
             artifacts.add(directory)
             for record in index["records"]:
@@ -590,11 +685,16 @@ class Diagnostics:
         }
         completion = self.directory / "completion"
         coverage = {
-            "status": "complete", "stages": stages, "datasets": datasets,
+            "status": "complete",
+            "stages": stages,
+            "datasets": datasets,
             "artifacts": inventory,
             "aggregation": "one backbone; other summaries use equal development-seed weights; no pair-based CI",
         }
-        if not valid_artifact(completion, signature) or read_json(completion / "coverage.json") != coverage:
+        if (
+            not valid_artifact(completion, signature)
+            or read_json(completion / "coverage.json") != coverage
+        ):
             write_json(
                 completion / "coverage.json",
                 coverage,
@@ -625,7 +725,14 @@ class Diagnostics:
             marker.unlink()
 
     def run(self, stage):
-        if stage not in {"prepare", "backbone", "observations", "graphs", "report", "all"}:
+        if stage not in {
+            "prepare",
+            "backbone",
+            "observations",
+            "graphs",
+            "report",
+            "all",
+        }:
             raise ValueError(f"Unknown diagnostics stage: {stage}")
         if stage == "report":
             # The CLI can call render_report directly to avoid even experiment setup.

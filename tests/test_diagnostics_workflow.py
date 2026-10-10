@@ -270,6 +270,22 @@ def test_removed_tree_stage_is_rejected(diagnostics_config):
     assert error.value.code == 2
 
 
+def test_bounded_oracle_resolution_search_is_deduplicated(diagnostics_config):
+    diagnostics_config["diagnostics"]["leiden"]["resolutions"] = {
+        "min": 0.1, "max": 1, "initial_points": 3, "budget": 5, "scale": "linear",
+    }
+    diagnostics = Diagnostics(diagnostics_config)
+    assert diagnostics.run("graphs")
+    index = read_json(diagnostics.directory / "graphs/index.json")
+    frame = pd.DataFrame(index["records"])
+    leiden_rows = frame.loc[frame.algorithm.eq("leiden")]
+    assert (leiden_rows.groupby(["seed", "endpoint"]).resolution.nunique() == 5).all()
+    assert len(frame.artifact.unique()) == len(ENDPOINTS) * 6
+    before = _timestamps(diagnostics.root / "artifacts")
+    assert Diagnostics(deepcopy(diagnostics_config)).run("graphs")
+    assert _timestamps(diagnostics.root / "artifacts") == before
+
+
 def test_backbone_stage_uses_all_cases_without_observation_generation(
     diagnostics_config, monkeypatch, tmp_path
 ):

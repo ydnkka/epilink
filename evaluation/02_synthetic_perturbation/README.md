@@ -4,7 +4,7 @@
 
 Test how biological-parameter perturbations affect **full-graph, score-weighted EpiLink Leiden clustering**, and whether updating inference parameters, clustering resolution, or both improves recovery.
 
-The completed [synthetic baseline](../01_synthetic_baseline/README.md) supplies the transmission backbone, known truth, inference parameters, selected resolutions, resolution grid and operating criterion. Fresh observations change one generation parameter at a time.
+The completed [synthetic baseline](../01_synthetic_baseline/README.md) supplies the transmission backbone, known truth, inference parameters, selected resolutions, resolution search bounds/budget and operating criterion. Fresh observations change one generation parameter at a time.
 
 ## Four modes
 
@@ -30,7 +30,7 @@ The study produces EpiLink clustering metrics and partitions. General feature am
 
 ## Development and evaluation
 
-Updated resolutions are chosen on `development_seeds`, using the **same resolution grid and selection rule as the baseline**. Selection requires complete development evidence and feasible settings for every requested pipeline. No evaluation observations are accessed before the arm's settings are saved.
+Updated resolutions are chosen on `development_seeds`, using the **same resolution bounds, search budget and selection rule as the baseline**. Coarse-to-fine trials are adapted to each arm's fresh development evidence and shared across its scorers. Selection requires complete development evidence and feasible settings for every requested pipeline. No evaluation observations are accessed before the arm's settings are saved.
 
 All four modes then evaluate the same separate `seeds`. Both seed sets must be distinct and fresh relative to **every baseline split**. Within a scenario, inference modes share observations; baseline/updated clustering additionally share score artifacts. EpiLink is training-free.
 
@@ -54,7 +54,7 @@ python evaluation/02_synthetic_perturbation/run.py
 python evaluation/02_synthetic_perturbation/run.py --stage report
 ```
 
-Equivalent CLI: `epilink-evaluate perturbation --smoke`. The default reference is `../01_synthetic_baseline/outputs/baseline/current.json`, resolved once at startup. Pin a run with `--baseline-run "evaluation/01_synthetic_baseline/outputs/baseline/runs/<id>"`. Use `--config` for another schema-2 YAML and `--output` to override the root. CLI path overrides are relative to the working directory; YAML paths are relative to the YAML.
+Equivalent CLI: `epilink-evaluate perturbation --smoke`. The default reference is `../01_synthetic_baseline/outputs/baseline/current.json`, resolved once at startup. Pin a run with `--baseline-run "evaluation/01_synthetic_baseline/outputs/baseline/runs/<id>"`. Use `--config` for another schema-1 YAML and `--output` to override the root. CLI path overrides are relative to the working directory; YAML paths are relative to the YAML.
 
 `all` (default) runs development selection where required, held-out clustering, collection and reporting. `report` renders saved tables. Repeat the same command/options to resume validated observations, scores and partitions. Smoke appends `_smoke` to the output root, uses 64 cases, development seed 90001, evaluation seed 91001, and the two incubation-mean perturbations plus the control. It is pipeline validation.
 
@@ -64,7 +64,7 @@ Equivalent CLI: `epilink-evaluate perturbation --smoke`. The default reference i
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | `2` for clustering-only, four-arm analysis. |
+| `schema_version` | `1` for clustering-only, four-arm analysis. |
 | `baseline_run` | Completed baseline run or current-run pointer. |
 | `output_directory` | Separate study root, default `outputs/perturbation`. |
 | `development_seeds` | Resolution-selection seeds, default 80001–80003. |

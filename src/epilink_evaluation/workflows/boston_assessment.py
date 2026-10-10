@@ -78,14 +78,14 @@ def assess_partitions(
                 "treecluster_group",
             ].value_counts()
             if not counts.empty:
-                reference_named[exposure] = sorted(
+                reference_named[exposure] = min(
                     counts.index,
                     key=lambda group: (
                         -counts[group],
                         -len(reference_groups[group]),
                         group,
                     ),
-                )[0]
+                )
 
     for setting_id, definition in definitions.items():
         if definition["kind"] not in ("components", "leiden", "treecluster"):
@@ -161,10 +161,10 @@ def assess_partitions(
             ]
             if not focus_groups:
                 continue
-            chosen = sorted(
+            chosen = min(
                 focus_groups,
                 key=lambda group: (-counts[group], -len(groups[group]), group),
-            )[0]
+            )
             named_groups[setting_id, exposure] = chosen
             primary = {
                 **base,
