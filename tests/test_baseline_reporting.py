@@ -62,7 +62,9 @@ def test_exact_cutoffs_do_not_expand_full_graph_resolutions(
     leiden = small_config["clustering"]["leiden"]
     leiden["resolutions"] = [0.2, 0.8]
     assert "pairwise" not in small_config
-    assert all(d["kind"] != "pairwise" for d in settings_registry(small_config).values())
+    assert all(
+        d["kind"] != "pairwise" for d in settings_registry(small_config).values()
+    )
     definitions = settings_registry(
         small_config, {"LOGIT_D": np.linspace(0, 1, 101).tolist()}
     )

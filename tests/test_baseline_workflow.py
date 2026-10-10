@@ -27,7 +27,8 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
     assert set(baseline.datasets) == set(
         small_config["splits"]["train"] + small_config["splits"]["development"]
     )
-    training_model = baseline.root / "artifacts/models" / baseline.training_id[:20]
+    training_id = "" if baseline.training_id is None else baseline.training_id[:20]
+    training_model = baseline.root / "artifacts/models" / training_id
     assert (
         read_json(training_model / "manifest.json")["seeds"]
         == small_config["splits"]["train"]
@@ -59,8 +60,11 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
             for d in definitions.values()
             if d["kind"] == "pairwise" and d["score_name"] == name and not d["empty"]
         } == cutoffs
-        assert {d["threshold"] for d in definitions.values()
-                if d["kind"] == "components" and d["score_name"] == name and not d["empty"]} == cutoffs
+        assert {
+            d["threshold"]
+            for d in definitions.values()
+            if d["kind"] == "components" and d["score_name"] == name and not d["empty"]
+        } == cutoffs
     assert baseline.run("evaluate")
     assert baseline.definitions == definitions
     evaluation = pd.read_csv(baseline.directory / "evaluation/operating_results.csv")
@@ -84,7 +88,10 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
         ).exists()
     assert not (baseline.directory / "development/grid_adequacy.csv").exists()
     assert not (baseline.directory / "development/grid_neighbors.csv").exists()
-    assert "Development grid adequacy" not in (baseline.directory / "report.md").read_text()
+    assert (
+        "Development grid adequacy"
+        not in (baseline.directory / "report.md").read_text()
+    )
     assert not list(baseline.directory.rglob("budgets.csv"))
 
     # A fresh process-equivalent context reuses completed observations unchanged.
@@ -102,9 +109,9 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
 
     # A damaged data-derived registry cannot silently fall back to configured
     # thresholds and release a different replay.
-    (
-        baseline.directory / "development/cutoff_candidates/definitions.json"
-    ).write_text("{}")
+    (baseline.directory / "development/cutoff_candidates/definitions.json").write_text(
+        "{}"
+    )
     with pytest.raises(ValueError, match="candidate registry"):
         Baseline(deepcopy(small_config)).evaluate()
 
@@ -151,7 +158,6 @@ def test_failed_comparator_prevents_freezing(
 def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
     """Verify tree inference not repeated for same dataset/process."""
     from epilink_evaluation.workflows.baseline import Baseline
-    from epilink_evaluation.phylogeny.trees import prepare_phylogeny
 
     small_config["treecluster"]["enabled"] = True
     # Set up treecluster methods and thresholds
@@ -169,7 +175,7 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
         k: v for k, v in baseline.definitions.items() if v["kind"] == "treecluster"
     }
     assert len(tc_definitions) > 0, "No treecluster definitions found"
-    first_def = list(tc_definitions.values())[0]
+    first_def = next(iter(tc_definitions.values()))
     # Check that tree artifacts exist with correct structure
     for kind in ("raw", "dated"):
         kind_dir = (
@@ -195,7 +201,6 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
 
 def test_threshold_scaling_synthetic(small_config, prepare_diagnostics):
     """Verify SNP counts converted using alignment_length=5000."""
-    from epilink_evaluation.workflows.settings import settings_registry
 
     small_config["treecluster"]["enabled"] = True
     small_config["simulation"]["alignment_length"] = 5000
@@ -205,7 +210,7 @@ def test_threshold_scaling_synthetic(small_config, prepare_diagnostics):
     definitions = baseline.definitions
     # Check that treecluster definitions have threshold_units = "snps" or "days"
     # and thresholds are non-negative
-    for key, defn in definitions.items():
+    for defn in definitions.values():
         if defn["kind"] == "treecluster":
             assert defn["threshold_units"] in ("snps", "days")
             assert defn["threshold"] >= 0

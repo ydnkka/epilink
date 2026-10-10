@@ -48,7 +48,7 @@ def test_tied_precision_recall_matches_sklearn(higher_is_better):
 
 
 def test_false_positives_include_close_non_targets_and_separate_introductions():
-    tree = nx.DiGraph([(0, 1), (1, 2), (2, 3), (3, 4)])
+    tree: nx.DiGraph[int] = nx.DiGraph([(0, 1), (1, 2), (2, 3), (3, 4)])
     tree.add_node(5)
     truth = PairTruth(relationship_table(tree))
     all_pairs = truth.statistics(np.ones(15, dtype=bool))

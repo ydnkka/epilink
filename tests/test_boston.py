@@ -540,6 +540,7 @@ def test_external_treecluster_assessment_counts_singletons_and_overlap(tmp_path)
     tree = tmp_path / "treecluster.tsv"
     tree.write_text("SequenceName\tClusterNumber\nA\t1\nB\t1\nC\t-1\nD\t2\nE\t-1\n")
     comparator = load_treecluster(tree, cases)
+    assert comparator is not None
     assert comparator.treecluster_group.nunique() == 4  # the two -1 rows do not merge
     definitions = {
         "setting": {
@@ -578,7 +579,9 @@ def test_boston_enabled_trees_use_iqtree_and_frozen_snp_rules(
 ):
     """Exercise the shipped tree config shape through inference, partitioning and resume."""
     from copy import deepcopy
+
     import epilink
+
     from epilink_evaluation.phylogeny import boston as phylogeny
     from epilink_evaluation.provenance import digest_file
     from epilink_evaluation.workflows.settings import settings_registry

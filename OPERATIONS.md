@@ -25,7 +25,6 @@ Use this guide to configure and run the project, locate results, and resume inte
     - [Scorers, searches, and comparison settings](#scorers-searches-and-comparison-settings)
   - [4. Prepare or regenerate the SCoVMod tree](#4-prepare-or-regenerate-the-scovmod-tree)
   - [5. Run smoke validation and the baseline](#5-run-smoke-validation-and-the-baseline)
-    - [Observed full-run wall times](#observed-full-run-wall-times)
   - [6. Stage reference](#6-stage-reference)
   - [7. Find and interpret results](#7-find-and-interpret-results)
     - [Read development evidence in this order](#read-development-evidence-in-this-order)
@@ -92,9 +91,9 @@ The editable install supplies the `epilink-evaluate` command and Python dependen
 conda install -c conda-forge -c bioconda iqtree
 ```
 
-The supplied `phylogeny.executable: iqtree` discovers `iqtree3`, `iqtree2`, or `iqtree` on PATH or beside the interpreter. An explicit path pins the executable; the legacy `phylogeny.iqtree_executable` field is also accepted. The same resolved path is recorded and invoked. TreeCluster is a Python dependency. `check` verifies tool availability.
+The supplied `phylogeny.executable: iqtree` discovers `iqtree3`, `iqtree2`, or `iqtree` on PATH or beside the interpreter. An explicit path pins the executable. The same resolved path is recorded and invoked. TreeCluster is a Python dependency. `check` verifies tool availability.
 
-**Boston:** IQ-TREE builds trees directly from the alignment; TN93 is no longer required for tree construction.
+**Boston:** IQ-TREE builds trees directly from the aligned FASTA and reference sequence. The TN93 pair table supplies genetic distances for scoring and graph clustering.
 
 ### Obtain inputs and check the installation
 
@@ -175,7 +174,7 @@ Shared `generation` configures observation simulation. Baseline derives `inferen
 | `relaxation`                            | Dimensionless lognormal SD of branch-specific rates; zero gives a strict clock.           |
 | `genome_length`                         | Site count used by EpiLink to calculate mutation-count expectations.                      |
 
-The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE infers genetic branch lengths from aligned sequences. LSD2 dates them using numeric simulation days for synthetic data and calendar collection dates for Boston; exported dated branch lengths are days in both cases.
+The supplied configuration uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE infers genetic branch lengths from aligned sequences. LSD2 dates them using numeric simulation days for synthetic data and calendar collection dates for Boston; exported dated branch lengths are days in both cases.
 
 ### Scorers, searches, and comparison settings
 
@@ -220,7 +219,7 @@ epilink-evaluate scovmod --stage prepare --config evaluation/01_synthetic_baseli
 - **Explicit prebuilt tree without a manifest:** validate the graph and retain it without requiring raw inputs.
 - Full and smoke runs share these inputs. `--output` changes the run root, not the prepared input paths.
 
-To generate a new target while keeping the previous tree, edit these entries in the shared config, keeping its other fields:
+To generate a new target while keeping the existing tree, edit these entries in the shared config, keeping its other fields:
 
 ```yaml
 inputs:
@@ -229,7 +228,7 @@ inputs:
   tree_seed: 12345
 ```
 
-Choose a separate directory to retain the old artifact, then run `scovmod --stage prepare`
+Choose a separate directory to retain the existing artifact, then run `scovmod --stage prepare`
 again. By default, provenance is saved beside the tree; if using an explicit
 `tree_source_path`, update it too. There is no CLI `--force` or target-size
 override; these settings live in YAML.
@@ -265,23 +264,6 @@ python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_
 Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. Pairwise/component candidate counts depend on development scores; Leiden and TreeCluster have declared search budgets. Work also scales with methods, replicates, and number of pairs: `n * (n - 1) / 2`. Pairwise candidates use cumulative-curve lookups and components use incremental merges. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
 Every CLI command and the four evaluation `run.py` entry points log `Execution started` before argument parsing and configuration loading. They log `Execution finished` with `status` and `elapsed_seconds` on completion, failure, or interruption. Log timestamps identify the start/end, and elapsed seconds use a monotonic timer from CLI entry to return. Logs are written to stderr, so capture stderr along with stdout when saving a run log. Cached and report-only commands receive the same timing records.
-
-### Observed full-run wall times
-
-One historical execution on 2026-10-02–03 produced these timings. It predates the current four-scorer/four-mode clustering-only perturbation design, full-graph Leiden and IQ-TREE/LSD2 changes; these values are not current runtime estimates:
-
-| Workflow/stage                        | Observed elapsed |
-| ------------------------------------- | ---------------: |
-| Diagnostics`all`                      |   about 5m 10s\* |
-| Baseline`develop`                     |       2h 02m 10s |
-| Baseline`select`                      |           1m 49s |
-| Baseline`evaluate`                    |       1h 16m 33s |
-| Baseline`develop`–`evaluate` sequence |      3h 20m 38s† |
-| Full perturbation`all`                |     16h 44m 12s‡ |
-
-The baseline and perturbation runs used the 5,051-case backbone, 5,000-nt sequences, eight scorers, and 10,000 EpiLink Monte Carlo draws. Perturbation covered the baseline control plus 12 parameter variants, two inference modes, and three seeds. The measured command windows sum to about 20h 10m, excluding the idle interval between baseline evaluation and the later perturbation run.
-
-These are single-run observations, not guarantees; they were collected on a MacBook Pro (MacBookPro18,3) with an Apple M1 Pro (8 CPU cores: 6 performance and 2 efficiency), 16 GB memory, and macOS 27.0.1. Runtime also depends on tool versions and cache state. Stage times use the first timestamped workflow log through the final report log. The diagnostics estimate (\*) spans the first simulation log to the report file timestamp because command start/end timestamps were not captured. The baseline sequence duration (†) spans the first `develop` log through the `evaluate` report log. Perturbation duration (‡) spans its first scenario log through its final report log.
 
 The two baseline entry points are equivalent:
 
@@ -435,7 +417,7 @@ Inspect `selection/operating_points.json` and the updated report. Selection also
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage evaluate
 ```
 
-Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory. Report-only endpoint corrections can be rendered from saved outputs without new observations. Resetting outputs preserves access history; smoke is repeatable validation in its separate namespace.
+Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory. Reports can be rendered from saved outputs without new observations. Resetting outputs preserves access history; smoke is repeatable validation in its separate namespace.
 
 ## 9. Resume work and understand caching
 
@@ -449,11 +431,9 @@ Artifacts are reused when their signatures and file checksums match completed ma
 
 Run IDs incorporate scientific configuration, input/truth identity, implementation hashes, recorded package versions, and external-tool identities. Changes to these can create a new run directory. Absolute resolved input paths also participate, so moving a checkout can change its run ID. Shared artifacts are reused according to their own signatures. Keep the per-run `manifest.json` when comparing runs.
 
-`selection`, `output_directory`, and the config-file path itself are excluded from the scientific configuration portion of the run ID. Selection decisions have their own validation; changing the output root changes where artifacts are found. The root-level pointer is updated when a run is initialized. Earlier run directories remain available; the pointer is not an index of successful runs.
+`selection`, `output_directory`, and the config-file path itself are excluded from the scientific configuration portion of the run ID. Selection decisions have their own validation; changing the output root changes where artifacts are found. The root-level pointer is updated when a run is initialized. Each run keeps its own directory; the pointer is not an index of successful runs.
 
-Changing `target_component_size` or `tree_seed` invalidates a managed backbone's preparation signature and triggers reconstruction. Different targets can still select the same component. Explicit prebuilt trees without a manifest are retained; use a separate input directory to reconstruct a different backbone while keeping the previous one.
-
-Retained outputs from earlier versions are historical results. Produce current evidence using diagnostics followed by baseline; old baseline-local truth and observation directories do not establish the shared-experiment completion contract.
+Changing `target_component_size` or `tree_seed` invalidates a managed backbone's preparation signature and triggers reconstruction. Different targets can still select the same component. Explicit prebuilt trees without a manifest are retained; use a separate input directory to reconstruct a different backbone while keeping the existing one.
 
 ## 10. Troubleshooting
 
@@ -518,7 +498,7 @@ The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default confi
 
 The workflow evaluates EDD/EDS/ESD/ESS clustering in four modes. Graphs include every observed pair with its score as weight and have no cutoff. Updated resolutions use separate fresh development seeds, the baseline bounds/search budget, and the frozen operating criterion; all arms use paired evaluation seeds and fresh controls. Full coverage is 13 scenarios × four modes × four scorers × three evaluation seeds = 624 rows. Smoke uses up to 64 cases and the incubation-mean levels, yielding 48 rows. Outputs are under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-1 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-1 configuration and resumption, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
 
 **Boston applies the baseline reference to real observations.** Its computational stages use frozen selection and held-out evaluation provenance; preparation alone does not need a completed baseline. Prepare only the derived input tables with:
 

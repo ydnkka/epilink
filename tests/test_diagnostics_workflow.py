@@ -220,7 +220,7 @@ def test_graph_failure_is_visible_and_successful_settings_resume(
     def failing_leiden(graph, resolution, objective, restarts, seed):
         calls.append(resolution)
         if resolution == 0.8 and fail:
-            raise RuntimeError("visible graph failure")
+            raise ValueError("visible graph failure")
         return original(graph, resolution, objective, restarts, seed)
 
     monkeypatch.setattr(workflow, "leiden", failing_leiden)
@@ -371,7 +371,7 @@ def test_corrupt_backbone_revokes_completion_and_can_be_repaired(
     producer = workflow.backbone_diagnostics
 
     def failed(*args, **kwargs):
-        raise RuntimeError("visible backbone failure")
+        raise ValueError("visible backbone failure")
 
     monkeypatch.setattr(workflow, "backbone_diagnostics", failed)
     assert not diagnostics.run("backbone")

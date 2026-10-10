@@ -1,3 +1,5 @@
+from typing import cast
+
 import igraph as ig
 import networkx as nx
 import numpy as np
@@ -122,13 +124,13 @@ def test_hand_counted_exact_cells_and_mixed_denominators():
         },
     }
     for feature_set, metrics in expected.items():
-        row = rows.loc[("deterministic", feature_set, "M0")]
+        row = rows.loc[[("deterministic", feature_set, "M0")]].iloc[0]
         assert row.n_pairs == 12
         assert row.n_target == 4
         assert row.n_other == 8
         for metric, value in metrics.items():
             assert row[metric] == pytest.approx(value), metric
-    stochastic = rows.loc[("stochastic", "GD", "M0")]
+    stochastic = rows.loc[[("stochastic", "GD", "M0")]].iloc[0]
     assert stochastic.n_cells == stochastic.mixed_cells == 1
     assert stochastic.pair_fraction_in_mixed_cells == 1
     assert stochastic.target_fraction_in_mixed_cells == 1
@@ -151,7 +153,7 @@ def test_hand_counted_exact_cells_and_mixed_denominators():
         ["process", "feature_set", "endpoint"]
     ):
         assert group.n_pairs.sum() == 12
-        assert group.n_target.sum() == {"M0": 4, "Mle1": 6, "Mle2": 9}[endpoint]
+        assert group.n_target.sum() == {"M0": 4, "Mle1": 6, "Mle2": 9}[str(endpoint)]
         assert group[category_columns].sum().tolist() == expected_categories
     for endpoint, targets in {
         "M0": [2, 1, 1, 0, 0],
@@ -188,25 +190,27 @@ def test_absent_classes_and_empty_universe_have_defined_denominators(categories)
     assert (summary.minimum_feature_only_misclassifications == 0).all()
     assert summary.target_prevalence_in_mixed_cells.isna().all()
     assert summary.class_conditional_overlap.isna().all()
-    for row in summary.itertuples():
-        if row.n_target:
-            assert row.target_fraction_in_mixed_cells == 0
+    for row in summary.to_dict("records"):
+        if row["n_target"]:
+            assert row["target_fraction_in_mixed_cells"] == 0
         else:
-            assert np.isnan(row.target_fraction_in_mixed_cells)
-        if row.n_other:
-            assert row.non_target_fraction_in_mixed_cells == 0
+            assert np.isnan(row["target_fraction_in_mixed_cells"])
+        if row["n_other"]:
+            assert row["non_target_fraction_in_mixed_cells"] == 0
         else:
-            assert np.isnan(row.non_target_fraction_in_mixed_cells)
+            assert np.isnan(row["non_target_fraction_in_mixed_cells"])
         if categories:
-            assert row.mixed_cell_fraction == row.pair_fraction_in_mixed_cells == 0
-            assert row.minimum_feature_only_misclassification_rate == 0
+            assert (
+                row["mixed_cell_fraction"] == row["pair_fraction_in_mixed_cells"] == 0
+            )
+            assert row["minimum_feature_only_misclassification_rate"] == 0
         else:
-            assert np.isnan(row.mixed_cell_fraction)
-            assert np.isnan(row.pair_fraction_in_mixed_cells)
-            assert np.isnan(row.minimum_feature_only_misclassification_rate)
+            assert np.isnan(row["mixed_cell_fraction"])
+            assert np.isnan(row["pair_fraction_in_mixed_cells"])
+            assert np.isnan(row["minimum_feature_only_misclassification_rate"])
     if not categories:
         assert cells.empty
-        assert set(["GD", "TD", "n_target", "mixed", "n_separate"]) <= set(cells)
+        assert {"GD", "TD", "n_target", "mixed", "n_separate"} <= set(cells)
         assert prevalence.target_prevalence.isna().all()
         assert relationships.pair_fraction.isna().all()
 
@@ -298,6 +302,7 @@ def test_nontransitive_oracle_graph_and_within_cluster_false_positive():
     leiden_labels, metadata = leiden(
         graph, resolution=0.1, objective="CPM", restarts=2, seed=7
     )
+    assert leiden_labels is not None
     assert len(leiden_labels) == 3
     assert np.isfinite(metadata["quality"])
     evaluator.evaluate(leiden_labels)
@@ -305,7 +310,7 @@ def test_nontransitive_oracle_graph_and_within_cluster_false_positive():
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 def test_oracle_horizons_unsampled_intermediates_and_isolates(endpoint):
-    tree = nx.DiGraph(
+    tree: nx.DiGraph[str] = nx.DiGraph(
         [
             ("R", "A"),
             ("A", "u"),
@@ -382,7 +387,7 @@ def test_closed_wedges_and_graph_validation():
         oracle_graph(observations, 2, truth, "M3")
     for n_cases in (-1, 2.5, True):
         with pytest.raises(ValueError, match="nonnegative integer"):
-            oracle_graph(observations, n_cases, truth, "M0")
+            oracle_graph(observations, cast(int, n_cases), truth, "M0")
     for a, b in [(-1, 1), (0, 2), (0.5, 1), (None, 1), (0, 0)]:
         with pytest.raises(ValueError, match="indices|Self-pairs"):
             oracle_graph(observations.assign(a=a, b=b), 2, truth, "M0")

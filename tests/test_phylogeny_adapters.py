@@ -6,7 +6,7 @@ import epilink
 import numpy as np
 import pandas as pd
 import pytest
-from Bio import Phylo
+from Bio.Phylo._io import read as read_phylo
 
 from epilink_evaluation.clusterers import treecluster
 from epilink_evaluation.phylogeny import trees
@@ -138,7 +138,8 @@ def test_iqtree_adapter_mocked(
 
 
 def test_reference_pruned_from_raw_tree():
-    original = Phylo.read(StringIO("((a:0.1,b:0.1):0.2,c:0.3);"), "newick")
+
+    original = read_phylo(StringIO("((a:0.1,b:0.1):0.2,c:0.3);"), "newick")
     pruned = trees._prune_reference_tip(original, "a")
     assert {tip.name for tip in pruned.get_terminals()} == {"b", "c"}
     assert {tip.name for tip in original.get_terminals()} == {"a", "b", "c"}

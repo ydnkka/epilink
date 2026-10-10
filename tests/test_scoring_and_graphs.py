@@ -63,7 +63,9 @@ def test_inclusive_thresholds_score_weights_and_isolates():
     )
     empty = build_graph(observations, 4, values, spec, None, empty=True)
     assert len(set(components(empty)[0])) == 4
-    assert len(set(leiden(empty, 0.1, "CPM", 2, 123)[0])) == 4
+    empty_labels, _ = leiden(empty, 0.1, "CPM", 2, 123)
+    assert empty_labels is not None
+    assert len(set(empty_labels)) == 4
     genetic = SCORERS["GD_D"].spec
     np.testing.assert_array_equal(
         selected_pairs([0, 1, 1, 2], genetic, 1), [True, True, True, False]
@@ -92,6 +94,8 @@ def test_leiden_restarts_are_reproducible_and_selected_by_objective():
     graph = build_graph(observations, 6, values, SCORERS["EDD"].spec, 0.5)
     labels, metadata = leiden(graph, 0.1, "CPM", 4, 123)
     repeated, repeated_metadata = leiden(graph, 0.1, "CPM", 4, 123)
+    assert labels is not None
+    assert repeated is not None
     np.testing.assert_array_equal(
         labels[:, None] == labels, repeated[:, None] == repeated
     )

@@ -19,7 +19,7 @@ def small_config(tmp_path):
     config.pop("experiment_config", None)
     config["experiment_root"] = str(tmp_path / "shared")
     tree = nx.balanced_tree(2, 3, create_using=nx.DiGraph)
-    tree = nx.relabel_nodes(tree, lambda node: f"case_{node}")
+    tree = nx.relabel_nodes(tree, {node: f"case_{node}" for node in tree.nodes})
     path = tmp_path / "backbone.gml"
     nx.write_gml(tree, path)
     config["inputs"].update(tree_path=str(path), smoke_cases=None)

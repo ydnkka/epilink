@@ -21,7 +21,7 @@ def test_real_iqtree_lsd2_uses_calendar_dates_in_days_and_reuses_artifact(
 ):
     """Exercise the actual executable and verify dated units independently of metadata."""
     import epilink
-    from Bio import Phylo
+    from Bio.Phylo._io import read as read_phylo
 
     from epilink_evaluation.phylogeny.boston import prepare_boston_phylogeny
     from epilink_evaluation.phylogeny.external import executable
@@ -62,8 +62,8 @@ def test_real_iqtree_lsd2_uses_calendar_dates_in_days_and_reuses_artifact(
         tmp_path, alignment, ancestral, cases, config, implementation
     )
     assert length == 2000
-    raw = Phylo.read(directory / "raw.nwk", "newick")
-    dated = Phylo.read(directory / "dated.nwk", "newick")
+    raw = read_phylo(directory / "raw.nwk", "newick")
+    dated = read_phylo(directory / "dated.nwk", "newick")
     assert {tip.name for tip in raw.get_terminals()} == set(cases.case_id)
     assert {tip.name for tip in dated.get_terminals()} == set(cases.case_id)
     depths = {
@@ -181,14 +181,14 @@ class TestReferencePruning:
 
     def test_prune_reference_tip(self, tmp_path):
         """Test reference tip is removed from tree."""
-        from Bio import Phylo
+        from Bio.Phylo._io import read as read_phylo
 
         # Create a tree with reference tip
         tree_content = "((A:0.1,B:0.1):0.1,reference:0.2,C:0.3);"
         tree_path = tmp_path / "test.nwk"
         tree_path.write_text(tree_content)
 
-        tree = Phylo.read(tree_path, "newick")
+        tree = read_phylo(tree_path, "newick")
         tip_names = [tip.name for tip in tree.get_terminals()]
         assert "reference" in tip_names
         assert len(tip_names) == 4
@@ -203,14 +203,14 @@ class TestReferencePruning:
 
     def test_prune_preserves_sampled_tips(self, tmp_path):
         """Test pruning preserves all sampled case tips."""
-        from Bio import Phylo
+        from Bio.Phylo._io import read as read_phylo
 
         # Create a larger tree
         tree_content = "(((A:0.1,B:0.1):0.1,C:0.2):0.1,ref:0.3,(D:0.2,E:0.2):0.1);"
         tree_path = tmp_path / "test.nwk"
         tree_path.write_text(tree_content)
 
-        tree = Phylo.read(tree_path, "newick")
+        tree = read_phylo(tree_path, "newick")
         original_tips = {tip.name for tip in tree.get_terminals()}
 
         pruned = _prune_reference_tip(tree, "ref")

@@ -38,9 +38,9 @@ cutoff = Poisson(R_backbone).ppf(0.99)
 superspreading case = Z_i >= cutoff
 ```
 
-This uses the homogeneous Poisson percentile reference discussed by Lloyd-Smith et al. (2005), with this project's deliberately inclusive boundary preserving the archived implementation's `>=` convention. The saved `poisson_percentile` and `minimum_superspreading_offspring` make it explicit. If there are no transmission edges, no case is flagged and transmission-share ratios are undefined. The analysis concerns attributable direct offspring, rather than inferred cluster sizes or all subsequent descendants.
+This uses the homogeneous Poisson percentile reference discussed by Lloyd-Smith et al. (2005), with an inclusive `>=` boundary. The saved `poisson_percentile` and `minimum_superspreading_offspring` make it explicit. If there are no transmission edges, no case is flagged and transmission-share ratios are undefined. The analysis concerns attributable direct offspring, rather than inferred cluster sizes or all subsequent descendants.
 
-For a single-parent forest with N cases and C introductions, the mean is `(N - C) / N`; it is therefore a descriptive backbone reference, rather than an estimate of the epidemic's effective reproduction number. The negative-binomial fit uses `Var(Z) = R + R²/k`, profiles the likelihood at the empirical mean, and retains a method-of-moments fallback. Poisson-limit and degenerate fits have undefined finite `k` and an explicit fitting status. The archived SCoVMod analysis used the entire cleaned graph; this analysis describes the exact **selected evaluation backbone**.
+For a single-parent forest with N cases and C introductions, the mean is `(N - C) / N`; it is therefore a descriptive backbone reference, rather than an estimate of the epidemic's effective reproduction number. The negative-binomial fit uses `Var(Z) = R + R²/k`, profiles the likelihood at the empirical mean, and retains a method-of-moments fallback. Poisson-limit and degenerate fits have undefined finite `k` and an explicit fitting status. This analysis describes the exact **selected evaluation backbone**.
 
 `diagnostics.backbone` configures `superspreading_quantile` (default 0.99), `bootstrap_replicates` (default 0) and `bootstrap_seed` (default 67001). Optional resampling retains every replicate and reports percentile intervals with finite-estimate counts. These are exploratory IID case-resampling intervals; the observation seeds do not provide independent offspring distributions. Smoke summarises the truncated backbone and is labelled accordingly.
 
@@ -80,9 +80,7 @@ That artifact is made using `complete_artifact(completion, signature, ["coverage
 
 ## Validation
 
-The backbone extension was validated on 2026-10-06: all **197 tests passed**, the diagnostics → baseline smoke sequence completed, and the backbone figure (now `fig01`) exported PDF/PNG and saved evidence for the full 5,051-case backbone. Tests cover the inclusive percentile boundary, zero offspring, chain/star/forest truth, finite and Poisson-limit fits, resampling reproducibility, seed/sampling-independent reuse, completion revocation/repair and manuscript exports.
-
-Historical checkpoint on 2026-10-02, before the current full-graph Leiden and IQ-TREE/LSD2 workflows. The following commands, counts and timings describe that earlier implementation:
+Run the scientific and workflow checks from the repository root:
 
 ```bash
 python -m pytest -q
@@ -90,6 +88,4 @@ python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 ```
 
-All **160 tests passed**. The real-tool 64-case sequence completed feature-cell diagnostics, 9 oracle-graph partitions, and 12 transmission-hop tree partitions, then baseline development (1,541 exact pairwise candidates and 132 clustering settings) and frozen replay (23 pairwise and 47 clustering settings). TreeCluster, FastME, and TreeTime were exercised. Baseline reused the exact diagnostic development observations and linked the diagnostic report before its performance results. Endpoint-aware summaries/frontiers and development grid-adequacy diagnostics were verified for all three criteria. This validates execution; scientific conclusions require the full configured study.
-
-The full configured diagnostics run on 2026-10-02 used 5,051 cases, 5,000-nt sequences, and development observation seeds 62001–62003. Its first timestamped simulation log was at 04:08:47 and its report file was written at 04:13:58, giving an observed log-to-report interval of about **5m 10s**. The command's exact start time was not logged, so this is an approximate runtime rather than a precise process duration. Hardware context is recorded in the [Operations runtime benchmark](../../OPERATIONS.md#observed-full-run-wall-times).
+Tests cover the inclusive percentile boundary, zero offspring, chain/star/forest truth, finite and Poisson-limit fits, resampling reproducibility, seed/sampling-independent reuse, completion revocation/repair and manuscript exports. Smoke checks pipeline execution; scientific conclusions require the full configured study.

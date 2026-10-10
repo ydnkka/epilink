@@ -162,30 +162,11 @@ python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 ```
 
-Baseline defaults to `develop`; diagnostics defaults to `all` and supports `prepare`, `backbone`, `observations`, `graphs`, `all`, and `report`. Its `prepare` stage alone does not complete the required diagnostics. Retained outputs describe earlier workflow checkpoints; current evidence requires the diagnostics-first sequence above.
+Baseline defaults to `develop`; diagnostics defaults to `all` and supports `prepare`, `backbone`, `observations`, `graphs`, `all`, and `report`. Its `prepare` stage alone does not complete the required diagnostics. Complete the diagnostics-first sequence above before baseline comparison.
 
 IQ-TREE builds raw trees and performs LSD2 dating; TreeCluster partitions them. Set `phylogeny.executable` and `treecluster.executable` to override discovery on PATH or beside the interpreter. Reports expose failures. Source inputs are preserved, and `scovmod --stage prepare` shares backbone preparation with diagnostics. Managed artifacts are reused only when inputs, settings, producer identities and checksums match; explicit prebuilt backbones without manifests are retained.
 
 `scovmod --stage prepare` prepares only the transmission backbone and provenance. Diagnostics prepares shared truth and development observations. Baseline `prepare` requires completed diagnostics and prepares training observations while reusing development data. The `scovmod` command defaults to `prepare` and supports only that stage.
-
-## Historical development validation
-
-The following dated checkpoints predate the current full-graph Leiden and IQ-TREE/LSD2 implementation. Their counts and timings document earlier runs and are not current validation results.
-
-Validated on 2026-10-02 with `python -m pytest -q` (**160 passed**) and the diagnostics→baseline `--smoke --stage all` sequence. The 64-case baseline run `f076584b64907b3f30ed` completed 1,541 development pairwise candidates, 132 clustering settings, and frozen replay of 23 pairwise / 47 clustering settings. All 102 criterion/pipeline operating summaries displayed their actual objective; all three endpoint frontiers and the reference-grid audit were verified. FastME, TreeTime and TreeCluster were exercised. No full study was run for this development validation.
-
-### Observed full-run timing — 2026-10-02
-
-A separate full configured run used the 5,051-case backbone, 5,000-nt sequences, eight scorers, 10,000 EpiLink Monte Carlo draws, training seeds 61001–61002, development seeds 62001–62003, and evaluation seeds 63101–63103.
-
-| Stage                                  | Observed elapsed |
-| -------------------------------------- | ---------------: |
-| `develop`                              |       2h 02m 10s |
-| `select`                               |           1m 49s |
-| `evaluate`                             |       1h 16m 33s |
-| Complete `develop`–`evaluate` sequence |       3h 20m 38s |
-
-Stage durations are measured from the first timestamped stage log to its report log; the combined time spans the first `develop` log through the final `evaluate` report log. Hardware and benchmark context are recorded in the [Operations runtime benchmark](../../OPERATIONS.md#observed-full-run-wall-times); these timings are one observed run, not a guarantee.
 
 ## Outputs and extension points
 
@@ -195,7 +176,7 @@ Column definitions, formulas, missing-value conventions, metadata fields, and an
 
 `../shared_synthetic/outputs/synthetic/` owns `artifacts/backbones/`, `artifacts/truth/`, and `artifacts/observations/`, with experiment manifests under `experiments/<id>/`. Baseline's `<run>/experiment.json` pins the shared `experiment_directory` and `fingerprint`; resolve observation/truth joins from that source, not baseline-local artifact paths or the latest shared pointer.
 
-`outputs/baseline/` contains `artifacts/` for fitted models, scores, and inferred trees, and fingerprinted `runs/<id>/` directories. `current.json` points to the current run. Each run contains `development/` (pairwise curves and clustering sweeps), `selection/operating_points.json`, `evaluation/` (fixed-setting results), and `report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after accessing evaluation data requires fresh evaluation seeds in the shared config and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`. The revised supplied design reserves fresh full-evaluation seeds 63101–63103; 63001–63003 belong to the previous completed comparison. Smoke retains its separate validation seeds and never substitutes for full scientific evaluation.
+`outputs/baseline/` contains `artifacts/` for fitted models, scores, and inferred trees, and fingerprinted `runs/<id>/` directories. `current.json` points to the current run. Each run contains `development/` (pairwise curves and clustering sweeps), `selection/operating_points.json`, `evaluation/` (fixed-setting results), and `report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after accessing evaluation data requires fresh evaluation seeds in the shared config and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`. The supplied full-evaluation seeds are 63101–63103. Smoke uses separate validation seeds and never substitutes for full scientific evaluation.
 
 Each development `pairwise/evidence/` artifact checkpoints cumulative curves, rankings, calibration, and empty-selection metrics. Once every seed's evidence is available, `development/cutoff_candidates/` pins the shared pairwise/component definitions and source-manifest hashes. Component sweep evidence lives in `development/seed_<seed>/clusters/component_sweeps/<scorer>/`; one set of membership/cluster tables is retained per distinct partition, and selected settings receive ordinary `<setting-id>/` artifacts. `development/resolution_search/` saves adaptive Leiden trials; `development/treecluster_search/raw/` and `dated/` save the cutoff trials and search status in SNP/day input units. `settings.json` includes all evaluated candidates; a fresh process restores them before replay.
 
@@ -245,6 +226,6 @@ The regret calculation reuses `balanced_M0`, per-realization feasibility constra
 
 ## Next studies
 
-After baseline evaluation, the [perturbation workflow](../02_synthetic_perturbation/README.md) runs EpiLink clustering only: baseline/matched inference × baseline/updated full-graph resolution. Updated resolutions use fresh development seeds; all four arms evaluate paired separate seeds. Start with `python evaluation/02_synthetic_perturbation/run.py --smoke`, then omit `--smoke` for the full study. Older thresholded references require regeneration with fresh held-out seeds where already accessed.
+After baseline evaluation, the [perturbation workflow](../02_synthetic_perturbation/README.md) runs EpiLink clustering only: baseline/matched inference × baseline/updated full-graph resolution. Updated resolutions use fresh development seeds; all four arms evaluate paired separate seeds. Start with `python evaluation/02_synthetic_perturbation/run.py --smoke`, then omit `--smoke` for the full study.
 
 The [Boston empirical application](../03_boston_application/README.md) applies the same frozen definitions to observed Boston outbreak data. It tests transfer and describes exposure composition, recovery, and graph/phylogenetic partition agreement. Complete transmission truth is unavailable, so the Boston summaries provide descriptive evidence rather than truth-validated operating-point selection. Boston's TN93 table is distance-censored at 0.0005/site, so missing pairs are treated as unobserved rather than zero distance.

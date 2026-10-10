@@ -98,7 +98,7 @@ The shared config owns `inputs.tree_path`, generation, simulation, and splits; b
 
 Boston's input adapter reads `data/raw/boston/` and writes derived tables and provenance to `evaluation/03_boston_application/outputs/inputs/`. Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point. Its scoring table is censored at 0.0005 substitutions/site; missing pairs remain unobserved. IQ-TREE uses the full alignment and reference FASTA directly, independently of that pair table. See the [input-processing notes](data/raw/boston/boston_data_processing.md).
 
-Saved manifests record paths and scientific identities at execution time. Retained outputs from earlier versions are historical results; generate current evidence with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`; revised analyses after evaluation need fresh evaluation seeds.
+Saved manifests record paths and scientific identities at execution time. Generate evidence with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`; revised analyses after evaluation need fresh evaluation seeds.
 
 The EpiLink model package is maintained separately at [https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).
 

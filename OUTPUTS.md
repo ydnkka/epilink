@@ -260,7 +260,7 @@ Concatenates that split's available per-seed pairwise and clustering metrics. Th
 
 ### `<run>/<split>/frontier.csv`
 
-A subset of `summary.csv`, retaining non-dominated mean precision/recall settings within each `(endpoint, pipeline)`, including exact ties. The additional `endpoint` column is `M0`, `Mle1`, or `Mle2`; **all summary column names retain their `_mean` suffixes**. One setting can appear at multiple endpoints. Settings with missing precision or recall for that endpoint are omitted. Evaluation's frontier covers only its evaluated settings; it is not another parameter sweep. Earlier reports used an M0-only schema with renamed columns; rerendering a report updates this derived table from its saved summary.
+A subset of `summary.csv`, retaining non-dominated mean precision/recall settings within each `(endpoint, pipeline)`, including exact ties. The additional `endpoint` column is `M0`, `Mle1`, or `Mle2`; **all summary column names retain their `_mean` suffixes**. One setting can appear at multiple endpoints. Settings with missing precision or recall for that endpoint are omitted. Evaluation's frontier covers only its evaluated settings; it is not another parameter sweep. Report rendering derives this table from the saved summary.
 
 ### `evaluation/operating_results.csv`
 
@@ -815,7 +815,7 @@ The shared config owns `inputs`, `generation`, `simulation`, and `splits`. Diagn
 | `heldout_access/seed_<seed>.json`                            | `seed`, shared `experiment` identity, and `selection_fingerprint`; records access before evaluation observations are generated.                                                                                |
 | `validation_access/<selection-fingerprint>/seed_<seed>.json` | The same access fields for smoke validation. Smoke observations may be reused across changed comparison implementations; they are pipeline checks rather than held-out scientific evidence.                    |
 
-Baseline pins the shared identity in its own `<run>/experiment.json` and validates the diagnostics marker against checksummed completion evidence. Follow that pinned identity for joins, rather than the shared latest pointer. `reset-outputs` preserves the entire shared output area, including full/smoke held-out ledgers. Previously accessed evaluation seeds cannot be reassigned to training/development or used with revised frozen selection. Retained outputs from earlier versions are historical; current evidence requires the diagnostics-first workflow.
+Baseline pins the shared identity in its own `<run>/experiment.json` and validates the diagnostics marker against checksummed completion evidence. Follow that pinned identity for joins, rather than the shared latest pointer. `reset-outputs` preserves the entire shared output area, including full/smoke held-out ledgers. Previously accessed evaluation seeds cannot be reassigned to training/development or used with revised frozen selection. Complete diagnostics before baseline comparison.
 
 ### Diagnostics layout and completion
 

@@ -177,7 +177,7 @@ def test_shared_resolution_regret_uses_full_graph_reference_and_minimax():
                 }
             )
     pipelines = ("leiden/EDD", "leiden/ESD")
-    details, summary, reference = regret.regret_tables(
+    _, summary, reference = regret.regret_tables(
         pd.DataFrame(rows),
         definitions,
         {"name": "balanced_M0", "objective": "M0_f1", "constraints": {}},

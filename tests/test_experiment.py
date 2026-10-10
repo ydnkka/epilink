@@ -131,6 +131,7 @@ def test_both_inference_processes_match_the_pinned_generation(
     baseline = Baseline(small_config)
     seed = small_config["splits"]["development"][0]
     observations, _, _, scores, score_id = baseline.scores(seed)
+    assert baseline.context is not None
     assert set(baseline.context.epilink_models) == {"deterministic", "stochastic"}
     expected = natural_history(diagnostics.exp.config["generation"])
     assert len(profiles) == 2
@@ -452,7 +453,12 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
     assert set(loaded_diagnostics["diagnostics"]) == {"backbone", "leiden"}
     smoke = smoke_config(loaded_diagnostics)
     assert set(smoke["diagnostics"]) == {"backbone", "leiden"}
-    assert smoke["diagnostics"]["leiden"]["resolutions"] == {"min": 0.1, "max": 0.5, "initial_points": 3, "budget": 5}
+    assert smoke["diagnostics"]["leiden"]["resolutions"] == {
+        "min": 0.1,
+        "max": 0.5,
+        "initial_points": 3,
+        "budget": 5,
+    }
     diagnostics["diagnostics"]["treecluster"] = {"enabled": True}
     diagnostics_path.write_text(yaml.safe_dump(diagnostics))
     with pytest.raises(ValueError, match="Unknown diagnostic settings.*treecluster"):
@@ -506,7 +512,7 @@ def test_observation_bundle_complete(small_config, tmp_path, prepare_diagnostics
     diagnostics = prepare_diagnostics(small_config)
     for seed in small_config["splits"]["development"]:
         directory = diagnostics.dataset(seed)
-        observations, cases = synthetic.load_observations(directory)
+        _, _ = synthetic.load_observations(directory)
         required = [
             "sampled_deterministic.fasta",
             "sampled_stochastic.fasta",
@@ -527,17 +533,15 @@ def test_sampled_fasta_matches_cases(small_config, tmp_path, prepare_diagnostics
     diagnostics = prepare_diagnostics(small_config)
     for seed in small_config["splits"]["development"]:
         directory = diagnostics.dataset(seed)
-        observations, cases = synthetic.load_observations(directory)
+        observations, _ = synthetic.load_observations(directory)
         # Count FASTA headers
         det_fasta = directory / "sampled_deterministic.fasta"
         sto_fasta = directory / "sampled_stochastic.fasta"
         with open(det_fasta) as f:
             det_headers = [line.strip() for line in f if line.startswith(">")]
         with open(sto_fasta) as f:
-            sto_headers = [line.strip() for line in f if line.startswith(">")]
-        det_case_ids = (
-            set(observations.case_id) if hasattr(observations, "case_id") else set()
-        )
+            _ = [line.strip() for line in f if line.startswith(">")]
+        _ = set(observations.case_id) if hasattr(observations, "case_id") else set()
         # Compare with cases.parquet
         cases_df = pd.read_parquet(directory / "cases.parquet")
         assert len(det_headers) == len(cases_df), (

@@ -141,7 +141,7 @@ python -m evaluation.results.fig19  # all-exposures supplement
 python -m evaluation.results.fig20  # all-agreement supplement
 ```
 
-Scripts default to `outputs/boston/current.json` and write into `evaluation/results/outputs/03_boston_application/<run-id>/`. Each accepts `--run-dir` and `--output-dir`; figures accept `--format pdf|png|both`. Supplements accept `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all`. They validate the pinned reference, setting IDs, graph/tree completion and assessment coverage. Pin a finalized current-implementation run for manuscript provenance; retained earlier runs describe their own saved analyses.
+Scripts default to `outputs/boston/current.json` and write into `evaluation/results/outputs/03_boston_application/<run-id>/`. Each accepts `--run-dir` and `--output-dir`; figures accept `--format pdf|png|both`. Supplements accept `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all`. They validate the pinned reference, setting IDs, graph/tree completion and assessment coverage. Pin a finalized run for manuscript provenance.
 
 The **main-text focus** is `balanced_M0` Leiden for ESD, LGD and GDD, plus deterministic-source raw and dated TreeCluster rules. D/S identifies a _synthetic source rule_; Boston has one empirical GD/TD table. Sequence trees use the full alignment with IQ-TREE/LSD2, independently of the censored pair table. Exposure metadata describes the resulting partitions without selecting graph or tree settings.
 

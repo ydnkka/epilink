@@ -28,29 +28,40 @@ def test_relationships_match_independent_graph_paths(seed):
     undirected = tree.to_undirected()
     assert len(frame) == 30 * 29 // 2
     assert frame.pair_id.tolist() == list(range(len(frame)))
-    for row in frame.itertuples(index=False):
-        a, b = nodes[row.node_a], nodes[row.node_b]
+    for row in frame.to_dict("records"):
+        a, b = nodes[row["node_a"]], nodes[row["node_b"]]
         if not nx.has_path(undirected, a, b):
-            assert row.AD == row.CA == 0
+            assert row["AD"] == row["CA"] == 0
             assert all(
                 pd.isna(value)
-                for value in (row.m, row.m1, row.m2, row.M, row.tree_hops)
+                for value in (
+                    row["m"],
+                    row["m1"],
+                    row["m2"],
+                    row["M"],
+                    row["tree_hops"],
+                )
             )
             continue
         hops = nx.shortest_path_length(undirected, a, b)
-        assert row.tree_hops == hops
+        assert row["tree_hops"] == hops
         if nx.has_path(tree, a, b) or nx.has_path(tree, b, a):
-            assert (row.AD, row.CA, row.M, row.m) == (1, 0, hops - 1, hops - 1)
-            assert pd.isna(row.m1) and pd.isna(row.m2)
+            assert (row["AD"], row["CA"], row["M"], row["m"]) == (
+                1,
+                0,
+                hops - 1,
+                hops - 1,
+            )
+            assert pd.isna(row["m1"]) and pd.isna(row["m2"])
         else:
             common = (nx.ancestors(tree, a) | {a}) & (nx.ancestors(tree, b) | {b})
             ancestor = min(
                 common, key=lambda node: nx.shortest_path_length(tree, node, a)
             )
-            assert (row.AD, row.CA, row.M) == (0, 1, hops - 2)
-            assert row.m1 == nx.shortest_path_length(tree, ancestor, a) - 1
-            assert row.m2 == nx.shortest_path_length(tree, ancestor, b) - 1
-            assert pd.isna(row.m)
+            assert (row["AD"], row["CA"], row["M"]) == (0, 1, hops - 2)
+            assert row["m1"] == nx.shortest_path_length(tree, ancestor, a) - 1
+            assert row["m2"] == nx.shortest_path_length(tree, ancestor, b) - 1
+            assert pd.isna(row["m"])
 
 
 def test_reversing_pairs_preserves_m_and_swaps_ca_branches():
@@ -66,7 +77,9 @@ def test_reversing_pairs_preserves_m_and_swaps_ca_branches():
 
 
 def test_unsampled_infectors_remain_in_reference_memberships():
-    tree = nx.DiGraph([("r", "a"), ("r", "b"), ("a", "c"), ("c", "d")])
+    tree: nx.DiGraph[str | int] = nx.DiGraph(
+        [("r", "a"), ("r", "b"), ("a", "c"), ("c", "d")]
+    )
     selected = ["b", "c", "d"]
     reference = reference_memberships(tree, selected)
     full_reference = reference_memberships(tree)

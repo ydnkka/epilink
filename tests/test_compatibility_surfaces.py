@@ -1,5 +1,7 @@
 """The manuscript surface must pass SNP and day axes to the matching EpiLink models."""
 
+from typing import Any, cast
+
 import numpy as np
 
 from evaluation.results.fig03 import score_surfaces
@@ -17,7 +19,9 @@ def test_primary_compatibility_surface_keeps_processes_and_axes_separate():
         def epilink(self, process):
             return Model({"deterministic": 0, "stochastic": 10}[process])
 
-    surfaces = score_surfaces(Context(), np.array([0, 1, 2]), np.array([0, 5]))
+    surfaces = score_surfaces(
+        cast(Any, Context()), np.array([0, 1, 2]), np.array([0, 5])
+    )
     np.testing.assert_allclose(
         surfaces["deterministic"], [[0, 0.1, 0.2], [5, 5.1, 5.2]]
     )

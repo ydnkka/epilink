@@ -47,6 +47,6 @@ Smoke uses up to 64 backbone cases and seeds 71001/72001/73001 for training/deve
 
 `reset-outputs` clears selected study results, including diagnostics, but preserves this entire shared output area and its held-out access ledger. Clearing baseline runs therefore does not release previously accessed seeds for revised selection or training/development. For revised analyses after held-out access, use fresh evaluation seeds and rerun diagnostics for the updated design.
 
-The supplied full evaluation seeds are now **63101–63103** for the refined comparison. Seeds 63001–63003 were accessed by the earlier baseline. Training and development seed roles are unchanged. Reporting saved results needs no new observations; changing grids or selection after evaluation requires fresh held-out observations. Smoke continues to use its separate validation namespace.
+The supplied full evaluation seeds are **63101–63103**. Reporting saved results needs no new observations; changing grids or selection after evaluation requires fresh held-out observations. Smoke uses a separate validation namespace.
 
-Retained results from earlier versions remain historical evidence. Current results require the workflow above. See [operations](../../OPERATIONS.md) and the [output reference](../../OUTPUTS.md#13-shared-experiments-and-diagnostics) for completion checks, diagnostic table schemas, and analysis joins.
+See [operations](../../OPERATIONS.md) and the [output reference](../../OUTPUTS.md#13-shared-experiments-and-diagnostics) for completion checks, diagnostic table schemas, and analysis joins.

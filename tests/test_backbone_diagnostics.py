@@ -50,11 +50,13 @@ def test_tree_summaries_match_full_relationship_truth(tree):
         tree.number_of_edges() / len(tree)
     )
     nodes = tables["nodes.parquet"]
-    for row in nodes.itertuples():
-        node = list(tree)[row.node_index]
-        assert row.offspring == tree.out_degree(node)
-        assert row.descendant_count == len(nx.descendants(tree, node))
-        assert row.depth == nx.shortest_path_length(tree, int(row.root_case_id), node)
+    for row in nodes.to_dict("records"):
+        node = list(tree)[row["node_index"]]
+        assert row["offspring"] == tree.out_degree(node)
+        assert row["descendant_count"] == len(nx.descendants(tree, node))
+        assert row["depth"] == nx.shortest_path_length(
+            tree, int(row["root_case_id"]), node
+        )
     assert tables["generations.csv"].n_cases.sum() == len(tree)
     assert tables["components.csv"].n_cases.sum() == len(tree)
     assert tables["offspring.csv"].n_cases.sum() == len(tree)
@@ -79,7 +81,7 @@ def test_negative_binomial_fit_recovers_known_dispersion():
     counts = stats.nbinom.rvs(0.4, 0.4 / 2.4, size=8000, random_state=123)
     summary, _, _, _ = backbone.offspring_statistics(counts)
     assert summary["fit_method"] == "mle"
-    assert summary["mean_offspring"] == counts.mean()
+    assert summary["mean_offspring"] == np.mean(counts)
     assert summary["dispersion_k"] == pytest.approx(0.4, abs=0.04)
 
 

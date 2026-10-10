@@ -58,7 +58,7 @@ Equivalent CLI: `epilink-evaluate perturbation --smoke`. The default reference i
 
 `all` (default) runs development selection where required, held-out clustering, collection and reporting. `report` renders saved tables. Repeat the same command/options to resume validated observations, scores and partitions. Smoke appends `_smoke` to the output root, uses 64 cases, development seed 90001, evaluation seed 91001, and the two incubation-mean perturbations plus the control. It is pipeline validation.
 
-**Migration:** references made with thresholded Leiden need a new baseline development/selection/evaluation under the full-graph implementation. Use fresh baseline evaluation seeds if previous held-out seeds were already accessed; the shared access ledger survives output cleanup. Historical outputs are retained but do not implement this four-arm design. A smoke baseline is valid only for a smoke study.
+The reference must contain completed full-graph Leiden development, selection and evaluation. A smoke baseline is valid only for a smoke study.
 
 ## Configuration
 

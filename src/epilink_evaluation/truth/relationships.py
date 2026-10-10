@@ -68,7 +68,7 @@ class TreeIndex:
         return result
 
 
-def relationship_table(tree):
+def relationship_table(tree)-> pd.DataFrame:
     index = TreeIndex(tree)
     a, b = np.triu_indices(len(tree), k=1)
     chunks = []
@@ -84,7 +84,7 @@ def relationship_table(tree):
     return frame
 
 
-def reference_memberships(tree, case_ids=None):
+def reference_memberships(tree, case_ids=None)->dict:
     """Each case belongs to its own and its infector's neighborhood.
 
     Reference labels retain unsampled infectors; only the evaluated case universe
