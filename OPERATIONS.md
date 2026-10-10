@@ -438,7 +438,7 @@ Inspect `selection/operating_points.json` and the updated report. Selection also
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage evaluate
 ```
 
-Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory. The supplied revised full design uses 63101–63103, reserving 63001–63003 for the previous completed comparison. Report-only endpoint corrections can be rendered from saved outputs without new observations. Resetting outputs preserves access history; smoke is repeatable validation in its separate namespace.
+Evaluation checks that configuration, training, criteria, and development evidence match the frozen decisions. Before evaluation access, changing only selection criteria allows reuse of development evidence. After held-out access, revised analyses require fresh evaluation seeds in the shared config, diagnostics for the updated experiment, and new baseline selection. The shared ledger enforces this across replacement study runs, not just within one run directory. Report-only endpoint corrections can be rendered from saved outputs without new observations. Resetting outputs preserves access history; smoke is repeatable validation in its separate namespace.
 
 ## 9. Resume work and understand caching
 
@@ -448,7 +448,7 @@ To resume interrupted development, repeat the same command with the same config,
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --stage develop
 ```
 
-Artifacts are reused when their signatures and file checksums match completed manifests. Pairwise checkpoints cover a seed's pairwise stage; clustering checkpoints cover individual settings. Unfinished work is retried, so progress messages such as “Prepare observations” can appear even when a valid artifact is being reused. A process killed abruptly may leave the last run status `running`; artifact manifests determine what can be resumed.
+Artifacts are reused when their signatures and file checksums match completed manifests. Pairwise checkpoints cover a seed's pairwise stage; clustering checkpoints cover individual settings. Unfinished work is retried, so progress messages such as "Prepare observations" can appear even when a valid artifact is being reused. A process killed abruptly may leave the last run status `running`; artifact manifests determine what can be resumed.
 
 Run IDs incorporate scientific configuration, input/truth identity, implementation hashes, recorded package versions, and external-tool identities. Changes to these can create a new run directory. Absolute resolved input paths also participate, so moving a checkout can change its run ID. Shared artifacts are reused according to their own signatures. Keep the per-run `manifest.json` when comparing runs.
 
