@@ -40,7 +40,7 @@ Column names are case-sensitive: `M`, `M0_AP`, `GD_D`, and `TD` retain their cap
 | `score_name`   | EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, or LOGIT_S.                                                                                     |
 | `data_process` | Observed genetic process: `deterministic` or `stochastic`.                                                                               |
 | `score_family` | `epilink`, `genetic`, or `logistic`; present in ranking summaries.                                                                       |
-| `pipeline` | Comparison family, such as `pairwise/EDD`, `components/GD_D`, `leiden/ESS`, or `treecluster/stochastic/dated`. |
+| `pipeline`     | Comparison family, such as `pairwise/EDD`, `components/GD_D`, `leiden/ESS`, or `treecluster/stochastic/dated`.                           |
 | `setting_id`   | 20-character hash of the complete method definition. Join to this run's `settings.json`; the same definition can occur in multiple runs. |
 | `criterion`    | Name of a selection rule, such as `balanced_M0`; added to held-out operating results.                                                    |
 | `case_id`      | String case identifier; meaningful within the selected backbone/dataset.                                                                 |
@@ -140,7 +140,7 @@ Directory: `<run>/<split>/seed_<seed>/pairwise/`. The common scorer identifiers 
 | `<endpoint>_AP`                               | Tie-aware average precision: sum of each recall increment times precision after admitting the entire tied group. Scores are ranked descending, genetic distances ascending. Undefined if that endpoint has no positives. |
 | `<endpoint>_prevalence`                       | `P_h / U`.                                                                                                                                                                                                               |
 | `brier_score`                                 | Logistic scorers only: mean `(predicted_probability - M0_indicator)²`; lower is better.                                                                                                                                  |
-| `log_loss` | Logistic scorers only: target/non-target cross-entropy for M0, using natural logarithms and scikit-learn's probability clipping; lower is better. |
+| `log_loss`                                    | Logistic scorers only: target/non-target cross-entropy for M0, using natural logarithms and scikit-learn's probability clipping; lower is better.                                                                        |
 
 The six endpoint columns expand to `M0_AP`, `M0_prevalence`, `Mle1_AP`, `Mle1_prevalence`, `Mle2_AP`, and `Mle2_prevalence`. Calibration columns are blank for non-logistic scorers and may be absent entirely when none are configured.
 
@@ -372,19 +372,19 @@ Prediction is `sigmoid(((x - mean) / scale) @ coef + intercept)`, with `x = [GD,
 
 A mapping from `setting_id` to method definition. Applicable fields are:
 
-| Field                        | Applies to / meaning                                                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`                       | `pairwise`, `components`, `leiden`, or `treecluster`.                                                                                                |
-| `pipeline`, `data_process`   | Comparison group and observed genetic process.                                                                                                       |
-| `score_name`                 | Pairwise and graph methods: scorer identifier.                                                                                                       |
-| `threshold` | Pairwise/components: scorer cutoff; raw TreeCluster: substitutions/site; dated TreeCluster: days. Null for explicit empty selections and for full-graph Leiden. |
-| `empty`                      | Pairwise/graph: whether to select no pairs regardless of values.                                                                                     |
-| `graph_mode` | Leiden: `full`, retaining every observed pair. EpiLink/logistic edges use scores, genetic-distance edges use unit weights. |
-| `objective`, `resolution`    | Leiden objective and its resolution parameter.                                                                                                       |
-| `restarts`, `algorithm_seed` | Leiden restart count and base seed.                                                                                                                  |
-| `tree_kind`                  | TreeCluster: `raw` or `dated`.                                                                                                                       |
-| `method`                     | TreeCluster: `max_clade`, `avg_clade`, or `single_linkage`.                                                                                          |
-| `threshold_units` | TreeCluster input grid units: `snps` for raw trees or `days` for dated trees. Raw `threshold` is normalized to substitutions/site before execution. |
+| Field                        | Applies to / meaning                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                       | `pairwise`, `components`, `leiden`, or `treecluster`.                                                                                                           |
+| `pipeline`, `data_process`   | Comparison group and observed genetic process.                                                                                                                  |
+| `score_name`                 | Pairwise and graph methods: scorer identifier.                                                                                                                  |
+| `threshold`                  | Pairwise/components: scorer cutoff; raw TreeCluster: substitutions/site; dated TreeCluster: days. Null for explicit empty selections and for full-graph Leiden. |
+| `empty`                      | Pairwise/graph: whether to select no pairs regardless of values.                                                                                                |
+| `graph_mode`                 | Leiden: `full`, retaining every observed pair. EpiLink/logistic edges use scores, genetic-distance edges use unit weights.                                      |
+| `objective`, `resolution`    | Leiden objective and its resolution parameter.                                                                                                                  |
+| `restarts`, `algorithm_seed` | Leiden restart count and base seed.                                                                                                                             |
+| `tree_kind`                  | TreeCluster: `raw` or `dated`.                                                                                                                                  |
+| `method`                     | TreeCluster: `max_clade`, `avg_clade`, or `single_linkage`.                                                                                                     |
+| `threshold_units`            | TreeCluster input grid units: `snps` for raw trees or `days` for dated trees. Raw `threshold` is normalized to substitutions/site before execution.             |
 
 Pipeline names are `pairwise/<score>`, `components/<score>`, `leiden/<score>`, and `treecluster/<data-process>/<raw-or-dated>`. Each scorer has one Leiden pipeline. TreeCluster's method is selected within a raw/dated pipeline.
 
@@ -488,14 +488,14 @@ Each inferred raw/dated phylogeny shares one directory under `artifacts/trees/<i
 
 ### Synthetic studies
 
-| File                | Contents and units                                                                                                                                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.nwk` | IQ-TREE maximum-likelihood tree rooted with the aligned reference as outgroup, then reference-pruned. Branch lengths are substitutions/site; case IDs are restored. |
-| `dated.nwk` | LSD2 time-calibrated tree with the reference excluded. Branch lengths are durations in days. |
-| `node_dates.tsv`    | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                   |
-| `phylogeny.json`    | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                              |
-| `backend/run-*/`    | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
-| `backend/run-*/inference.log` | Combined IQ-TREE/LSD2 stdout/stderr; failure messages identify this log. TreeCluster partitions separately retain their stdout/stderr logs. |
+| File                          | Contents and units                                                                                                                                                                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.nwk`                     | IQ-TREE maximum-likelihood tree rooted with the aligned reference as outgroup, then reference-pruned. Branch lengths are substitutions/site; case IDs are restored.                                                                                |
+| `dated.nwk`                   | LSD2 time-calibrated tree with the reference excluded. Branch lengths are durations in days.                                                                                                                                                       |
+| `node_dates.tsv`              | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                   |
+| `phylogeny.json`              | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                              |
+| `backend/run-*/`              | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
+| `backend/run-*/inference.log` | Combined IQ-TREE/LSD2 stdout/stderr; failure messages identify this log. TreeCluster partitions separately retain their stdout/stderr logs.                                                                                                        |
 
 **Signature fields:** `kind: phylogeny-v1`, `dataset`, `process`, `fasta_sha256`, `reference_sha256`, `dates_sha256`, `n_cases`, `iqtree_model`, `iqtree_threads`, `iqtree_seed`, `clock_rate`, `iqtree_executable`, `implementation`.
 
@@ -743,14 +743,14 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 
 ### Identity, scenarios, and coverage
 
-| File             | Fields / purpose                                                                                                                                                                                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`  | Study `status`, `requested_stage: all`, schema-2 `config`, full `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`. |
-| `reference.json` | Source `run_directory`, `run_fingerprint`, original `selection_fingerprint`, `truth_fingerprint`, reference `n_cases`, and `baseline_implementation`. No fitted models are needed. |
-| `selection.json` | Baseline selection metadata filtered to the requested EpiLink pipelines and criterion. |
-| `settings.json`  | Baseline-selected full-graph EpiLink Leiden definitions. `graph_mode: full`, `threshold: null`, `empty: false`; only resolution is selected. |
-| `scenarios.json` | List of `name`, `parameter`, absolute `value`, `baseline_value`, `multiplier` (null for absolute levels), and complete scenario `generation` parameters. The unperturbed scenario is named `baseline` and its parameter metadata is null.                       |
-| `coverage.csv`   | One row per scenario/mode with `inference_mode`, `clustering_mode`, `status`, `completed`, `expected`, `error`. Expected count is requested EpiLink scorers × evaluation seeds. |
+| File             | Fields / purpose                                                                                                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.json`  | Study `status`, `requested_stage: all`, schema-2 `config`, full `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`.                                                                               |
+| `reference.json` | Source `run_directory`, `run_fingerprint`, original `selection_fingerprint`, `truth_fingerprint`, reference `n_cases`, and `baseline_implementation`. No fitted models are needed.                                                        |
+| `selection.json` | Baseline selection metadata filtered to the requested EpiLink pipelines and criterion.                                                                                                                                                    |
+| `settings.json`  | Baseline-selected full-graph EpiLink Leiden definitions. `graph_mode: full`, `threshold: null`, `empty: false`; only resolution is selected.                                                                                              |
+| `scenarios.json` | List of `name`, `parameter`, absolute `value`, `baseline_value`, `multiplier` (null for absolute levels), and complete scenario `generation` parameters. The unperturbed scenario is named `baseline` and its parameter metadata is null. |
+| `coverage.csv`   | One row per scenario/mode with `inference_mode`, `clustering_mode`, `status`, `completed`, `expected`, `error`. Expected count is requested EpiLink scorers × evaluation seeds.                                                           |
 
 Study signatures include effective configuration, resolved reference identity, scenarios, implementation and truth ID. Each `scenarios/<scenario>/<mode>/manifest.json` records replay status, configuration/signature and an optional error. Failed/not-run arms contribute no result rows. Complete status requires all four arms in every scenario.
 
@@ -758,16 +758,16 @@ Study signatures include effective configuration, resolved reference identity, s
 
 `results.csv` contains evaluation partition metrics from section 4, joined to the configured baseline criterion. The study produces no pairwise rankings or ambiguity tables. Added metadata:
 
-| Column           | Definition                                                                      |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `scenario`       | Resolved scenario name from `scenarios.json`, including the `baseline` control. |
-| `mode`           | One of the four `baseline_inference_*_clustering` / `matched_inference_*_clustering` arms. |
-| `inference_mode` | `baseline` or `matched`. |
-| `clustering_mode` | `baseline` or `updated` resolution. |
-| `parameter`      | Changed natural-history field, such as `incubation.mean`; blank for controls.   |
-| `value` | Absolute perturbed value in the parameter's original units. |
-| `baseline_value` | Original natural-history parameter value, not a performance metric.             |
-| `multiplier`     | Requested relative multiplier, or blank for absolute levels and controls.       |
+| Column            | Definition                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `scenario`        | Resolved scenario name from `scenarios.json`, including the `baseline` control.            |
+| `mode`            | One of the four `baseline_inference_*_clustering` / `matched_inference_*_clustering` arms. |
+| `inference_mode`  | `baseline` or `matched`.                                                                   |
+| `clustering_mode` | `baseline` or `updated` resolution.                                                        |
+| `parameter`       | Changed natural-history field, such as `incubation.mean`; blank for controls.              |
+| `value`           | Absolute perturbed value in the parameter's original units.                                |
+| `baseline_value`  | Original natural-history parameter value, not a performance metric.                        |
+| `multiplier`      | Requested relative multiplier, or blank for absolute levels and controls.                  |
 
 Top-level rows use `split: evaluation` and fresh evaluation seeds; development evidence remains inside each updated arm. `pipeline` is `leiden/<EpiLink-scorer>`, with EDD/EDS/ESD/ESS in the supplied study. `setting_id` identifies the actual resolution/definition used for that scenario and arm. Complete default coverage is 624 rows, or 48 in smoke mode.
 
@@ -775,21 +775,21 @@ Top-level rows use `split: evaluation` and fresh evaluation seeds; development e
 
 `results_deltas.csv` contains perturbed rows only and adds:
 
-| Column pattern      | Meaning                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| `baseline_<metric>` | Unperturbed control's metric on the same seed, mode, and comparison identity.           |
-| `delta_<metric>`    | `metric - baseline_<metric>`, in the original metric's units.                           |
-| `control_available` | Whether a matching control row exists; true does not guarantee every metric is defined. |
+| Column pattern        | Meaning                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `baseline_<metric>`   | Unperturbed control's metric on the same seed, mode, and comparison identity.                     |
+| `delta_<metric>`      | `metric - baseline_<metric>`, in the original metric's units.                                     |
+| `control_available`   | Whether a matching control row exists; true does not guarantee every metric is defined.           |
 | `baseline_setting_id` | Control's actual resolution/definition ID, potentially different from the perturbed `setting_id`. |
 
 Controls match on `(mode, seed, criterion, pipeline)`, **excluding setting ID** because updated resolution may change between scenario and control. Parameter metadata/seeds are not differenced. Missing controls survive the left join with missing metrics/deltas. Negative F1 changes indicate reduced recovery; positive contamination changes indicate more distant within-cluster pairs. Controls are fresh paired observations, not the reference's old held-out observations.
 
 ### Summary tables
 
-| File                         | Groups and values                                                                                          |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `results_summary.csv`        | Absolute metrics by `(scenario, mode, criterion, pipeline, setting_id)`. Includes controls.                |
-| `results_delta_summary.csv`  | Delta metrics grouped like operating results, excluding control scenarios.                                 |
+| File                        | Groups and values                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| `results_summary.csv`       | Absolute metrics by `(scenario, mode, criterion, pipeline, setting_id)`. Includes controls. |
+| `results_delta_summary.csv` | Delta metrics grouped like operating results, excluding control scenarios.                  |
 
 Each metric receives `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. Means give each nonmissing realization equal weight; SD is sample SD (`ddof=1`), undefined with fewer than two valid values. `_count` is the number of nonmissing values for that specific metric. `n_realizations` counts group rows; delta summaries additionally report `n_controls`, the number with a matching control row. For example, `delta_M0_f1_count` can be smaller than `n_controls` when F1 is undefined. Join `scenario` to `scenarios.json` for absolute parameter values.
 
