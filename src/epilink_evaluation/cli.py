@@ -5,11 +5,16 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shlex
+import sys
 from copy import deepcopy
 from pathlib import Path
+from time import perf_counter
 
 from .config import load_config, load_diagnostics_config
 from .provenance import read_json, versions
+
+LOG = logging.getLogger(__name__)
 
 STAGES = (
     "prepare",
@@ -61,6 +66,32 @@ def smoke_config(config):
 
 
 def main(argv=None):
+    started = perf_counter()
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    LOG.info("Execution started: %s", shlex.join(arguments))
+    status = "failed"
+    try:
+        result = _execute(arguments)
+        status = "completed" if result == 0 else "failed"
+        return result
+    except SystemExit as exc:
+        status = "completed" if exc.code in (None, 0) else "failed"
+        raise
+    except KeyboardInterrupt:
+        status = "interrupted"
+        raise
+    finally:
+        LOG.info(
+            "Execution finished: status=%s elapsed_seconds=%.3f",
+            status,
+            perf_counter() - started,
+        )
+
+
+def _execute(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
@@ -100,9 +131,6 @@ def main(argv=None):
         help="Show what would be deleted without actually deleting",
     )
     args = parser.parse_args(argv)
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
     if args.command == "reset-outputs":
         return _reset_outputs(args)
     if args.command == "diagnostics":

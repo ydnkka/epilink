@@ -264,6 +264,8 @@ python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_
 
 Then follow sections 7–8 to inspect development evidence, configure criteria, select operating points, and evaluate them. Pairwise/component candidate counts depend on development scores; Leiden and TreeCluster have declared search budgets. Work also scales with methods, replicates, and number of pairs: `n * (n - 1) / 2`. Pairwise candidates use cumulative-curve lookups and components use incremental merges. For example, 1,000 sampled cases give 499,500 pairs. Smoke runtime is not a full-scale runtime estimate.
 
+Every CLI command and the four evaluation `run.py` entry points log `Execution started` before argument parsing and configuration loading. They log `Execution finished` with `status` and `elapsed_seconds` on completion, failure, or interruption. Log timestamps identify the start/end, and elapsed seconds use a monotonic timer from CLI entry to return. Logs are written to stderr, so capture stderr along with stdout when saving a run log. Cached and report-only commands receive the same timing records.
+
 ### Observed full-run wall times
 
 One historical execution on 2026-10-02–03 produced these timings. It predates the current four-scorer/four-mode clustering-only perturbation design, full-graph Leiden and IQ-TREE/LSD2 changes; these values are not current runtime estimates:
