@@ -56,7 +56,7 @@ def observation_diagnostics(
 
     ``minimum_feature_only_misclassifications`` sums min(n_target, n_other)
     over cells; its rate divides by all pairs. This is an empirical minimum
-    for binary decisions constant within these exact feature cells, not a
+    for target/non-target decisions constant within these exact feature cells, not a
     universal performance ceiling or a bound on partition metrics.
     Undefined ratios, including class-conditional overlap with an absent
     class, are NaN.

@@ -21,7 +21,6 @@ dependencies = [
   "seaborn>=0.12",
   "biopython>=1.81",
   "TreeCluster>=1.0.5",
-  "phylo-treetime>=0.11",
 ]
 
 [project.optional-dependencies]

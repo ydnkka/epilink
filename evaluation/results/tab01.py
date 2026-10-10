@@ -21,13 +21,10 @@ from ._baseline.common import (
 
 
 def main_pipelines(process: str) -> list[str]:
-    suffix = "D" if process == "deterministic" else "S"
     scorers = SCORES_BY_PROCESS[process]
     return [
         *(f"pairwise/{scorer}" for scorer in scorers),
-        *(f"leiden/{scorer}/binary" for scorer in scorers if scorer.startswith(("GD_", "LOGIT_"))),
-        *(f"leiden/{scorer}/native" for scorer in scorers if not scorer.startswith(("GD_", "LOGIT_"))),
-        f"leiden/LOGIT_{suffix}/native",
+        *(f"leiden/{scorer}" for scorer in scorers),
         f"treecluster/{process}/raw",
         f"treecluster/{process}/dated",
     ]
@@ -75,7 +72,7 @@ def main() -> None:
             "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
             "inference formulations, genetic distance, and logistic regression are "
             "shown as pairwise rules. Full-graph Leiden uses EpiLink and logistic "
-            "scores as edge weights, with binary GD/logistic comparisons and "
+            "scores as edge weights, with unweighted genetic-distance controls and "
             "undated and dated TreeCluster. Leiden selects resolution only. Values are equally weighted "
             "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "

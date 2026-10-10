@@ -144,7 +144,7 @@ class EpiLinkClusteringReference(OperatingReference):
 
     def __init__(self, path, implementation, scorers, criterion):
         super().__init__(path, implementation)
-        pipelines = {f"leiden/{name}/native" for name in scorers}
+        pipelines = {f"leiden/{name}" for name in scorers}
         points = [
             p for p in self.frozen["operating_points"]
             if p["criterion"] == criterion and p["pipeline"] in pipelines
@@ -155,7 +155,7 @@ class EpiLinkClusteringReference(OperatingReference):
             or any(p["status"] != "selected" for p in points)
         ):
             raise ValueError(
-                "Reference requires a feasible native EpiLink setting "
+                "Reference requires a feasible EpiLink setting "
                 "for every requested pipeline"
             )
         self.frozen = {**self.frozen, "operating_points": points}

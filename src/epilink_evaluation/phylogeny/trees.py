@@ -86,6 +86,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
     seed = phylo_config.get("seed", 2026)
     clock_rate = phylo_config.get("clock_rate")
     iqtree_executable = phylo_config.get("executable", phylo_config.get("iqtree_executable", "iqtree"))
+    iqtree_tool = command_identity(iqtree_executable)
     timeout = phylo_config.get("timeout", 1800)
     
     signature = {
@@ -100,7 +101,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         "iqtree_threads": threads,
         "iqtree_seed": seed,
         "clock_rate": clock_rate,
-        "iqtree_executable": command_identity(iqtree_executable),
+        "iqtree_executable": iqtree_tool,
         "implementation": implementation,
     }
     
@@ -130,7 +131,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
             threads=threads,
             seed=seed,
             clock_rate=clock_rate,
-            iqtree_executable=iqtree_executable,
+            iqtree_executable=iqtree_tool["path"],
             timeout=timeout,
         )
     except PhylogenyError as exc:
@@ -170,7 +171,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         signature,
         ["raw.nwk", "dated.nwk", "node_dates.tsv", "phylogeny.json"],
         units="substitutions_per_site (raw) / days (dated)",
-        rooting="IQ-TREE midpoint (raw) / LSD2 clock (dated)",
+        rooting="IQ-TREE reference outgroup, pruned (raw) / LSD2 clock (dated)",
         root_split=root_signature(raw_pruned),
         dated_root_split=root_signature(dated_tree),
     )

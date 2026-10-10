@@ -42,7 +42,6 @@ SCORE_DESCRIPTIONS = {
     "LOGIT_D": "Logistic regression (LGD)",
     "LOGIT_S": "Logistic regression (LGS)",
 }
-WEIGHT_LABELS = {"binary": "binary edges", "native": "score weights"}
 TREE_KIND_LABELS = {"raw": "undated", "dated": "dated"}
 TREE_METHOD_LABELS = {
     "max_clade": "Maximum clade",
@@ -142,7 +141,7 @@ def selected_summary(run: Path, config: dict) -> tuple[pd.DataFrame, dict[str, d
 
 
 def setting_label(definition: dict, config: dict) -> str:
-    """Present native cutoffs with their meaning and physical units."""
+    """Present scorer cutoffs with their meaning and physical units."""
     kind = definition["kind"]
     threshold = definition.get("threshold")
     if kind == "leiden" and definition.get("graph_mode") == "full":
@@ -173,8 +172,6 @@ def method_label(definition: dict) -> str:
         kind
     ]
     name = SCORE_LABELS[definition["score_name"]]
-    if kind == "leiden":
-        return f"{label} {name} ({WEIGHT_LABELS[definition['weight_policy']]})"
     return f"{label} {name}"
 
 

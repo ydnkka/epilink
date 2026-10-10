@@ -146,6 +146,7 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
     """Verify tree inference not repeated for same dataset/process."""
     from epilink_evaluation.workflows.baseline import Baseline
     from epilink_evaluation.phylogeny.trees import prepare_phylogeny
+
     small_config["treecluster"]["enabled"] = True
     # Set up treecluster methods and thresholds
     small_config["treecluster"]["methods"] = ["max_clade"]
@@ -158,12 +159,18 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
     seed = small_config["splits"]["development"][0]
     trees_dir = baseline.directory / "development" / f"seed_{seed}" / "clusters"
     # Find the treecluster setting definition
-    tc_definitions = {k: v for k, v in baseline.definitions.items() if v["kind"] == "treecluster"}
+    tc_definitions = {
+        k: v for k, v in baseline.definitions.items() if v["kind"] == "treecluster"
+    }
     assert len(tc_definitions) > 0, "No treecluster definitions found"
     first_def = list(tc_definitions.values())[0]
     # Check that tree artifacts exist with correct structure
     for kind in ("raw", "dated"):
-        kind_dir = trees_dir / first_def["tree_kind"] if "tree_kind" in first_def else trees_dir / kind
+        kind_dir = (
+            trees_dir / first_def["tree_kind"]
+            if "tree_kind" in first_def
+            else trees_dir / kind
+        )
         if kind_dir.exists():
             manifest = read_json(kind_dir / "manifest.json")
             sig_before = manifest["signature"]
@@ -174,13 +181,16 @@ def test_tree_adapter_caches_properly(small_config, prepare_diagnostics):
                 manifest2 = read_json(kind_dir2 / "manifest.json")
                 sig_after = manifest2["signature"]
                 # Signatures should match (caching works)
-                assert sig_before == sig_after, f"Tree caching mismatch for {kind}: {sig_before} != {sig_after}"
+                assert sig_before == sig_after, (
+                    f"Tree caching mismatch for {kind}: {sig_before} != {sig_after}"
+                )
             break  # Just check first kind
 
 
 def test_threshold_scaling_synthetic(small_config, prepare_diagnostics):
     """Verify SNP counts converted using alignment_length=5000."""
     from epilink_evaluation.workflows.settings import settings_registry
+
     small_config["treecluster"]["enabled"] = True
     small_config["simulation"]["alignment_length"] = 5000
     prepare_diagnostics(small_config)
@@ -198,14 +208,19 @@ def test_threshold_scaling_synthetic(small_config, prepare_diagnostics):
 def test_frozen_replay_uses_same_trees(small_config, prepare_diagnostics):
     """Verify baseline configuration persists across replays."""
     from epilink_evaluation.workflows.baseline import Baseline
+
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
     baseline.run("develop")
     # Record definitions before second run
-    defs_before = {k: v for k, v in baseline.definitions.items() if v["kind"] == "treecluster"}
+    defs_before = {
+        k: v for k, v in baseline.definitions.items() if v["kind"] == "treecluster"
+    }
     # Recreate baseline with same config; tree definitions should persist
     baseline2 = Baseline(deepcopy(small_config))
     baseline2.run("develop")
-    defs_after = {k: v for k, v in baseline2.definitions.items() if v["kind"] == "treecluster"}
+    defs_after = {
+        k: v for k, v in baseline2.definitions.items() if v["kind"] == "treecluster"
+    }
     # Definitions should be consistent (caching/registry reuse)
     assert len(defs_before) == len(defs_after)

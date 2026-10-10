@@ -96,8 +96,8 @@ def score_observations(observations, context, names):
     return pd.DataFrame(scores, index=observations.index)
 
 
-def operating_settings(reference, names, include_trees=False):
-    """Rename supported frozen decisions while retaining their source identity."""
+def operating_settings(reference, names, include_trees=False, target_alignment_length=None):
+    """Transfer frozen rules, preserving raw-tree SNP counts across alignment lengths."""
     validate_scorers(names)
     aliases = {BASELINE_SCORES[name]: name for name in names}
     missing = set(aliases) - set(reference.config["scorers"])
@@ -108,12 +108,6 @@ def operating_settings(reference, names, include_trees=False):
     definitions, points = {}, []
     for source in reference.frozen["operating_points"]:
         parts = source["pipeline"].split("/")
-        if (
-            parts[0] == "leiden" and parts[-1] == "binary"
-            and parts[1] in aliases
-            and BOSTON_SPECS[aliases[parts[1]]].family == "epilink"
-        ):
-            continue
         if parts[0] == "treecluster":
             if not include_trees:
                 continue
@@ -139,6 +133,20 @@ def operating_settings(reference, names, include_trees=False):
                 data_process="empirical",
                 pipeline=point["pipeline"],
             )
+            if (
+                definition["kind"] == "treecluster"
+                and definition["tree_kind"] == "raw"
+                and definition.get("threshold_units") == "snps"
+                and target_alignment_length is not None
+            ):
+                simulation = reference.config["simulation"]
+                source_length = simulation.get("alignment_length", simulation["sequence_length"])
+                snps = definition["threshold"] * source_length
+                definition.update(
+                    baseline_threshold=definition["threshold"],
+                    threshold_snps=snps,
+                    threshold=snps / target_alignment_length,
+                )
             key = fingerprint(definition)[:20]
             definitions[key] = definition
             point.update(setting_id=key, definition=definition)

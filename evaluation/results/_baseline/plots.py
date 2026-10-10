@@ -27,15 +27,13 @@ from .common import (
 
 APPROACHES = {
     "components": "Connected components",
-    "leiden_binary": "Leiden (binary edges)",
-    "leiden_native": "Leiden (score weights)",
+    "leiden": "Leiden",
     "treecluster_raw": "TreeCluster (undated tree)",
     "treecluster_dated": "TreeCluster (dated tree)",
 }
 FIGURE_IDS = {
     "components": "fig03",
-    "leiden_binary": "fig04",
-    "leiden_native": "fig05",
+    "leiden": "fig05",
     "treecluster_raw": "fig07",
     "treecluster_dated": "fig08",
 }
@@ -57,11 +55,9 @@ METRIC_PAIRS = (
 
 
 def approach_matches(definition: dict, approach: str) -> bool:
-    if approach == "components":
-        return definition["kind"] == "components"
+    if approach in ("components", "leiden"):
+        return definition["kind"] == approach
     kind, subtype = approach.split("_", 1)
-    if kind == "leiden":
-        return definition["kind"] == "leiden" and definition["weight_policy"] == subtype
     return definition["kind"] == "treecluster" and definition["tree_kind"] == subtype
 
 
@@ -206,18 +202,12 @@ def create_approach_figure(
             ]
         else:
             scorers = SCORES_BY_PROCESS[process]
-            if approach == "leiden_native":
-                scorers = tuple(
-                    score for score in scorers if not score.startswith("GD_")
-                )
-            elif approach == "leiden_binary":
-                scorers = tuple(score for score in scorers if score.startswith(("GD_", "LOGIT_")))
             variants = []
             for score in scorers:
                 pipeline = (
                     f"components/{score}"
                     if approach == "components"
-                    else f"leiden/{score}/{approach.removeprefix('leiden_')}"
+                    else f"leiden/{score}"
                 )
                 variants.append(
                     (

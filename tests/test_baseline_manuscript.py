@@ -1,4 +1,4 @@
-"""Check manuscript extraction against frozen evidence and native threshold units."""
+"""Check manuscript extraction against frozen evidence and original threshold units."""
 
 import importlib
 import json
@@ -117,9 +117,12 @@ def test_display_envelopes_discard_dominated_settings():
 
 def test_display_variants_match_available_pipelines():
     bars = importlib.import_module("evaluation.results._baseline.bars")
-    assert [
-        label for label, _ in bars.graph_variants("leiden_native", "stochastic")
-    ] == ["EDS", "ESS", "LGS"]
+    assert [label for label, _ in bars.graph_variants("leiden", "stochastic")] == [
+        "EDS",
+        "ESS",
+        "GDS",
+        "LGS",
+    ]
     assert [
         label for label, _ in bars.graph_variants("components", "deterministic")
     ] == ["EDD", "ESD", "GDD", "LGD"]
@@ -140,7 +143,7 @@ def test_display_variants_match_available_pipelines():
     ) == ("Deterministic\nAverage clade, 4 SNP", "treecluster/deterministic/raw")
 
 
-def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
+def test_shared_resolution_regret_uses_full_graph_reference_and_minimax():
     regret = importlib.import_module("evaluation.results.fig06")
     specs = [
         ("b1", "EDD", 0.1, 0.8),
@@ -152,13 +155,12 @@ def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
     definitions = {}
     rows = []
     for identifier, score, resolution, f1 in specs:
-        pipeline = f"leiden/{score}/native"
+        pipeline = f"leiden/{score}"
         definitions[identifier] = {
             "kind": "leiden",
             "pipeline": pipeline,
             "score_name": score,
             "data_process": "deterministic",
-            "weight_policy": "native",
             "resolution": resolution,
             "threshold": None,
             "graph_mode": "full",
@@ -174,7 +176,7 @@ def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
                     **{name: 0.5 for name in regret.SECONDARY_METRICS},
                 }
             )
-    pipelines = ("leiden/EDD/native", "leiden/ESD/native")
+    pipelines = ("leiden/EDD", "leiden/ESD")
     details, summary, reference = regret.regret_tables(
         pd.DataFrame(rows),
         definitions,
@@ -183,7 +185,7 @@ def test_shared_resolution_regret_uses_full_native_reference_and_minimax():
         pipelines,
     )
     assert regret.common_resolutions(definitions, pipelines) == [0.1, 0.2]
-    assert reference["leiden/ESD/native"]["definition"]["resolution"] == 0.05
+    assert reference["leiden/ESD"]["definition"]["resolution"] == 0.05
     assert summary.loc[summary.resolution == 0.1, "mean_regret_pp"].iloc[
         0
     ] == pytest.approx(15)

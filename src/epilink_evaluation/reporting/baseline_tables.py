@@ -136,7 +136,7 @@ def grid_adequacy(frame, definitions, config, curves_by_seed):
             rows.append(row)
             continue
         definition = point["definition"]
-        row.update({key: definition.get(key) for key in ("threshold", "resolution", "method", "weight_policy", "threshold_units")})
+        row.update({key: definition.get(key) for key in ("threshold", "resolution", "method", "threshold_units")})
         row["objective_mean"] = point["development_objective_mean"]
         row["objective_sd"] = point["development_objective_sd"]
         expected_ref = {key for key, d in ref_definitions.items() if d["pipeline"] == pipeline}

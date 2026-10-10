@@ -12,8 +12,14 @@ def selected_pairs(values, spec, threshold, empty=False):
 
 
 def build_graph(
-    observations, n_cases, values, spec, threshold, policy="binary", empty=False,
-    *, full=False,
+    observations,
+    n_cases,
+    values,
+    spec,
+    threshold,
+    empty=False,
+    *,
+    full=False,
 ):
     values = np.asarray(values, dtype=float)
     if full:
@@ -24,17 +30,10 @@ def build_graph(
         keep = np.ones(len(values), dtype=bool)
     else:
         keep = selected_pairs(values, spec, threshold, empty)
-    if policy == "native":
-        if spec.family not in ("epilink", "logistic"):
-            raise ValueError(
-                "Native weights require nonnegative compatibility/probability scores"
-            )
-        if np.any(np.asarray(values) < 0):
-            raise ValueError("Native weights cannot be negative")
-        if not full:
-            keep &= values > 0
-    elif policy != "binary":
-        raise ValueError(f"Unknown graph weight policy: {policy}")
+    if spec.family not in ("epilink", "logistic", "genetic"):
+        raise ValueError(f"Unknown graph scorer family: {spec.family}")
+    if np.any(np.asarray(values) < 0):
+        raise ValueError("Weights cannot be negative")
     graph = ig.Graph(
         n=n_cases,
         edges=np.column_stack(
@@ -42,6 +41,6 @@ def build_graph(
         ),
     )
     graph.es["weight"] = (
-        np.asarray(values)[keep] if policy == "native" else np.ones(int(keep.sum()))
+        np.ones(int(keep.sum())) if spec.family == "genetic" else values[keep]
     ).tolist()
     return graph

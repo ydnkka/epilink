@@ -1,4 +1,4 @@
-"""Binary-lifting LCA relationships, extracted and checked against graph paths."""
+"""Ancestor-jump LCA relationships, extracted and checked against graph paths."""
 
 from __future__ import annotations
 

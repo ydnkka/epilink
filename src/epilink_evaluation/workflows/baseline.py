@@ -24,7 +24,7 @@ from ..metrics.pairwise import (
     precision_recall_curve,
 )
 from ..metrics.partitions import PartitionEvaluator
-from ..phylogeny.external import command_identity
+from ..phylogeny.external import command_identity, treecluster_executable
 from ..phylogeny.trees import prepare_phylogeny
 from ..provenance import (
     baseline_signature,
@@ -60,14 +60,12 @@ class Baseline:
         self._evaluation_released = False
         self.tools = {}
         if config["treecluster"]["enabled"]:
-            executables = config["treecluster"].get("executables", {
-                "treecluster": config["treecluster"].get("executable", "TreeCluster.py")
-            })
-            for name, command in executables.items():
-                try:
-                    self.tools[name] = command_identity(command)
-                except FileNotFoundError as exc:
-                    self.tools[name] = {"unavailable": str(exc)}
+            try:
+                self.tools["treecluster"] = command_identity(
+                    treecluster_executable(config["treecluster"])
+                )
+            except FileNotFoundError as exc:
+                self.tools["treecluster"] = {"unavailable": str(exc)}
         scientific = {
             key: value
             for key, value in config.items()
@@ -523,7 +521,7 @@ class Baseline:
                         requested_graph = (
                             spec.name,
                             definition["threshold"],
-                            definition["weight_policy"],
+                            definition["empty"],
                             definition.get("graph_mode"),
                         )
                         if requested_graph != graph_key:
@@ -533,7 +531,6 @@ class Baseline:
                                 scores[spec.name].to_numpy(float),
                                 spec,
                                 definition["threshold"],
-                                definition["weight_policy"],
                                 definition["empty"],
                                 full=definition.get("graph_mode") == "full",
                             )

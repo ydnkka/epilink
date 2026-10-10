@@ -19,10 +19,7 @@ from epilink_evaluation.utils import style
 from ._baseline.common import add_arguments, load_run, output_directory, read_json
 
 SCORERS = ("EDD", "EDS", "ESD", "ESS")
-POLICIES = ("native",)
-PIPELINES = tuple(
-    f"leiden/{score}/{policy}" for score in SCORERS for policy in POLICIES
-)
+PIPELINES = tuple(f"leiden/{score}" for score in SCORERS)
 SECONDARY_METRICS = (
     "M0_precision",
     "M0_recall",
@@ -68,7 +65,7 @@ def load_evidence(run, config):
             )
     if set(frame.pipeline) != set(PIPELINES):
         raise ValueError(
-            "Expected all four EpiLink variants with native score weights"
+            "Expected all four EpiLink variants with full-graph Leiden"
         )
     criteria = [
         row for row in config["selection"]["criteria"] if row["name"] == "balanced_M0"
@@ -162,7 +159,6 @@ def regret_tables(frame, definitions, criterion, seeds, pipelines):
                 "pipeline": pipeline,
                 "score_name": source["score_name"],
                 "data_process": source["data_process"],
-                "weight_policy": source["weight_policy"],
                 "status": point["status"],
                 "reference_setting_id": optimum["setting_id"],
                 "reference_resolution": source["resolution"],

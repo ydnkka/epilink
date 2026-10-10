@@ -40,7 +40,7 @@ Column names are case-sensitive: `M`, `M0_AP`, `GD_D`, and `TD` retain their cap
 | `score_name`   | EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, or LOGIT_S.                                                                                     |
 | `data_process` | Observed genetic process: `deterministic` or `stochastic`.                                                                               |
 | `score_family` | `epilink`, `genetic`, or `logistic`; present in ranking summaries.                                                                       |
-| `pipeline`     | Comparison family, such as `pairwise/EDD`, `components/GD_D`, `leiden/ESS/native`, or `treecluster/stochastic/dated`.                    |
+| `pipeline` | Comparison family, such as `pairwise/EDD`, `components/GD_D`, `leiden/ESS`, or `treecluster/stochastic/dated`. |
 | `setting_id`   | 20-character hash of the complete method definition. Join to this run's `settings.json`; the same definition can occur in multiple runs. |
 | `criterion`    | Name of a selection rule, such as `balanced_M0`; added to held-out operating results.                                                    |
 | `case_id`      | String case identifier; meaningful within the selected backbone/dataset.                                                                 |
@@ -140,7 +140,7 @@ Directory: `<run>/<split>/seed_<seed>/pairwise/`. The common scorer identifiers 
 | `<endpoint>_AP`                               | Tie-aware average precision: sum of each recall increment times precision after admitting the entire tied group. Scores are ranked descending, genetic distances ascending. Undefined if that endpoint has no positives. |
 | `<endpoint>_prevalence`                       | `P_h / U`.                                                                                                                                                                                                               |
 | `brier_score`                                 | Logistic scorers only: mean `(predicted_probability - M0_indicator)²`; lower is better.                                                                                                                                  |
-| `log_loss`                                    | Logistic scorers only: binary cross-entropy for M0, using natural logarithms and scikit-learn's probability clipping; lower is better.                                                                                   |
+| `log_loss` | Logistic scorers only: target/non-target cross-entropy for M0, using natural logarithms and scikit-learn's probability clipping; lower is better. |
 
 The six endpoint columns expand to `M0_AP`, `M0_prevalence`, `Mle1_AP`, `Mle1_prevalence`, `Mle2_AP`, and `Mle2_prevalence`. Calibration columns are blank for non-logistic scorers and may be absent entirely when none are configured.
 
@@ -321,7 +321,7 @@ With `N` full-tree nodes and indices `i < j`, `pair_id = i * (2*N - i - 1) // 2 
 | `sample_date`   | Simulated sampling time, in days on the simulation time axis; can be fractional. |
 | `exposure_date` | Simulated infection/exposure time on the same day axis.                          |
 
-These times are numeric simulation days. TreeTime's separate date conversion is described in section 9. Every row is sampled; there is no `sampled` column.
+These times are numeric simulation days. IQ-TREE/LSD2 uses the original sample dates, including fractional days; scorer TD is rounded separately. See section 9 for date origins. Every row is sampled; there is no `sampled` column.
 
 ### `observations/<id>/pairs.parquet`
 
@@ -377,17 +377,16 @@ A mapping from `setting_id` to method definition. Applicable fields are:
 | `kind`                       | `pairwise`, `components`, `leiden`, or `treecluster`.                                                                                                |
 | `pipeline`, `data_process`   | Comparison group and observed genetic process.                                                                                                       |
 | `score_name`                 | Pairwise and graph methods: scorer identifier.                                                                                                       |
-| `threshold`                  | Pairwise/graph: native scorer cutoff; raw TreeCluster: substitutions/site; dated TreeCluster: days. Null for explicit empty pairwise/graph settings. |
+| `threshold` | Pairwise/components: scorer cutoff; raw TreeCluster: substitutions/site; dated TreeCluster: days. Null for explicit empty selections and for full-graph Leiden. |
 | `empty`                      | Pairwise/graph: whether to select no pairs regardless of values.                                                                                     |
-| `weight_policy`              | Graph methods: `binary` or `native`.                                                                                                                 |
+| `graph_mode` | Leiden: `full`, retaining every observed pair. EpiLink/logistic edges use scores, genetic-distance edges use unit weights. |
 | `objective`, `resolution`    | Leiden objective and its resolution parameter.                                                                                                       |
 | `restarts`, `algorithm_seed` | Leiden restart count and base seed.                                                                                                                  |
 | `tree_kind`                  | TreeCluster: `raw` or `dated`.                                                                                                                       |
 | `method`                     | TreeCluster: `max_clade`, `avg_clade`, or `single_linkage`.                                                                                          |
-| `threshold_units`            | TreeCluster: `substitutions_per_site` or `days`.                                                                                                     |
-| `days_per_year`              | Conversion factor for dated thresholds.                                                                                                              |
+| `threshold_units` | TreeCluster input grid units: `snps` for raw trees or `days` for dated trees. Raw `threshold` is normalized to substitutions/site before execution. |
 
-Pipeline names have the following forms: `pairwise/<score>`, `components/<score>`, `leiden/<score>/<weight-policy>`, and `treecluster/<data-process>/<raw-or-dated>`. TreeCluster's method is a selectable setting within a pipeline, rather than a separate pipeline name.
+Pipeline names are `pairwise/<score>`, `components/<score>`, `leiden/<score>`, and `treecluster/<data-process>/<raw-or-dated>`. Each scorer has one Leiden pipeline. TreeCluster's method is selected within a raw/dated pipeline.
 
 ### `selection/operating_points.json`
 
@@ -485,27 +484,26 @@ Each baseline run also writes `inputs.json` beside `settings.json`. It records t
 
 ## 9. Phylogenetic artifacts
 
-Each phylogeny (raw + dated) has a single directory under `artifacts/trees/<id>/`. Trees are inferred using IQ-TREE with LSD2 dating, replacing the previous FastME/TreeTime workflow.
+Each inferred raw/dated phylogeny shares one directory under `artifacts/trees/<id>/`. IQ-TREE infers maximum-likelihood sequence trees and performs LSD2 dating. TreeCluster subsequently partitions the exported trees.
 
 ### Synthetic studies
 
 | File                | Contents and units                                                                                                                                                                                                                                 |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.nwk`           | IQ-TREE maximum-likelihood tree with reference tip removed, midpoint rooted; branch lengths in **substitutions/site**. Case IDs restored from FASTA headers.                                                                                       |
-| `dated.nwk`         | LSD2 time-calibrated tree; branch lengths in **days** from the earliest sample. Reference excluded.                                                                                                                                                |
+| `raw.nwk` | IQ-TREE maximum-likelihood tree rooted with the aligned reference as outgroup, then reference-pruned. Branch lengths are substitutions/site; case IDs are restored. |
+| `dated.nwk` | LSD2 time-calibrated tree with the reference excluded. Branch lengths are durations in days. |
 | `node_dates.tsv`    | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                   |
 | `phylogeny.json`    | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                              |
 | `backend/run-*/`    | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
-| `<tool>.stdout.log` | Captured IQ-TREE stdout.                                                                                                                                                                                                                           |
-| `<tool>.stderr.log` | Captured IQ-TREE stderr (including timeout messages).                                                                                                                                                                                              |
+| `backend/run-*/inference.log` | Combined IQ-TREE/LSD2 stdout/stderr; failure messages identify this log. TreeCluster partitions separately retain their stdout/stderr logs. |
 
 **Signature fields:** `kind: phylogeny-v1`, `dataset`, `process`, `fasta_sha256`, `reference_sha256`, `dates_sha256`, `n_cases`, `iqtree_model`, `iqtree_threads`, `iqtree_seed`, `clock_rate`, `iqtree_executable`, `implementation`.
 
-**Manifest fields:** `units`, `rooting` (`IQ-TREE midpoint` / `LSD2 clock`), `root_split`, `dated_root_split`.
+**Manifest fields:** `units`, `rooting` (reference-outgroup rooting/pruning for raw trees; LSD2 clock for dated trees), `root_split`, `dated_root_split`.
 
 **Reference handling:** The raw tree initially includes the ancestral reference as an outgroup taxon. Before TreeCluster, the reference tip is pruned so that the tree contains exactly the sampled cases. The pruned tree is saved as `raw.nwk`. The dated tree excludes the reference by design (LSD2 removes undated taxa).
 
-**Date units:** Dated branch lengths are in **days** from the earliest sample. TreeCluster day thresholds are passed directly without conversion (no `/365` division).
+**Date units:** Dated branches are durations in **days**. Synthetic node/sample dates retain the numeric simulation origin. Boston calendar dates are normalized to days from the earliest collection date; `date_origin` and calendar columns preserve that origin. TreeCluster day cutoffs are passed directly.
 
 ### Boston studies
 
@@ -602,7 +600,7 @@ The frozen transfer analysis writes `settings.json`, `selection.json`, `clusters
 - `<root>/artifacts/scores/<id>/scores.parquet` has `CaseID1`, `CaseID2`, and one column per configured scorer for every observed pair. It has no synthetic `pair_id` column. A frozen `all` run records `score_id` in its manifest; graph artifact signatures also record the score ID used.
 - `<run>/settings.json` contains adapted frozen definitions, including their `baseline_setting_id`, `baseline_score_name`, and `baseline_data_process`. Boston's `data_process` is `empirical`, and tree rows use `score_name: TREE`. Pairwise operating definitions are retained as reference metadata; the workflow writes scores and partitions, not Boston pairwise truth-metric tables.
 - `<run>/selection.json` contains adapted baseline operating decisions and their criterion names; it is not a selection performed using Boston exposures.
-- All scorers use the same empirical GD/TD observations. The synthetic D/S labels identify source operating rules or fitted classifiers. Graph pipelines keep names such as `leiden/ESS/native`; frozen tree pipelines use `treecluster/empirical/<baseline-process>/<raw-or-dated>`.
+- All scorers use the same empirical GD/TD observations. Synthetic D/S labels identify source rules or classifiers. Graph pipelines use names such as `leiden/ESS`; tree pipelines use `treecluster/empirical/<baseline-process>/<raw-or-dated>`.
 
 #### Partition artifacts
 
@@ -644,11 +642,13 @@ For any two compared membership sets A and B, `shared = |A ∩ B|` and `jaccard 
 
 Descriptive **fold enrichment** can be calculated as `exposure_fraction / (exposure_total / total_Boston_cases)`. It is not currently a saved assessment column or a significance test. Interpret it together with `exposure_recovery`. Exposure labels are mutually exclusive as defined above; these summaries do not establish transmission precision/recall.
 
-`candidate_coverage = n_observed_pairs / n_all_pairs`, where `n_all_pairs = total_Boston_cases * (total_Boston_cases - 1) / 2`. It describes the censored input table and is repeated on tree rows for context; Boston trees use separately generated all-pair distances from the alignment.
+`candidate_coverage = n_observed_pairs / n_all_pairs`, where `n_all_pairs = total_Boston_cases * (total_Boston_cases - 1) / 2`. It describes the censored pair table and is repeated on tree rows for context. Boston sequence trees use the full alignment directly.
 
 #### Boston tree artifacts
 
-Boston trees live under `<root>/artifacts/trees/<id>/`. The raw-tree artifact includes `all_pairs_tn93.csv`, `distances.phy`, `fastme.nwk`, `raw.nwk`, and tool logs. Its distance matrix contains TN93 substitutions/site, rather than synthetic Hamming counts divided by simulated sequence length. The dated artifact includes `dates.csv` with real collection dates, TreeTime outputs, and `dated.nwk` with calendar-year branches. `trees/inputs.json` records the tree paths and hashes used for that analysis. Dated TreeCluster cutoffs in days are divided by `days_per_year` before applying them to the tree.
+Boston tree artifacts contain `raw.nwk`, `dated.nwk`, `node_dates.tsv`, `phylogeny.json`, `sampling_dates.csv` with collection dates, and IQ-TREE/LSD2 outputs under `backend/run-*/`. They use aligned samples plus a same-length reference FASTA. Raw branches are substitutions/site; dated branches are days. `trees/inputs.json` pins paths and hashes. Run `inputs.json` additionally records aligned reference path/hash and alignment length; the run signature includes phylogeny settings and both sequence inputs.
+
+For raw TreeCluster transfer, the selected source SNP count is recovered using the baseline alignment length and converted to substitutions/site using the Boston length. Adapted raw definitions retain `baseline_threshold`, `threshold_snps` and `baseline_setting_id`; dated cutoffs remain unchanged in days. Execution uses the same TreeCluster settings whose tool identity is recorded. Optional Boston overrides affect only executable/timeout.
 
 ## 11. Worked joins in Python
 
@@ -747,7 +747,7 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manifest.json`  | Study `status`, `requested_stage: all`, schema-2 `config`, full `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`. |
 | `reference.json` | Source `run_directory`, `run_fingerprint`, original `selection_fingerprint`, `truth_fingerprint`, reference `n_cases`, and `baseline_implementation`. No fitted models are needed. |
-| `selection.json` | Baseline selection metadata with operating points filtered to the requested native EpiLink pipelines and criterion. |
+| `selection.json` | Baseline selection metadata filtered to the requested EpiLink pipelines and criterion. |
 | `settings.json`  | Baseline-selected full-graph EpiLink Leiden definitions. `graph_mode: full`, `threshold: null`, `empty: false`; only resolution is selected. |
 | `scenarios.json` | List of `name`, `parameter`, absolute `value`, `baseline_value`, `multiplier` (null for absolute levels), and complete scenario `generation` parameters. The unperturbed scenario is named `baseline` and its parameter metadata is null.                       |
 | `coverage.csv`   | One row per scenario/mode with `inference_mode`, `clustering_mode`, `status`, `completed`, `expected`, `error`. Expected count is requested EpiLink scorers × evaluation seeds. |
@@ -765,11 +765,11 @@ Study signatures include effective configuration, resolved reference identity, s
 | `inference_mode` | `baseline` or `matched`. |
 | `clustering_mode` | `baseline` or `updated` resolution. |
 | `parameter`      | Changed natural-history field, such as `incubation.mean`; blank for controls.   |
-| `value`          | Absolute perturbed value in the parameter's native units.                       |
+| `value` | Absolute perturbed value in the parameter's original units. |
 | `baseline_value` | Original natural-history parameter value, not a performance metric.             |
 | `multiplier`     | Requested relative multiplier, or blank for absolute levels and controls.       |
 
-Top-level rows use `split: evaluation` and fresh evaluation seeds; development evidence remains inside each updated arm. `pipeline` is `leiden/<EpiLink-scorer>/native`. `setting_id` identifies the actual resolution/definition used for that scenario and arm.
+Top-level rows use `split: evaluation` and fresh evaluation seeds; development evidence remains inside each updated arm. `pipeline` is `leiden/<EpiLink-scorer>`, with EDD/EDS/ESD/ESS in the supplied study. `setting_id` identifies the actual resolution/definition used for that scenario and arm. Complete default coverage is 624 rows, or 48 in smoke mode.
 
 ### Paired deltas
 
@@ -898,7 +898,7 @@ The `bootstrap` object records `requested`, `completed`, `seed`, `interpretation
 | `minimum_feature_only_misclassifications`     | Exact count `sum_cells min(n_target_cell, n_other_cell)`.                                                                 |
 | `minimum_feature_only_misclassification_rate` | That minimum count / all observed pairs.                                                                                  |
 
-Zero-denominator ratios are undefined. The minimum error applies empirically to binary decisions constant within these exact feature cells. It is neither a population performance ceiling nor a bound on partition recovery.
+Zero-denominator ratios are undefined. The minimum error applies empirically to target/non-target decisions constant within exact feature cells. It is neither a population performance ceiling nor a bound on partition recovery.
 
 `prevalence.csv` has one row per seed/endpoint: `n_pairs`, `n_target`, `n_other`, `target_prevalence = n_target / n_pairs`. `relationships.csv` has one row per seed/relationship: `n_pairs` is **that category's count**, and `pair_fraction` divides it by all observed pairs. These truth summaries have no process/feature-set replication.
 

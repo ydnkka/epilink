@@ -4,15 +4,14 @@ import io
 
 import pandas as pd
 
-from ..phylogeny.external import command_identity, run_command
+from ..phylogeny.external import command_identity, run_command, treecluster_executable
 from ..phylogeny.trees import validate_tree
 from ..schemas import validate_partition
 
 
 def treecluster(tree_path, cases, method, threshold, config, directory):
     validate_tree(tree_path, cases.case_id)
-    executable = config.get("executable") or config.get("executables", {}).get("treecluster", "TreeCluster.py")
-    tool = command_identity(executable)
+    tool = command_identity(treecluster_executable(config))
     argv = [tool["path"], "-i", str(tree_path), "-t", str(threshold), "-m", method]
     output = run_command(
         argv, directory, "treecluster",

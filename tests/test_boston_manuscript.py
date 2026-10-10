@@ -80,8 +80,6 @@ def completed_study(tmp_path):
                 baseline_data_process="deterministic",
                 threshold=0.1,
             )
-        else:
-            definition["weight_policy"] = "native" if index < 2 else "binary"
         settings[setting] = definition
         points.append(
             {

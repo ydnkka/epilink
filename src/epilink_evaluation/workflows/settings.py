@@ -42,34 +42,27 @@ def settings_registry(config, pairwise_thresholds=None):
                     {
                         **base,
                         "kind": "components",
-                        "weight_policy": "binary",
                         "pipeline": f"components/{name}",
                     }
                 )
         if "leiden" in config["clustering"]["algorithms"]:
             leiden = config["clustering"]["leiden"]
-            for policy in ("binary", "native"):
-                if policy == "binary" and spec.family == "epilink":
-                    continue
-                if policy == "native" and spec.family == "genetic":
-                    continue
-                for resolution in sorted(set(leiden["resolutions"])):
-                    add(
-                        {
-                            "score_name": name,
-                            "data_process": spec.data_process,
-                            "threshold": None,
-                            "empty": False,
-                            "graph_mode": "full",
-                            "kind": "leiden",
-                            "weight_policy": policy,
-                            "objective": leiden["objective"],
-                            "resolution": float(resolution),
-                            "restarts": leiden["restarts"],
-                            "algorithm_seed": leiden["seed"],
-                            "pipeline": f"leiden/{name}/{policy}",
-                        }
-                    )
+            for resolution in sorted(set(leiden["resolutions"])):
+                add(
+                    {
+                        "score_name": name,
+                        "data_process": spec.data_process,
+                        "threshold": None,
+                        "empty": False,
+                        "graph_mode": "full",
+                        "kind": "leiden",
+                        "objective": leiden["objective"],
+                        "resolution": float(resolution),
+                        "restarts": leiden["restarts"],
+                        "algorithm_seed": leiden["seed"],
+                        "pipeline": f"leiden/{name}",
+                    }
+                )
     tc = config["treecluster"]
     if tc["enabled"]:
         processes = sorted(

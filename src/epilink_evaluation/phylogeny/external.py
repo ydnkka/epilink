@@ -10,12 +10,14 @@ from ..provenance import digest_file
 
 
 def executable(name):
-    found = shutil.which(str(name))
-    if found:
-        return str(Path(found).resolve())
-    sibling = Path(sys.executable).parent / name
-    if sibling.is_file() and os.access(sibling, os.X_OK):
-        return str(sibling.resolve())
+    candidates = ("iqtree3", "iqtree2", "iqtree") if str(name) == "iqtree" else (name,)
+    for candidate in candidates:
+        found = shutil.which(str(candidate))
+        if found:
+            return str(Path(found).resolve())
+        sibling = Path(sys.executable).parent / candidate
+        if sibling.is_file() and os.access(sibling, os.X_OK):
+            return str(sibling.resolve())
     raise FileNotFoundError(
         f"Executable not found: {name}; configure a path or activate its environment"
     )
@@ -24,6 +26,13 @@ def executable(name):
 def command_identity(name):
     path = executable(name)
     return {"path": path, "sha256": digest_file(path)}
+
+
+def treecluster_executable(config):
+    """Use the canonical executable field, retaining legacy tool-map support."""
+    return config.get("executable") or config.get("executables", {}).get(
+        "treecluster", "TreeCluster.py"
+    )
 
 
 def run_command(argv, directory, name, timeout):

@@ -23,8 +23,7 @@ from ._baseline.common import (
 
 METHODS = (
     ("components", "Connected components", "o"),
-    ("binary", "Leiden: binary edges", "^"),
-    ("native", "Leiden: score weights", "s"),
+    ("leiden", "Leiden", "s"),
     ("raw", "TreeCluster: undated", "P"),
     ("dated", "TreeCluster: dated", "X"),
 )
@@ -44,10 +43,6 @@ def cluster_rows(run, config) -> pd.DataFrame:
         for kind, _, marker in METHODS:
             scores = (None,) if kind in ("raw", "dated") else SCORES_BY_PROCESS[process]
             for score in scores:
-                if kind == "binary" and not score.startswith(("GD_", "LOGIT_")):
-                    continue
-                if kind == "native" and score.startswith("GD_"):
-                    continue
                 if kind in ("raw", "dated"):
                     pipeline = f"treecluster/{process}/{kind}"
                     color = "#222222"
@@ -55,7 +50,7 @@ def cluster_rows(run, config) -> pd.DataFrame:
                     pipeline = (
                         f"components/{score}"
                         if kind == "components"
-                        else f"leiden/{score}/{kind}"
+                        else f"leiden/{score}"
                     )
                     color = SCORE_COLORS[score]
                 point = points[pipeline]
@@ -108,8 +103,8 @@ def create_figure(run, config, output, *, fmt="both") -> None:
                 row.distant_percent,
                 row.f1_percent,
                 marker=row.marker,
-                s=78 if row.method in ("binary", "native") else 48,
-                facecolor="none" if row.method in ("binary", "native") else row.color,
+                s=78 if row.method == "leiden" else 48,
+                facecolor="none" if row.method == "leiden" else row.color,
                 edgecolor=row.color,
                 linewidth=1.2,
                 zorder=3,

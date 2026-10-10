@@ -129,7 +129,7 @@ def endpoint_figures(directory, definitions, development, endpoint):
                 axis.plot(group.threshold, group[metric], ".-", label=metric)
             axis.set(
                 title=pipeline,
-                xlabel="Native threshold (genetic ≤; score ≥)",
+                xlabel="Scorer threshold (genetic ≤; score ≥)",
                 ylim=(0, 1),
             )
             axis.legend(fontsize=7, ncol=2)

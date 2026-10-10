@@ -239,11 +239,11 @@ def main(argv=None):
     if unknown:
         parser.error(f"Unknown scorer identifiers: {sorted(unknown)}")
     if args.command == "check":
-        from .phylogeny.external import command_identity
+        from .phylogeny.external import command_identity, treecluster_executable
         from .workflows.settings import settings_registry
 
         tools = {}
-        treecluster_exec = config["treecluster"].get("executable") or config["treecluster"].get("executables", {}).get("treecluster", "TreeCluster.py")
+        treecluster_exec = treecluster_executable(config["treecluster"])
         try:
             tools["treecluster"] = command_identity(treecluster_exec)
         except FileNotFoundError as exc:

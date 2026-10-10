@@ -67,7 +67,6 @@ def versions():
         "networkx",
         "pyarrow",
         "TreeCluster",
-        "phylo-treetime",
         "biopython",
     ):
         try:

@@ -22,7 +22,6 @@ def main() -> None:
                 "fig00",
                 "fig02",
                 "fig03",
-                "fig04",
                 "fig05",
                 "fig06",
                 "fig07",

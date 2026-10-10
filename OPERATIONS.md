@@ -37,7 +37,7 @@ Use this guide to configure and run the project, locate results, and resume inte
 
 ## 1. How the pipeline works
 
-The studies live under `evaluation/`. Diagnostics characterizes development observations and known-truth graph/tree controls on a shared synthetic experiment. Baseline then compares methods on those exact development observations and freezes operating points. Perturbation tests their sensitivity to biological parameter changes; Boston examines empirical transfer and clustering-parameter sensitivity. Both downstream studies use the completed baseline directly. Sections 3–9 describe shared preparation, diagnostics, and baseline; section 12 gives the downstream commands and their distinct stage behavior.
+The studies live under `evaluation/`. Diagnostics characterizes development observations and known-truth graph/tree controls on a shared synthetic experiment. Baseline compares methods on those observations and freezes settings. Perturbation crosses baseline/matched inference with baseline/updated full-graph EpiLink Leiden resolution for EDD/EDS/ESD/ESS; Boston applies frozen settings to empirical observations. Both downstream studies use the completed baseline directly. Sections 3–9 describe shared preparation, diagnostics and baseline; section 12 gives the downstream commands.
 
 ```text
 SCoVMod infection and transmission CSVs
@@ -49,8 +49,9 @@ SCoVMod infection and transmission CSVs
             -> complete diagnostics gate
             -> EpiLink, genetic-distance, and training-fitted logistic scores
               -> pairwise rankings and threshold metrics
-              -> thresholded graphs -> components / Leiden partitions
-           -> genetic-distance trees (IQ-TREE)
+               -> thresholded graphs -> connected components
+               -> full observed-pair graphs -> Leiden resolution sweep
+            -> aligned sequences + reference -> IQ-TREE trees
               -> raw trees / dated trees (LSD2) -> TreeCluster partitions
      -> compare scores and every within-cluster pair with full-tree truth
         -> development curves, sweeps, and reports
@@ -91,7 +92,7 @@ The editable install supplies the `epilink-evaluate` command and Python dependen
 conda install -c conda-forge -c bioconda iqtree
 ```
 
-IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH. To specify explicitly, set `phylogeny.iqtree_executable` in the config. TreeCluster is a Python dependency discovered automatically. The `check` command verifies IQ-TREE and TreeCluster availability.
+The supplied `phylogeny.executable: iqtree` discovers `iqtree3`, `iqtree2`, or `iqtree` on PATH or beside the interpreter. An explicit path pins the executable; the legacy `phylogeny.iqtree_executable` field is also accepted. The same resolved path is recorded and invoked. TreeCluster is a Python dependency. `check` verifies tool availability.
 
 **Boston:** IQ-TREE builds trees directly from the alignment; TN93 is no longer required for tree construction.
 
@@ -174,7 +175,7 @@ Shared `generation` configures observation simulation. Baseline derives `inferen
 | `relaxation`                              | Dimensionless lognormal SD of branch-specific rates; zero gives a strict clock.                |
 | `genome_length`                           | Site count used by EpiLink to calculate mutation-count expectations.                           |
 
-The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE estimates genetic distances; LSD2 estimates dated branch lengths from calendar dates.
+The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE infers genetic branch lengths from aligned sequences. LSD2 dates them using numeric simulation days for synthetic data and calendar collection dates for Boston; exported dated branch lengths are days in both cases.
 
 ### Scorers, grids, and comparison settings
 
@@ -188,8 +189,8 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `pairwise.selected_fractions`                    | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                                                            |
 | `pairwise.threshold_mode`                        | `all_development_scores` (supplied): union of unique development cutoffs plus empty selection; `configured`: use `thresholds`. One shared cutoff is evaluated across seeds. |
 | `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                                                              |
-| `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                                                           |
-| `clustering.leiden.resolutions` | Resolution grid on full observed graphs. EpiLink uses native scores including zeros; GD/LOGIT retain binary controls. No graph cutoff or binary EpiLink Leiden. |
+| `clustering.leiden.objective` | `CPM` or `modularity`; resolution scales depend on objective and scorer. |
+| `clustering.leiden.resolutions` | Full-graph resolution grid. EpiLink/logistic use original scores including zeros; genetic-distance graphs use unit weights. One `leiden/<scorer>` pipeline per scorer. |
 | `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                      |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
 | `treecluster.genetic_threshold_snps`             | Raw-tree SNP counts; converted to substitutions/site using `alignment_length` (preserves absolute SNP counts).                                                                    |
@@ -201,11 +202,12 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `phylogeny.seed`                                 | IQ-TREE random seed.                                                                                                                                                              |
 | `phylogeny.clock_rate`                           | Fixed LSD2 clock rate (substitutions/site/day); null for estimation.                                                                                                              |
 | `phylogeny.timeout`                              | IQ-TREE/LSD2 timeout in seconds.                                                                                                                                                  |
+| `phylogeny.executable` | IQ-TREE name/path; `iqtree` discovers versioned executable names. |
 | `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                                                                  |
 | `grid_audit.objective_tolerance`                 | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                            |
 | `grid_audit.reference` | Coarse-grid overrides: `thresholds`, `leiden_resolution_grid`, and/or `treecluster` threshold lists. Compare on the same development observations. |
 
-The runner also adds an explicit empty-selection setting to each scorer's grid. Binary graphs include zero-valued edges at a zero compatibility/probability cutoff; native weighted graphs omit zero-weight edges.
+Pairwise and component grids include an explicit empty-selection setting. Inclusive component cutoffs retain zero-valued observations when the cutoff allows them. Full Leiden graphs retain every observed edge, including zero score weights; `threshold` is null and `empty` is false.
 Exact pairwise candidates are generated only after all development curves exist;
 they never expand the clustering grids. `check` reports the configured clustering
 count and marks the total operating count as unknown until these candidates exist.
@@ -257,7 +259,7 @@ python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthet
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --smoke --stage all
 ```
 
-Both commands must use `--smoke`. It uses up to 64 backbone cases and one observation seed per split (71001/72001/73001), appending `_smoke` to both study and shared experiment roots. Diagnostics reduces its Leiden grid to 0.1/0.5 with two restarts and hop thresholds to 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, smaller threshold/resolution grids, two Leiden restarts, and IQ-TREE clock_rate; configured scorers, algorithms, and criteria remain. **Observation stage now persists sampled FASTA, ancestral reference, and sampling dates as artifact files** (see §2.3 Observations). Smoke results assess pipeline functionality.
+Both commands use `--smoke`: up to 64 cases and seeds 71001/72001/73001 for train/development/evaluation, with separate `_smoke` roots. Diagnostics uses resolutions 0.1/0.5, two restarts and hop cutoffs 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, reduced component/tree cutoff grids, full-graph Leiden resolutions 0.05/0.5, two restarts and IQ-TREE seed 76001. Scorers, criteria and the configured clock-rate choice are retained. Observation artifacts include sampled FASTA, reference FASTA and original sampling dates; see [phylogenetic artifacts](OUTPUTS.md#9-phylogenetic-artifacts). Smoke validates pipeline functionality.
 
 Run full development using the configured tree and grids:
 
@@ -270,7 +272,7 @@ Then follow sections 7–8 to inspect development evidence, configure criteria, 
 
 ### Observed full-run wall times
 
-One full configured execution on 2026-10-02–03 produced these timings:
+One historical execution on 2026-10-02–03 produced these timings. It predates the current four-scorer/four-mode clustering-only perturbation design, full-graph Leiden and IQ-TREE/LSD2 changes; these values are not current runtime estimates:
 
 | Workflow/stage                             | Observed elapsed |
 | ------------------------------------------ | ---------------: |
@@ -461,8 +463,8 @@ Retained outputs from earlier versions are historical results. Produce current e
 | Symptom                                                              | What to check / next action                                                                                                                                                      |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `epilink-evaluate: command not found` or module import failure     | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly. |
-| `Executable not found`                                             | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                        |
-| IQ-TREE inference failure                                          | Verify `phylogeny.iqtree_executable` points to a working `iqtree3`/`iqtree2`/`iqtree`; check alignment format (FASTA), reference compatibility, and sufficient disk/CPU.  Reduce `threads` or `timeout` in config. |
+| `Executable not found` | Run `check`, install the missing tool, or set `phylogeny.executable` / `treecluster.executable` to an explicit path. |
+| IQ-TREE inference failure | Inspect `backend/run-*/inference.log`; check alignment/reference compatibility and complete sampling dates. Adjust threads or increase timeout if needed. |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                |
@@ -518,7 +520,7 @@ python evaluation/02_synthetic_perturbation/run.py
 
 The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default configuration is `evaluation/02_synthetic_perturbation/config.yaml`; the baseline `check` command expects a baseline configuration. Perturbation validates its reference and levels at startup. Use `--baseline-run` to pin a completed run directory instead of the default current-baseline pointer.
 
-The workflow evaluates ESD/ESS score-weighted clustering in four modes. Graphs include every observed pair and have no cutoff. Updated resolutions use separate fresh development seeds and the baseline selection criterion/grid; all arms use paired evaluation seeds and fresh unperturbed controls. Smoke uses 64 cases and the incubation-mean levels; full mode uses all six configured parameter families on the frozen backbone. Outputs are separate under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
+The workflow evaluates EDD/EDS/ESD/ESS clustering in four modes. Graphs include every observed pair with its score as weight and have no cutoff. Updated resolutions use separate fresh development seeds and the baseline criterion/grid; all arms use paired evaluation seeds and fresh controls. Full coverage is 13 scenarios × four modes × four scorers × three evaluation seeds = 624 rows. Smoke uses up to 64 cases and the incubation-mean levels, yielding 48 rows. Outputs are under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
 
 See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-2 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
 

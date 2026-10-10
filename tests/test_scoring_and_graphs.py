@@ -44,17 +44,18 @@ def test_compressed_logistic_matches_uncompressed_training():
         training_cells(observations, truth.iloc[::-1], "deterministic")
 
 
-def test_inclusive_thresholds_native_weights_and_isolates():
+def test_inclusive_thresholds_score_weights_and_isolates():
     a, b = np.triu_indices(4, 1)
     observations = pd.DataFrame({"a": a, "b": b})
     values = np.array([2.0, 0.5, 0, 0, 0, 0])
     spec = SCORERS["EDD"].spec
-    binary = build_graph(observations, 4, values, spec, 0)
-    native = build_graph(observations, 4, values, spec, 0, policy="native")
-    assert binary.ecount() == 6
-    assert native.ecount() == 2
-    assert native.es["weight"] == [2.0, 0.5]  # Compatibility is not clipped to one.
-    labels, _ = components(native)
+    inclusive = build_graph(observations, 4, values, spec, 0)
+    weighted = build_graph(observations, 4, values, spec, 0.5)
+    assert inclusive.ecount() == 6
+    assert inclusive.es["weight"] == values.tolist()
+    assert weighted.ecount() == 2
+    assert weighted.es["weight"] == [2.0, 0.5]  # Compatibility is not clipped to one.
+    labels, _ = components(weighted)
     assert labels[0] == labels[1] == labels[2]
     assert labels[3] != labels[0]
     np.testing.assert_array_equal(
@@ -67,18 +68,21 @@ def test_inclusive_thresholds_native_weights_and_isolates():
     np.testing.assert_array_equal(
         selected_pairs([0, 1, 1, 2], genetic, 1), [True, True, True, False]
     )
-    with pytest.raises(ValueError, match="Native weights"):
-        build_graph(observations, 4, values, genetic, 1, policy="native")
+    unweighted = build_graph(observations, 4, [0, 1, 1, 2, 3, 4], genetic, 1)
+    assert unweighted.ecount() == 3
+    assert unweighted.es["weight"] == [1.0, 1.0, 1.0]
 
 
 def test_full_graph_keeps_all_observed_pairs_and_original_zero_weights():
     observations = pd.DataFrame({"a": [0, 0, 1], "b": [1, 2, 2]})
-    graph = build_graph(observations, 4, [2.0, 0.005, 0.0], SCORERS["ESD"].spec, None, "native", full=True)
+    graph = build_graph(
+        observations, 4, [2.0, 0.005, 0.0], SCORERS["ESD"].spec, None, full=True
+    )
     assert graph.vcount() == 4
     assert graph.get_edgelist() == [(0, 1), (0, 2), (1, 2)]
     assert graph.es["weight"] == [2.0, 0.005, 0.0]
     with pytest.raises(ValueError, match="no cutoff"):
-        build_graph(observations, 4, [2, 0.005, 0], SCORERS["ESD"].spec, 0.1, "native", full=True)
+        build_graph(observations, 4, [2, 0.005, 0], SCORERS["ESD"].spec, 0.1, full=True)
 
 
 def test_leiden_restarts_are_reproducible_and_selected_by_objective():

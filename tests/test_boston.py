@@ -230,7 +230,6 @@ def test_boston_runs_without_training_artifacts_and_reuses_scores(
         for field in (
             "threshold",
             "empty",
-            "weight_policy",
             "resolution",
             "restarts",
             "algorithm_seed",
@@ -283,6 +282,8 @@ def test_default_boston_config_covers_expanded_models():
     assert config["assessment"]["treecluster_path"] is None
     assert config["trees"]["enabled"] is True
     assert Path(config["trees"]["alignment_path"]).exists()
+    assert Path(config["trees"]["reference_path"]).is_absolute()
+    assert Path(config["trees"]["reference_path"]).exists()
     assert (
         Path(config["inputs"]["cases_path"])
         == root / "evaluation/03_boston_application/outputs/inputs/cases.parquet"
@@ -426,7 +427,6 @@ def test_genetic_rules_retain_distinct_synthetic_thresholds():
             "data_process": "deterministic" if name == "GD_D" else "stochastic",
             "threshold": threshold,
             "empty": False,
-            "weight_policy": "binary",
         }
         key = fingerprint(definition)[:20]
         definitions[key] = definition
@@ -571,3 +571,122 @@ def test_external_treecluster_assessment_counts_singletons_and_overlap(tmp_path)
     assert best.loc[best.treecluster_group == "cluster:1", "shared"].iloc[0] == 2
     with pytest.raises(ValueError, match="same unique sample IDs"):
         load_treecluster(tree, cases.iloc[:-1])
+
+
+def test_boston_enabled_trees_use_iqtree_and_frozen_snp_rules(
+    small_config, tmp_path, monkeypatch
+):
+    """Exercise the shipped tree config shape through inference, partitioning and resume."""
+    from copy import deepcopy
+    import epilink
+    from epilink_evaluation.phylogeny import boston as phylogeny
+    from epilink_evaluation.provenance import digest_file
+    from epilink_evaluation.workflows.settings import settings_registry
+
+    source = deepcopy(small_config)
+    source["scorers"] = ["GD_D"]
+    source["treecluster"].update(
+        enabled=True,
+        methods=["max_clade"],
+        genetic_threshold_snps=[5],
+        temporal_threshold_days=[7],
+    )
+    definitions = {
+        key: definition
+        for key, definition in settings_registry(source).items()
+        if definition["kind"] == "treecluster"
+        or (definition["kind"] == "components" and definition["threshold"] == 0)
+    }
+    criterion = source["selection"]["criteria"][0]
+    reference = SimpleNamespace(
+        root=tmp_path / "baseline",
+        directory=tmp_path / "baseline/runs/pinned",
+        config=source,
+        selected=definitions,
+        identity={
+            "run_directory": "baseline/runs/pinned",
+            "selection_fingerprint": "pinned",
+        },
+        frozen={
+            "criteria": [criterion],
+            "operating_points": [
+                {
+                    "pipeline": d["pipeline"],
+                    "definition": d,
+                    "setting_id": key,
+                    "status": "selected",
+                    "criterion": criterion["name"],
+                    "rule": criterion,
+                }
+                for key, d in definitions.items()
+            ],
+        },
+    )
+    config = boston_config(tmp_path, reference)
+    config["scorers"] = ["GD_D"]
+    alignment, ancestral = tmp_path / "alignment.fasta", tmp_path / "reference.fasta"
+    alignment.write_text("".join(f">{case}\n{'ACGT' * 16}\n" for case in "ABCDE"))
+    ancestral.write_text(f">reference\n{'ACGT' * 16}\n")
+    config["trees"] = {
+        "enabled": True,
+        "alignment_path": str(alignment),
+        "reference_path": str(ancestral),
+    }
+    config["phylogeny"] = {"executable": "iqtree", "model": "JC", "seed": 2026}
+    # No treecluster block: execution must inherit the frozen reference's tool settings.
+    config.pop("treecluster", None)
+    inference_calls, partition_calls = [], []
+
+    def identity(name):
+        return {"path": f"/mock/tools/{Path(name).name}", "sha256": "mock"}
+
+    def infer(**kwargs):
+        inference_calls.append(kwargs)
+        assert kwargs["reference_fasta"] == str(ancestral)
+        assert kwargs["iqtree_executable"] == "/mock/tools/iqtree"
+        dates = pd.read_csv(kwargs["dates"])
+        assert set(dates.case_id) == set("ABCDE")
+        backend = Path(kwargs["output_dir"])
+        backend.mkdir(parents=True, exist_ok=True)
+        raw, dated = backend / "raw.nwk", backend / "dated.nwk"
+        raw.write_text("(A:0.01,B:0.02,C:0.03,D:0.04,E:0.05,reference:0.1);")
+        dated.write_text("(A:1,B:2,C:3,D:4,E:5);")
+        return SimpleNamespace(
+            output_paths={"raw_tree": raw, "dated_tree": dated},
+            reference_name="reference",
+            clock_rate=0.001,
+            date_origin="2020-03-01",
+            node_dates=pd.DataFrame({"case_id": list("ABCDE"), "date": range(5)}),
+        )
+
+    def partition(tree, cases, method, threshold, settings, directory):
+        partition_calls.append((Path(tree).name, method, threshold, settings))
+        (directory / "treecluster.stdout.log").write_text("mock partitions")
+        (directory / "treecluster.stderr.log").write_text("")
+        return np.array([0, 0, 1, 2, 3]), {"threshold_tree_units": threshold}
+
+    monkeypatch.setattr(boston_module, "OperatingReference", lambda *args: reference)
+    monkeypatch.setattr(boston_module, "command_identity", identity)
+    monkeypatch.setattr(phylogeny, "command_identity", identity)
+    monkeypatch.setattr(epilink, "build_phylogenetic_tree_from_fasta", infer)
+    monkeypatch.setattr(boston_module, "treecluster", partition)
+    study = BostonEmpirical(config)
+    assert study.alignment_length == 64
+    assert study.run("trees")
+    assert len(inference_calls) == 1
+    assert [
+        (kind, method, threshold) for kind, method, threshold, _ in partition_calls
+    ] == [
+        ("raw.nwk", "max_clade", 5 / 64),
+        ("dated.nwk", "max_clade", 7),
+    ]
+    assert all(
+        settings == study.treecluster_config for _, _, _, settings in partition_calls
+    )
+    inputs = read_json(study.directory / "inputs.json")
+    assert inputs["reference_sha256"] == digest_file(ancestral)
+    assert inputs["alignment_length"] == 64
+    resumed = BostonEmpirical(config)
+    assert resumed.directory == study.directory
+    assert resumed.run("trees")
+    assert len(inference_calls) == 1 and len(partition_calls) == 2

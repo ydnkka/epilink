@@ -524,7 +524,9 @@ def test_sampled_fasta_matches_cases(small_config, tmp_path, prepare_diagnostics
             det_headers = [line.strip() for line in f if line.startswith(">")]
         with open(sto_fasta) as f:
             sto_headers = [line.strip() for line in f if line.startswith(">")]
-        det_case_ids = set(observations.case_id) if hasattr(observations, "case_id") else set()
+        det_case_ids = (
+            set(observations.case_id) if hasattr(observations, "case_id") else set()
+        )
         # Compare with cases.parquet
         cases_df = pd.read_parquet(directory / "cases.parquet")
         assert len(det_headers) == len(cases_df), (
@@ -558,6 +560,8 @@ def test_dates_tsv_matches_cases(small_config, tmp_path, prepare_diagnostics):
         dates_df = pd.read_csv(dates_tsv, sep="\t")
         cases_df = pd.read_parquet(cases_parquet)
         # Case IDs should match
-        assert set(dates_df["case_id"].astype(str)) == set(cases_df["case_id"].astype(str))
+        assert set(dates_df["case_id"].astype(str)) == set(
+            cases_df["case_id"].astype(str)
+        )
         # Dates should be present for all cases
         assert len(dates_df) == len(cases_df)

@@ -27,8 +27,8 @@ These questions are addressed by the frozen-transfer analysis:
 
 1. **Prepares inputs** from raw Boston metadata, Nextclade results, and TN93 distances
 2. **Scores observed pairs** using eight frozen inference rules (EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D)
-3. **Clusters graphs** at frozen thresholds using components and Leiden algorithms
-4. **Builds phylogenetic trees** from the full Boston alignment (independent of the distance-censored TN93 table)
+3. **Clusters graphs** using frozen component cutoffs and full-graph Leiden resolutions
+4. **Builds phylogenetic trees** directly from the Boston alignment and reference with IQ-TREE/LSD2
 5. **Runs TreeCluster** on raw and dated trees at frozen thresholds
 6. **Compares partitions** with exposure metadata and TreeCluster results
 
@@ -71,11 +71,16 @@ Edit [`config.yaml`](config.yaml) to change:
 | `assessment.treecluster_path`              | Optional external TreeCluster partition for comparison (TSV with`SequenceName` and `ClusterNumber` columns; `-1` denotes singletons). Default is `null`. |
 | `assessment.focus_exposures`               | Exposure labels for named-cluster summaries (default: Conference, SNF).                                                                                          |
 | `assessment.min_cluster_size`              | Minimum cluster size for focus-cluster analysis (default: 2).                                                                                                    |
-| `trees.enabled`                            | Whether to build raw/dated trees and run TreeCluster (default: true).                                                                                            |
+| `trees.enabled` | Whether to infer raw/dated trees and run TreeCluster. Supplied config: true; loader default: false. |
 | `trees.alignment_path`                     | Boston FASTA alignment for tree building (required when`trees.enabled` is true).                                                                               |
-| `trees.tn93_executable`                    | Optional path to`tn93` for all-pair distances (default: `tn93` on PATH).                                                                                     |
+| `trees.reference_path` | Aligned, single-record reference FASTA, required with trees enabled; resolved relative to this YAML. |
+| `phylogeny.executable` | IQ-TREE name/path. `iqtree` discovers `iqtree3`, `iqtree2`, or `iqtree`. |
+| `phylogeny.model`, `threads`, `seed` | Substitution model (supplied MFP), worker count, and IQ-TREE random seed. |
+| `phylogeny.clock_rate` | Optional fixed rate in substitutions/site/day; null estimates the rate with LSD2. |
+| `phylogeny.timeout` | IQ-TREE/LSD2 runtime limit in seconds. |
+| `treecluster.executable`, `treecluster.timeout` | Optional runtime overrides; otherwise inherited from the baseline. Methods and cutoffs remain frozen. |
 
-For the frozen-transfer analysis, EpiLink inference parameters, Monte Carlo settings, fitted logistic models, graph thresholds, Leiden settings, and TreeCluster methods/thresholds come from the baseline reference.
+EpiLink parameters, Monte Carlo settings, fitted logistic models, component cutoffs, Leiden resolutions and TreeCluster methods/cutoffs come from the baseline. Every observed pair is retained in Leiden graphs. Raw TreeCluster rules preserve the selected SNP counts: recover counts from the synthetic alignment length and divide by the Boston alignment length before partitioning. Dated rules remain in days. This is unit conversion, with the source setting ID retained for provenance.
 
 ## Inputs
 
@@ -136,9 +141,9 @@ python -m evaluation.results.fig20  # all-exposures supplement
 python -m evaluation.results.fig21  # all-agreement supplement
 ```
 
-Scripts default to `outputs/boston/current.json` and write into `evaluation/results/outputs/03_boston_application/<run-id>/`. Each accepts `--run-dir <run>` and `--output-dir <directory>`; the figure scripts accept `--format pdf|png|both` (default `both`). The two supplementary scripts also accept `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all` (default `all`). See the [numbered results index](../results/README.md) for the display mapping. They validate the pinned reference, setting IDs, graph/tree completion and assessment coverage without changing any producer artifacts. The current saved run has complete `all` report and graph/tree checkpoints but a later stale `running`/`explore` manifest entry; the scripts warn when consuming those independently checked results. Pin a finalized run for manuscript provenance.
+Scripts default to `outputs/boston/current.json` and write into `evaluation/results/outputs/03_boston_application/<run-id>/`. Each accepts `--run-dir` and `--output-dir`; figures accept `--format pdf|png|both`. Supplements accept `--criterion balanced_M0|balanced_Mle1|balanced_Mle2|all`. They validate the pinned reference, setting IDs, graph/tree completion and assessment coverage. Pin a finalized current-implementation run for manuscript provenance; retained earlier runs describe their own saved analyses.
 
-The **main-text focus** is the original baseline-frozen `balanced_M0` settings for ESD native Leiden, LGD native Leiden, GDD binary Leiden, and the deterministic-source raw and dated TreeCluster definitions. D/S in a scorer or TreeCluster setting names the *synthetic source rule*, not an alternative Boston distance measurement. The tree comparator uses uncensored distances rebuilt from the alignment; graph inputs use the distance-censored TN93 pair table. No exposure-based threshold or resolution selection is performed.
+The **main-text focus** is `balanced_M0` Leiden for ESD, LGD and GDD, plus deterministic-source raw and dated TreeCluster rules. D/S identifies a *synthetic source rule*; Boston has one empirical GD/TD table. Sequence trees use the full alignment with IQ-TREE/LSD2, independently of the censored pair table. Exposure metadata describes the resulting partitions without selecting graph or tree settings.
 
 | Output | Manuscript role |
 | --- | --- |
@@ -148,13 +153,13 @@ The **main-text focus** is the original baseline-frozen `balanced_M0` settings f
 | `fig20_boston_all_exposures_<criterion>.pdf` / `.png` | Supplement for each frozen criterion: concentration and recovery of Conference/SNF in every selected graph and TreeCluster partition. No eligible exposure cluster is shown as undefined, not zero. |
 | `fig21_boston_all_agreement_<criterion>.pdf` / `.png` | Supplement for each frozen criterion: all selected graph-versus-tree ARI and AMI combinations. D/S on tree axes distinguishes source cutoffs applied to the same empirical raw/dated trees. |
 
-In the named-exposure assessment a representative cluster is the eligible cluster containing the **largest number of labelled exposure cases** for that frozen setting; exposure recovery is the fraction captured by **that one cluster**, not the total distributed among clusters. Its choice uses exposure metadata for *description*, not for tuning any model. `cluster_composition.csv` provides the complete exposure/clade/mutation composition for more detailed supplementary analysis, and `named_tree_overlaps.csv` supplies exposure-specific graph/tree membership overlap. With no external TreeCluster input configured, external `best_cluster_overlaps.csv` is empty. The candidate-pair coverage denominator applies to censored graph scoring, whereas tree building uses all-pair alignment distances. These are descriptive empirical results, not transmission precision/recall or independent outbreak replicates.
+In the named-exposure assessment a representative cluster is the eligible cluster containing the **largest number of labelled exposure cases** for that frozen setting; recovery refers to **that one cluster**. Exposure metadata provides description rather than model tuning. `cluster_composition.csv` gives complete exposure/clade/mutation composition, and `named_tree_overlaps.csv` gives graph/tree overlaps. Without an external comparator, `best_cluster_overlaps.csv` is empty. Candidate-pair coverage describes censored graph scoring; IQ-TREE inference uses the full alignment. These are descriptive empirical results rather than transmission accuracy or independent outbreak replicates.
 
 ## Interpretation
 
 - **Synthetic D/S labels** (e.g., EDS, GD_S, LOGIT_D) identify the source operating rules or fitted classifiers from the baseline, not separate Boston measurements. All scorers use the same observed Boston GD and TD vectors.
 - **LOGIT_S/LOGIT_D** reuse the baseline's fitted logistic classifiers without retraining.
-- **Raw trees** are built from uncensored TN93 all-pair distances (FastME, midpoint rooted). **Dated trees** use TreeTime with real collection dates.
+- **Raw trees** are IQ-TREE maximum-likelihood trees rooted with the aligned reference, then reference-pruned. **Dated trees** use IQ-TREE's LSD2 calibration and real collection dates; exported branches are days.
 - **TreeCluster thresholds** use substitutions/site for raw trees and days of tree branch distance for dated trees. Cluster sizes depend on the method and cutoff; neither tree type guarantees finer or more accurate partitions.
 - **Exposure labels and TreeCluster agreement** are descriptive external evidence, not transmission truth. The Boston dataset lacks complete transmission links for precision/recall evaluation.
 - **Candidate coverage** is less than 1.0 because the TN93 source is distance-censored; missing pairs are not imputed.
@@ -163,21 +168,21 @@ In the named-exposure assessment a representative cluster is the eligible cluste
 
 | Symptom                                                         | Check / Next action                                                                                                                   |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `Executable not found: tn93`                                  | Install TN93 (`conda install -c bioconda tn93`) or set `trees.tn93_executable` in config.                                         |
+| `Executable not found: iqtree` | Install IQ-TREE ≥2.0.6 or set `phylogeny.executable` to its path. |
 | `Reference has no selected ... TreeCluster settings`          | The baseline must have completed`--stage evaluate` with TreeCluster enabled and selected settings.                                  |
 | `Boston scorers must be a unique nonempty subset`             | Use valid scorer names; ES/ESS and ED/EDS are aliases and cannot be combined.                                                         |
 | `Scientific implementation/dependencies differ from baseline` | The Boston adapter (`inputs/boston.py`) is excluded from baseline checks. Other scientific module changes require a fresh baseline. |
-| `FastME exited 1; invalid distance matrix`                    | Ensure the PHYLIP distance matrix uses fixed-point format (not scientific notation).                                                  |
+| IQ-TREE/LSD2 inference failure | Inspect `backend/run-*/inference.log`; check aligned reference length, unique case IDs and complete collection dates. |
 
 ## Scientific notes
 
 The Boston empirical application demonstrates how frozen operating settings from a synthetic baseline transfer to real outbreak data. It does **not** claim transmission truth recovery, as complete epidemiological links are unavailable. The analysis is descriptive: it reports cluster sizes, exposure composition, and method agreement, without asserting correctness.
 
-For sensitivity to natural-history parameters, use the **perturbation workflow** on synthetic data. It crosses baseline/matched inference with baseline/updated full-graph Leiden resolution using separate development observations. Boston applies the baseline full-graph resolutions directly; every observed pair is retained, and binary-edge EpiLink Leiden is excluded.
+For natural-history sensitivity, the **perturbation workflow** crosses baseline/matched inference with baseline/updated full-graph Leiden resolution for all four EpiLink scorers. Boston applies the frozen full-graph resolutions directly and retains every observed pair.
 
 ## See also
 
 - [Operational guide](../../OPERATIONS.md) for setup, configuration, and troubleshooting
 - [Synthetic baseline protocol](../01_synthetic_baseline/README.md) for metric definitions and operating criteria
-- [Perturbation study](../02_synthetic_perturbation/README.md) for parameter sensitivity with frozen settings
+- [Perturbation study](../02_synthetic_perturbation/README.md) for four-mode EpiLink clustering sensitivity
 - [Output reference](../../OUTPUTS.md#10-boston-inputs-and-results) for column definitions and worked joins

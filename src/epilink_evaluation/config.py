@@ -75,6 +75,7 @@ def validate_experiment(config):
         raise ValueError("fraction_sampled must be in (0, 1]")
     if config["simulation"]["sequence_length"] <= 0:
         raise ValueError("sequence_length must be positive")
+    natural_history(config["generation"])
 
 
 def validate(config):

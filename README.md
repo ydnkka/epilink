@@ -10,7 +10,7 @@ Evaluation of EpiLink compatibility scores, genetic-distance rankings, logistic 
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth graph/tree controls before baseline comparison.        | Exact feature cells, endpoint-oracle graphs, and transmission-hop tree partitions. |
 | [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings.         |
-| [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test biological-parameter sensitivity and EpiLink inference mismatch using frozen operating points.               | Paired performance differences from fresh unperturbed controls.                    |
+| [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test all four EpiLink scorers under baseline/matched inference and baseline/updated full-graph Leiden resolution. | Paired clustering differences from fresh unperturbed controls.                     |
 | [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.           |
 
 Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared_synthetic/README.md). Complete diagnostics on its exact development observations before running baseline. The completed baseline supplies the reference for both downstream studies. Perturbation and Boston can run independently after baseline evaluation; the directory numbers express the study presentation order.
@@ -44,7 +44,7 @@ python evaluation/00_synthetic_diagnostics/run.py --stage all
 python evaluation/01_synthetic_baseline/run.py --stage develop
 ```
 
-Review the development report and configure operating criteria before selection and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria). The supplied baseline selects pairwise cutoffs from all distinct development scores, independently of finite graph grids. Reports cover M0/Mle1/Mle2 and include same-development reference-grid comparisons and neighboring-setting diagnostics. Inspect these before freezing clustering settings.
+Review the development report and configure operating criteria before selection and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria). Baseline selects pairwise cutoffs from all distinct development scores, component cutoffs from finite grids, and full-graph Leiden resolutions. Reports cover M0/Mle1/Mle2, neighboring settings and optional coarse-reference comparisons. Inspect these before freezing clustering settings.
 
 ```bash
 python evaluation/01_synthetic_baseline/run.py --stage select
@@ -59,7 +59,7 @@ python evaluation/02_synthetic_perturbation/run.py --smoke
 python evaluation/02_synthetic_perturbation/run.py
 ```
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run selection, separate development/evaluation seeds, parameter levels, and paired-result interpretation. Leiden uses full observed graphs and selects resolution only; EpiLink uses native score weights, with its binary-edge Leiden variant removed.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for reference-run selection, separate development/evaluation seeds, parameter levels, and paired-result interpretation. EDD, EDS, ESD and ESS each have one `leiden/<scorer>` pipeline, using every observed pair with its original score as weight. Only resolution is selected.
 
 Apply the baseline reference to Boston and render the report:
 
@@ -70,7 +70,7 @@ python evaluation/03_boston_application/run.py --stage report
 
 Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and assessment. `report` re-renders the saved results.
 
-**Phylogenetic tools:** IQ-TREE ≥2.0.6 (external executable) and TreeCluster (Python). IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH; baseline overrides use `phylogeny.executable` (Boston also supports `phylogeny.iqtree_executable`). TreeCluster is a Python dependency. `epilink-evaluate check` prints tool identity and experiment size. Boston uses IQ-TREE directly from the alignment; TN93 is no longer required for tree construction.
+**Phylogenetic tools:** IQ-TREE ≥2.0.6 infers sequence trees and performs LSD2 dating; TreeCluster partitions those trees. Setting `phylogeny.executable: iqtree` discovers `iqtree3`, `iqtree2`, or `iqtree` on PATH or beside the active interpreter. Use an explicit executable path to pin a tool. `epilink-evaluate check` prints tool identity and experiment size. Both synthetic and Boston inferred trees use aligned FASTA and reference sequences.
 
 ## Layout
 
@@ -96,7 +96,7 @@ Git LFS manages tracked data formats. Derived trees and study outputs are local 
 
 The shared config owns `inputs.tree_path`, generation, simulation, and splits; both diagnostics and baseline reference it through `experiment_config`. `epilink-evaluate scovmod --stage prepare` uses the same backbone preparation as diagnostics, writing to `evaluation/shared_synthetic/outputs/inputs/`. Matching managed artifacts are reused; changed inputs or construction settings trigger rebuilding. Explicit prebuilt trees without a manifest are retained. The experiment identity includes the source backbone, data design, and generation implementation. Follow the [tree regeneration instructions](OPERATIONS.md#4-prepare-or-regenerate-the-scovmod-tree) to change the target component and check the actual case count.
 
-Boston's input adapter reads `data/raw/boston/` and writes derived tables and provenance to `evaluation/03_boston_application/outputs/inputs/`. Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point. Its scoring table is censored at 0.0005 substitutions/site; missing pairs remain unobserved. Tree construction separately computes all-pair TN93 distances from the alignment. See the [input-processing notes](data/raw/boston/boston_data_processing.md).
+Boston's input adapter reads `data/raw/boston/` and writes derived tables and provenance to `evaluation/03_boston_application/outputs/inputs/`. Use `epilink-evaluate boston --stage prepare` or the Boston `run.py --stage prepare` entry point. Its scoring table is censored at 0.0005 substitutions/site; missing pairs remain unobserved. IQ-TREE uses the full alignment and reference FASTA directly, independently of that pair table. See the [input-processing notes](data/raw/boston/boston_data_processing.md).
 
 Saved manifests record paths and scientific identities at execution time. Retained outputs from earlier versions are historical results; generate current evidence with diagnostics followed by baseline. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`; revised analyses after evaluation need fresh evaluation seeds.
 

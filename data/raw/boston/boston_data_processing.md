@@ -61,3 +61,11 @@ and a provenance manifest under `evaluation/03_boston_application/outputs/inputs
 Missing pairs from the censored TN93 table remain unobserved, not zero-distance.
 The [output reference](../../../OUTPUTS.md#10-boston-inputs-and-results) defines
 the columns and exposure-label assignment.
+
+`--stage trees` infers sequence trees directly from the aligned FASTA and the
+aligned reference in `data/sars-cov-2/reference.fasta` using IQ-TREE. The reference
+roots the genetic tree and is pruned before partitioning. IQ-TREE's LSD2 dating
+uses collection dates and exports branch lengths in days. TreeCluster applies
+baseline-frozen rules; raw SNP counts are converted using the Boston alignment
+length, while day cutoffs are passed directly. The censored TN93 table remains
+the input to pair scoring and graph clustering.

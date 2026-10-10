@@ -43,12 +43,14 @@ def test_treecluster_preserves_each_unclustered_case(small_config, tmp_path):
 def observation_bundle(tmp_path):
     directory = tmp_path / "observations"
     directory.mkdir()
-    cases = pd.DataFrame({
-        "case_id": ["case_0", "case_1", "case_2"],
-        "node_index": [0, 1, 2],
-        "sample_date": [1.0, 2.0, 3.0],
-        "exposure_date": [0.5, 1.5, 2.5],
-    })
+    cases = pd.DataFrame(
+        {
+            "case_id": ["case_0", "case_1", "case_2"],
+            "node_index": [0, 1, 2],
+            "sample_date": [1.0, 2.0, 3.0],
+            "exposure_date": [0.5, 1.5, 2.5],
+        }
+    )
     cases.to_parquet(directory / "cases.parquet", index=False)
     cases[["case_id", "sample_date"]].to_csv(
         directory / "sampling_dates.tsv", sep="\t", index=False
@@ -59,9 +61,7 @@ def observation_bundle(tmp_path):
     (directory / "sampled_stochastic.fasta").write_text(
         ">case_0\nCCGGT\n>case_1\nGGAAT\n>case_2\nTCCTT\n"
     )
-    (directory / "reference.fasta").write_text(
-        ">ancestral_reference\nACGTA\n"
-    )
+    (directory / "reference.fasta").write_text(">ancestral_reference\nACGTA\n")
     return directory
 
 
@@ -70,7 +70,10 @@ def mocked_iqtree(monkeypatch):
     calls = []
 
     def command_identity(command):
-        return {"path": str(command), "sha256": "mock-executable"}
+        return {
+            "path": f"/mock/tools/{Path(command).name}",
+            "sha256": "mock-executable",
+        }
 
     def build(**kwargs):
         calls.append(kwargs)
@@ -80,9 +83,11 @@ def mocked_iqtree(monkeypatch):
         directory = Path(kwargs["output_dir"])
         directory.mkdir(parents=True, exist_ok=True)
         raw, dated = directory / "raw.nwk", directory / "dated.nwk"
-        raw.write_text("(" + ",".join(
-            f"{case}:0.001" for case in [*cases, "ancestral_reference"]
-        ) + ");\n")
+        raw.write_text(
+            "("
+            + ",".join(f"{case}:0.001" for case in [*cases, "ancestral_reference"])
+            + ");\n"
+        )
         dated.write_text("(" + ",".join(f"{case}:1" for case in cases) + ");\n")
         return SimpleNamespace(
             output_paths={"raw_tree": raw, "dated_tree": dated},
@@ -99,9 +104,14 @@ def mocked_iqtree(monkeypatch):
 
 
 @pytest.mark.parametrize("process", ["deterministic", "stochastic"])
-def test_iqtree_adapter_mocked(small_config, observation_bundle, mocked_iqtree, process):
+def test_iqtree_adapter_mocked(
+    small_config, observation_bundle, mocked_iqtree, process
+):
     result = trees.prepare_phylogeny(
-        small_config, observation_bundle, process, "test-dataset",
+        small_config,
+        observation_bundle,
+        process,
+        "test-dataset",
         implementation_signature(),
     )
     (call,) = mocked_iqtree
@@ -116,7 +126,9 @@ def test_iqtree_adapter_mocked(small_config, observation_bundle, mocked_iqtree, 
         "threads": phylogeny["threads"],
         "seed": phylogeny["seed"],
         "clock_rate": phylogeny["clock_rate"],
-        "iqtree_executable": phylogeny["executable"],
+        "iqtree_executable": read_json(result / "manifest.json")["signature"][
+            "iqtree_executable"
+        ]["path"],
         "timeout": phylogeny["timeout"],
     }
     cases = pd.read_parquet(observation_bundle / "cases.parquet").case_id
@@ -136,12 +148,20 @@ def test_reference_pruned_from_raw_tree():
 def test_day_thresholds_no_conversion(small_config):
     small_config["simulation"]["alignment_length"] = 5000
     small_config["treecluster"].update(
-        enabled=True, methods=["max_clade"],
-        genetic_threshold_snps=[0, 1, 2], temporal_threshold_days=[0, 365, 730],
+        enabled=True,
+        methods=["max_clade"],
+        genetic_threshold_snps=[0, 1, 2],
+        temporal_threshold_days=[0, 365, 730],
     )
     definitions = settings_registry(small_config).values()
-    dated = [d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "dated"]
-    raw = [d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "raw"]
+    dated = [
+        d
+        for d in definitions
+        if d["kind"] == "treecluster" and d["tree_kind"] == "dated"
+    ]
+    raw = [
+        d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "raw"
+    ]
     assert {d["threshold_units"] for d in dated} == {"days"}
     assert {d["threshold"] for d in dated} == {0, 365, 730}
     assert {d["threshold_units"] for d in raw} == {"snps"}
@@ -151,21 +171,32 @@ def test_day_thresholds_no_conversion(small_config):
 def test_cache_reuse_on_rerun(small_config, observation_bundle, mocked_iqtree):
     implementation = implementation_signature()
     result = trees.prepare_phylogeny(
-        small_config, observation_bundle, "deterministic", "test-dataset", implementation
+        small_config,
+        observation_bundle,
+        "deterministic",
+        "test-dataset",
+        implementation,
     )
     saved = {p: p.stat().st_mtime_ns for p in result.iterdir() if p.is_file()}
     resumed = trees.prepare_phylogeny(
-        small_config, observation_bundle, "deterministic", "test-dataset", implementation
+        small_config,
+        observation_bundle,
+        "deterministic",
+        "test-dataset",
+        implementation,
     )
     assert resumed == result
     assert len(mocked_iqtree) == 1
     assert saved == {p: p.stat().st_mtime_ns for p in saved}
 
 
-@pytest.mark.parametrize("invalid_tree, message", [
-    ("(case_0:1,case_1:1,missing:1);", "case universe"),
-    ("(case_0:1,case_1:-1,case_2:1);", "negative branch"),
-])
+@pytest.mark.parametrize(
+    "invalid_tree, message",
+    [
+        ("(case_0:1,case_1:1,missing:1);", "case universe"),
+        ("(case_0:1,case_1:-1,case_2:1);", "negative branch"),
+    ],
+)
 def test_invalid_dated_tree_is_not_completed(
     small_config, observation_bundle, mocked_iqtree, monkeypatch, invalid_tree, message
 ):
@@ -179,7 +210,10 @@ def test_invalid_dated_tree_is_not_completed(
     monkeypatch.setattr(epilink, "build_phylogenetic_tree_from_fasta", build)
     with pytest.raises(ValueError, match=message):
         trees.prepare_phylogeny(
-            small_config, observation_bundle, "deterministic", "test-dataset",
+            small_config,
+            observation_bundle,
+            "deterministic",
+            "test-dataset",
             implementation_signature(),
         )
     backend = Path(mocked_iqtree[0]["output_dir"])
@@ -190,8 +224,10 @@ def test_baseline_treecluster_uses_observation_paths(
     small_config, prepare_diagnostics, mocked_iqtree, monkeypatch
 ):
     small_config["treecluster"].update(
-        enabled=True, methods=["max_clade"],
-        genetic_threshold_snps=[1], temporal_threshold_days=[7],
+        enabled=True,
+        methods=["max_clade"],
+        genetic_threshold_snps=[1],
+        temporal_threshold_days=[7],
     )
 
     def cluster(path, cases, *args):
@@ -205,7 +241,11 @@ def test_baseline_treecluster_uses_observation_paths(
     seed = small_config["splits"]["development"][0]
     dataset = baseline.dataset(seed)
     assert len(mocked_iqtree) == 2  # Raw/dated consumers reuse each genetic process.
-    assert all(Path(call["alignment_fasta"]).parent == dataset for call in mocked_iqtree)
-    status = read_json(baseline.directory / "development" / f"seed_{seed}" / "clusters/status.json")
+    assert all(
+        Path(call["alignment_fasta"]).parent == dataset for call in mocked_iqtree
+    )
+    status = read_json(
+        baseline.directory / "development" / f"seed_{seed}" / "clusters/status.json"
+    )
     assert status["status"] == "complete"
     assert not status["errors"]

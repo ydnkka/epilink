@@ -18,7 +18,7 @@ from epilink_evaluation.workflows.settings import settings_registry
 
 @pytest.fixture
 def evaluated_baseline(small_config, prepare_diagnostics):
-    small_config["scorers"] = ["ESD", "ESS", "GD_D"]
+    small_config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_D"]
     small_config["clustering"]["algorithms"] = ["leiden"]
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
@@ -31,7 +31,7 @@ def study_config(tmp_path, reference, *, smoke=False):
         "schema_version": 2, "name": "integration_perturbation",
         "baseline_run": str(reference.directory), "output_directory": "perturbation_outputs",
         "development_seeds": [80001, 80002], "seeds": [81001, 81002],
-        "scorers": ["ESD", "ESS"], "criterion": "balanced_M0", "modes": list(MODES),
+        "scorers": ["EDD", "EDS", "ESD", "ESS"], "criterion": "balanced_M0", "modes": list(MODES),
         "perturbations": [{"parameter": "incubation.mean", "multipliers": [0.75, 1.25]}],
         "smoke": {"cases": 10, "seed": 91001, "development_seed": 90001, "parameters": ["incubation.mean"]},
     }
@@ -46,6 +46,8 @@ def test_default_scenarios_are_valid_one_parameter_changes(small_config):
     before = deepcopy(small_config["generation"])
     expanded = scenarios(config, before)
     assert len(expanded) == 13
+    assert config["scorers"] == ["EDD", "EDS", "ESD", "ESS"]
+    assert len(expanded) * len(config["modes"]) * len(config["scorers"]) * len(config["seeds"]) == 624
     assert expanded[0]["generation"] == before
     for scenario in expanded[1:]:
         changed = []
@@ -88,13 +90,13 @@ def test_paired_changes_allow_updated_settings_and_keep_missing_controls():
     assert row.n_realizations == 3
 
 
-def test_binary_epilink_leiden_is_removed_but_comparators_remain(small_config):
+def test_one_full_graph_leiden_pipeline_per_scorer(small_config):
     small_config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_D", "LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["leiden"]
     pipelines = {d["pipeline"] for d in settings_registry(small_config).values()}
-    assert not any(f"leiden/{score}/binary" in pipelines for score in ("EDD", "EDS", "ESD", "ESS"))
-    assert all(f"leiden/{score}/native" in pipelines for score in ("EDD", "EDS", "ESD", "ESS"))
-    assert {"leiden/GD_D/binary", "leiden/LOGIT_D/binary"} <= pipelines
+    assert {p for p in pipelines if p.startswith("leiden/")} == {
+        f"leiden/{score}" for score in small_config["scorers"]
+    }
 
 
 def test_four_arms_development_selection_pairing_and_cache(evaluated_baseline, tmp_path, monkeypatch):
@@ -111,9 +113,9 @@ def test_four_arms_development_selection_pairing_and_cache(evaluated_baseline, t
     assert len(study.tree) == 10
     assert study.run()
     results = pd.read_csv(study.directory / "results.csv")
-    assert len(results) == 3 * 4 * 2
+    assert len(results) == 3 * 4 * 4
     assert set(results.seed) == {91001}
-    assert set(results.pipeline) == {"leiden/ESD/native", "leiden/ESS/native"}
+    assert set(results.pipeline) == {f"leiden/{name}" for name in config["scorers"]}
     assert not (study.directory / "rankings.csv").exists()
     assert not (study.root / "artifacts/models").exists()
     assert "smoke validation" in (study.directory / "report.md").read_text()
@@ -122,6 +124,7 @@ def test_four_arms_development_selection_pairing_and_cache(evaluated_baseline, t
         for mode, (inference, clustering) in MODES.items():
             directory = study.directory / "scenarios" / scenario["name"] / mode
             selection = read_json(directory / "selection.json")
+            assert {p["pipeline"] for p in selection["operating_points"]} == set(results.pipeline)
             assert selection["development_seeds"] == ([90001] if clustering == "updated" else [])
             for point in selection["operating_points"]:
                 artifact = directory / "evaluation/seed_91001/clusters" / point["setting_id"]
@@ -140,12 +143,15 @@ def test_four_arms_development_selection_pairing_and_cache(evaluated_baseline, t
                     means = evidence.groupby("setting_id").M0_f1.mean()
                     assert means[point["setting_id"]] == pytest.approx(means.max())
                     assert set(evidence.seed) == {90001}
+                assert point["definition"]["graph_mode"] == "full"
+                assert point["definition"]["threshold"] is None
             assert not (directory / "evaluation/seed_91001/pairwise").exists()
         assert len(dataset_ids) == 1
         for inference in ("baseline", "matched"):
             assert score_ids[inference, "baseline"] == score_ids[inference, "updated"]
         matched = pd.read_parquet(score_ids["matched", "baseline"] / "scores.parquet")
         fixed = pd.read_parquet(score_ids["baseline", "baseline"] / "scores.parquet")
+        assert list(matched.columns) == ["pair_id", "EDD", "EDS", "ESD", "ESS"]
         if scenario["name"] == "baseline":
             pd.testing.assert_frame_equal(matched, fixed)
         else:
@@ -213,7 +219,7 @@ def test_changed_reference_is_rejected(evaluated_baseline, change):
         (baseline.directory / "development/metrics.csv").write_text("changed evidence")
     elif change == "evaluation":
         seed = baseline.config["splits"]["evaluation"][0]
-        point = next(p for p in read_json(baseline.directory / "selection/operating_points.json")["operating_points"] if p["pipeline"] == "leiden/ESD/native")
+        point = next(p for p in read_json(baseline.directory / "selection/operating_points.json")["operating_points"] if p["pipeline"] == "leiden/ESD")
         (baseline.directory / "evaluation" / f"seed_{seed}" / "clusters" / point["setting_id"] / "metrics.json").write_text("{}")
     else:
         implementation["evaluation"]["metrics/partitions.py"] = "changed"

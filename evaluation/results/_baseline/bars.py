@@ -21,7 +21,7 @@ METRICS = (
     ("M0_f1", "$F_1$", "#009E73"),
     ("Mge3_contamination", "Distant-pair contamination", "#CC79A7"),
 )
-GRAPH_APPROACHES = ("components", "leiden_binary", "leiden_native")
+GRAPH_APPROACHES = ("components", "leiden")
 TREE_KINDS = ("raw", "dated")
 
 
@@ -29,16 +29,12 @@ def graph_variants(approach: str, process: str) -> list[tuple[str, str]]:
     if approach not in GRAPH_APPROACHES:
         raise ValueError(f"Not a graph-clustering approach: {approach}")
     scorers = SCORES_BY_PROCESS[process]
-    if approach == "leiden_native":
-        scorers = tuple(score for score in scorers if not score.startswith("GD_"))
-    elif approach == "leiden_binary":
-        scorers = tuple(score for score in scorers if score.startswith(("GD_", "LOGIT_")))
     return [
         (
             SCORE_LABELS[score],
             f"components/{score}"
             if approach == "components"
-            else f"leiden/{score}/{approach.removeprefix('leiden_')}",
+            else f"leiden/{score}",
         )
         for score in scorers
     ]

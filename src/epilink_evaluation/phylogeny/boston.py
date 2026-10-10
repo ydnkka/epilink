@@ -10,6 +10,22 @@ from .external import command_identity
 from .trees import _prune_reference_tip, root_signature, validate_tree
 
 
+def alignment_length(path, cases):
+    """Validate a sample-only alignment against the empirical case universe."""
+    identifiers, lengths = [], set()
+    for record in SeqIO.parse(path, "fasta"):
+        identifiers.append(record.id)
+        lengths.add(len(record.seq))
+    if (
+        not identifiers or len(set(identifiers)) != len(identifiers)
+        or set(identifiers) != set(cases.case_id.astype(str))
+    ):
+        raise ValueError("Boston alignment IDs must match the unique case universe")
+    if len(lengths) != 1 or next(iter(lengths)) <= 0:
+        raise ValueError("Boston alignment must contain equal-length nonempty sequences")
+    return next(iter(lengths))
+
+
 def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_config, implementation):
     """Build IQ-TREE trees from Boston alignment.
     
@@ -36,23 +52,24 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     alignment_path = Path(alignment_path)
     reference_path = Path(reference_path)
     
-    alignment_length = len(next(SeqIO.parse(alignment_path, "fasta")).seq)
+    sequence_length = alignment_length(alignment_path, cases)
     case_ids = cases.case_id.tolist()
     iqtree_executable = phylo_config.get(
         "executable", phylo_config.get("iqtree_executable", "iqtree")
     )
+    iqtree_tool = command_identity(iqtree_executable)
     
     signature = {
         "kind": "boston-phylogeny-v1",
         "alignment_sha256": digest_file(alignment_path),
         "reference_sha256": digest_file(reference_path),
         "case_ids": case_ids,
-        "alignment_length": alignment_length,
+        "alignment_length": sequence_length,
         "iqtree_model": phylo_config.get("model", "MFP"),
         "iqtree_threads": phylo_config.get("threads", 1),
         "iqtree_seed": phylo_config.get("seed", 2026),
         "clock_rate": phylo_config.get("clock_rate"),
-        "iqtree_executable": command_identity(iqtree_executable),
+        "iqtree_executable": iqtree_tool,
         "implementation": implementation,
     }
     
@@ -61,7 +78,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     if valid_artifact(directory, signature):
         validate_tree(directory / "raw.nwk", cases.case_id)
         validate_tree(directory / "dated.nwk", cases.case_id)
-        return directory, alignment_length
+        return directory, sequence_length
     
     directory.mkdir(parents=True, exist_ok=True)
     
@@ -83,7 +100,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
             threads=phylo_config.get("threads", 1),
             seed=phylo_config.get("seed", 2026),
             clock_rate=phylo_config.get("clock_rate"),
-            iqtree_executable=iqtree_executable,
+            iqtree_executable=iqtree_tool["path"],
             timeout=phylo_config.get("timeout", 7200),
         )
     except PhylogenyError as exc:
@@ -108,7 +125,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         "clock_rate": result.clock_rate,
         "date_origin": str(result.date_origin) if result.date_origin else None,
         "reference_name": reference_name,
-        "alignment_length": alignment_length,
+        "alignment_length": sequence_length,
         "units": {
             "raw": "substitutions_per_site",
             "dated": "days",
@@ -122,9 +139,9 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         signature,
         ["raw.nwk", "dated.nwk", "node_dates.tsv", "phylogeny.json"],
         units="substitutions_per_site (raw) / days (dated)",
-        rooting="IQ-TREE midpoint (raw) / LSD2 clock (dated)",
+        rooting="IQ-TREE reference outgroup, pruned (raw) / LSD2 clock (dated)",
         root_split=root_signature(raw_pruned),
         dated_root_split=root_signature(dated_tree),
     )
     
-    return directory, alignment_length
+    return directory, sequence_length

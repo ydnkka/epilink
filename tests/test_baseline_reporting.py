@@ -78,7 +78,7 @@ def test_exact_cutoffs_do_not_expand_full_graph_resolution_grid(
             assert definition["resolution"] in [0.2, 0.8]
             assert definition["threshold"] is None
             assert definition["graph_mode"] == "full"
-    assert sum(d["kind"] == "leiden" for d in definitions.values()) == 4
+    assert sum(d["kind"] == "leiden" for d in definitions.values()) == 2
 
 
 def test_operating_summary_uses_frozen_objective_not_criterion_name():

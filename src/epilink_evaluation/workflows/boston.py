@@ -17,8 +17,8 @@ import pandas as pd
 from ..clusterers.graph import components, leiden
 from ..clusterers.treecluster import treecluster
 from ..graphs.construction import build_graph
-from ..phylogeny.boston import prepare_boston_phylogeny
-from ..phylogeny.external import command_identity
+from ..phylogeny.boston import alignment_length, prepare_boston_phylogeny
+from ..phylogeny.external import command_identity, treecluster_executable
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -79,6 +79,7 @@ def build_observations(cases, pairs):
 class BostonEmpirical:
     def __init__(self, config):
         self.config = deepcopy(config)
+        self.implementation = config["implementation"]
         validate_scorers(config["scorers"])
         self.root = Path(config["output_directory"]).resolve()
         self.reference = OperatingReference(
@@ -92,11 +93,14 @@ class BostonEmpirical:
         ):
             raise ValueError("Boston output must be separate from baseline outputs")
         self.trees_enabled = config.get("trees", {}).get("enabled", False)
-        self.definitions, self.selection = operating_settings(
-            self.reference,
-            config["scorers"],
-            include_trees=self.trees_enabled,
-        )
+        self.treecluster_config = deepcopy(self.reference.config["treecluster"])
+        overrides = config.get("treecluster", {})
+        if "executable" in overrides or "executables" in overrides:
+            self.treecluster_config["executable"] = treecluster_executable(overrides)
+        if "timeout" in overrides or "command_timeout_seconds" in overrides:
+            self.treecluster_config["timeout"] = overrides.get(
+                "timeout", overrides.get("command_timeout_seconds", 1800)
+            )
         self.cases_path = Path(config["inputs"]["cases_path"])
         self.pairs_path = Path(config["inputs"]["pairs_path"])
         prepared = self.cases_path.parent
@@ -119,22 +123,27 @@ class BostonEmpirical:
         self.tree_paths, self.tree_tools = {}, {}
         self.alignment_length = None
         if self.trees_enabled:
+            self.alignment_path = Path(config["trees"]["alignment_path"])
+            self.alignment_length = alignment_length(self.alignment_path, self.cases)
+        self.definitions, self.selection = operating_settings(
+            self.reference,
+            config["scorers"],
+            include_trees=self.trees_enabled,
+            target_alignment_length=self.alignment_length,
+        )
+        if self.trees_enabled:
             if not any(d["kind"] == "treecluster" for d in self.definitions.values()):
                 raise ValueError(
                     "Reference has no selected raw or dated TreeCluster settings"
                 )
-            self.alignment_path = Path(config["trees"]["alignment_path"])
             for tool in ("iqtree", "treecluster"):
                 if tool == "iqtree":
                     executable = config["phylogeny"].get(
                         "executable", config["phylogeny"].get("iqtree_executable", "iqtree")
                     )
                 else:
-                    executable = config["treecluster"]["executables"]["treecluster"]
+                    executable = treecluster_executable(self.treecluster_config)
                 self.tree_tools[tool] = command_identity(executable)
-            from ..phylogeny.boston import alignment_length
-
-            self.alignment_length = alignment_length(self.alignment_path, self.cases)
         assessment = config.get("assessment", {})
         self.comparator_path = assessment.get("treecluster_path")
         self.comparator = load_treecluster(self.comparator_path, self.cases)
@@ -174,8 +183,12 @@ class BostonEmpirical:
             "alignment_sha256": digest_file(self.alignment_path)
             if self.trees_enabled
             else None,
+            "reference_sha256": digest_file(config["trees"]["reference_path"])
+            if self.trees_enabled
+            else None,
+            "phylogeny": config.get("phylogeny") if self.trees_enabled else None,
             "tree_tools": self.tree_tools,
-            "tree_settings": self.reference.config["treecluster"]
+            "tree_settings": self.treecluster_config
             if self.trees_enabled
             else None,
             "implementation": config["implementation"],
@@ -211,6 +224,9 @@ class BostonEmpirical:
                 if self.trees_enabled
                 else None,
                 "alignment_sha256": self.signature["alignment_sha256"],
+                "reference_path": config.get("trees", {}).get("reference_path"),
+                "reference_sha256": self.signature["reference_sha256"],
+                "alignment_length": self.alignment_length,
                 "trees_enabled": self.trees_enabled,
             },
         )
@@ -287,7 +303,6 @@ class BostonEmpirical:
                 requested_graph = (
                     spec.name,
                     definition["threshold"],
-                    definition["weight_policy"],
                     definition["empty"],
                     definition.get("graph_mode"),
                 )
@@ -298,7 +313,6 @@ class BostonEmpirical:
                         values,
                         spec,
                         definition["threshold"],
-                        definition["weight_policy"],
                         definition.get("empty", False),
                         full=definition.get("graph_mode") == "full",
                     )
@@ -409,7 +423,7 @@ class BostonEmpirical:
         directory = self.directory / "trees" if directory is None else Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         rows, errors = [], []
-        settings = self.reference.config["treecluster"]
+        settings = self.treecluster_config
         phylo_config = self.config.get("phylogeny", {})
         reference_path = Path(self.config["trees"]["reference_path"])
         if "raw" not in self.tree_paths:

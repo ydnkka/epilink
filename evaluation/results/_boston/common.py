@@ -19,9 +19,9 @@ ROOT = (
     Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
 )
 FOCUS = (
-    ("Leiden ESD (score weights)", "leiden/ESD/native", "#0072B2"),
-    ("Leiden LGD (score weights)", "leiden/LOGIT_D/native", "#D55E00"),
-    ("Leiden GDD (binary edges)", "leiden/GD_D/binary", "#555555"),
+    ("Leiden ESD", "leiden/ESD", "#0072B2"),
+    ("Leiden LGD", "leiden/LOGIT_D", "#D55E00"),
+    ("Leiden GDD", "leiden/GD_D", "#555555"),
     ("TreeCluster undated", "treecluster/empirical/deterministic/raw", "#009E73"),
     ("TreeCluster dated", "treecluster/empirical/deterministic/dated", "#CC79A7"),
 )

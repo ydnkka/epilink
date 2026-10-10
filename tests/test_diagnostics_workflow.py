@@ -263,13 +263,16 @@ def test_forest_control_is_explicitly_partial(diagnostics_config):
     assert not (diagnostics.exp.directory / "diagnostics.json").exists()
 
 
-def test_backbone_stage_uses_all_cases_without_observation_generation(diagnostics_config, monkeypatch, tmp_path):
+def test_backbone_stage_uses_all_cases_without_observation_generation(
+    diagnostics_config, monkeypatch, tmp_path
+):
     from evaluation.results.fig24 import create_figure
     from epilink_evaluation.reporting.backbone import load_backbone_evidence
 
     diagnostics_config["simulation"]["fraction_sampled"] = 0.4
     diagnostics_config["diagnostics"]["backbone"] = {
-        "bootstrap_replicates": 12, "bootstrap_seed": 31,
+        "bootstrap_replicates": 12,
+        "bootstrap_seed": 31,
     }
     diagnostics = Diagnostics(diagnostics_config)
 
@@ -292,7 +295,9 @@ def test_backbone_stage_uses_all_cases_without_observation_generation(diagnostic
     artifact = Path(index["records"][0]["artifact"])
     nodes = pd.read_parquet(artifact / "nodes.parquet")
     truth_nodes = pd.read_parquet(diagnostics.truth_directory / "nodes.parquet")
-    pd.testing.assert_frame_equal(nodes[["node_index", "case_id"]], truth_nodes, check_dtype=False)
+    pd.testing.assert_frame_equal(
+        nodes[["node_index", "case_id"]], truth_nodes, check_dtype=False
+    )
     assert "offspring >=" in (diagnostics.directory / "report.md").read_text()
     assert (diagnostics.directory / "figures/backbone_characterisation.png").exists()
     monkeypatch.setattr(workflow, "backbone_diagnostics", unexpected)
@@ -304,7 +309,9 @@ def test_backbone_stage_uses_all_cases_without_observation_generation(diagnostic
     assert "15 cases" in caption
 
 
-def test_backbone_artifact_is_independent_of_seeds_and_sampling(diagnostics_config, monkeypatch):
+def test_backbone_artifact_is_independent_of_seeds_and_sampling(
+    diagnostics_config, monkeypatch
+):
     original = Diagnostics(diagnostics_config)
     assert original.run("backbone")
     record = read_json(original.directory / "backbone/index.json")["records"][0]
@@ -324,7 +331,9 @@ def test_backbone_artifact_is_independent_of_seeds_and_sampling(diagnostics_conf
     assert _timestamps(Path(record["artifact"])) == before
 
 
-def test_corrupt_backbone_revokes_completion_and_can_be_repaired(diagnostics_config, monkeypatch):
+def test_corrupt_backbone_revokes_completion_and_can_be_repaired(
+    diagnostics_config, monkeypatch
+):
     from epilink_evaluation.reporting.backbone import load_backbone_evidence
 
     diagnostics = Diagnostics(diagnostics_config)
@@ -344,7 +353,9 @@ def test_corrupt_backbone_revokes_completion_and_can_be_repaired(diagnostics_con
     monkeypatch.setattr(workflow, "backbone_diagnostics", failed)
     assert not diagnostics.run("backbone")
     assert not (diagnostics.exp.directory / "diagnostics.json").exists()
-    assert "visible backbone failure" in (diagnostics.directory / "report.md").read_text()
+    assert (
+        "visible backbone failure" in (diagnostics.directory / "report.md").read_text()
+    )
     monkeypatch.setattr(workflow, "backbone_diagnostics", producer)
     resumed = Diagnostics(deepcopy(diagnostics_config))
     assert resumed.run("backbone")

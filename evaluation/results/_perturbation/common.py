@@ -109,7 +109,15 @@ class Study:
         return [i - 0.5 for i in range(1, len(self.variants)) if self.variants[i]["parameter"] != self.variants[i - 1]["parameter"]]
 
     def pipelines(self, process):
-        return tuple(f"leiden/{name}/native" for name in self.config["scorers"] if SCORERS[name].spec.data_process == process)
+        return tuple(f"leiden/{name}" for name in self.config["scorers"] if SCORERS[name].spec.data_process == process)
+
+    @property
+    def panels(self):
+        """One identifiable panel per scorer, grouped by observed genetics."""
+        return tuple(
+            (process, pipeline)
+            for process in PROCESSES for pipeline in self.pipelines(process)
+        )
 
     def output(self, path: Path | None) -> Path:
         return results_output_directory(self.run, "02_synthetic_perturbation", path)
@@ -120,7 +128,7 @@ class Study:
         if len(points) != 1 or points[0]["status"] != "selected":
             raise ValueError(f"No feasible resolution: {scenario}/{mode}/{pipeline}")
         point = points[0]
-        if point["definition"].get("graph_mode") != "full" or point["definition"]["weight_policy"] != "native":
+        if point["definition"].get("graph_mode") != "full":
             raise ValueError("Expected full score-weighted EpiLink graphs")
         if MODES[mode][1] == "baseline" and point["setting_id"] != self.points[self.config["criterion"], pipeline]["setting_id"]:
             raise ValueError("Baseline clustering differs from the frozen reference")

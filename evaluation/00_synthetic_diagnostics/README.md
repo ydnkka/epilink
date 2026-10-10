@@ -83,7 +83,7 @@ That artifact is made using `complete_artifact(completion, signature, ["coverage
 
 The backbone extension was validated on 2026-10-06: all **197 tests passed**, the diagnostics → baseline smoke sequence completed, and `fig24` exported PDF/PNG and saved evidence for the full 5,051-case backbone. Tests cover the inclusive percentile boundary, zero offspring, chain/star/forest truth, finite and Poisson-limit fits, resampling reproducibility, seed/sampling-independent reuse, completion revocation/repair and manuscript exports.
 
-Validated on 2026-10-02 using the project's configured Python environment:
+Historical checkpoint on 2026-10-02, before the current full-graph Leiden and IQ-TREE/LSD2 workflows. The following commands, counts and timings describe that earlier implementation:
 
 ```bash
 python -m pytest -q
