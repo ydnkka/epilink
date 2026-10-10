@@ -235,8 +235,17 @@ This cluster-level file has counts and precision, without cluster-specific recal
 | Leiden             | `objective`: CPM/modularity; `quality`: chosen igraph objective value; `restart_qualities`: objective values from all restarts; `seed`: base algorithm seed; `retained_graph_edges`: graph edge count. |
 | Empty-graph Leiden | `objective`, `quality: 0.0`, `retained_graph_edges: 0`; no restarts are run, so restart fields are absent.                                                                                             |
 | TreeCluster        | `command`: executed argument list; `executable`: path and SHA-256; `threshold_tree_units`: actual cutoff, in substitutions/site for raw trees or calendar years for dated trees.                       |
+|                    | **Threshold scaling**: SNP counts from the configuration grid are converted to substitutions/site using `threshold_value = snp_count / alignment_length` (raw) or passed directly as days (dated).  The `alignment_length` is set in the `simulation` config block (default: `sequence_length`).  Day-unit thresholds require no conversion and are passed directly to TreeCluster. |
 
-`quality` is the optimized clustering objective, not a truth metric. For dated TreeCluster, `threshold_tree_units = definition.threshold / days_per_year`.
+`quality` is the optimized clustering objective, not a truth metric. For dated TreeCluster, thresholds are in **days** (not years); raw tree thresholds are in **substitutions per site**.
+
+## 4.2 Raw trees
+
+IQ-TREE builds the **raw tree** from the sampled FASTA alignment using the substitution model specified in the `phylogeny` config block (default: JC). The raw tree includes the **reference tip**; for TreeCluster compatibility the reference tip is pruned producing `raw_pruned.nwk` (substitutions per site). Branch lengths are finite and non-negative validated post-inference. The raw tree captures overall genetic divergence and is the input for TreeCluster `raw` clustering.
+
+## 4.3 Dated trees
+
+IQ-TREE builds the **dated tree** with `--dated=True` and calendar dates from `sampling_dates.tsv`. LSD2 estimates branch lengths in **calendar days** from the earliest sample. Dated tree lengths are **days** — thresholds are passed directly (no `/365` conversion). The dated tree excludes the reference tip for TreeCluster `dated` clustering and is the input for date-dependent downstream analysis.
 
 ## 5. Aggregated and held-out results
 
@@ -454,7 +463,7 @@ Common signature fields and artifact-specific metadata:
 | Artifact               | Signature / additional metadata                                                                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Truth                  | `kind`, `source_sha256`, `nodes`, `edges`, `implementation`; root metadata `n_cases`, `n_pairs`.                                                   |
-| Observations           | `kind`, `truth` artifact ID, `generation`, `simulation`, `seed`, `implementation`; root metadata `truth_directory`, `n_cases`, `n_pairs`, `units`. |
+| Observations           | `kind`, `truth` artifact ID, `generation`, `simulation`, `seed`, `implementation`; root metadata `truth_directory`, `n_cases`, `n_pairs`, `units`, `fasta`, `reference_fasta`, `dates_tsv`; files: `pairs.parquet`, `cases.parquet`, `sampled_deterministic.fasta`, `sampled_stochastic.fasta`, `reference.fasta`, `sampling_dates.tsv`. |
 | Fitted models          | `kind`, training `datasets` IDs, `C`, `implementation`; root metadata `seeds`.                                                                     |
 | Scores                 | `kind`, observation `dataset` ID, full `training` fingerprint, `scorers` metadata, `inference`, `scorer_config`, `implementation`.                 |
 | Per-seed pairwise      | `run` fingerprint, `score_id`, `split`, `seed`, `definitions` of the evaluated settings.                                                           |
@@ -487,25 +496,63 @@ Each baseline run also writes `inputs.json` beside `settings.json`. It records t
 
 ## 9. Phylogenetic artifacts
 
-Each raw or dated tree has a separate directory under `artifacts/trees/<id>/`.
+Each phylogeny (raw + dated) has a single directory under `artifacts/trees/<id>/`. Trees are inferred using IQ-TREE with LSD2 dating, replacing the previous FastME/TreeTime workflow.
 
-| File                                     | Contents and units                                                                                                                                                                               |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `distances.phy`                          | PHYLIP square distance matrix: observed Hamming counts divided by simulated sequence length, in substitutions/site. Alias `s00000000` refers to row 0 of the observation cases table, and so on. |
-| `fastme.nwk`                             | Original FastME Newick tree using the aliases; original negative branches can remain here.                                                                                                       |
-| `raw.nwk`                                | Restored case IDs, negative branches clipped to zero, midpoint rooting when nonzero length exists; branch lengths in substitutions/site.                                                         |
-| `dates.csv`                              | Columns `name` (case ID) and `date` (ISO date). Date is `2020-01-01 + round(sample_date)` days.                                                                                                  |
-| `treetime/timetree.nexus`                | TreeTime's exported dated tree, with calendar-year branch lengths and annotations.                                                                                                               |
-| `dated.nwk`                              | Converted dated Newick tree with case IDs and calendar-year branch lengths.                                                                                                                      |
-| `<tool>.stdout.log`, `<tool>.stderr.log` | Captured process streams; timeout details go to stderr logs.                                                                                                                                     |
+### Synthetic studies
 
-TreeTime produces additional diagnostic files under `treetime/`; their layouts are tool/version-specific. The manifest lists the files checked for artifact reuse. Case-time differences in observation pairs are rounded differences; differences between individually rounded TreeTime dates can differ by one day.
+| File                      | Contents and units                                                                                                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.nwk`                 | IQ-TREE maximum-likelihood tree with reference tip removed, midpoint rooted; branch lengths in **substitutions/site**. Case IDs restored from FASTA headers.                                                                                      |
+| `dated.nwk`               | LSD2 time-calibrated tree; branch lengths in **days** from the earliest sample. Reference excluded.                                                                                                                                               |
+| `node_dates.tsv`          | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                  |
+| `phylogeny.json`          | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                            |
+| `backend/run-*/`          | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
+| `<tool>.stdout.log`       | Captured IQ-TREE stdout.                                                                                                                                                                                                                          |
+| `<tool>.stderr.log`       | Captured IQ-TREE stderr (including timeout messages).                                                                                                                                                                                             |
 
-Raw-tree signature fields are `kind`, `dataset`, `process`, `fastme`, `method`, `rooting`, `negative_branches`, `sequence_length`, `implementation`. Additional manifest fields are `units: "substitutions_per_site"`, `negative_branches_clipped`, `rooting`, `root_split`, and `command`.
+**Signature fields:** `kind: phylogeny-v1`, `dataset`, `process`, `fasta_sha256`, `reference_sha256`, `dates_sha256`, `n_cases`, `iqtree_model`, `iqtree_threads`, `iqtree_seed`, `clock_rate`, `iqtree_executable`, `implementation`.
 
-Dated-tree signature fields are `kind`, `dataset`, `process`, `raw_sha256`, `treetime`, `clock_filter`, `rng_seed`, `sequence_length`, `implementation`. Additional manifest fields are `units: "calendar_years"`, `command`, `rooting`, `root_split`, and `root_changed`. A root split is the sorted tip sets beneath the root's immediate children. `root_changed` compares these sets with the raw tree; it is not a complete topology-difference statistic.
+**Manifest fields:** `units`, `rooting` (`IQ-TREE midpoint` / `LSD2 clock`), `root_split`, `dated_root_split`.
 
-TreeCluster stdout is saved per setting as `treecluster.stdout.log`, containing `SequenceName` and `ClusterNumber` columns. Original `ClusterNumber: -1` indicates an unclustered case; use normalized memberships for analysis so those cases remain distinct singletons.
+**Reference handling:** The raw tree initially includes the ancestral reference as an outgroup taxon. Before TreeCluster, the reference tip is pruned so that the tree contains exactly the sampled cases. The pruned tree is saved as `raw.nwk`. The dated tree excludes the reference by design (LSD2 removes undated taxa).
+
+**Date units:** Dated branch lengths are in **days** from the earliest sample. TreeCluster day thresholds are passed directly without conversion (no `/365` division).
+
+### Boston studies
+
+Boston trees follow the same structure as synthetic studies, with these differences:
+
+| File                      | Boston-specific notes                                                                                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.nwk`                 | Built from full Boston alignment (29,903 bp) + SARS-CoV-2 reference; IQ-TREE ModelFinder (`MFP`) for empirical data.                                                                                                                                           |
+| `dated.nwk`               | LSD2 dating using real collection dates (YYYY-MM-DD converted to days from earliest sample).                                                                                                                                                      |
+| `node_dates.tsv`          | Includes `calendar_date` and `sample_calendar_date` columns when calendar dates are provided.                                                                                                                                                     |
+| `phylogeny.json`          | `alignment_length: 29903`, `model: MFP`.                                                                                                                                                                                                          |
+
+**Reference alignment compatibility:** Boston alignment is 29,903 bp (full SARS-CoV-2 genome). The reference sequence must be compatible (same strain/isolate backbone). Gap patterns in the alignment must match the reference to avoid artifactual branch lengths.
+
+**Threshold scaling:** SNP thresholds use the same absolute SNP count range as synthetic ([0-10]), scaled to subs/site by `(snp_count × alignment_length) / 29903` = `(snp_count × 5000) / 29903` for raw trees. Dated tree thresholds are in days and passed directly.
+
+**Signature fields:** `kind: boston-phylogeny-v1`, `alignment_sha256`, `reference_sha256`, `alignment_length`, plus IQ-TREE settings.
+
+### TreeCluster partitions
+
+TreeCluster reads the pruned `raw.nwk` or `dated.nwk` and writes per-setting artifacts under `clusters/` or `trees/`. Output files:
+
+| File                          | Contents                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `memberships.parquet`         | Columns: `case_id`, `cluster_id`. `cluster_id: -1` indicates unclustered singleton (normalized before analysis). |
+| `clusters.parquet`            | Cluster-level summaries: `cluster_id`, `n_cases`, `within_pairs`, optional exposure/mutation counts.             |
+| `metrics.json`                | Partition-level metrics: `n_cases`, `n_clusters`, `size_mean`, `size_std`, `largest_cluster`.                    |
+| `algorithm.json`              | TreeCluster command, executable identity, `threshold_tree_units`.                                                |
+| `treecluster.stdout.log`      | TreeCluster output with `SequenceName` and `ClusterNumber` columns.                                              |
+| `treecluster.stderr.log`      | Captured stderr (including timeout messages).                                                                                                                                    |
+
+**Threshold units:**
+- **Raw tree:** `threshold_units: snps`, threshold value = `snp_count / alignment_length` (substitutions/site)
+- **Dated tree:** `threshold_units: days`, threshold value = days (no conversion)
+
+**Note:** Genetic thresholds preserve absolute SNP counts across studies. For synthetic (5,000 bp), 10 SNPs = 0.002 subs/site. For Boston (29,903 bp), 10 SNPs = 0.000334 subs/site.
 
 ## 10. Boston inputs and results
 

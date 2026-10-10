@@ -8,25 +8,31 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from .natural_history import natural_history
+from .natural_history import natural_history  # noqa: F401
 
 
 def _load(path):
     path = Path(path).resolve()
     config = yaml.safe_load(path.read_text())
     config = deepcopy(config)
-    config["output_directory"] = str((path.parent / config["output_directory"]).resolve())
+    config["output_directory"] = str(
+        (path.parent / config["output_directory"]).resolve()
+    )
     if config.get("experiment_config"):
         shared_path = (path.parent / config["experiment_config"]).resolve()
         shared = _load(shared_path)
         for key in ("inputs", "generation", "simulation", "splits"):
             if key in config and config[key] != shared[key]:
-                raise ValueError(f"Configure {key} in the shared experiment, not the study")
+                raise ValueError(
+                    f"Configure {key} in the shared experiment, not the study"
+                )
             config[key] = deepcopy(shared[key])
         config["experiment_config"] = str(shared_path)
         config["experiment_root"] = shared["output_directory"]
     if config.get("experiment_root"):
-        config["experiment_root"] = str((path.parent / config["experiment_root"]).resolve())
+        config["experiment_root"] = str(
+            (path.parent / config["experiment_root"]).resolve()
+        )
     for key in ("tree_path", "tree_source_path", "infection_path", "transmission_path"):
         if config["inputs"].get(key):
             config["inputs"][key] = str((path.parent / config["inputs"][key]).resolve())
@@ -71,7 +77,9 @@ def validate_experiment(config):
 def validate(config):
     validate_experiment(config)
     if config["inference"] != config["generation"]:
-        raise ValueError("The initial baseline requires matched generation/inference parameters")
+        raise ValueError(
+            "The initial baseline requires matched generation/inference parameters"
+        )
     if config["clustering"]["leiden"]["objective"] not in ("CPM", "modularity"):
         raise ValueError("Leiden objective must be CPM or modularity")
     if config["clustering"]["leiden"]["restarts"] < 1:
@@ -79,17 +87,22 @@ def validate(config):
     leiden = config["clustering"]["leiden"]
     overrides = leiden.get("resolutions_by_weight_policy", {})
     if set(overrides) - {"binary", "native"}:
-        raise ValueError("Resolution overrides require binary or native weight policies")
+        raise ValueError(
+            "Resolution overrides require binary or native weight policies"
+        )
     for grid in [leiden["resolutions"], *overrides.values()]:
         if not grid or any(not np.isfinite(r) or r <= 0 for r in grid):
             raise ValueError("Leiden resolutions must be finite and positive")
     if config["pairwise"].get("threshold_mode", "configured") not in (
-        "configured", "all_development_scores"
+        "configured",
+        "all_development_scores",
     ):
         raise ValueError("Unknown pairwise threshold_mode")
     tolerance = config.get("grid_audit", {}).get("objective_tolerance", 0.005)
     if not np.isfinite(tolerance) or tolerance < 0:
-        raise ValueError("Grid audit objective_tolerance must be finite and nonnegative")
+        raise ValueError(
+            "Grid audit objective_tolerance must be finite and nonnegative"
+        )
     for family, thresholds in config["thresholds"].items():
         if not thresholds or any(not np.isfinite(t) for t in thresholds):
             raise ValueError(f"Invalid {family} threshold grid")
@@ -98,14 +111,14 @@ def validate(config):
     for name in ("threshold_days",):
         if any(not np.isfinite(t) or t < 0 for t in config["treecluster"][name]):
             raise ValueError("TreeCluster thresholds must be finite and nonnegative")
-    genetic_thresholds = config["treecluster"]["genetic_thresholds"]
-    if not genetic_thresholds or any(
-        not np.isfinite(t) or t < 0 or int(t) != t for t in genetic_thresholds
+    genetic_threshold_snps = config["treecluster"]["genetic_threshold_snps"]
+    if not genetic_threshold_snps or any(
+        not np.isfinite(t) or t < 0 or int(t) != t for t in genetic_threshold_snps
     ):
-        raise ValueError("genetic_thresholds must be nonnegative integers (SNP counts)")
-    tree_seed = config["treecluster"]["rng_seed"]
-    if type(tree_seed) is not int or tree_seed < 0:
-        raise ValueError("TreeTime rng_seed must be a nonnegative integer")
+        raise ValueError("genetic_threshold_snps must be nonnegative integers")
+    tree_seed = config["treecluster"].get("rng_seed")
+    if tree_seed is not None and (type(tree_seed) is not int or tree_seed < 0):
+        raise ValueError("rng_seed must be a nonnegative integer")
     if len(set(config["scorers"])) != len(config["scorers"]):
         raise ValueError("Duplicate scorer identifiers")
     ids = [criterion["name"] for criterion in config["selection"]["criteria"]]
@@ -117,7 +130,10 @@ def validate(config):
             raise ValueError("Unknown grid audit reference fields")
         if set(reference.get("thresholds", {})) - set(config["thresholds"]):
             raise ValueError("Unknown reference threshold family")
-        if set(reference.get("treecluster", {})) - {"genetic_thresholds", "threshold_days"}:
+        if set(reference.get("treecluster", {})) - {
+            "genetic_threshold_snps",
+            "threshold_days",
+        }:
             raise ValueError("Reference TreeCluster overrides must be threshold grids")
         coarse = reference_grid_config(config)
         coarse.pop("grid_audit", None)
@@ -148,11 +164,19 @@ def load_diagnostics_config(path):
         raise ValueError("Leiden requires positive integer restarts")
     if type(leiden["seed"]) is not int or leiden["seed"] < 0:
         raise ValueError("Leiden seed must be a nonnegative integer")
-    if not leiden["resolutions"] or any(not np.isfinite(r) or r <= 0 for r in leiden["resolutions"]):
+    if not leiden["resolutions"] or any(
+        not np.isfinite(r) or r <= 0 for r in leiden["resolutions"]
+    ):
         raise ValueError("Leiden resolutions must be finite and positive")
     trees = settings["treecluster"]
-    if not trees["methods"] or set(trees["methods"]) - {"max_clade", "avg_clade", "single_linkage"}:
+    if not trees["methods"] or set(trees["methods"]) - {
+        "max_clade",
+        "avg_clade",
+        "single_linkage",
+    }:
         raise ValueError("Unsupported transmission-tree clustering method")
-    if not trees["threshold_hops"] or any(not np.isfinite(t) or t < 0 for t in trees["threshold_hops"]):
+    if not trees["threshold_hops"] or any(
+        not np.isfinite(t) or t < 0 for t in trees["threshold_hops"]
+    ):
         raise ValueError("Transmission-hop thresholds must be finite and nonnegative")
     return config

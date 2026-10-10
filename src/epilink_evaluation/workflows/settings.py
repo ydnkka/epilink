@@ -72,18 +72,20 @@ def settings_registry(config, pairwise_thresholds=None):
         processes = sorted(
             {SCORERS[name].spec.data_process for name in config["scorers"]}
         )
-        sequence_length = config["simulation"]["sequence_length"]
+        alignment_length = config["simulation"].get(
+            "alignment_length", config["simulation"]["sequence_length"]
+        )
         for process in processes:
             for kind, thresholds, units in (
-                ("raw", tc["genetic_thresholds"], "substitutions_per_site"),
+                ("raw", tc["genetic_threshold_snps"], "snps"),
                 ("dated", tc["threshold_days"], "days"),
             ):
                 for method in tc["methods"]:
-                    for threshold in thresholds:
+                    for snp_count in thresholds:
                         threshold_value = (
-                            float(threshold) / sequence_length
+                            float(snp_count) / alignment_length
                             if kind == "raw"
-                            else float(threshold)
+                            else float(snp_count)
                         )
                         add(
                             {
@@ -93,7 +95,6 @@ def settings_registry(config, pairwise_thresholds=None):
                                 "method": method,
                                 "threshold": threshold_value,
                                 "threshold_units": units,
-                                "days_per_year": tc["days_per_year"],
                                 "pipeline": f"treecluster/{process}/{kind}",
                             }
                         )

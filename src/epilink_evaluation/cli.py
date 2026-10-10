@@ -46,7 +46,8 @@ def smoke_config(config):
     }
     config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
     config["clustering"]["leiden"]["resolutions_by_weight_policy"] = {
-        "binary": [0.05, 0.5], "native": [0.05, 0.5]
+        "binary": [0.05, 0.5],
+        "native": [0.05, 0.5],
     }
     if "grid_audit" in config:
         config["grid_audit"]["reference"] = {
@@ -54,8 +55,11 @@ def smoke_config(config):
             "leiden_resolutions": [0.5],
         }
     config["treecluster"].update(
-        genetic_thresholds=[1, 10], threshold_days=[14, 56], rng_seed=76001
+        genetic_threshold_snps=[1, 10], threshold_days=[14, 56]
     )
+    if "phylogeny" not in config:
+        config["phylogeny"] = {}
+    config["phylogeny"].update(seed=76001)
     return config
 
 
@@ -178,9 +182,7 @@ def main(argv=None):
                 parser.error("prepare-boston only supports --stage prepare")
             args.stage = "prepare"
         if args.stage not in (None, "prepare", "trees", "all", "report"):
-            parser.error(
-                "Boston supports --stage prepare, trees, all or report"
-            )
+            parser.error("Boston supports --stage prepare, trees, all or report")
         if args.smoke:
             parser.error("Boston does not support --smoke")
         config = load_study_config(
@@ -250,11 +252,22 @@ def main(argv=None):
         from .workflows.settings import settings_registry
 
         tools = {}
-        for name, command in config["treecluster"]["executables"].items():
-            try:
-                tools[name] = command_identity(command)
-            except FileNotFoundError as exc:
-                tools[name] = {"unavailable": str(exc)}
+        treecluster_exec = (
+            config["treecluster"]
+            .get("executables", {})
+            .get("treecluster", "TreeCluster.py")
+        )
+        try:
+            tools["treecluster"] = command_identity(treecluster_exec)
+        except FileNotFoundError as exc:
+            tools["treecluster"] = {"unavailable": str(exc)}
+
+        iqtree_exec = config.get("phylogeny", {}).get("iqtree_executable", "iqtree")
+        try:
+            tools["iqtree"] = command_identity(iqtree_exec)
+        except FileNotFoundError as exc:
+            tools["iqtree"] = {"unavailable": str(exc)}
+
         settings = settings_registry(config)
         print(
             json.dumps(
@@ -264,17 +277,27 @@ def main(argv=None):
                     "tools": tools,
                     "splits": config["splits"],
                     "output": config["output_directory"],
-                    "operating_definitions_per_realization": None if config["pairwise"].get("threshold_mode") == "all_development_scores" else len(settings),
-                    "configured_clustering_definitions_per_realization": sum(d["kind"] != "pairwise" for d in settings.values()),
-                    "pairwise_threshold_mode": config["pairwise"].get("threshold_mode", "configured"),
-                    "pairwise_candidates_pending_development": config["pairwise"].get("threshold_mode") == "all_development_scores",
+                    "operating_definitions_per_realization": None
+                    if config["pairwise"].get("threshold_mode")
+                    == "all_development_scores"
+                    else len(settings),
+                    "configured_clustering_definitions_per_realization": sum(
+                        d["kind"] != "pairwise" for d in settings.values()
+                    ),
+                    "pairwise_threshold_mode": config["pairwise"].get(
+                        "threshold_mode", "configured"
+                    ),
+                    "pairwise_candidates_pending_development": config["pairwise"].get(
+                        "threshold_mode"
+                    )
+                    == "all_development_scores",
                     "tree_input_exists": Path(config["inputs"]["tree_path"]).exists(),
                 },
                 indent=2,
             )
         )
         return int(
-            config["treecluster"]["enabled"]
+            config["treecluster"].get("enabled", False)
             and any("unavailable" in tool for tool in tools.values())
         )
     if args.stage == "report":

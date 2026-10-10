@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from Bio import Phylo
 
+from ..inputs.synthetic import load_tree_inputs
 from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
-from ..schemas import DISTANCES
-from .external import command_identity, run_command
+from .external import command_identity
 
 
 def validate_tree(path, case_ids):
+    """Validate tree tips match case universe and branches are valid."""
     tree = Phylo.read(path, "newick")
     names = [str(tip.name) for tip in tree.get_terminals()]
     if len(names) != len(set(names)) or set(names) != set(map(str, case_ids)):
@@ -26,6 +26,7 @@ def validate_tree(path, case_ids):
 
 
 def root_signature(tree):
+    """Return sorted list of tip sets under each root clade."""
     return sorted(
         [
             sorted(str(tip.name) for tip in clade.get_terminals())
@@ -34,163 +35,142 @@ def root_signature(tree):
     )
 
 
-def raw_tree(config, observations, cases, process, dataset_id, implementation):
-    settings = config["treecluster"]
-    if (
-        settings["raw_rooting"] != "midpoint"
-        or settings["negative_branches"] != "clip_zero"
-    ):
-        raise ValueError(
-            "Supported raw-tree policies are midpoint rooting and explicit clip_zero"
+def _prune_reference_tip(tree, reference_name):
+    """Remove reference tip from tree. Returns pruned tree (does not modify input)."""
+    from copy import deepcopy
+    tree = deepcopy(tree)
+    for clade in list(tree.find_clades()):
+        if clade.name == reference_name and clade.is_terminal():
+            tree.prune(clade)
+            break
+    return tree
+
+
+def prepare_phylogeny(config, observation_dir, process, dataset_id, implementation):
+    """Build IQ-TREE genetic + dated trees from persisted FASTA.
+    
+    Parameters
+    ----------
+    config : dict
+        Full study configuration with phylogeny block
+    observation_dir : Path
+        Observation artifact directory (v3 with FASTA/reference/dates)
+    process : str
+        Sequence process: "deterministic" or "stochastic"
+    dataset_id : str
+        Dataset identifier for artifact signature
+    implementation : dict
+        Implementation signature for provenance
+        
+    Returns
+    -------
+    Path
+        Tree artifact directory containing:
+        - raw.nwk (reference-pruned, subs/site)
+        - dated.nwk (reference-excluded, days)
+        - node_dates.tsv
+        - phylogeny.json (metadata)
+        - manifest.json
+    """
+    inputs = load_tree_inputs(observation_dir)
+    fasta_path = (
+        inputs["deterministic_fasta"]
+        if process == "deterministic"
+        else inputs["stochastic_fasta"]
+    )
+    
+    phylo_config = config.get("phylogeny", {})
+    model = phylo_config.get("model", "JC")
+    threads = phylo_config.get("threads", 1)
+    seed = phylo_config.get("seed", 2026)
+    clock_rate = phylo_config.get("clock_rate")
+    iqtree_executable = phylo_config.get("iqtree_executable", "iqtree")
+    timeout = phylo_config.get("timeout", 1800)
+    
+    signature = {
+        "kind": "phylogeny-v1",
+        "dataset": dataset_id,
+        "process": process,
+        "fasta_sha256": digest_file(fasta_path),
+        "reference_sha256": digest_file(inputs["reference_fasta"]),
+        "dates_sha256": digest_file(inputs["sampling_dates"]),
+        "n_cases": inputs["n_cases"],
+        "iqtree_model": model,
+        "iqtree_threads": threads,
+        "iqtree_seed": seed,
+        "clock_rate": clock_rate,
+        "iqtree_executable": command_identity(iqtree_executable),
+        "implementation": implementation,
+    }
+    
+    directory = (
+        Path(config["output_directory"])
+        / "artifacts/trees"
+        / fingerprint(signature)[:20]
+    )
+    
+    if valid_artifact(directory, signature):
+        validate_tree(directory / "raw.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id)
+        validate_tree(directory / "dated.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id)
+        return directory
+    
+    directory.mkdir(parents=True, exist_ok=True)
+    
+    from epilink import build_phylogenetic_tree_from_fasta, PhylogenyError
+    
+    try:
+        result = build_phylogenetic_tree_from_fasta(
+            alignment_fasta=str(fasta_path),
+            reference_fasta=str(inputs["reference_fasta"]),
+            dates=str(inputs["sampling_dates"]),
+            dated=True,
+            output_dir=str(directory / "backend"),
+            model=model,
+            threads=threads,
+            seed=seed,
+            clock_rate=clock_rate,
+            iqtree_executable=iqtree_executable,
+            timeout=timeout,
         )
-    tool = command_identity(settings["executables"]["fastme"])
-    signature = {
-        "kind": "raw-tree-v1",
-        "dataset": dataset_id,
-        "process": process,
-        "fastme": tool,
-        "method": settings["fastme_method"],
-        "rooting": settings["raw_rooting"],
-        "negative_branches": settings["negative_branches"],
-        "sequence_length": config["simulation"]["sequence_length"],
-        "implementation": implementation,
+    except PhylogenyError as exc:
+        raise RuntimeError(f"IQ-TREE inference failed: {exc}")
+    
+    raw_tree = Phylo.read(str(result.output_paths["raw_tree"]), "newick")
+    reference_name = result.reference_name
+    case_ids = pd.read_parquet(inputs["cases_parquet"]).case_id
+    
+    raw_pruned = _prune_reference_tip(raw_tree, reference_name)
+    validate_tree(raw_pruned, case_ids)
+    Phylo.write(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
+    
+    dated_tree = Phylo.read(str(result.output_paths["dated_tree"]), "newick")
+    Phylo.write(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
+    
+    result.node_dates.to_csv(directory / "node_dates.tsv", sep="\t", index=False)
+    
+    phylogeny_meta = {
+        "model": model,
+        "threads": threads,
+        "seed": seed,
+        "clock_rate": result.clock_rate,
+        "date_origin": str(result.date_origin) if result.date_origin else None,
+        "reference_name": reference_name,
+        "units": {
+            "raw": "substitutions_per_site",
+            "dated": "days",
+        },
+        "backend_paths": {k: str(v) for k, v in result.output_paths.items()},
     }
-    directory = (
-        Path(config["output_directory"])
-        / "artifacts/trees"
-        / fingerprint(signature)[:20]
-    )
-    path = directory / "raw.nwk"
-    if valid_artifact(directory, signature):
-        validate_tree(path, cases.case_id)
-        return path
-    directory.mkdir(parents=True, exist_ok=True)
-    matrix = np.zeros((len(cases), len(cases)), dtype=float)
-    distances = (
-        observations[DISTANCES[process]].to_numpy(float)
-        / config["simulation"]["sequence_length"]
-    )
-    a, b = observations.a.to_numpy(), observations.b.to_numpy()
-    matrix[a, b] = distances
-    matrix[b, a] = distances
-    matrix_path = directory / "distances.phy"
-    # Internal labels avoid PHYLIP truncation of arbitrary case identifiers.
-    aliases = {f"s{i:08d}": str(case) for i, case in enumerate(cases.case_id)}
-    with matrix_path.open("w") as handle:
-        handle.write(f"{len(cases)}\n")
-        for i, alias in enumerate(aliases):
-            handle.write(f"{alias} ")
-            np.savetxt(handle, matrix[i : i + 1], fmt="%.12g")
-    original_path = directory / "fastme.nwk"
-    argv = [
-        tool["path"],
-        "-i",
-        str(matrix_path),
-        "-o",
-        str(original_path),
-        "-m",
-        settings["fastme_method"],
-    ]
-    run_command(argv, directory, "fastme", settings["command_timeout_seconds"])
-    tree = Phylo.read(original_path, "newick")
-    for tip in tree.get_terminals():
-        tip.name = aliases[tip.name]
-    negative = 0
-    for node in tree.find_clades():
-        if node.branch_length is not None and node.branch_length < 0:
-            negative += 1
-            node.branch_length = 0.0
-    rooted = "midpoint"
-    if tree.total_branch_length() > 0:
-        tree.root_at_midpoint()
-    else:
-        rooted = "zero-length tree; equivalent original root retained"
-    Phylo.write(tree, path, "newick", format_branch_length="%.12g")
-    validate_tree(path, cases.case_id)
+    pd.DataFrame([phylogeny_meta]).to_json(directory / "phylogeny.json", orient="records", indent=2)
+    
     complete_artifact(
         directory,
         signature,
-        ["raw.nwk", "fastme.nwk", "distances.phy"],
-        units="substitutions_per_site",
-        negative_branches_clipped=negative,
-        rooting=rooted,
-        root_split=root_signature(tree),
-        command=argv,
+        ["raw.nwk", "dated.nwk", "node_dates.tsv", "phylogeny.json"],
+        units="substitutions_per_site (raw) / days (dated)",
+        rooting="IQ-TREE midpoint (raw) / LSD2 clock (dated)",
+        root_split=root_signature(raw_pruned),
+        dated_root_split=root_signature(dated_tree),
     )
-    return path
-
-
-def dated_tree(config, raw_path, cases, process, dataset_id, implementation):
-    settings = config["treecluster"]
-    tool = command_identity(settings["executables"]["treetime"])
-    signature = {
-        "kind": "dated-tree-v1",
-        "dataset": dataset_id,
-        "process": process,
-        "raw_sha256": digest_file(raw_path),
-        "treetime": tool,
-        "clock_filter": settings["clock_filter"],
-        "rng_seed": settings["rng_seed"],
-        "sequence_length": config["simulation"]["sequence_length"],
-        "implementation": implementation,
-    }
-    directory = (
-        Path(config["output_directory"])
-        / "artifacts/trees"
-        / fingerprint(signature)[:20]
-    )
-    path = directory / "dated.nwk"
-    if valid_artifact(directory, signature):
-        validate_tree(path, cases.case_id)
-        return path
-    directory.mkdir(parents=True, exist_ok=True)
-    dates = pd.DataFrame(
-        {
-            "name": cases.case_id.astype(str),
-            "date": [
-                (date(2020, 1, 1) + timedelta(days=int(np.rint(day)))).isoformat()
-                for day in cases.sample_date
-            ],
-        }
-    )
-    dates.to_csv(directory / "dates.csv", index=False)
-    argv = [
-        tool["path"],
-        "--tree",
-        str(raw_path),
-        "--dates",
-        str(directory / "dates.csv"),
-        "--sequence-length",
-        str(config["simulation"]["sequence_length"]),
-        "--clock-filter",
-        str(settings["clock_filter"]),
-        "--rng-seed",
-        str(settings["rng_seed"]),
-        "--outdir",
-        str(directory / "treetime"),
-    ]
-    run_command(argv, directory, "treetime", settings["command_timeout_seconds"])
-    tree = Phylo.read(directory / "treetime/timetree.nexus", "nexus")
-    for node in tree.find_clades():
-        # Bio.Nexus places named internal nodes with date comments in the
-        # confidence field. Restore their names before the Newick writer tries
-        # to format them as numeric support; leave branch lengths unchanged.
-        if isinstance(node.confidence, str):
-            node.name, node.confidence = node.confidence, None
-        # Nexus retains comment brackets; Newick's writer supplies its own.
-        if node.comment and node.comment.startswith("[") and node.comment.endswith("]"):
-            node.comment = node.comment[1:-1]
-    Phylo.write(tree, path, "newick", format_branch_length="%.12g")
-    validate_tree(path, cases.case_id)
-    original = validate_tree(raw_path, cases.case_id)
-    complete_artifact(
-        directory,
-        signature,
-        ["dated.nwk", "dates.csv", "treetime/timetree.nexus"],
-        units="calendar_years",
-        command=argv,
-        rooting="TreeTime clock root",
-        root_split=root_signature(tree),
-        root_changed=root_signature(tree) != root_signature(original),
-    )
-    return path
+    
+    return directory

@@ -16,7 +16,15 @@ assessment:
   treecluster_path: null
   focus_exposures: [Conference, SNF]
   min_cluster_size: 2
+phylogeny:
+  model: MFP
+  threads: 4
+  seed: 2026
+  clock_rate: null
+  iqtree_executable: iqtree
+  timeout: 7200
+
 trees:
   enabled: true
-  # Trees are built from the Boston alignment.
   alignment_path: ../../data/raw/boston/MGH_DPH_98percent_772samples_aligned.fasta
+  reference_path: ../../data/sars-cov-2/reference.fasta

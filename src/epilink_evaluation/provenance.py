@@ -120,6 +120,30 @@ def generation_signature(implementation):
     }
 
 
+def tree_inference_signature(implementation):
+    """Tree inference producers only; separate from observation generation.
+    
+    This allows tree workflow changes without invalidating observation caches.
+    """
+    paths = (
+        "inputs/synthetic.py",
+        "phylogeny/trees.py",
+        "phylogeny/boston.py",
+    )
+    return {
+        "evaluation": {p: implementation["evaluation"][p] for p in paths},
+        "epilink": {
+            p: implementation["epilink"].get(p)
+            for p in implementation["epilink"]
+            if "phylogeny" in p or "simulation" in p
+        },
+        "versions": {
+            p: implementation["versions"].get(p)
+            for p in ("epilink", "biopython")
+        },
+    }
+
+
 def baseline_signature(implementation):
     """Comparison code identity, excluding independent studies and presentation."""
     excluded = ("reporting/", "diagnostics/")

@@ -70,7 +70,7 @@ python evaluation/03_boston_application/run.py --stage report
 
 Boston's `all` stage runs frozen transfer, enabled TreeCluster settings, and assessment. `report` re-renders the saved results.
 
-FastME is an external executable (e.g. `conda install -c bioconda fastme`). TreeCluster and TreeTime are Python dependencies. Executables are discovered on PATH or alongside the active Python interpreter; override their paths in the configuration when needed. `check` prints tool identity and experiment size. Boston tree construction additionally requires the standalone `tn93` executable; see the [Boston guide](evaluation/03_boston_application/README.md#troubleshooting).
+**Phylogenetic tools:** IQ-TREE ≥2.0.6 (external executable) and TreeCluster (Python). IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH; override with `phylogeny.iqtree_executable`. TreeCluster is a Python dependency. `epilink-evaluate check` prints tool identity and experiment size. Boston uses IQ-TREE directly from the alignment; TN93 is no longer required for tree construction.
 
 ## Layout
 

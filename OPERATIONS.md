@@ -50,15 +50,15 @@ SCoVMod infection and transmission CSVs
             -> EpiLink, genetic-distance, and training-fitted logistic scores
               -> pairwise rankings and threshold metrics
               -> thresholded graphs -> components / Leiden partitions
-           -> genetic-distance trees (FastME)
-              -> raw trees / dated trees (TreeTime) -> TreeCluster partitions
+           -> genetic-distance trees (IQ-TREE)
+              -> raw trees / dated trees (LSD2) -> TreeCluster partitions
      -> compare scores and every within-cluster pair with full-tree truth
         -> development curves, sweeps, and reports
         -> select method-specific settings under common operating criteria
         -> replay frozen settings on held-out observation realizations
 ```
 
-The transmission backbone supplies truth. FastME and TreeTime reconstruct comparison trees from simulated observations. These have different roles.
+The transmission backbone supplies truth. IQ-TREE and LSD2 reconstruct comparison trees from simulated observations. These have different roles.
 
 One experiment keeps its transmission backbone fixed. Diagnostics generates development observations; baseline reuses them and generates separate training realizations for logistic fitting. Development realizations determine operating settings. Evaluation observations are generated only after frozen settings are validated by `evaluate`. Unsampled intermediates remain in relationship truth.
 
@@ -85,15 +85,15 @@ conda activate epilik_evaluation
 python -m pip install -e '.[test]'
 ```
 
-The editable install supplies the `epilink-evaluate` command and Python dependencies, including EpiLink 0.1.5, TreeCluster, TreeTime, pytest, and BCubed. FastME is a separate executable. Install a build for your platform; where Bioconda supplies it:
+The editable install supplies the `epilink-evaluate` command and Python dependencies, including EpiLink 0.1.5, TreeCluster, pytest, and BCubed. **IQ-TREE ≥2.0.6** is an external executable. Install a build for your platform; where Bioconda supplies it:
 
 ```bash
-conda install -c conda-forge -c bioconda fastme
+conda install -c conda-forge -c bioconda iqtree
 ```
 
-The runner searches PATH first, then the active interpreter's directory. To specify executables explicitly, edit `treecluster.executables` in the config, using executable names or absolute paths. Each value identifies one executable, without extra command arguments.
+IQ-TREE is discovered as `iqtree3`, `iqtree2`, or `iqtree` on PATH. To specify explicitly, set `phylogeny.iqtree_executable` in the config. TreeCluster is a Python dependency discovered automatically. The `check` command verifies IQ-TREE and TreeCluster availability.
 
-Boston tree construction also requires the standalone `tn93` executable. Install it separately (for example, `conda install -c bioconda tn93` where available), or set `trees.tn93_executable` in the Boston config. The baseline `check` command checks baseline tools; it does not check Boston's TN93 dependency.
+**Boston:** IQ-TREE builds trees directly from the alignment; TN93 is no longer required for tree construction.
 
 ### Obtain inputs and check the installation
 
@@ -145,13 +145,17 @@ experiment root.
 | `inputs.tree_seed`                             | Random infector assignment during reconstruction; affects a newly generated tree.                                                                      |
 | `inputs.smoke_cases`                           | `null` uses the full backbone; a count uses an ancestor-preserving topological prefix. `--smoke` sets this to 64.                                  |
 | `simulation.fraction_sampled`                  | Fraction of tree cases observed, in`(0, 1]`; full-tree truth is retained.                                                                            |
-| `simulation.sequence_length`                   | Number of simulated sequence sites, also the denominator for FastME distances.                                                                         |
+| `simulation.sequence_length`                   | Number of simulated sequence sites; used for Hamming distance denominator and alignment_length default.                                              |
+| `simulation.alignment_length`                  | Alignment length for TreeCluster threshold scaling (preserves absolute SNP counts). Defaults to `sequence_length`.                                     |
 | `splits.train`                                 | Seeds for observation realizations used to fit logistic models.                                                                                        |
 | `splits.development`                           | Seeds for parameter-grid comparison and operating-point selection.                                                                                     |
 | `splits.evaluation`                            | Held-out observation seeds used by`evaluate`.                                                                                                        |
 | `scorer.seed`, `scorer.mc_samples`           | EpiLink Monte Carlo seed and number of draws.                                                                                                          |
 | `clustering.leiden.seed`, `restarts`         | Leiden random seed and restarts; restart quality is judged by its declared objective.                                                                  |
-| `treecluster.rng_seed`                         | TreeTime random seed.                                                                                                                                  |
+| `phylogeny.seed`                               | IQ-TREE random seed.                                                                                                                                   |
+| `phylogeny.model`                              | IQ-TREE substitution model (e.g., JC, MFP).                                                                                                            |
+| `phylogeny.threads`                            | IQ-TREE parallel threads.                                                                                                                              |
+| `phylogeny.clock_rate`                         | Fixed LSD2 clock rate (substitutions/site/day); null for estimation.                                                                                   |
 
 The `inputs`, `simulation`, and `splits` rows belong to the shared config; scorer and clustering rows belong to baseline. Observation seeds must be nonnegative integers, unique across all three splits. Previously accessed held-out seeds cannot become training/development seeds. Algorithm seeds control inference randomness independently of observation seeds.
 
@@ -170,7 +174,7 @@ Shared `generation` configures observation simulation. Baseline derives `inferen
 | `relaxation`                              | Dimensionless lognormal SD of branch-specific rates; zero gives a strict clock.                |
 | `genome_length`                           | Site count used by EpiLink to calculate mutation-count expectations.                           |
 
-The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. TreeTime estimates its clock from the generated observations.
+The preserved convention uses `genome_length: 29903` and `simulation.sequence_length: 5000`. Their roles differ: changing either changes the experiment. IQ-TREE estimates genetic distances; LSD2 estimates dated branch lengths from calendar dates.
 
 ### Scorers, grids, and comparison settings
 
@@ -190,12 +194,14 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `clustering.leiden.resolutions_by_weight_policy` | Optional`binary`/`native` resolution overrides; unlisted policies use `resolutions`.                                                                                        |
 | `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                      |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
-| `treecluster.genetic_thresholds`                 | Raw-tree branch-distance cutoffs as integer SNP counts; converted internally to substitutions/site using`simulation.sequence_length`.                                           |
-| `treecluster.threshold_days`, `days_per_year`  | Dated-tree cutoffs in days, divided by days/year before TreeCluster.                                                                                                              |
-| `treecluster.fastme_method`                      | FastME method code passed through`-m`; the supplied value is `N`.                                                                                                             |
-| `treecluster.raw_rooting`, `negative_branches` | Supported policies:`midpoint` and `clip_zero`. Clipped-branch counts are recorded.                                                                                            |
-| `treecluster.clock_filter`                       | Clock-filter value passed to TreeTime.                                                                                                                                            |
-| `treecluster.command_timeout_seconds`            | Timeout for each external tool invocation.                                                                                                                                        |
+| `treecluster.genetic_threshold_snps`             | Raw-tree SNP counts; converted to substitutions/site using `alignment_length` (preserves absolute SNP counts).                                                                    |
+| `treecluster.threshold_days`                     | Dated-tree cutoffs in days; passed directly to TreeCluster (no conversion).                                                                                                       |
+| `treecluster.command_timeout_seconds`            | Timeout for TreeCluster invocation.                                                                                                                                               |
+| `phylogeny.model`                                | IQ-TREE substitution model (e.g., JC for synthetic, MFP for Boston).                                                                                                              |
+| `phylogeny.threads`                              | IQ-TREE parallel threads.                                                                                                                                                         |
+| `phylogeny.seed`                                 | IQ-TREE random seed.                                                                                                                                                              |
+| `phylogeny.clock_rate`                           | Fixed LSD2 clock rate (substitutions/site/day); null for estimation.                                                                                                              |
+| `phylogeny.timeout`                              | IQ-TREE/LSD2 timeout in seconds.                                                                                                                                                  |
 | `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                                                                  |
 | `grid_audit.objective_tolerance`                 | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                            |
 | `grid_audit.reference`                           | Coarse-grid overrides:`thresholds`, `leiden_resolutions`, and/or `treecluster` threshold lists. Compare on the same development observations.                               |
@@ -252,7 +258,7 @@ python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthet
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --smoke --stage all
 ```
 
-Both commands must use `--smoke`. It uses up to 64 backbone cases and one observation seed per split (71001/72001/73001), appending `_smoke` to both study and shared experiment roots. Diagnostics reduces its Leiden grid to 0.1/0.5 with two restarts and hop thresholds to 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, smaller threshold/resolution grids, two Leiden restarts, and TreeTime seed 76001; configured scorers, algorithms, and criteria remain. Smoke results assess pipeline functionality.
+Both commands must use `--smoke`. It uses up to 64 backbone cases and one observation seed per split (71001/72001/73001), appending `_smoke` to both study and shared experiment roots. Diagnostics reduces its Leiden grid to 0.1/0.5 with two restarts and hop thresholds to 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, smaller threshold/resolution grids, two Leiden restarts, and IQ-TREE clock_rate; configured scorers, algorithms, and criteria remain. **Observation stage now persists sampled FASTA, ancestral reference, and sampling dates as artifact files** (see §2.3 Observations). Smoke results assess pipeline functionality.
 
 Run full development using the configured tree and grids:
 
@@ -455,14 +461,15 @@ Retained outputs from earlier versions are historical results. Produce current e
 
 | Symptom                                                              | What to check / next action                                                                                                                                                      |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epilink-evaluate: command not found` or module import failure     | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.            |
-| `Executable not found`                                             | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                                         |
+| `epilink-evaluate: command not found` or module import failure     | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly. |
+| `Executable not found`                                             | Run`check`, inspect reported paths, install the missing tool, or set its absolute path in `treecluster.executables`.                                        |
+| IQ-TREE inference failure                                          | Verify `phylogeny.iqtree_executable` points to a working `iqtree3`/`iqtree2`/`iqtree`; check alignment format (FASTA), reference compatibility, and sufficient disk/CPU.  Reduce `threads` or `timeout` in config. |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                |
 | Diagnostics tree control rejects a forest                            | Use a single rooted transmission tree for this control; no between-component hop distance is defined. The failure remains visible in coverage.                                   |
 | Report says`partial` / selection reports an incomplete sweep       | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                   |
-| FastME or TreeTime fails                                             | Inspect`<output-root>/artifacts/trees/<id>/<tool>.stderr.log` and `.stdout.log`. Commands are saved in completed tree manifests; the exception names the failing log path.   |
+| IQ-TREE or TreeCluster fails                                         | Inspect`<output-root>/artifacts/trees/<id>/backend/run-*/` for IQ-TREE logs, or `<setting-id>/treecluster.stderr.log`. Commands and paths are saved in manifests.            |
 | TreeCluster fails                                                    | Inspect`<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
 | External command times out                                           | Inspect its stderr log and`treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.                  |
 | No frozen operating settings                                         | Run`select` for the exact experiment/output root before `evaluate`.                                                                                                          |

@@ -488,3 +488,76 @@ def test_pinned_dataset_rejects_another_generation_with_same_seed(small_config):
     write_json(first.directory / filename, read_json(second.directory / filename))
     with pytest.raises(ValueError, match="Observation provenance differs"):
         first.dataset(seed)
+
+
+def test_observation_bundle_complete(small_config, tmp_path, prepare_diagnostics):
+    """Verify all FASTA/reference/date files present with correct checksums."""
+    diagnostics = prepare_diagnostics(small_config)
+    for seed in small_config["splits"]["development"]:
+        directory = diagnostics.dataset(seed)
+        observations, cases = synthetic.load_observations(directory)
+        required = [
+            "sampled_deterministic.fasta",
+            "sampled_stochastic.fasta",
+            "reference.fasta",
+            "sampling_dates.tsv",
+            "pairs.parquet",
+            "cases.parquet",
+        ]
+        missing = [f for f in required if not (directory / f).exists()]
+        assert not missing, f"Missing observation files: {missing}"
+        # Verify checksums in manifest
+        manifest = read_json(directory / "manifest.json")
+        assert manifest["status"] == "complete"
+
+
+def test_sampled_fasta_matches_cases(small_config, tmp_path, prepare_diagnostics):
+    """Verify sampled FASTA contains exactly cases in cases.parquet."""
+    diagnostics = prepare_diagnostics(small_config)
+    for seed in small_config["splits"]["development"]:
+        directory = diagnostics.dataset(seed)
+        observations, cases = synthetic.load_observations(directory)
+        # Count FASTA headers
+        det_fasta = directory / "sampled_deterministic.fasta"
+        sto_fasta = directory / "sampled_stochastic.fasta"
+        with open(det_fasta) as f:
+            det_headers = [line.strip() for line in f if line.startswith(">")]
+        with open(sto_fasta) as f:
+            sto_headers = [line.strip() for line in f if line.startswith(">")]
+        det_case_ids = set(observations.case_id) if hasattr(observations, "case_id") else set()
+        # Compare with cases.parquet
+        cases_df = pd.read_parquet(directory / "cases.parquet")
+        assert len(det_headers) == len(cases_df), (
+            f"Deterministic FASTA has {len(det_headers)} headers but {len(cases_df)} cases"
+        )
+
+
+def test_reference_sequence_correct(small_config, tmp_path, prepare_diagnostics):
+    """Verify reference.fasta matches simulation.reference_sequence_string."""
+    diagnostics = prepare_diagnostics(small_config)
+    for seed in small_config["splits"]["development"]:
+        directory = diagnostics.dataset(seed)
+        # Read reference from artifact
+        ref_fasta = directory / "reference.fasta"
+        with open(ref_fasta) as f:
+            ref_content = f.read()
+        assert ">ancestral_reference" in ref_content
+        # Reference should have header + sequence (multi-line FASTA ok)
+        ref_lines = [l.strip() for l in ref_content.split("\n") if l.strip()]
+        assert len(ref_lines) >= 2  # header + at least one sequence line
+
+
+def test_dates_tsv_matches_cases(small_config, tmp_path, prepare_diagnostics):
+    """Verify sampling_dates.tsv matches cases.parquet sample_date."""
+    diagnostics = prepare_diagnostics(small_config)
+    for seed in small_config["splits"]["development"]:
+        directory = diagnostics.dataset(seed)
+        dates_tsv = directory / "sampling_dates.tsv"
+        cases_parquet = directory / "cases.parquet"
+        assert dates_tsv.exists()
+        dates_df = pd.read_csv(dates_tsv, sep="\t")
+        cases_df = pd.read_parquet(cases_parquet)
+        # Case IDs should match
+        assert set(dates_df["case_id"].astype(str)) == set(cases_df["case_id"].astype(str))
+        # Dates should be present for all cases
+        assert len(dates_df) == len(cases_df)

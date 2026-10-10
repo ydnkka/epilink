@@ -25,7 +25,7 @@ from ..metrics.pairwise import (
 )
 from ..metrics.partitions import PartitionEvaluator
 from ..phylogeny.external import command_identity
-from ..phylogeny.trees import dated_tree, raw_tree
+from ..phylogeny.trees import prepare_phylogeny
 from ..provenance import (
     baseline_signature,
     complete_artifact,
@@ -493,26 +493,12 @@ class Baseline:
                             definition["data_process"],
                             definition["tree_kind"],
                         )
-                        if (process, "raw") not in trees:
+                        if (process, kind) not in trees:
                             try:
-                                trees[process, "raw"] = raw_tree(
+                                obs_dir = self.dataset(seed).directory
+                                trees[process, kind] = prepare_phylogeny(
                                     self.config,
-                                    observations,
-                                    cases,
-                                    process,
-                                    self.dataset(seed).name,
-                                    self.implementation,
-                                )
-                            except Exception as exc:
-                                trees[process, "raw"] = exc
-                        if isinstance(trees[process, "raw"], Exception):
-                            raise trees[process, "raw"]
-                        if kind == "dated" and (process, kind) not in trees:
-                            try:
-                                trees[process, kind] = dated_tree(
-                                    self.config,
-                                    trees[process, "raw"],
-                                    cases,
+                                    obs_dir,
                                     process,
                                     self.dataset(seed).name,
                                     self.implementation,
@@ -521,11 +507,10 @@ class Baseline:
                                 trees[process, kind] = exc
                         if isinstance(trees[process, kind], Exception):
                             raise trees[process, kind]
+                        tree_path = trees[process, kind] / ("raw.nwk" if kind == "raw" else "dated.nwk")
                         threshold = definition["threshold"]
-                        if kind == "dated":
-                            threshold /= definition["days_per_year"]
                         labels, metadata = treecluster(
-                            trees[process, kind],
+                            tree_path,
                             cases,
                             definition["method"],
                             threshold,

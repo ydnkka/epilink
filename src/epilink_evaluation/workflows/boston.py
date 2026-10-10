@@ -17,7 +17,7 @@ import pandas as pd
 from ..clusterers.graph import components, leiden
 from ..clusterers.treecluster import treecluster
 from ..graphs.construction import build_graph
-from ..phylogeny.boston import dated_boston_tree, raw_boston_tree
+from ..phylogeny.boston import prepare_boston_phylogeny
 from ..phylogeny.external import command_identity
 from ..provenance import (
     complete_artifact,
@@ -124,12 +124,11 @@ class BostonEmpirical:
                     "Reference has no selected raw or dated TreeCluster settings"
                 )
             self.alignment_path = Path(config["trees"]["alignment_path"])
-            for tool in ("tn93", "fastme", "treetime", "treecluster"):
-                executable = (
-                    config["trees"].get("tn93_executable", "tn93")
-                    if tool == "tn93"
-                    else self.reference.config["treecluster"]["executables"][tool]
-                )
+            for tool in ("iqtree", "treecluster"):
+                if tool == "iqtree":
+                    executable = config["phylogeny"].get("iqtree_executable", "iqtree")
+                else:
+                    executable = config["treecluster"]["executables"]["treecluster"]
                 self.tree_tools[tool] = command_identity(executable)
             from ..phylogeny.boston import alignment_length
 
@@ -407,22 +406,20 @@ class BostonEmpirical:
         directory.mkdir(parents=True, exist_ok=True)
         rows, errors = [], []
         settings = self.reference.config["treecluster"]
+        phylo_config = self.config.get("phylogeny", {})
+        reference_path = Path(self.config["trees"]["reference_path"])
         if "raw" not in self.tree_paths:
-            self.tree_paths["raw"], length = raw_boston_tree(
+            tree_dir, length = prepare_boston_phylogeny(
                 self.root,
                 self.alignment_path,
+                reference_path,
                 self.cases,
-                self.tree_tools,
-                settings,
+                phylo_config,
+                self.implementation,
             )
-            self.tree_paths["dated"] = dated_boston_tree(
-                self.root,
-                self.tree_paths["raw"],
-                self.cases,
-                length,
-                self.tree_tools,
-                settings,
-            )
+            self.tree_paths["raw"] = tree_dir / "raw.nwk"
+            self.tree_paths["dated"] = tree_dir / "dated.nwk"
+            self.alignment_length = length
         write_json(
             directory / "inputs.json",
             {
@@ -458,8 +455,6 @@ class BostonEmpirical:
             artifact.mkdir(parents=True, exist_ok=True)
             try:
                 threshold = definition["threshold"]
-                if kind == "dated":
-                    threshold /= definition["days_per_year"]
                 labels, metadata = treecluster(
                     self.tree_paths[kind],
                     self.cases,

@@ -26,5 +26,7 @@ generation:
 simulation:
   fraction_sampled: 1.0
   # Mutation expectations use generation.genome_length; Hamming distances
-  # are simulated on this many sites, also the raw-tree distance denominator.
+  # are simulated on this many sites. alignment_length is used for TreeCluster
+  # threshold scaling (preserves absolute SNP counts across studies).
   sequence_length: 5000
+  alignment_length: 5000
