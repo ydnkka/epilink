@@ -12,7 +12,9 @@ from epilink_evaluation.config import load_config
 def small_config(tmp_path):
     """A portable integration experiment; no preserved inputs or external tools."""
     root = Path(__file__).resolve().parents[1]
-    config = smoke_config(load_config(root / "evaluation/01_synthetic_baseline/config.yaml"))
+    config = smoke_config(
+        load_config(root / "evaluation/01_synthetic_baseline/config.yaml")
+    )
     # Resolved fixtures can be serialized as standalone configs after local edits.
     config.pop("experiment_config", None)
     config["experiment_root"] = str(tmp_path / "shared")
