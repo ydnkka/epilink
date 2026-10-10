@@ -6,6 +6,7 @@ import argparse
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -117,7 +118,7 @@ class BostonStudy:
         cases = pd.read_parquet(inputs["cases_path"], columns=["case_id", "Exposure"])
         if len(cases) != n_cases or cases.case_id.duplicated().any():
             raise ValueError("Prepared Boston cases differ from the frozen input count")
-        totals = cases.Exposure.value_counts().to_dict()
+        totals = cast(dict[str, int], cases.Exposure.value_counts().to_dict())
         selected = {}
         for point in selection["operating_points"]:
             if (
@@ -183,7 +184,7 @@ class BostonStudy:
             raise ValueError("Boston focus exposure is absent from the prepared cases")
         for row in named.itertuples(index=False):
             if (
-                row.exposure_total != totals.get(row.exposure, 0)
+                row.exposure_total != totals.get(cast(str, row.exposure), 0)
                 or row.pipeline != settings[row.setting_id]["pipeline"]
             ):
                 raise ValueError(

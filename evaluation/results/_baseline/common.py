@@ -168,9 +168,11 @@ def method_label(definition: dict) -> str:
     if kind == "treecluster":
         method = TREE_METHOD_LABELS[definition["method"]]
         return f"TreeCluster {TREE_KIND_LABELS[definition['tree_kind']]} ({method})"
-    label = {"pairwise": "Pairwise", "components": "Connected components", "leiden": "Leiden"}[
-        kind
-    ]
+    label = {
+        "pairwise": "Pairwise",
+        "components": "Connected components",
+        "leiden": "Leiden",
+    }[kind]
     name = SCORE_LABELS[definition["score_name"]]
     return f"{label} {name}"
 

@@ -32,9 +32,7 @@ def graph_variants(approach: str, process: str) -> list[tuple[str, str]]:
     return [
         (
             SCORE_LABELS[score],
-            f"components/{score}"
-            if approach == "components"
-            else f"leiden/{score}",
+            f"components/{score}" if approach == "components" else f"leiden/{score}",
         )
         for score in scorers
     ]

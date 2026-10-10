@@ -253,7 +253,9 @@ def create_approach_figure(
             ]
         else:
             handles = [
-                Line2D([0], [0], color=SCORE_COLORS[score], label=SCORE_DESCRIPTIONS[score])
+                Line2D(
+                    [0], [0], color=SCORE_COLORS[score], label=SCORE_DESCRIPTIONS[score]
+                )
                 for score in scorers
             ]
         handles.append(
