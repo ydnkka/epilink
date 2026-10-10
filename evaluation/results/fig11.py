@@ -1,4 +1,4 @@
-"""Manuscript figure: held-out graph-clustering metrics at frozen M=0 settings (fig10)."""
+"""Manuscript figure: held-out raw and dated TreeCluster at frozen M=0 settings (fig11)."""
 
 from __future__ import annotations
 
@@ -7,48 +7,45 @@ import argparse
 from epilink_evaluation.utils import style
 
 from ._baseline.bars import (
-    GRAPH_APPROACHES,
-    graph_variants,
+    TREE_KINDS,
     metric_legend,
     plot_grouped_bars,
+    treecluster_variant,
 )
 from ._baseline.common import (
-    PROCESS_LABELS,
     PROCESSES,
+    TREE_KIND_LABELS,
     add_arguments,
     load_run,
     output_directory,
     selected_summary,
 )
-from ._baseline.plots import APPROACHES
 
 
 def create_figure(run, config, output, *, fmt="both") -> None:
     summary, points = selected_summary(run, config)
     fig, axes = style.new_figure(
         width="double",
-        height_in=6.6,
-        nrows=len(GRAPH_APPROACHES),
+        height_in=3.6,
         ncols=2,
         layout="constrained",
         sharey=True,
     )
-    for row, approach in enumerate(GRAPH_APPROACHES):
-        for col, process in enumerate(PROCESSES):
-            ax = axes[row, col]
-            plot_grouped_bars(ax, graph_variants(approach, process), summary, points)
-            if row == 0:
-                ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
-            if col == 0:
-                ax.set_ylabel(APPROACHES[approach] + "\n(%)")
-    # fig.suptitle("Graph clustering at M=0 settings", fontweight="bold")
+    for ax, kind in zip(axes, TREE_KINDS):
+        variants = [
+            treecluster_variant(kind, process, points, config) for process in PROCESSES
+        ]
+        plot_grouped_bars(ax, variants, summary, points)
+        ax.set_title(f"{TREE_KIND_LABELS[kind].title()} tree")
+    axes[0].set_ylabel("Held-out metric (%)")
+    # fig.suptitle("TreeCluster at frozen M=0 settings", fontweight="bold")
     fig.legend(
-        handles=metric_legend(), loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=4
+        handles=metric_legend(), loc="lower center", bbox_to_anchor=(0.5, -0.13), ncol=4
     )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
-        output / "fig10_graph_cluster_operating_bars",
+        output / "fig11_treecluster_operating_bars",
         width="double",
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),

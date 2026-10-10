@@ -253,7 +253,7 @@ python evaluation/00_synthetic_diagnostics/run.py --config evaluation/00_synthet
 python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_baseline/config.yaml --smoke --stage all
 ```
 
-Both commands use `--smoke`: up to 64 cases and seeds 71001/72001/73001 for train/development/evaluation, with separate `_smoke` roots. Diagnostics uses resolutions 0.1/0.5, two restarts and hop cutoffs 0/1/2/4. Baseline uses 1,024 Monte Carlo draws, reduced component/tree cutoff grids, full-graph Leiden resolutions 0.05/0.5, two restarts and IQ-TREE seed 76001. Scorers, criteria and the configured clock-rate choice are retained. Observation artifacts include sampled FASTA, reference FASTA and original sampling dates; see [phylogenetic artifacts](OUTPUTS.md#9-phylogenetic-artifacts). Smoke validates pipeline functionality.
+Both commands use `--smoke`: up to 64 cases and seeds 71001/72001/73001 for train/development/evaluation, with separate `_smoke` roots. Diagnostics searches resolutions within 0.1–0.5 with three initial points, a five-resolution budget and two restarts. Baseline uses 1,024 Monte Carlo draws, exact development-score cutoffs for pairwise/components, reduced TreeCluster searches, full-graph Leiden resolution bounds 0.05–0.5 with three initial points and a five-resolution budget, two restarts and IQ-TREE seed 76001. Scorers, criteria and the configured clock-rate choice are retained. Observation artifacts include sampled FASTA, reference FASTA and original sampling dates; see [phylogenetic artifacts](OUTPUTS.md#9-phylogenetic-artifacts). Smoke validates pipeline functionality.
 
 Run full development using the configured tree and grids:
 
@@ -339,7 +339,7 @@ python -m json.tool evaluation/00_synthetic_diagnostics/outputs/diagnostics/curr
 python -m json.tool evaluation/01_synthetic_baseline/outputs/baseline/current.json
 ```
 
-Open `report.html` inside each `run_directory`. Smoke roots are `diagnostics_smoke` and `baseline_smoke`. These pointers identify the most recently initialized run in each root, including partial runs. Inspect diagnostics coverage first, then exact-feature ambiguity, oracle graph trade-offs, and hop-tree threshold curves. Empirical feature-cell ambiguity is not a universal performance ceiling.
+Open `report.html` inside each `run_directory`. Smoke roots are `diagnostics_smoke` and `baseline_smoke`. These pointers identify the most recently initialized run in each root, including partial runs. Inspect diagnostics coverage first, then backbone characterisation, exact-feature ambiguity and endpoint-oracle graph trade-offs. Empirical feature-cell ambiguity is not a universal performance ceiling.
 
 Baseline layout:
 
@@ -465,7 +465,6 @@ Retained outputs from earlier versions are historical results. Produce current e
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                |
-| Diagnostics tree control rejects a forest                            | Use a single rooted transmission tree for this control; no between-component hop distance is defined. The failure remains visible in coverage.                                 |
 | Report says`partial` / selection reports an incomplete sweep         | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                       |
 | IQ-TREE or TreeCluster fails                                         | Inspect`<output-root>/artifacts/trees/<id>/backend/run-*/` for IQ-TREE logs, or `<setting-id>/treecluster.stderr.log`. Commands and paths are saved in manifests.              |
 | TreeCluster fails                                                    | Inspect`<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
@@ -519,7 +518,7 @@ The equivalent CLI is `epilink-evaluate perturbation --smoke`. Its default confi
 
 The workflow evaluates EDD/EDS/ESD/ESS clustering in four modes. Graphs include every observed pair with its score as weight and have no cutoff. Updated resolutions use separate fresh development seeds, the baseline bounds/search budget, and the frozen operating criterion; all arms use paired evaluation seeds and fresh controls. Full coverage is 13 scenarios × four modes × four scorers × three evaluation seeds = 624 rows. Smoke uses up to 64 cases and the incubation-mean levels, yielding 48 rows. Outputs are under `evaluation/02_synthetic_perturbation/outputs/perturbation[_smoke]/`.
 
-See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-2 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
+See the [perturbation guide](evaluation/02_synthetic_perturbation/README.md) for schema-1 configuration, resumption and migration from thresholded references, and the [output schema](OUTPUTS.md#12-perturbation-study-outputs) for paired results. Perturbation accepts `all` (the default, including development selection) and `report` stages.
 
 **Boston applies the baseline reference to real observations.** Its computational stages use frozen selection and held-out evaluation provenance; preparation alone does not need a completed baseline. Prepare only the derived input tables with:
 

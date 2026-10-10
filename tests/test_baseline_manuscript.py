@@ -144,7 +144,7 @@ def test_display_variants_match_available_pipelines():
 
 
 def test_shared_resolution_regret_uses_full_graph_reference_and_minimax():
-    regret = importlib.import_module("evaluation.results.fig06")
+    regret = importlib.import_module("evaluation.results.fig07")
     specs = [
         ("b1", "EDD", 0.1, 0.8),
         ("b4", "EDD", 0.2, 0.6),

@@ -1,4 +1,4 @@
-"""Manuscript figure: Boston partition burden and graph/tree agreement (fig19)."""
+"""Supplementary Boston figures: exposure summaries for every frozen clusterer (fig19)."""
 
 from __future__ import annotations
 
@@ -9,123 +9,111 @@ import numpy as np
 
 from epilink_evaluation.utils import style
 
-from ._boston.common import FOCUS, BostonStudy, add_arguments
+from ._boston.common import (
+    CRITERIA,
+    EXPOSURE_LABELS,
+    BostonStudy,
+    add_arguments,
+    method_label,
+)
 
 
-def agreement_matrix(study: BostonStudy) -> tuple[np.ndarray, np.ndarray]:
-    graph = FOCUS[:3]
-    tree = FOCUS[3:]
-    ari = np.empty((len(graph), len(tree)), dtype=float)
-    ami = np.empty_like(ari)
-    for row, (_, graph_pipeline, _) in enumerate(graph):
-        graph_id = study.point(graph_pipeline)["setting_id"]
-        for col, (_, tree_pipeline, _) in enumerate(tree):
-            tree_id = study.point(tree_pipeline)["setting_id"]
-            match = study.agreement.loc[
-                (study.agreement.setting_id == graph_id)
-                & (study.agreement.tree_setting_id == tree_id)
-            ]
-            if len(match) != 1:
-                raise ValueError(
-                    f"Missing frozen partition agreement: {graph_pipeline}/{tree_pipeline}"
-                )
-            ari[row, col] = match.adjusted_rand.iloc[0]
-            ami[row, col] = match.adjusted_mutual_information.iloc[0]
-    if not np.isfinite(ari).all() or not np.isfinite(ami).all():
-        raise ValueError("Undefined ARI/AMI between frozen Boston partitions")
-    return ari, ami
+def all_rows(study: BostonStudy, criterion: str):
+    exposures = study.config["assessment"]["focus_exposures"]
+    points = study.selected_points(criterion)
+    rank = {"components": 0, "leiden": 1, "treecluster": 2}
+    points.sort(
+        key=lambda point: (rank[point["definition"]["kind"]], point["pipeline"])
+    )
+    labels = []
+    concentration = np.full((len(points), len(exposures)), np.nan)
+    recovery = np.full_like(concentration, np.nan)
+    for i, point in enumerate(points):
+        label = method_label(point)
+        definition = point["definition"]
+        if definition["kind"] == "treecluster":
+            source = definition["baseline_data_process"][0].upper()
+            cutoff = definition["threshold"]
+            units = "subs/site" if definition["tree_kind"] == "raw" else "d"
+            tree = "undated" if definition["tree_kind"] == "raw" else "dated"
+            label = f"TreeCluster {tree} [{source} source; {cutoff:g} {units}]"
+        labels.append(label)
+        for j, exposure in enumerate(exposures):
+            named = study.representative(point, exposure)
+            if named is not None:
+                concentration[i, j] = 100 * named.exposure_fraction
+                recovery[i, j] = 100 * named.exposure_recovery
+    return labels, concentration, recovery
 
 
-def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
-    ari, ami = agreement_matrix(study)
+def create_figure(
+    study: BostonStudy, criterion: str, output, *, fmt: str = "both"
+) -> None:
+    labels, concentration, recovery = all_rows(study, criterion)
     fig, axes = style.new_figure(
         width="double",
-        height_in=3.9,
+        width_in=8.8,
+        height_in=9.4,
         ncols=2,
         layout="constrained",
-        gridspec_kw={"width_ratios": [1.35, 1]},
+        sharey=True,
     )
-    ax, heat = axes
-    labels = [label for label, _, _ in FOCUS]
-    positions = np.arange(len(FOCUS))
-    n = study.inputs["n_cases"]
-    singletons = (
-        np.array(
+    cmap = mpl.colormaps["viridis"].copy()
+    cmap.set_bad("0.88")
+    for ax, matrix, title, show_labels in zip(
+        axes,
+        (concentration, recovery),
+        ("Concentration in one cluster", "Recovery in one cluster"),
+        (True, False),
+    ):
+        image = ax.imshow(
+            np.ma.masked_invalid(matrix),
+            vmin=0,
+            vmax=100,
+            cmap=cmap,
+            aspect="auto",
+            interpolation="nearest",
+        )
+        ax.set_title(title)
+        ax.set_xticks(
+            range(len(study.config["assessment"]["focus_exposures"])),
             [
-                study.partition(study.point(pipeline)).n_singleton_cases
-                for _, pipeline, _ in FOCUS
+                EXPOSURE_LABELS.get(name, name)
+                for name in study.config["assessment"]["focus_exposures"]
             ],
-            dtype=float,
         )
-        / n
-        * 100
+        ax.set_yticks(range(len(labels)), labels, fontsize=7)
+        ax.tick_params(axis="y", labelleft=show_labels)
+        for (row, col), value in np.ndenumerate(matrix):
+            ax.text(
+                col,
+                row,
+                "—" if not np.isfinite(value) else f"{value:.0f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color="white" if np.isfinite(value) and value < 35 else "0.12",
+            )
+    fig.colorbar(
+        image,
+        ax=axes,
+        orientation="horizontal",
+        shrink=0.6,
+        label="Percentage of cases",
     )
-    largest = (
-        np.array(
-            [
-                study.partition(study.point(pipeline)).largest_cluster
-                for _, pipeline, _ in FOCUS
-            ],
-            dtype=float,
-        )
-        / n
-        * 100
-    )
-    ax.barh(
-        positions - 0.17,
-        singletons,
-        height=0.32,
-        color="#0072B2",
-        label="Singleton cases",
-    )
-    ax.barh(
-        positions + 0.17,
-        largest,
-        height=0.32,
-        color="#D55E00",
-        label="Cases in largest cluster",
-    )
-    ax.set_yticks(positions, labels)
-    ax.set_ylim(len(labels) - 0.6, -0.6)
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("Fraction of all Boston cases (%)")
-    ax.set_title("Cluster sizes and singletons")
-    ax.grid(axis="x", color="0.9")
-    ax.set_axisbelow(True)
-    ax.legend(loc="upper right", fontsize=7)
-
-    bound = max(0.1, float(np.abs(ari).max()))
-    image = heat.imshow(
-        ari,
-        cmap=mpl.colormaps["RdBu"],
-        vmin=-bound,
-        vmax=bound,
-        aspect="auto",
-        interpolation="nearest",
-    )
-    heat.set_xticks(range(2), ["Undated", "Dated"])
-    heat.set_yticks(range(3), [label for label, _, _ in FOCUS[:3]])
-    heat.set_title("Graph and tree agreement")
-    heat.set_xlabel("TreeCluster at selected settings")
-    for (row, col), value in np.ndenumerate(ari):
-        heat.text(
-            col,
-            row,
-            f"ARI {value:.2f}\nAMI {ami[row, col]:.2f}",
-            ha="center",
-            va="center",
-            fontsize=8,
-            color="white" if abs(value) > bound * 0.65 else "0.15",
-        )
-    fig.colorbar(image, ax=heat, shrink=0.65, label="Adjusted Rand index")
+    # endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
+    #     criterion
+    # ]
     # fig.suptitle(
-    #     "Cluster structure and graph tree agreement in Boston", fontweight="bold"
+    #     f"Boston exposure summaries: settings selected for {endpoint} in simulation",
+    #     fontweight="bold",
     # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
-        output / "fig19_boston_partition_context",
+        output / f"fig19_boston_all_exposures_{criterion}",
         width="double",
+        width_in=8.8,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )
@@ -136,10 +124,13 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     add_arguments(parser, figure=True)
+    parser.add_argument("--criterion", choices=("all", *CRITERIA), default="all")
     args = parser.parse_args()
     study = BostonStudy.load(args.run_dir)
     print(f"Using run: {study.run}")
-    create_figure(study, study.output(args.output_dir), fmt=args.format)
+    criteria = CRITERIA if args.criterion == "all" else (args.criterion,)
+    for criterion in criteria:
+        create_figure(study, criterion, study.output(args.output_dir), fmt=args.format)
 
 
 if __name__ == "__main__":

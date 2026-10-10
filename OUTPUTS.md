@@ -739,7 +739,7 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 
 | File             | Fields / purpose                                                                                                                                                                                                                          |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`  | Study `status`, `requested_stage: all`, schema-2 `config`, full `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`.                                                                               |
+| `manifest.json`  | Study `status`, `requested_stage: all`, schema-1 `config`, full schema-2 `signature`, `git_revision`, study `n_cases`, `run_directory`, and optional caught `error`.                                                                      |
 | `reference.json` | Source `run_directory`, `run_fingerprint`, original `selection_fingerprint`, `truth_fingerprint`, reference `n_cases`, and `baseline_implementation`. No fitted models are needed.                                                        |
 | `selection.json` | Baseline selection metadata filtered to the requested EpiLink pipelines and criterion.                                                                                                                                                    |
 | `settings.json`  | Baseline-selected full-graph EpiLink Leiden definitions. `graph_mode: full`, `threshold: null`, `empty: false`; only resolution is selected.                                                                                              |
@@ -795,7 +795,7 @@ Updated arms have `development/metrics.csv`, summaries, and per-setting developm
 
 `artifacts/backbones/<id>/transmission_tree.gml` stores the frozen reference topology or smoke prefix. Truth, observations and training-free scores live under the study's `artifacts/truth/`, `artifacts/observations/` and `artifacts/scores/`; score signatures have `training: null`. No models or phylogenetic artifacts are generated.
 
-`report.md` and `report.html` show coverage, parameter levels, actual resolutions, absolute clustering performance and paired changes. Smoke reports are labeled pipeline validation. Standalone `fig12`, `fig14`, `fig15`, `fig23` and `tab03` consume these clustering-only tables; see the study guide for display interpretation.
+`report.md` and `report.html` show coverage, parameter levels, actual resolutions, absolute clustering performance and paired changes. Smoke reports are labeled pipeline validation. Standalone `fig13`, `fig14`, `fig15`, `fig16` and `tab03` consume these clustering-only tables; see the study guide for display interpretation.
 
 ## 13. Shared experiments and diagnostics
 
@@ -863,7 +863,7 @@ The saved superspreading definition is **inclusive**: `offspring >= poisson_perc
 
 The `bootstrap` object records `requested`, `completed`, `seed`, `interpretation`, `mean_offspring_kept`, `dispersion_k_kept`, and their `*_interval95` arrays. Intervals are 2.5th/97.5th percentiles of finite case-resampling estimates; dispersion intervals condition on finite fits and retain their contributing count. These optional exploratory IID intervals are disabled by default. Neither seed replication nor the fixed tree supplies independent epidemic replicates.
 
-`fig24_backbone_characterisation` exports the three plotted distributions, component/resampling tables, scalar summary CSV, source-pinned JSON summary, and Markdown caption under the manuscript result directory. Full and smoke backbone scopes are labelled from the saved run configuration.
+`fig01_backbone_characterisation` exports the three plotted distributions, component/resampling tables, scalar summary CSV, source-pinned JSON summary, and Markdown caption under the manuscript result directory. Full and smoke backbone scopes are labelled from the saved run configuration.
 
 ### Exact observation feature cells
 

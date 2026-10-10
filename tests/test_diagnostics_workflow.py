@@ -61,7 +61,7 @@ def _timestamps(root):
 def test_development_only_preparation_and_complete_marker(
     diagnostics_config, monkeypatch, tmp_path
 ):
-    from evaluation.results import fig01
+    from evaluation.results import fig02
 
     diagnostics = Diagnostics(diagnostics_config)
     assert diagnostics.run("prepare")
@@ -109,18 +109,18 @@ def test_development_only_preparation_and_complete_marker(
     assert not (diagnostics.directory / "trees").exists()
     assert set(diagnostics.implementation) == {"backbone", "observations", "graphs"}
     assert "development seed 62001" in report
-    data = fig01.load_data(diagnostics.directory)
+    data = fig02.load_data(diagnostics.directory)
     assert set(data) == {"summary_aggregate", "graphs"}
-    save_figure = fig01.style.save_figure
+    save_figure = fig02.style.save_figure
 
     def save_six_panels(fig, *args, **kwargs):
         assert len(fig.axes) == 6
         assert not any("TreeCluster" in text.get_text() for ax in fig.axes for text in ax.texts)
         return save_figure(fig, *args, **kwargs)
 
-    monkeypatch.setattr(fig01.style, "save_figure", save_six_panels)
-    output = tmp_path / "manuscript" / "fig01_diagnostics_figure"
-    fig01.create_figure(data, output)
+    monkeypatch.setattr(fig02.style, "save_figure", save_six_panels)
+    output = tmp_path / "manuscript" / "fig02_diagnostics_figure"
+    fig02.create_figure(data, output)
     assert output.with_suffix(".pdf").is_file()
     assert output.with_suffix(".png").is_file()
 
@@ -289,7 +289,7 @@ def test_bounded_oracle_resolution_search_is_deduplicated(diagnostics_config):
 def test_backbone_stage_uses_all_cases_without_observation_generation(
     diagnostics_config, monkeypatch, tmp_path
 ):
-    from evaluation.results.fig24 import create_figure
+    from evaluation.results.fig01 import create_figure
     from epilink_evaluation.reporting.backbone import load_backbone_evidence
 
     diagnostics_config["simulation"]["fraction_sampled"] = 0.4
@@ -327,7 +327,7 @@ def test_backbone_stage_uses_all_cases_without_observation_generation(
     assert diagnostics.run("backbone")
     paths = create_figure(diagnostics.directory, tmp_path / "displays", fmt="both")
     assert paths["png"].is_file() and paths["pdf"].is_file()
-    caption = (tmp_path / "displays/fig24_backbone_characterisation.md").read_text()
+    caption = (tmp_path / "displays/fig01_backbone_characterisation.md").read_text()
     assert "offspring >=" in caption
     assert "15 cases" in caption
 

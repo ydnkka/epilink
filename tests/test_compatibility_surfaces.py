@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from evaluation.results.fig00 import score_surfaces
+from evaluation.results.fig03 import score_surfaces
 
 
 def test_primary_compatibility_surface_keeps_processes_and_axes_separate():

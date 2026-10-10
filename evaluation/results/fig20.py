@@ -1,4 +1,4 @@
-"""Supplementary Boston figures: exposure summaries for every frozen clusterer (fig20)."""
+"""Supplementary Boston figures: all frozen graph/tree partition agreements (fig20)."""
 
 from __future__ import annotations
 
@@ -9,111 +9,107 @@ import numpy as np
 
 from epilink_evaluation.utils import style
 
-from ._boston.common import (
-    CRITERIA,
-    EXPOSURE_LABELS,
-    BostonStudy,
-    add_arguments,
-    method_label,
-)
+from ._boston.common import CRITERIA, BostonStudy, add_arguments, method_label
 
 
-def all_rows(study: BostonStudy, criterion: str):
-    exposures = study.config["assessment"]["focus_exposures"]
+def agreement_grid(study: BostonStudy, criterion: str):
     points = study.selected_points(criterion)
-    rank = {"components": 0, "leiden": 1, "treecluster": 2}
-    points.sort(
-        key=lambda point: (rank[point["definition"]["kind"]], point["pipeline"])
+    graph = sorted(
+        (point for point in points if point["definition"]["kind"] != "treecluster"),
+        key=lambda point: point["pipeline"],
     )
-    labels = []
-    concentration = np.full((len(points), len(exposures)), np.nan)
-    recovery = np.full_like(concentration, np.nan)
-    for i, point in enumerate(points):
-        label = method_label(point)
-        definition = point["definition"]
-        if definition["kind"] == "treecluster":
-            source = definition["baseline_data_process"][0].upper()
-            cutoff = definition["threshold"]
-            units = "subs/site" if definition["tree_kind"] == "raw" else "d"
-            tree = "undated" if definition["tree_kind"] == "raw" else "dated"
-            label = f"TreeCluster {tree} [{source} source; {cutoff:g} {units}]"
-        labels.append(label)
-        for j, exposure in enumerate(exposures):
-            named = study.representative(point, exposure)
-            if named is not None:
-                concentration[i, j] = 100 * named.exposure_fraction
-                recovery[i, j] = 100 * named.exposure_recovery
-    return labels, concentration, recovery
+    trees = sorted(
+        (point for point in points if point["definition"]["kind"] == "treecluster"),
+        key=lambda point: (
+            {"raw": 0, "dated": 1}[point["definition"]["tree_kind"]],
+            point["definition"]["baseline_data_process"],
+        ),
+    )
+    if not graph or not trees:
+        raise ValueError(f"Missing frozen graph or tree comparators for {criterion}")
+    values = {
+        "adjusted_rand": np.empty((len(graph), len(trees))),
+        "adjusted_mutual_information": np.empty((len(graph), len(trees))),
+    }
+    for i, model in enumerate(graph):
+        for j, tree in enumerate(trees):
+            rows = study.agreement.loc[
+                (study.agreement.setting_id == model["setting_id"])
+                & (study.agreement.tree_setting_id == tree["setting_id"])
+            ]
+            if len(rows) != 1:
+                raise ValueError(
+                    f"Missing frozen graph/tree comparison: {model['pipeline']}"
+                )
+            for metric, matrix in values.items():
+                matrix[i, j] = rows[metric].iloc[0]
+    if not all(np.isfinite(matrix).all() for matrix in values.values()):
+        raise ValueError("Undefined agreement among frozen Boston partitions")
+    labels = [method_label(point) for point in graph]
+    tree_labels = [
+        f"{'Undated' if point['definition']['tree_kind'] == 'raw' else 'Dated'}\n"
+        f"[{point['definition']['baseline_data_process'][0].upper()} source]"
+        for point in trees
+    ]
+    return values, labels, tree_labels
 
 
 def create_figure(
     study: BostonStudy, criterion: str, output, *, fmt: str = "both"
 ) -> None:
-    labels, concentration, recovery = all_rows(study, criterion)
+    values, labels, tree_labels = agreement_grid(study, criterion)
     fig, axes = style.new_figure(
         width="double",
-        width_in=8.8,
-        height_in=9.4,
+        width_in=10,
+        height_in=8.2,
         ncols=2,
         layout="constrained",
         sharey=True,
     )
-    cmap = mpl.colormaps["viridis"].copy()
-    cmap.set_bad("0.88")
-    for ax, matrix, title, show_labels in zip(
+    for ax, metric, title, show_labels in zip(
         axes,
-        (concentration, recovery),
-        ("Concentration in one cluster", "Recovery in one cluster"),
+        ("adjusted_rand", "adjusted_mutual_information"),
+        ("Adjusted Rand index", "Adjusted mutual information"),
         (True, False),
     ):
+        matrix = values[metric]
+        bound = max(0.1, float(np.abs(matrix).max()))
         image = ax.imshow(
-            np.ma.masked_invalid(matrix),
-            vmin=0,
-            vmax=100,
-            cmap=cmap,
+            matrix,
+            cmap=mpl.colormaps["RdBu"],
+            vmin=-bound,
+            vmax=bound,
             aspect="auto",
             interpolation="nearest",
         )
         ax.set_title(title)
-        ax.set_xticks(
-            range(len(study.config["assessment"]["focus_exposures"])),
-            [
-                EXPOSURE_LABELS.get(name, name)
-                for name in study.config["assessment"]["focus_exposures"]
-            ],
-        )
-        ax.set_yticks(range(len(labels)), labels, fontsize=7)
+        ax.set_xticks(range(len(tree_labels)), tree_labels)
+        ax.set_yticks(range(len(labels)), labels, fontsize=7.5)
         ax.tick_params(axis="y", labelleft=show_labels)
         for (row, col), value in np.ndenumerate(matrix):
             ax.text(
                 col,
                 row,
-                "—" if not np.isfinite(value) else f"{value:.0f}",
+                f"{value:.2f}",
                 ha="center",
                 va="center",
-                fontsize=7,
-                color="white" if np.isfinite(value) and value < 35 else "0.12",
+                fontsize=6.5,
+                color="white" if abs(value) > bound * 0.65 else "0.12",
             )
-    fig.colorbar(
-        image,
-        ax=axes,
-        orientation="horizontal",
-        shrink=0.6,
-        label="Percentage of cases",
-    )
+        fig.colorbar(image, ax=ax, shrink=0.6, label=title)
     # endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
     #     criterion
     # ]
     # fig.suptitle(
-    #     f"Boston exposure summaries: settings selected for {endpoint} in simulation",
+    #     f"Boston partition agreement for {endpoint}-selected settings",
     #     fontweight="bold",
     # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
-        output / f"fig20_boston_all_exposures_{criterion}",
+        output / f"fig20_boston_all_agreement_{criterion}",
         width="double",
-        width_in=8.8,
+        width_in=10,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )

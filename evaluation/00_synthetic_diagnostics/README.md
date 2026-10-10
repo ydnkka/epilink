@@ -18,7 +18,7 @@ Oracle graph caches are keyed by truth, endpoint, and canonical sampled-case set
 
 The report gives cross-seed summaries, explicitly labelled single-seed GD/TD target-fraction and occupancy heatmaps, and graph partition precision/recall curves. Exact-feature ambiguity is empirical, not a population performance ceiling. Oracle graphs are not an absolute partition-performance ceiling.
 
-The standalone manuscript display is [`evaluation/results/fig01.py`](../results/fig01.py); from the repository root run `python -m evaluation.results.fig01` after completing diagnostics. It writes `fig01_diagnostics_figure.pdf` and `.png` under `evaluation/results/outputs/00_synthetic_diagnostics/<run-id>/`. Use `--run-dir` to pin another run or `--output-dir` to choose another destination. The [figure caption and results draft](../results/notes/fig01.md) use the pinned full run.
+The standalone feature/graph manuscript display is [`evaluation/results/fig02.py`](../results/fig02.py); from the repository root run `python -m evaluation.results.fig02` after completing diagnostics. It writes `fig02_diagnostics_figure.pdf` and `.png` under `evaluation/results/outputs/00_synthetic_diagnostics/<run-id>/`. Use `--run-dir` to pin another run or `--output-dir` to choose another destination. See the [numbered results index](../results/README.md) for all displays.
 
 ## Backbone heterogeneity and superspreading
 
@@ -26,10 +26,10 @@ To describe only the selected tree, or to produce its manuscript display:
 
 ```bash
 python evaluation/00_synthetic_diagnostics/run.py --stage backbone
-python -m evaluation.results.fig24
+python -m evaluation.results.fig01
 ```
 
-`all` includes this stage before the observation and oracle controls. A successful standalone `backbone` stage alone does not complete the baseline prerequisite. `fig24` accepts `--run-dir`, `--output-dir` and `--format pdf|png|both`, and exports the offspring distribution, cumulative transmission concentration and generation profile, together with CSV evidence, a JSON summary and a caption. Results are written under `evaluation/results/outputs/00_synthetic_diagnostics/<run-id>/` with prefix `fig24_backbone_characterisation`.
+`all` includes this stage before the observation and oracle controls. A successful standalone `backbone` stage alone does not complete the baseline prerequisite. `fig01` accepts `--run-dir`, `--output-dir` and `--format pdf|png|both`, and exports the offspring distribution, cumulative transmission concentration and generation profile, together with CSV evidence, a JSON summary and a caption. Results are written under `evaluation/results/outputs/00_synthetic_diagnostics/<run-id>/` with prefix `fig01_backbone_characterisation`.
 
 Let `Z_i` be a case's direct offspring count and `R_backbone = mean(Z_i)` over **all** backbone cases. The default rule is:
 
@@ -58,7 +58,7 @@ After complete coverage of backbone, observations, and graphs, `<experiment.dire
     "experiment_directory": "/absolute/shared/experiment",
     "fingerprint": "<full experiment hash>"
   },
-  "datasets": {"<development seed>": "<observation directory name>"},
+  "datasets": { "<development seed>": "<observation directory name>" },
   "status": "complete"
 }
 ```
@@ -80,7 +80,7 @@ That artifact is made using `complete_artifact(completion, signature, ["coverage
 
 ## Validation
 
-The backbone extension was validated on 2026-10-06: all **197 tests passed**, the diagnostics → baseline smoke sequence completed, and `fig24` exported PDF/PNG and saved evidence for the full 5,051-case backbone. Tests cover the inclusive percentile boundary, zero offspring, chain/star/forest truth, finite and Poisson-limit fits, resampling reproducibility, seed/sampling-independent reuse, completion revocation/repair and manuscript exports.
+The backbone extension was validated on 2026-10-06: all **197 tests passed**, the diagnostics → baseline smoke sequence completed, and the backbone figure (now `fig01`) exported PDF/PNG and saved evidence for the full 5,051-case backbone. Tests cover the inclusive percentile boundary, zero offspring, chain/star/forest truth, finite and Poisson-limit fits, resampling reproducibility, seed/sampling-independent reuse, completion revocation/repair and manuscript exports.
 
 Historical checkpoint on 2026-10-02, before the current full-graph Leiden and IQ-TREE/LSD2 workflows. The following commands, counts and timings describe that earlier implementation:
 

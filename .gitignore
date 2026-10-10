@@ -17,10 +17,6 @@ __pycache__/
 *.fdb_latexmk
 *.synctex.gz
 
-# Preserved inputs and fitted classifiers for the reference-correction audit.
-archive/pre_reset_2026-09-30/results/reference_correction_20260928/archive/
-archive/pre_reset_2026-09-30/results/reference_correction_20260928/*.pkl
-
 # Fresh, regenerable artifacts. Compact reports are explicitly published on demand.
 evaluation/shared_synthetic/outputs/
 evaluation/00_synthetic_diagnostics/outputs/

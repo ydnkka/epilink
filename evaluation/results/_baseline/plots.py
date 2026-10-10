@@ -32,10 +32,10 @@ APPROACHES = {
     "treecluster_dated": "TreeCluster (dated tree)",
 }
 FIGURE_IDS = {
-    "components": "fig03",
-    "leiden": "fig05",
-    "treecluster_raw": "fig07",
-    "treecluster_dated": "fig08",
+    "components": "fig05",
+    "leiden": "fig06",
+    "treecluster_raw": "fig08",
+    "treecluster_dated": "fig09",
 }
 TREE_METHODS = ("max_clade", "avg_clade", "single_linkage")
 TREE_LABELS = {

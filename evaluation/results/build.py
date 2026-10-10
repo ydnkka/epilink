@@ -1,4 +1,4 @@
-"""Rebuild the four main figures, appendix displays, and LaTeX tables from saved results."""
+"""Rebuild figures 01–20 in order and the four LaTeX tables from saved results."""
 
 from __future__ import annotations
 
@@ -15,20 +15,20 @@ def main() -> None:
     parser.add_argument("--format", choices=("pdf", "png", "both"), default="both")
     args = parser.parse_args()
     groups = (
-        (args.diagnostic_run, ("fig01", "fig24")),
+        (args.diagnostic_run, ("fig01", "fig02")),
         (
             args.baseline_run,
             (
-                "fig00",
-                "fig02",
                 "fig03",
+                "fig04",
                 "fig05",
                 "fig06",
                 "fig07",
                 "fig08",
                 "fig09",
                 "fig10",
-                "fig22",
+                "fig11",
+                "fig12",
                 "tab01",
                 "tab02",
             ),
@@ -36,14 +36,14 @@ def main() -> None:
         (
             args.perturbation_run,
             (
-                "fig12",
+                "fig13",
                 "fig14",
                 "fig15",
-                "fig23",
+                "fig16",
                 "tab03",
             ),
         ),
-        (args.boston_run, ("fig18", "fig19", "fig20", "fig21", "tab04")),
+        (args.boston_run, ("fig17", "fig18", "fig19", "fig20", "tab04")),
     )
     # Separate processes release each figure's raster memory before the next display.
     for run, modules in groups:

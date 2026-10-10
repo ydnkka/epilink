@@ -156,7 +156,7 @@ def test_focused_boston_outputs_keep_both_exposure_denominators(tmp_path):
     assert focus.loc[0, "exposure_recovery"] == 1
     assert focus.loc[1, "exposure_fraction"] == 0.5
     assert focus.loc[1, "exposure_recovery"] == 0.5
-    ari, ami = importlib.import_module("evaluation.results.fig19").agreement_matrix(
+    ari, ami = importlib.import_module("evaluation.results.fig18").agreement_matrix(
         study
     )
     assert ari.shape == (3, 2)

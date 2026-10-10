@@ -8,23 +8,23 @@ The completed [synthetic baseline](../01_synthetic_baseline/README.md) supplies 
 
 ## Four modes
 
-| Mode | EpiLink inference parameters | Leiden resolution |
-| --- | --- | --- |
-| `baseline_inference_baseline_clustering` | Baseline values | Baseline-selected |
-| `baseline_inference_updated_clustering` | Baseline values | Scenario-specific development selection |
-| `matched_inference_baseline_clustering` | Scenario's generation values | Baseline-selected |
-| `matched_inference_updated_clustering` | Scenario's generation values | Scenario-specific development selection |
+| Mode                                     | EpiLink inference parameters | Leiden resolution                       |
+| ---------------------------------------- | ---------------------------- | --------------------------------------- |
+| `baseline_inference_baseline_clustering` | Baseline values              | Baseline-selected                       |
+| `baseline_inference_updated_clustering`  | Baseline values              | Scenario-specific development selection |
+| `matched_inference_baseline_clustering`  | Scenario's generation values | Baseline-selected                       |
+| `matched_inference_updated_clustering`   | Scenario's generation values | Scenario-specific development selection |
 
 Every observed pair is a graph edge, with its original EpiLink score as weight, **including zero-weight edges**. There is no graph cutoff or threshold search. Updated clustering selects **only resolution**, independently for each scenario, inference mode and EpiLink scorer. The baseline's objective, restarts and algorithm seed stay fixed.
 
 The supplied config uses **EDD, EDS, ESD and ESS**, with the baseline's `balanced_M0` criterion. Each has one `leiden/<scorer>` pipeline. The second letter denotes deterministic/stochastic genetic **inference**, and the third denotes deterministic/stochastic **observations**. Baseline/matched in the four modes refers to biological parameter inputs, independently of these genetic assumptions.
 
 | Scorer | Inference genetics | Observed genetics |
-| --- | --- | --- |
-| EDD | Deterministic | Deterministic |
-| EDS | Deterministic | Stochastic |
-| ESD | Stochastic | Deterministic |
-| ESS | Stochastic | Stochastic |
+| ------ | ------------------ | ----------------- |
+| EDD    | Deterministic      | Deterministic     |
+| EDS    | Deterministic      | Stochastic        |
+| ESD    | Stochastic         | Deterministic     |
+| ESS    | Stochastic         | Stochastic        |
 
 The study produces EpiLink clustering metrics and partitions. General feature ambiguity is available separately in [synthetic diagnostics](../00_synthetic_diagnostics/README.md); baseline and Boston retain their method comparisons.
 
@@ -62,18 +62,18 @@ Equivalent CLI: `epilink-evaluate perturbation --smoke`. The default reference i
 
 ## Configuration
 
-| Field | Meaning |
-| --- | --- |
-| `schema_version` | `1` for clustering-only, four-arm analysis. |
-| `baseline_run` | Completed baseline run or current-run pointer. |
-| `output_directory` | Separate study root, default `outputs/perturbation`. |
-| `development_seeds` | Resolution-selection seeds, default 80001–80003. |
-| `seeds` | Paired evaluation seeds, default 81001–81003. |
-| `scorers` | EpiLink scorers only, supplied `[EDD, EDS, ESD, ESS]`. |
-| `criterion` | Baseline selection rule, default `balanced_M0`. |
-| `modes` | All four unique mode names from the table above. |
-| `perturbations` | One-at-a-time `parameter` with either `multipliers` or absolute `values`. |
-| `smoke` | `cases`, `development_seed`, `seed`, and subset of `parameters`. |
+| Field               | Meaning                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `schema_version`    | `1` for clustering-only, four-arm analysis.                               |
+| `baseline_run`      | Completed baseline run or current-run pointer.                            |
+| `output_directory`  | Separate study root, default `outputs/perturbation`.                      |
+| `development_seeds` | Resolution-selection seeds, default 80001–80003.                          |
+| `seeds`             | Paired evaluation seeds, default 81001–81003.                             |
+| `scorers`           | EpiLink scorers only, supplied `[EDD, EDS, ESD, ESS]`.                    |
+| `criterion`         | Baseline selection rule, default `balanced_M0`.                           |
+| `modes`             | All four unique mode names from the table above.                          |
+| `perturbations`     | One-at-a-time `parameter` with either `multipliers` or absolute `values`. |
+| `smoke`             | `cases`, `development_seed`, `seed`, and subset of `parameters`.          |
 
 The supplied full study perturbs incubation mean/CV, testing-delay mean/CV and substitution rate to 0.75×/1.25× baseline; relaxation uses absolute 0/0.66. This gives 12 scenarios plus the control, four modes, four EpiLink pipelines, and three evaluation seeds: **624 evaluation rows**. Smoke has three scenarios × four modes × four scorers × one evaluation seed: **48 rows**. Only the two updated-clustering modes sweep the development resolutions. Levels must satisfy EpiLink's natural-history requirements; duplicate or baseline-equal levels are rejected.
 
@@ -97,10 +97,10 @@ After a complete full study:
 
 ```bash
 python -m evaluation.results.tab03  # four-arm fresh-control clustering
-python -m evaluation.results.fig12  # four-arm F1/contamination heatmaps
+python -m evaluation.results.fig13  # four-arm F1/contamination heatmaps
 python -m evaluation.results.fig14  # paired means and seed-level ranges
 python -m evaluation.results.fig15  # matched-minus-baseline inference contrasts
-python -m evaluation.results.fig23  # main-results four-arm overview
+python -m evaluation.results.fig16  # main-results four-arm overview
 ```
 
-Each accepts `--run-dir` and `--output-dir`; figures accept `--format pdf|png|both`. Outputs default to `evaluation/results/outputs/02_synthetic_perturbation/<run-id>/`. Each scorer has its own labelled panel, grouped by observed genetics (EDD/ESD and EDS/ESS). All four modes remain visible. `fig15` contrasts control-paired deltas within seed, separately for baseline and updated resolution. `tab03` has one row per scorer/mode on the fresh control. `fig12`/`fig23` CSVs include scorer, pipeline and mode identifiers. Existing manuscript script identifiers are retained.
+Each accepts `--run-dir` and `--output-dir`; figures accept `--format pdf|png|both`. Outputs default to `evaluation/results/outputs/02_synthetic_perturbation/<run-id>/`. Each scorer has its own labelled panel, grouped by observed genetics (EDD/ESD and EDS/ESS). All four modes remain visible. `fig15` contrasts control-paired deltas within seed, separately for baseline and updated resolution. `tab03` has one row per scorer/mode on the fresh control. `fig13`/`fig16` CSVs include scorer, pipeline and mode identifiers. Perturbation occupies figures 13–16 in the consecutive results sequence.

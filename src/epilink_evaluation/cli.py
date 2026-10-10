@@ -300,7 +300,6 @@ def _execute(argv):
                     "tools": tools,
                     "splits": config["splits"],
                     "output": config["output_directory"],
-                    "operating_definitions_per_realization": None,
                     "initial_clustering_definitions_per_realization": len(settings),
                     "component_candidates_pending_development": "components"
                     in config["clustering"]["algorithms"],
@@ -325,8 +324,6 @@ def _execute(argv):
         render_report(directory)
         print(directory / "report.html")
         return 0
-    if args.command == "reset-outputs":
-        return _reset_outputs(args)
     from .workflows.baseline import Baseline
 
     return 0 if Baseline(config).run(args.stage) else 1

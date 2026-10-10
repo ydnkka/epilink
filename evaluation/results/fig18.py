@@ -1,97 +1,130 @@
-"""Manuscript figure: exposure concentration versus one-cluster recovery in Boston (fig18)."""
+"""Manuscript figure: Boston partition burden and graph/tree agreement (fig18)."""
 
 from __future__ import annotations
 
 import argparse
 
+import matplotlib as mpl
 import numpy as np
-import pandas as pd
-from matplotlib.lines import Line2D
 
 from epilink_evaluation.utils import style
 
-from ._boston.common import EXPOSURE_LABELS, FOCUS, BostonStudy, add_arguments
+from ._boston.common import FOCUS, BostonStudy, add_arguments
+
+
+def agreement_matrix(study: BostonStudy) -> tuple[np.ndarray, np.ndarray]:
+    graph = FOCUS[:3]
+    tree = FOCUS[3:]
+    ari = np.empty((len(graph), len(tree)), dtype=float)
+    ami = np.empty_like(ari)
+    for row, (_, graph_pipeline, _) in enumerate(graph):
+        graph_id = study.point(graph_pipeline)["setting_id"]
+        for col, (_, tree_pipeline, _) in enumerate(tree):
+            tree_id = study.point(tree_pipeline)["setting_id"]
+            match = study.agreement.loc[
+                (study.agreement.setting_id == graph_id)
+                & (study.agreement.tree_setting_id == tree_id)
+            ]
+            if len(match) != 1:
+                raise ValueError(
+                    f"Missing frozen partition agreement: {graph_pipeline}/{tree_pipeline}"
+                )
+            ari[row, col] = match.adjusted_rand.iloc[0]
+            ami[row, col] = match.adjusted_mutual_information.iloc[0]
+    if not np.isfinite(ari).all() or not np.isfinite(ami).all():
+        raise ValueError("Undefined ARI/AMI between frozen Boston partitions")
+    return ari, ami
 
 
 def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
-    rows = study.focus_rows()
-    exposures = study.config["assessment"]["focus_exposures"]
+    ari, ami = agreement_matrix(study)
     fig, axes = style.new_figure(
         width="double",
-        height_in=4.0,
-        ncols=len(exposures),
+        height_in=3.9,
+        ncols=2,
         layout="constrained",
-        sharex=True,
-        sharey=True,
+        gridspec_kw={"width_ratios": [1.35, 1]},
     )
-    axes = np.atleast_1d(axes)
-    for index, (ax, exposure) in enumerate(zip(axes, exposures)):
-        background = study.exposure_totals[exposure] / study.inputs["n_cases"]
-        ax.axhline(background, color="0.45", lw=1, linestyle="--")
-        ax.text(
-            0.02,
-            background + 0.025,
-            f"Exposure share of all cases: {100 * background:.1f}%",
-            ha="left",
-            va="bottom",
-            color="0.35",
+    ax, heat = axes
+    labels = [label for label, _, _ in FOCUS]
+    positions = np.arange(len(FOCUS))
+    n = study.inputs["n_cases"]
+    singletons = (
+        np.array(
+            [
+                study.partition(study.point(pipeline)).n_singleton_cases
+                for _, pipeline, _ in FOCUS
+            ],
+            dtype=float,
+        )
+        / n
+        * 100
+    )
+    largest = (
+        np.array(
+            [
+                study.partition(study.point(pipeline)).largest_cluster
+                for _, pipeline, _ in FOCUS
+            ],
+            dtype=float,
+        )
+        / n
+        * 100
+    )
+    ax.barh(
+        positions - 0.17,
+        singletons,
+        height=0.32,
+        color="#0072B2",
+        label="Singleton cases",
+    )
+    ax.barh(
+        positions + 0.17,
+        largest,
+        height=0.32,
+        color="#D55E00",
+        label="Cases in largest cluster",
+    )
+    ax.set_yticks(positions, labels)
+    ax.set_ylim(len(labels) - 0.6, -0.6)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Fraction of all Boston cases (%)")
+    ax.set_title("Cluster sizes and singletons")
+    ax.grid(axis="x", color="0.9")
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper right", fontsize=7)
+
+    bound = max(0.1, float(np.abs(ari).max()))
+    image = heat.imshow(
+        ari,
+        cmap=mpl.colormaps["RdBu"],
+        vmin=-bound,
+        vmax=bound,
+        aspect="auto",
+        interpolation="nearest",
+    )
+    heat.set_xticks(range(2), ["Undated", "Dated"])
+    heat.set_yticks(range(3), [label for label, _, _ in FOCUS[:3]])
+    heat.set_title("Graph and tree agreement")
+    heat.set_xlabel("TreeCluster at selected settings")
+    for (row, col), value in np.ndenumerate(ari):
+        heat.text(
+            col,
+            row,
+            f"ARI {value:.2f}\nAMI {ami[row, col]:.2f}",
+            ha="center",
+            va="center",
             fontsize=8,
+            color="white" if abs(value) > bound * 0.65 else "0.15",
         )
-        for label, pipeline, color in FOCUS:
-            subset = rows.loc[(rows.pipeline == pipeline) & (rows.exposure == exposure)]
-            if len(subset) != 1:
-                raise ValueError(
-                    f"Missing frozen exposure cluster: {pipeline}/{exposure}"
-                )
-            row = subset.iloc[0]
-            if pd.isna(row.exposure_recovery):
-                continue  # No eligible representative cluster exists for this exposure.
-            size = 40 + 120 * row.n_cases / study.inputs["n_cases"]
-            ax.scatter(
-                row.exposure_recovery,
-                row.exposure_fraction,
-                s=size,
-                color=color,
-                marker="s" if pipeline.startswith("treecluster/") else "o",
-                edgecolor="black",
-                linewidth=0.5,
-                zorder=3,
-            )
-        ax.set(
-            title=f"{EXPOSURE_LABELS.get(exposure, exposure)}\n({study.exposure_totals[exposure]} labelled cases)",
-            xlabel="Exposure-group recovery",
-            xlim=(-0.03, 1.05),
-            ylim=(-0.03, 1.05),
-        )
-        if index == 0:
-            ax.set_ylabel("Exposure concentration in the cluster")
-        ax.grid(axis="both", color="0.92")
-        ax.set_axisbelow(True)
+    fig.colorbar(image, ax=heat, shrink=0.65, label="Adjusted Rand index")
     # fig.suptitle(
-    #     "Boston exposure groups at settings selected in simulation", fontweight="bold"
+    #     "Cluster structure and graph tree agreement in Boston", fontweight="bold"
     # )
-    fig.legend(
-        handles=[
-            Line2D(
-                [0],
-                [0],
-                marker="s" if pipeline.startswith("treecluster/") else "o",
-                linestyle="none",
-                color=color,
-                markeredgecolor="black",
-                markeredgewidth=0.5,
-                label=label,
-            )
-            for label, pipeline, color in FOCUS
-        ],
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.06),
-        ncol=2,
-    )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
-        output / "fig18_boston_exposure_tradeoffs",
+        output / "fig18_boston_partition_context",
         width="double",
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),

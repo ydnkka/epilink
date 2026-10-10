@@ -44,7 +44,7 @@ python evaluation/00_synthetic_diagnostics/run.py --stage all
 python evaluation/01_synthetic_baseline/run.py --stage develop
 ```
 
-Review the development report and configure operating criteria before selection and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria). Baseline selects pairwise cutoffs from all distinct development scores, component cutoffs from finite grids, and full-graph Leiden resolutions. Reports cover M0/Mle1/Mle2, neighboring settings and optional coarse-reference comparisons. Inspect these before freezing clustering settings.
+Review the development report and configure operating criteria before selection and evaluation; see the [worked criteria example](OPERATIONS.md#8-choose-and-freeze-operating-criteria). Baseline selects pairwise and component cutoffs from all distinct development scores, and full-graph Leiden resolutions from a bounded adaptive search. Reports cover M0/Mle1/Mle2 and the evaluated development settings. Inspect these before freezing clustering settings.
 
 ```bash
 python evaluation/01_synthetic_baseline/run.py --stage select

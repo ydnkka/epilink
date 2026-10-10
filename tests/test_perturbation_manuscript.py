@@ -110,7 +110,7 @@ def test_clustering_only_displays_render_all_four_modes(tmp_path, monkeypatch, s
         return save(fig, *args, dpi=300, **kwargs)
 
     monkeypatch.setattr(style, "save_figure", inspect_panels)
-    for name in ("fig12", "fig14", "fig15"):
+    for name in ("fig13", "fig14", "fig15"):
         module = importlib.import_module(f"evaluation.results.{name}")
         module.create_figure(study, tmp_path, fmt="png")
         assert list(tmp_path.glob(f"{name}_*.png"))
@@ -118,6 +118,6 @@ def test_clustering_only_displays_render_all_four_modes(tmp_path, monkeypatch, s
     rows = table.build_rows(study)
     assert len(rows) == 4 * len(scorers)
     assert all("resolution" in row[2].lower() for row in rows)
-    plotted = pd.read_csv(tmp_path / "fig12_cluster_sensitivity.csv")
+    plotted = pd.read_csv(tmp_path / "fig13_cluster_sensitivity.csv")
     assert set(plotted.score_name) == set(scorers)
     assert set(plotted["mode"]) == set(MODES)
