@@ -66,8 +66,8 @@ def test_exact_cutoffs_do_not_expand_graph_grids_and_resolutions_follow_policy(
     small_config["scorers"] = ["LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     leiden = small_config["clustering"]["leiden"]
-    leiden["resolutions"] = [0.2, 0.8]
-    leiden["resolutions_by_weight_policy"] = {"native": [0.01, 0.02]}
+    leiden["default_resolution_grid"] = [0.2, 0.8]
+    leiden["resolution_grid_by_weight_policy"] = {"native": [0.01, 0.02]}
     definitions = settings_registry(
         small_config, {"LOGIT_D": np.linspace(0, 1, 101).tolist()}
     )
@@ -202,7 +202,7 @@ def test_invalid_search_configuration_is_rejected(small_config, field):
     if field == "mode":
         small_config["pairwise"]["threshold_mode"] = "evaluation_scores"
     elif field == "resolution":
-        small_config["clustering"]["leiden"]["resolutions_by_weight_policy"] = {
+        small_config["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {
             "native": [0]
         }
     elif field == "tolerance":

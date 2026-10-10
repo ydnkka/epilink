@@ -18,7 +18,6 @@ from epilink_evaluation.diagnostics import (
 from epilink_evaluation.metrics.pairwise import CATEGORIES
 from epilink_evaluation.metrics.partitions import PartitionEvaluator
 from epilink_evaluation.schemas import DISTANCES, ENDPOINTS
-from epilink_evaluation.truth import reference_memberships
 from epilink_evaluation.truth.relationships import TreeIndex
 
 
@@ -295,9 +294,7 @@ def test_nontransitive_oracle_graph_and_within_cluster_false_positive():
     }
     assert "open_wedges" not in graph_summary(graph)
     labels, _ = components(graph)
-    evaluator = PartitionEvaluator(
-        observations, cases, truth, reference_memberships(tree, cases.case_id)
-    )
+    evaluator = PartitionEvaluator(observations, cases, truth)
     metrics, clusters = evaluator.evaluate(labels)
     assert metrics["within_pairs"] == 3
     assert metrics["M0_precision"] == pytest.approx(2 / 3)
@@ -483,17 +480,18 @@ def test_hop_tree_uses_tree_index_topology_validation(tree):
 
 
 @pytest.mark.parametrize(
-    "cases, message",
+    "cases, error, message",
     [
-        ([], "At least one"),
-        (["A", "A"], "unique"),
-        (["missing"], "absent"),
-        ([""], "nonempty"),
-        ("A", "collection"),
+        ([], ValueError, "At least one"),
+        (["A", "A"], ValueError, "unique"),
+        (["missing"], ValueError, "absent"),
+        ([""], ValueError, "nonempty"),
+        ("A", TypeError, "collection"),
+        (b"A", TypeError, "collection"),
     ],
 )
-def test_hop_tree_rejects_invalid_case_universes(cases, message):
-    with pytest.raises(ValueError, match=message):
+def test_hop_tree_rejects_invalid_case_universes(cases, error, message):
+    with pytest.raises(error, match=message):
         transmission_hop_tree(nx.DiGraph([("A", "B")]), cases)
 
 

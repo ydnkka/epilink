@@ -28,7 +28,6 @@ from ..provenance import (
     write_json,
 )
 from ..schemas import ENDPOINTS
-from ..truth import reference_memberships
 
 LOG = logging.getLogger(__name__)
 
@@ -384,9 +383,7 @@ class Diagnostics:
             }
         )
         truth = load_truth(self.truth_directory, pairs.pair_id)
-        evaluator = PartitionEvaluator(
-            pairs, cases, truth, reference_memberships(self.tree, cases.case_id)
-        )
+        evaluator = PartitionEvaluator(pairs, cases, truth)
         return pairs, cases, truth, evaluator
 
     def _partition(self, kind, signature, cases, evaluator, producer, provenance):
@@ -467,7 +464,7 @@ class Diagnostics:
                     "seed": settings["seed"],
                     "restart_selection": "maximum objective",
                 }
-                for resolution in settings["resolutions"]
+                for resolution in settings["resolution_grid"]
             )
             for setting in definitions:
                 try:

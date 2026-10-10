@@ -44,7 +44,6 @@ from ..selection.operating import (
     endpoint_frontiers,
     select_operating_points,
 )
-from ..truth import reference_memberships
 from .settings import settings_registry
 
 LOG = logging.getLogger(__name__)
@@ -461,7 +460,6 @@ class Baseline:
                 observations,
                 cases,
                 truth,
-                reference_memberships(self.tree, cases.case_id),
             )
             directory = self.directory / split / f"seed_{seed}" / "clusters"
             directory.mkdir(parents=True, exist_ok=True)
@@ -495,12 +493,12 @@ class Baseline:
                         )
                         if (process, kind) not in trees:
                             try:
-                                obs_dir = self.dataset(seed).directory
+                                obs_dir = self.dataset(seed)
                                 trees[process, kind] = prepare_phylogeny(
                                     self.config,
                                     obs_dir,
                                     process,
-                                    self.dataset(seed).name,
+                                    obs_dir.name,
                                     self.implementation,
                                 )
                             except Exception as exc:

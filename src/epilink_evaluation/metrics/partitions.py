@@ -1,62 +1,20 @@
-"""Every within-cluster pair, plus exact hard-vs-overlapping extended BCubed."""
+"""Evaluate every within-cluster pair and summarize cluster structure."""
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.sparse import csr_matrix
 
 from .pairwise import PairTruth
 
 
-class ReferenceIndex:
-    def __init__(self, case_ids, memberships):
-        if set(map(str, case_ids)) != set(memberships):
-            raise ValueError("Reference case universe differs from observed cases")
-        codes, rows, cols = {}, [], []
-        for i, case in enumerate(case_ids):
-            if not memberships[str(case)]:
-                raise ValueError("Empty reference membership")
-            for label in memberships[str(case)]:
-                rows.append(i)
-                cols.append(codes.setdefault(label, len(codes)))
-        incidence = csr_matrix(
-            (np.ones(len(rows)), (rows, cols)), shape=(len(case_ids), len(codes))
-        )
-        counts = (incidence @ incidence.T).tocoo()
-        self.row, self.col, self.count = counts.row, counts.col, counts.data
-        self.neighbors = np.bincount(self.row, minlength=len(case_ids))
-        self.n = len(case_ids)
-
-    def score(self, labels):
-        _, labels, sizes = np.unique(labels, return_inverse=True, return_counts=True)
-        same = labels[self.row] == labels[self.col]
-        # Predicted partitions share exactly one label. Retain reference overlap
-        # multiplicity, self-pairs and equal case weighting from extended BCubed.
-        precision = np.mean(
-            np.bincount(self.row[same], minlength=self.n) / sizes[labels]
-        )
-        recall = np.mean(
-            np.bincount(self.row[same], weights=1 / self.count[same], minlength=self.n)
-            / self.neighbors
-        )
-        return {
-            "bcubed_precision": float(precision),
-            "bcubed_recall": float(recall),
-            "bcubed_f1": float(2 * precision * recall / (precision + recall))
-            if precision + recall
-            else 0.0,
-        }
-
-
 class PartitionEvaluator:
-    def __init__(self, observations, cases, truth, reference):
+    def __init__(self, observations, cases, truth):
         if not observations.pair_id.equals(truth.pair_id):
             raise ValueError("Partition truth is not aligned")
         self.truth = PairTruth(truth)
         self.a, self.b = observations.a.to_numpy(), observations.b.to_numpy()
         self.n = len(cases)
-        self.reference = ReferenceIndex(cases.case_id, reference)
 
     def evaluate(self, labels):
         if len(labels) != self.n:
@@ -64,7 +22,6 @@ class PartitionEvaluator:
         _, labels, sizes = np.unique(labels, return_inverse=True, return_counts=True)
         within = labels[self.a] == labels[self.b]
         summary = self.truth.statistics(within)
-        summary.update(self.reference.score(labels))
         summary.update(
             {
                 "n_cases": self.n,

@@ -5,15 +5,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from Bio import Phylo
+from Bio.Phylo.BaseTree import Tree
 
 from ..inputs.synthetic import load_tree_inputs
 from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
 from .external import command_identity
 
 
-def validate_tree(path, case_ids):
-    """Validate tree tips match case universe and branches are valid."""
-    tree = Phylo.read(path, "newick")
+def validate_tree(source, case_ids):
+    """Validate a parsed tree or Newick file against the sampled case universe."""
+    tree = source if isinstance(source, Tree) else Phylo.read(source, "newick")
     names = [str(tip.name) for tip in tree.get_terminals()]
     if len(names) != len(set(names)) or set(names) != set(map(str, case_ids)):
         raise ValueError("Tree tips do not exactly match the sampled case universe")
@@ -144,6 +145,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
     Phylo.write(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
     
     dated_tree = Phylo.read(str(result.output_paths["dated_tree"]), "newick")
+    validate_tree(dated_tree, case_ids)
     Phylo.write(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
     
     result.node_dates.to_csv(directory / "node_dates.tsv", sep="\t", index=False)

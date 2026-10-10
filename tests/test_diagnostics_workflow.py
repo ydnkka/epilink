@@ -30,7 +30,7 @@ def diagnostics_config(small_config, tmp_path):
     config["diagnostics"] = {
         "leiden": {
             "objective": "CPM",
-            "resolutions": [0.2, 0.8],
+            "resolution_grid": [0.2, 0.8],
             "restarts": 2,
             "seed": 65001,
         },
@@ -189,7 +189,7 @@ def test_report_changes_do_not_invalidate_computation(diagnostics_config, monkey
     assert resumed.signature == diagnostics.signature
     # Altering a Leiden grid creates a study run, but keeps feature artifacts reusable.
     changed = deepcopy(diagnostics_config)
-    changed["diagnostics"]["leiden"]["resolutions"] = [0.3]
+    changed["diagnostics"]["leiden"]["resolution_grid"] = [0.3]
     new_grid = Diagnostics(changed)
     assert new_grid.directory != diagnostics.directory
     before = _timestamps(diagnostics.root / "artifacts/observations")

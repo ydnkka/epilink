@@ -22,7 +22,7 @@ def operating_summary(evaluation, frozen):
     metrics += [
         "Mge3_contamination", "separate_fraction", "direct_edge_retention",
         "shared_infector_retention", "selected_pairs", "selected_fraction",
-        "bcubed_f1", "singleton_fraction", "largest_cluster_fraction", "n_clusters",
+        "singleton_fraction", "largest_cluster_fraction", "n_clusters",
     ]
     rules = {
         (point["criterion"], point["pipeline"]): point

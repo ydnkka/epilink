@@ -85,12 +85,12 @@ def validate(config):
     if config["clustering"]["leiden"]["restarts"] < 1:
         raise ValueError("Leiden requires at least one restart")
     leiden = config["clustering"]["leiden"]
-    overrides = leiden.get("resolutions_by_weight_policy", {})
+    overrides = leiden.get("resolution_grid_by_weight_policy", {})
     if set(overrides) - {"binary", "native"}:
         raise ValueError(
             "Resolution overrides require binary or native weight policies"
         )
-    for grid in [leiden["resolutions"], *overrides.values()]:
+    for grid in [leiden["default_resolution_grid"], *overrides.values()]:
         if not grid or any(not np.isfinite(r) or r <= 0 for r in grid):
             raise ValueError("Leiden resolutions must be finite and positive")
     if config["pairwise"].get("threshold_mode", "configured") not in (
@@ -126,7 +126,7 @@ def validate(config):
         raise ValueError("Duplicate operating criterion names")
     reference = config.get("grid_audit", {}).get("reference")
     if reference is not None:
-        if set(reference) - {"thresholds", "leiden_resolutions", "treecluster"}:
+        if set(reference) - {"thresholds", "leiden_resolution_grid", "treecluster"}:
             raise ValueError("Unknown grid audit reference fields")
         if set(reference.get("thresholds", {})) - set(config["thresholds"]):
             raise ValueError("Unknown reference threshold family")
@@ -146,9 +146,9 @@ def reference_grid_config(config):
     reference = config.get("grid_audit", {}).get("reference", {})
     result["pairwise"]["threshold_mode"] = "configured"
     result["thresholds"].update(reference.get("thresholds", {}))
-    if "leiden_resolutions" in reference:
-        result["clustering"]["leiden"]["resolutions"] = reference["leiden_resolutions"]
-        result["clustering"]["leiden"]["resolutions_by_weight_policy"] = {}
+    if "leiden_resolution_grid" in reference:
+        result["clustering"]["leiden"]["default_resolution_grid"] = reference["leiden_resolution_grid"]
+        result["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {}
     result["treecluster"].update(reference.get("treecluster", {}))
     return result
 
@@ -164,8 +164,8 @@ def load_diagnostics_config(path):
         raise ValueError("Leiden requires positive integer restarts")
     if type(leiden["seed"]) is not int or leiden["seed"] < 0:
         raise ValueError("Leiden seed must be a nonnegative integer")
-    if not leiden["resolutions"] or any(
-        not np.isfinite(r) or r <= 0 for r in leiden["resolutions"]
+    if not leiden["resolution_grid"] or any(
+        not np.isfinite(r) or r <= 0 for r in leiden["resolution_grid"]
     ):
         raise ValueError("Leiden resolutions must be finite and positive")
     trees = settings["treecluster"]

@@ -51,10 +51,10 @@ def settings_registry(config, pairwise_thresholds=None):
                 for policy in leiden["weight_policies"]:
                     if policy == "native" and spec.family == "genetic":
                         continue
-                    resolutions = leiden.get("resolutions_by_weight_policy", {}).get(
-                        policy, leiden["resolutions"]
+                    resolution_grid = leiden.get("resolution_grid_by_weight_policy", {}).get(
+                        policy, leiden["default_resolution_grid"]
                     )
-                    for resolution in sorted(set(resolutions)):
+                    for resolution in sorted(set(resolution_grid)):
                         add(
                             {
                                 **base,

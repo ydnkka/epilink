@@ -85,7 +85,7 @@ conda activate epilik_evaluation
 python -m pip install -e '.[test]'
 ```
 
-The editable install supplies the `epilink-evaluate` command and Python dependencies, including EpiLink 0.1.5, TreeCluster, pytest, and BCubed. **IQ-TREE ≥2.0.6** is an external executable. Install a build for your platform; where Bioconda supplies it:
+The editable install supplies the `epilink-evaluate` command and Python dependencies, including EpiLink 0.1.5, TreeCluster, and pytest. **IQ-TREE ≥2.0.6** is an external executable. Install a build for your platform; where Bioconda supplies it:
 
 ```bash
 conda install -c conda-forge -c bioconda iqtree
@@ -190,8 +190,8 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `clustering.algorithms`                          | `components`, `leiden`, or both.                                                                                                                                              |
 | `clustering.leiden.objective`                    | `CPM` or `modularity`; resolution scales depend on the objective and weight policy.                                                                                           |
 | `clustering.leiden.weight_policies`              | `binary` and/or `native`; native EpiLink/logistic weights retain positive scores. Genetic graphs use binary weights.                                                          |
-| `clustering.leiden.resolutions`                  | Resolution grid crossed with graph thresholds for each scorer/weight policy.                                                                                                      |
-| `clustering.leiden.resolutions_by_weight_policy` | Optional`binary`/`native` resolution overrides; unlisted policies use `resolutions`.                                                                                        |
+| `clustering.leiden.default_resolution_grid` | Fallback resolution grid crossed with graph thresholds for scorer/weight policies without an override. |
+| `clustering.leiden.resolution_grid_by_weight_policy` | Optional `binary`/`native` grids; each replaces the default for that policy. Unlisted policies use `default_resolution_grid`. |
 | `treecluster.enabled`                            | Whether raw and dated phylogenetic comparisons are included.                                                                                                                      |
 | `treecluster.methods`                            | Methods to sweep:`max_clade`, `avg_clade`, `single_linkage`.                                                                                                                |
 | `treecluster.genetic_threshold_snps`             | Raw-tree SNP counts; converted to substitutions/site using `alignment_length` (preserves absolute SNP counts).                                                                    |
@@ -204,7 +204,7 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `phylogeny.timeout`                              | IQ-TREE/LSD2 timeout in seconds.                                                                                                                                                  |
 | `selection.criteria`                             | Objectives and constraints for freezing settings; see section 8.                                                                                                                  |
 | `grid_audit.objective_tolerance`                 | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                            |
-| `grid_audit.reference`                           | Coarse-grid overrides:`thresholds`, `leiden_resolutions`, and/or `treecluster` threshold lists. Compare on the same development observations.                               |
+| `grid_audit.reference` | Coarse-grid overrides: `thresholds`, `leiden_resolution_grid`, and/or `treecluster` threshold lists. Compare on the same development observations. |
 
 The runner also adds an explicit empty-selection setting to each scorer's grid. Binary graphs include zero-valued edges at a zero compatibility/probability cutoff; native weighted graphs omit zero-weight edges.
 Exact pairwise candidates are generated only after all development curves exist;

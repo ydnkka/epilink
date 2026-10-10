@@ -1,4 +1,3 @@
-import bcubed
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -10,9 +9,9 @@ from epilink_evaluation.metrics.pairwise import (
     metrics_at_thresholds,
     precision_recall_curve,
 )
-from epilink_evaluation.metrics.partitions import PartitionEvaluator, ReferenceIndex
+from epilink_evaluation.metrics.partitions import PartitionEvaluator
 from epilink_evaluation.schemas import ScoreSpec
-from epilink_evaluation.truth import reference_memberships, relationship_table
+from epilink_evaluation.truth import relationship_table
 
 
 @pytest.mark.parametrize("higher_is_better", [True, False])
@@ -92,9 +91,7 @@ def test_partitions_evaluate_transitive_pairs_not_only_graph_edges():
         columns={"node_a": "a", "node_b": "b"}
     )
     cases = pd.DataFrame({"case_id": list(tree)})
-    evaluator = PartitionEvaluator(
-        observations, cases, truth, reference_memberships(tree)
-    )
+    evaluator = PartitionEvaluator(observations, cases, truth)
     summary, clusters = evaluator.evaluate([0, 0, 0, 0])
     # Three true transmission edges induce six within-cluster pairs.
     assert summary["within_pairs"] == 6
@@ -107,19 +104,3 @@ def test_partitions_evaluate_transitive_pairs_not_only_graph_edges():
     assert singleton["within_pairs"] == 0
     assert np.isnan(singleton["M0_precision"])
     assert singleton["M0_recall"] == 0
-
-
-@pytest.mark.parametrize(
-    "labels", [[0, 0, 0, 0], [0, 1, 2, 3], [0, 0, 1, 1], [7, 3, 7, 7]]
-)
-def test_extended_bcubed_matches_independent_package(labels):
-    reference = {"a": {0}, "b": {0, 1}, "c": {0, 2}, "d": {1, 3}}
-    predicted = {case: {label} for case, label in zip(reference, labels)}
-    expected_precision = bcubed.precision(predicted, reference)
-    expected_recall = bcubed.recall(predicted, reference)
-    actual = ReferenceIndex(list(reference), reference).score(labels)
-    assert actual["bcubed_precision"] == pytest.approx(expected_precision)
-    assert actual["bcubed_recall"] == pytest.approx(expected_recall)
-    assert actual["bcubed_f1"] == pytest.approx(
-        bcubed.fscore(expected_precision, expected_recall)
-    )

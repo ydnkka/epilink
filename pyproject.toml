@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "bcubed>=1.5"]
+test = ["pytest>=7"]
 
 [project.scripts]
 epilink-evaluate = "epilink_evaluation.cli:main"

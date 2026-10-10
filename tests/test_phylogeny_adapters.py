@@ -1,11 +1,19 @@
+from io import StringIO
+from pathlib import Path
+from types import SimpleNamespace
+
+import epilink
 import numpy as np
 import pandas as pd
 import pytest
+from Bio import Phylo
 
 from epilink_evaluation.clusterers import treecluster
 from epilink_evaluation.phylogeny import trees
 from epilink_evaluation.phylogeny.external import executable
-from epilink_evaluation.provenance import read_json
+from epilink_evaluation.provenance import implementation_signature, read_json
+from epilink_evaluation.workflows import baseline as baseline_module
+from epilink_evaluation.workflows.settings import settings_registry
 
 
 def test_treecluster_preserves_each_unclustered_case(small_config, tmp_path):
@@ -31,151 +39,173 @@ def test_treecluster_preserves_each_unclustered_case(small_config, tmp_path):
     )
 
 
-def test_iqtree_adapter_mocked(small_config, tmp_path, monkeypatch):
-    """Test adapter calls EpiLink with correct options (JC, threads, seed)."""
-    from epilink_evaluation.phylogeny.trees import prepare_phylogeny
-    from epilink_evaluation.inputs.synthetic import _export_sampled_fasta, _export_reference, _export_sampling_dates
-    import pandas as pd
-    import tempfile
-    import os
-
-    # Set up observation bundle files
+@pytest.fixture
+def observation_bundle(tmp_path):
+    directory = tmp_path / "observations"
+    directory.mkdir()
     cases = pd.DataFrame({
         "case_id": ["case_0", "case_1", "case_2"],
         "node_index": [0, 1, 2],
         "sample_date": [1.0, 2.0, 3.0],
         "exposure_date": [0.5, 1.5, 2.5],
     })
-    cases_path = tmp_path / "cases.parquet"
-    cases.to_parquet(cases_path, index=False)
-
-    # Create deterministic FASTA
-    det_fasta = tmp_path / "sampled_deterministic.fasta"
-    with open(det_fasta, "w") as f:
-        f.write(">case_0\nACCGT\n>case_1\nGGTAA\n>case_2\nTTCGG\n")
-
-    # Create stochastic FASTA
-    sto_fasta = tmp_path / "sampled_stochastic.fasta"
-    with open(sto_fasta, "w") as f:
-        f.write(">case_0\nCCGGT\n>case_1\nGGAAT\n>case_2\nTCCTT\n")
-
-    # Create reference FASTA
-    ref_fasta = tmp_path / "reference.fasta"
-    with open(ref_fasta, "w") as f:
-        f.write(">ancestral_reference\nACGTACGT\n")
-
-    # Create sampling dates TSV
-    dates_path = tmp_path / "sampling_dates.tsv"
-    with open(dates_path, "w") as f:
-        f.write("case_id\tsample_date\ncase_0\t1\ncase_1\t2\ncase_2\t3\n")
-
-    # Run develop to create observation artifact
-    from epilink_evaluation.workflows.baseline import Baseline
-    from epilink_evaluation.config import load_config
-    from epilink_evaluation.tests.conftest import prepare_diagnostics
-
-    config = small_config.copy()
-    config["output_directory"] = str(tmp_path / "outputs")
-    config["splits"] = {"train": [71001], "development": [72001], "evaluation": [73001]}
-    config["inputs"]["smoke_cases"] = 64
-    config = prepare_diagnostics(config)
-
-    # Now test prepare_phylogeny with proper observation dir
-    obs_dir = config["diagnostics"].exp.dataset(72001).directory
-    result = prepare_phylogeny(
-        config,
-        obs_dir,
-        "deterministic",
-        config["diagnostics"].exp.dataset(72001).name,
-        config["implementation"],
+    cases.to_parquet(directory / "cases.parquet", index=False)
+    cases[["case_id", "sample_date"]].to_csv(
+        directory / "sampling_dates.tsv", sep="\t", index=False
     )
-    assert result is not None
+    (directory / "sampled_deterministic.fasta").write_text(
+        ">case_0\nACCGT\n>case_1\nGGTAA\n>case_2\nTTCGG\n"
+    )
+    (directory / "sampled_stochastic.fasta").write_text(
+        ">case_0\nCCGGT\n>case_1\nGGAAT\n>case_2\nTCCTT\n"
+    )
+    (directory / "reference.fasta").write_text(
+        ">ancestral_reference\nACGTA\n"
+    )
+    return directory
+
+
+@pytest.fixture
+def mocked_iqtree(monkeypatch):
+    calls = []
+
+    def command_identity(command):
+        return {"path": str(command), "sha256": "mock-executable"}
+
+    def build(**kwargs):
+        calls.append(kwargs)
+        cases = pd.read_parquet(
+            Path(kwargs["alignment_fasta"]).parent / "cases.parquet"
+        ).case_id.tolist()
+        directory = Path(kwargs["output_dir"])
+        directory.mkdir(parents=True, exist_ok=True)
+        raw, dated = directory / "raw.nwk", directory / "dated.nwk"
+        raw.write_text("(" + ",".join(
+            f"{case}:0.001" for case in [*cases, "ancestral_reference"]
+        ) + ");\n")
+        dated.write_text("(" + ",".join(f"{case}:1" for case in cases) + ");\n")
+        return SimpleNamespace(
+            output_paths={"raw_tree": raw, "dated_tree": dated},
+            reference_name="ancestral_reference",
+            node_dates=pd.DataFrame({"case_id": cases, "date": 1.0}),
+            clock_rate=kwargs["clock_rate"],
+            date_origin="2020-01-01",
+        )
+
+    monkeypatch.setattr(trees, "command_identity", command_identity)
+    monkeypatch.setattr(baseline_module, "command_identity", command_identity)
+    monkeypatch.setattr(epilink, "build_phylogenetic_tree_from_fasta", build)
+    return calls
+
+
+@pytest.mark.parametrize("process", ["deterministic", "stochastic"])
+def test_iqtree_adapter_mocked(small_config, observation_bundle, mocked_iqtree, process):
+    result = trees.prepare_phylogeny(
+        small_config, observation_bundle, process, "test-dataset",
+        implementation_signature(),
+    )
+    (call,) = mocked_iqtree
+    phylogeny = small_config["phylogeny"]
+    assert call == {
+        "alignment_fasta": str(observation_bundle / f"sampled_{process}.fasta"),
+        "reference_fasta": str(observation_bundle / "reference.fasta"),
+        "dates": str(observation_bundle / "sampling_dates.tsv"),
+        "dated": True,
+        "output_dir": str(result / "backend"),
+        "model": phylogeny["model"],
+        "threads": phylogeny["threads"],
+        "seed": phylogeny["seed"],
+        "clock_rate": phylogeny["clock_rate"],
+        "iqtree_executable": phylogeny["iqtree_executable"],
+        "timeout": phylogeny["timeout"],
+    }
+    cases = pd.read_parquet(observation_bundle / "cases.parquet").case_id
+    trees.validate_tree(result / "raw.nwk", cases)
+    trees.validate_tree(result / "dated.nwk", cases)
+    assert read_json(result / "manifest.json")["status"] == "complete"
 
 
 def test_reference_pruned_from_raw_tree():
-    """Verify raw.nwk excludes reference tip for TreeCluster."""
-    import numpy as np
-    from pathlib import Path
-    from Bio import Phylo
-    from epilink_evaluation.phylogeny.trees import _prune_reference_tip, validate_tree
-
-    # Create a tree with a reference tip
-    tree = Phylo.read("((a:0.1,b:0.1):0.2,c:0.3);", "newick")
-    tree.prune(tree.find_clades()[0])  # Remove one tip to simulate reference
-
-    # Test _prune_reference_tip
-    pruned = _prune_reference_tip(tree, "a")
-    tip_names = [str(tip.name) for tip in pruned.get_terminals()]
-    assert "a" not in tip_names, "Reference tip 'a' should be pruned from raw tree"
+    original = Phylo.read(StringIO("((a:0.1,b:0.1):0.2,c:0.3);"), "newick")
+    pruned = trees._prune_reference_tip(original, "a")
+    assert {tip.name for tip in pruned.get_terminals()} == {"b", "c"}
+    assert {tip.name for tip in original.get_terminals()} == {"a", "b", "c"}
+    assert pruned.distance("b", "c") == pytest.approx(original.distance("b", "c"))
 
 
-def test_day_thresholds_no_conversion():
-    """Verify dated thresholds passed directly (no /365)."""
-    from epilink_evaluation.workflows.settings import settings_registry
-
-    # Use config with alignment_length set
-    config = {
-        "schema_version": 1,
-        "name": "test",
-        "output_directory": "outputs/test",
-        "simulation": {"sequence_length": 5000, "alignment_length": 5000},
-        "treecluster": {
-            "enabled": True,
-            "methods": ["max_clade"],
-            "genetic_threshold_snps": [0, 1, 2],
-            "threshold_days": [0, 365, 730],
-            "command_timeout_seconds": 1800,
-            "executables": {"treecluster": "TreeCluster.py"},
-        },
-        "scorers": ["GD_D"],
-        "pairwise": {"threshold_mode": "configured"},
-        "clustering": {
-            "algorithms": ["components"],
-            "leiden": {"objective": "CPM", "resolutions": [0.5], "restarts": 1, "seed": 66001},
-        },
-    }
-
-    definitions = settings_registry(config)
-    # Check that dated thresholds have threshold_units = "days"
-    for key, defn in definitions.items():
-        if defn["kind"] == "treecluster" and defn["tree_kind"] == "dated":
-            assert defn["threshold_units"] == "days"
-            # Threshold should be the SNP count directly (not divided by alignment_length)
-            # since it's in days units
-            assert isinstance(defn["threshold"], (int, float))
-            assert defn["threshold"] >= 0
+def test_day_thresholds_no_conversion(small_config):
+    small_config["simulation"]["alignment_length"] = 5000
+    small_config["treecluster"].update(
+        enabled=True, methods=["max_clade"],
+        genetic_threshold_snps=[0, 1, 2], threshold_days=[0, 365, 730],
+    )
+    definitions = settings_registry(small_config).values()
+    dated = [d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "dated"]
+    raw = [d for d in definitions if d["kind"] == "treecluster" and d["tree_kind"] == "raw"]
+    assert {d["threshold_units"] for d in dated} == {"days"}
+    assert {d["threshold"] for d in dated} == {0, 365, 730}
+    assert {d["threshold_units"] for d in raw} == {"snps"}
+    assert {d["threshold"] for d in raw} == {0, 1 / 5000, 2 / 5000}
 
 
-def test_cache_reuse_on_rerun(small_config, tmp_path, prepare_diagnostics):
-    """Verify valid artifact not recomputed."""
-    from epilink_evaluation.workflows.baseline import Baseline
-    from epilink_evaluation.phylogeny.trees import prepare_phylogeny
+def test_cache_reuse_on_rerun(small_config, observation_bundle, mocked_iqtree):
+    implementation = implementation_signature()
+    result = trees.prepare_phylogeny(
+        small_config, observation_bundle, "deterministic", "test-dataset", implementation
+    )
+    saved = {p: p.stat().st_mtime_ns for p in result.iterdir() if p.is_file()}
+    resumed = trees.prepare_phylogeny(
+        small_config, observation_bundle, "deterministic", "test-dataset", implementation
+    )
+    assert resumed == result
+    assert len(mocked_iqtree) == 1
+    assert saved == {p: p.stat().st_mtime_ns for p in saved}
 
-    # Run develop stage twice with same config
+
+@pytest.mark.parametrize("invalid_tree, message", [
+    ("(case_0:1,case_1:1,missing:1);", "case universe"),
+    ("(case_0:1,case_1:-1,case_2:1);", "negative branch"),
+])
+def test_invalid_dated_tree_is_not_completed(
+    small_config, observation_bundle, mocked_iqtree, monkeypatch, invalid_tree, message
+):
+    original = epilink.build_phylogenetic_tree_from_fasta
+
+    def build(**kwargs):
+        result = original(**kwargs)
+        result.output_paths["dated_tree"].write_text(invalid_tree)
+        return result
+
+    monkeypatch.setattr(epilink, "build_phylogenetic_tree_from_fasta", build)
+    with pytest.raises(ValueError, match=message):
+        trees.prepare_phylogeny(
+            small_config, observation_bundle, "deterministic", "test-dataset",
+            implementation_signature(),
+        )
+    backend = Path(mocked_iqtree[0]["output_dir"])
+    assert not (backend.parent / "manifest.json").exists()
+
+
+def test_baseline_treecluster_uses_observation_paths(
+    small_config, prepare_diagnostics, mocked_iqtree, monkeypatch
+):
+    small_config["treecluster"].update(
+        enabled=True, methods=["max_clade"],
+        genetic_threshold_snps=[1], threshold_days=[7],
+    )
+
+    def cluster(path, cases, *args):
+        trees.validate_tree(path, cases.case_id)
+        return np.zeros(len(cases), dtype=int), {}
+
+    monkeypatch.setattr(baseline_module, "treecluster", cluster)
     prepare_diagnostics(small_config)
-    baseline = Baseline(small_config)
-    baseline.run("develop")
-
-    # Call prepare_phylogeny twice with same params; second should use cache
+    baseline = baseline_module.Baseline(small_config)
+    assert baseline.run("develop")
     seed = small_config["splits"]["development"][0]
-    config_copy = small_config.copy()
-
-    # First call
-    result1 = prepare_phylogeny(
-        config_copy,
-        baseline.datasets[seed].directory,
-        "deterministic",
-        baseline.datasets[seed].name,
-        baseline.implementation,
-    )
-
-    # Second call with same params should return same directory (cached)
-    result2 = prepare_phylogeny(
-        config_copy,
-        baseline.datasets[seed].directory,
-        "deterministic",
-        baseline.datasets[seed].name,
-        baseline.implementation,
-    )
-
-    assert result1 == result2, "Cached artifact should be reused on rerun"
+    dataset = baseline.dataset(seed)
+    assert len(mocked_iqtree) == 2  # Raw/dated consumers reuse each genetic process.
+    assert all(Path(call["alignment_fasta"]).parent == dataset for call in mocked_iqtree)
+    status = read_json(baseline.directory / "development" / f"seed_{seed}" / "clusters/status.json")
+    assert status["status"] == "complete"
+    assert not status["errors"]

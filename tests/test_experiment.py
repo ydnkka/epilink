@@ -236,7 +236,7 @@ def test_analysis_changes_preserve_generation_artifacts(
     config = deepcopy(small_config)
     if change == "diagnostics":
         config["diagnostics"] = deepcopy(diagnostics.settings)
-        config["diagnostics"]["leiden"]["resolutions"] = [0.4]
+        config["diagnostics"]["leiden"]["resolution_grid"] = [0.4]
         implementation = implementation_signature()
         implementation["evaluation"]["diagnostics/graphs.py"] = "revised diagnostics"
         monkeypatch.setattr(

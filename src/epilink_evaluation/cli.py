@@ -35,7 +35,7 @@ def smoke_config(config):
     config["inputs"]["smoke_cases"] = 64
     config["splits"] = {"train": [71001], "development": [72001], "evaluation": [73001]}
     if "diagnostics" in config:
-        config["diagnostics"]["leiden"].update(resolutions=[0.1, 0.5], restarts=2)
+        config["diagnostics"]["leiden"].update(resolution_grid=[0.1, 0.5], restarts=2)
         config["diagnostics"]["treecluster"]["threshold_hops"] = [0, 1, 2, 4]
         return config
     config["scorer"]["mc_samples"] = 1024
@@ -44,15 +44,15 @@ def smoke_config(config):
         "genetic": [0, 2],
         "logistic": [0.01, 0.25],
     }
-    config["clustering"]["leiden"].update(resolutions=[0.05, 0.5], restarts=2)
-    config["clustering"]["leiden"]["resolutions_by_weight_policy"] = {
+    config["clustering"]["leiden"].update(default_resolution_grid=[0.05, 0.5], restarts=2)
+    config["clustering"]["leiden"]["resolution_grid_by_weight_policy"] = {
         "binary": [0.05, 0.5],
         "native": [0.05, 0.5],
     }
     if "grid_audit" in config:
         config["grid_audit"]["reference"] = {
             "thresholds": deepcopy(config["thresholds"]),
-            "leiden_resolutions": [0.5],
+            "leiden_resolution_grid": [0.5],
         }
     config["treecluster"].update(
         genetic_threshold_snps=[1, 10], threshold_days=[14, 56]
@@ -150,9 +150,9 @@ def main(argv=None):
     if args.command == "perturbation":
         from .workflows.perturbation_config import load_study_config
 
-        if args.stage not in (None, "all", "report"):
+        if args.stage not in (None, "all", "observations", "report"):
             parser.error(
-                "Perturbation supports --stage all or report; settings are already frozen"
+                "Perturbation supports --stage all, observations or report; settings are already frozen"
             )
         config = load_study_config(
             args.config or "evaluation/02_synthetic_perturbation/config.yaml",
@@ -173,7 +173,7 @@ def main(argv=None):
             return 0
         from .workflows.perturbation import PerturbationStudy
 
-        return 0 if PerturbationStudy(config).run() else 1
+        return 0 if PerturbationStudy(config).run(args.stage or "all") else 1
     if args.command in ("boston", "prepare-boston"):
         from .workflows.boston_config import load_study_config
 

@@ -180,29 +180,18 @@ Directory: `<run>/<split>/seed_<seed>/clusters/`.
 
 **One row/object per partition.** The CSV includes identifiers `split`, `seed`, `setting_id`, `pipeline`, `data_process`. The JSON contains metrics only. Both contain every shared metric from section 2, with all within-cluster pairs as the selected set, plus:
 
-| Column                                           | Definition                                                                                                                      |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `n_cases`                                        | Number of observed cases.                                                                                                       |
-| `n_clusters`                                     | Number of clusters, including singletons.                                                                                       |
-| `n_singletons`                                   | Number of singleton clusters, also the number of singleton cases.                                                               |
-| `singleton_fraction`                             | `n_singletons / n_cases`, the fraction of cases that are singletons.                                                            |
-| `largest_cluster`                                | Largest cluster's case count.                                                                                                   |
-| `largest_cluster_fraction`                       | `largest_cluster / n_cases`.                                                                                                    |
-| `within_pairs`                                   | Sum of `size * (size - 1) / 2` across clusters; equals `selected_pairs`.                                                        |
-| `cluster_mean_M0_precision`                      | Unweighted mean of cluster-specific M0 precision over clusters with at least two cases; undefined for all-singleton partitions. |
-| `bcubed_precision`, `bcubed_recall`, `bcubed_f1` | Extended BCubed against overlapping parent/child neighborhoods, defined below.                                                  |
+| Column                      | Definition                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `n_cases`                   | Number of observed cases.                                                                                                       |
+| `n_clusters`                | Number of clusters, including singletons.                                                                                       |
+| `n_singletons`              | Number of singleton clusters, also the number of singleton cases.                                                               |
+| `singleton_fraction`        | `n_singletons / n_cases`, the fraction of cases that are singletons.                                                            |
+| `largest_cluster`           | Largest cluster's case count.                                                                                                   |
+| `largest_cluster_fraction`  | `largest_cluster / n_cases`.                                                                                                    |
+| `within_pairs`              | Sum of `size * (size - 1) / 2` across clusters; equals `selected_pairs`.                                                        |
+| `cluster_mean_M0_precision` | Unweighted mean of cluster-specific M0 precision over clusters with at least two cases; undefined for all-singleton partitions. |
 
 Global `M0_precision` weights clusters by their pair counts. `cluster_mean_M0_precision` gives each non-singleton cluster equal weight, so the two quantities generally differ.
-
-**Extended BCubed:** case `i` belongs to reference labels for its own neighborhood and its infector's neighborhood. Unobserved infectors can remain reference labels. Let `K_i` be its predicted cluster, `T_i` the observed cases sharing at least one reference label with it, and `r_ij` the number of reference labels shared by cases `i,j`. Both `K_i` and `T_i` include `i` itself. The implementation computes:
-
-```text
-bcubed_precision = mean_i( |K_i intersect T_i| / |K_i| )
-bcubed_recall    = mean_i( sum_{j in K_i intersect T_i}(1 / r_ij) / |T_i| )
-bcubed_f1        = harmonic mean of those two global values
-```
-
-This retains the published self-pair and overlap-multiplicity convention; pairwise precision/recall in section 2 exclude self-pairs.
 
 ### `<setting-id>/memberships.parquet`
 
@@ -229,13 +218,13 @@ This cluster-level file has counts and precision, without cluster-specific recal
 
 ### `<setting-id>/algorithm.json`
 
-| Method             | Recorded fields                                                                                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Components         | `retained_graph_edges`: number of thresholded graph edges.                                                                                                                                             |
-| Leiden             | `objective`: CPM/modularity; `quality`: chosen igraph objective value; `restart_qualities`: objective values from all restarts; `seed`: base algorithm seed; `retained_graph_edges`: graph edge count. |
-| Empty-graph Leiden | `objective`, `quality: 0.0`, `retained_graph_edges: 0`; no restarts are run, so restart fields are absent.                                                                                             |
-| TreeCluster        | `command`: executed argument list; `executable`: path and SHA-256; `threshold_tree_units`: actual cutoff, in substitutions/site for raw trees or calendar years for dated trees.                       |
-|                    | **Threshold scaling**: SNP counts from the configuration grid are converted to substitutions/site using `threshold_value = snp_count / alignment_length` (raw) or passed directly as days (dated).  The `alignment_length` is set in the `simulation` config block (default: `sequence_length`).  Day-unit thresholds require no conversion and are passed directly to TreeCluster. |
+| Method             | Recorded fields                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Components         | `retained_graph_edges`: number of thresholded graph edges.                                                                                                                                                                                                                                                                                                                        |
+| Leiden             | `objective`: CPM/modularity; `quality`: chosen igraph objective value; `restart_qualities`: objective values from all restarts; `seed`: base algorithm seed; `retained_graph_edges`: graph edge count.                                                                                                                                                                            |
+| Empty-graph Leiden | `objective`, `quality: 0.0`, `retained_graph_edges: 0`; no restarts are run, so restart fields are absent.                                                                                                                                                                                                                                                                        |
+| TreeCluster        | `command`: executed argument list; `executable`: path and SHA-256; `threshold_tree_units`: actual cutoff, in substitutions/site for raw trees or calendar years for dated trees.                                                                                                                                                                                                  |
+|                    | **Threshold scaling**: SNP counts from the configuration grid are converted to substitutions/site using `threshold_value = snp_count / alignment_length` (raw) or passed directly as days (dated). The `alignment_length` is set in the `simulation` config block (default: `sequence_length`). Day-unit thresholds require no conversion and are passed directly to TreeCluster. |
 
 `quality` is the optimized clustering objective, not a truth metric. For dated TreeCluster, thresholds are in **days** (not years); raw tree thresholds are in **substitutions per site**.
 
@@ -277,7 +266,7 @@ Joins evaluation metric rows to their selected `criterion` names. Columns are th
 
 **One row per `(criterion, pipeline)`**, generated during reporting from the frozen mapping in `evaluation/selection_used.json`. It includes `setting_id`, `objective`, `objective_endpoint` and `n_realizations`. The endpoint is derived from the objective metric (blank for objectives without an endpoint), never guessed from the criterion name. Each group must contain one frozen setting and one row per seed.
 
-For all three endpoints, precision, recall, F1 and enrichment receive `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. The same summaries are included for distant/separate contamination, direct-edge/shared-infector retention, selected pair counts/fractions, BCubed F1, singleton fraction, largest-cluster fraction and number of clusters when present. `_count` is the number of defined values for that metric; `n_realizations` counts seeds even when a metric is undefined. `_std` uses `ddof=1`. BCubed and cluster-size metrics are undefined for pairwise pipelines.
+For all three endpoints, precision, recall, F1 and enrichment receive `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. The same summaries are included for distant/separate contamination, direct-edge/shared-infector retention, selected pair counts/fractions, singleton fraction, largest-cluster fraction and number of clusters when present. `_count` is the number of defined values for that metric; `n_realizations` counts seeds even when a metric is undefined. `_std` uses `ddof=1`. Cluster-size metrics are undefined for pairwise pipelines.
 
 `objective_mean`, `objective_std`, `objective_min`, `objective_max`, and `objective_count` alias the corresponding summaries of the actual optimized metric, including arbitrary supported objectives. The report displays the optimized endpoint's precision/recall/F1 prominently; the CSV retains every endpoint for cross-endpoint comparisons.
 
@@ -460,15 +449,15 @@ Artifact directories, pairwise stages, and individual clustering settings use th
 
 Common signature fields and artifact-specific metadata:
 
-| Artifact               | Signature / additional metadata                                                                                                                    |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Truth                  | `kind`, `source_sha256`, `nodes`, `edges`, `implementation`; root metadata `n_cases`, `n_pairs`.                                                   |
+| Artifact               | Signature / additional metadata                                                                                                                                                                                                                                                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Truth                  | `kind`, `source_sha256`, `nodes`, `edges`, `implementation`; root metadata `n_cases`, `n_pairs`.                                                                                                                                                                                                                                         |
 | Observations           | `kind`, `truth` artifact ID, `generation`, `simulation`, `seed`, `implementation`; root metadata `truth_directory`, `n_cases`, `n_pairs`, `units`, `fasta`, `reference_fasta`, `dates_tsv`; files: `pairs.parquet`, `cases.parquet`, `sampled_deterministic.fasta`, `sampled_stochastic.fasta`, `reference.fasta`, `sampling_dates.tsv`. |
-| Fitted models          | `kind`, training `datasets` IDs, `C`, `implementation`; root metadata `seeds`.                                                                     |
-| Scores                 | `kind`, observation `dataset` ID, full `training` fingerprint, `scorers` metadata, `inference`, `scorer_config`, `implementation`.                 |
-| Per-seed pairwise      | `run` fingerprint, `score_id`, `split`, `seed`, `definitions` of the evaluated settings.                                                           |
-| Per-setting clustering | `run` fingerprint, `score_id`, `definition`, `split`, `seed`.                                                                                      |
-| Raw/dated trees        | Dataset/process/tool and tree-building parameters; detailed in section 9.                                                                          |
+| Fitted models          | `kind`, training `datasets` IDs, `C`, `implementation`; root metadata `seeds`.                                                                                                                                                                                                                                                           |
+| Scores                 | `kind`, observation `dataset` ID, full `training` fingerprint, `scorers` metadata, `inference`, `scorer_config`, `implementation`.                                                                                                                                                                                                       |
+| Per-seed pairwise      | `run` fingerprint, `score_id`, `split`, `seed`, `definitions` of the evaluated settings.                                                                                                                                                                                                                                                 |
+| Per-setting clustering | `run` fingerprint, `score_id`, `definition`, `split`, `seed`.                                                                                                                                                                                                                                                                            |
+| Raw/dated trees        | Dataset/process/tool and tree-building parameters; detailed in section 9.                                                                                                                                                                                                                                                                |
 
 Observation `units` has keys `GD`, `TD`, `mutation_count_genome_length`, and `simulated_sequence_length`. Scorer metadata contains `name`, `family`, `data_process`, `inference_process`, `target`, and `higher_is_better`. Genetic scorers record `target: "none"`; the evaluation endpoints are applied separately.
 
@@ -500,15 +489,15 @@ Each phylogeny (raw + dated) has a single directory under `artifacts/trees/<id>/
 
 ### Synthetic studies
 
-| File                      | Contents and units                                                                                                                                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.nwk`                 | IQ-TREE maximum-likelihood tree with reference tip removed, midpoint rooted; branch lengths in **substitutions/site**. Case IDs restored from FASTA headers.                                                                                      |
-| `dated.nwk`               | LSD2 time-calibrated tree; branch lengths in **days** from the earliest sample. Reference excluded.                                                                                                                                               |
-| `node_dates.tsv`          | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                  |
-| `phylogeny.json`          | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                            |
-| `backend/run-*/`          | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
-| `<tool>.stdout.log`       | Captured IQ-TREE stdout.                                                                                                                                                                                                                          |
-| `<tool>.stderr.log`       | Captured IQ-TREE stderr (including timeout messages).                                                                                                                                                                                             |
+| File                | Contents and units                                                                                                                                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw.nwk`           | IQ-TREE maximum-likelihood tree with reference tip removed, midpoint rooted; branch lengths in **substitutions/site**. Case IDs restored from FASTA headers.                                                                                       |
+| `dated.nwk`         | LSD2 time-calibrated tree; branch lengths in **days** from the earliest sample. Reference excluded.                                                                                                                                                |
+| `node_dates.tsv`    | Tab-separated table with columns: `node`, `case_id`, `is_tip`, `date` (days from origin), `sample_date` (original numeric days).                                                                                                                   |
+| `phylogeny.json`    | JSON metadata: `model` (e.g., JC), `threads`, `seed`, `clock_rate` (estimated or fixed), `date_origin`, `reference_name`, `units` (`raw: substitutions_per_site`, `dated: days`), `backend_paths` to IQ-TREE outputs.                              |
+| `backend/run-*/`    | IQ-TREE/LSD2 working directory containing: `sampled.fasta` (alignment with reference), `sampling_dates.txt`, `iqtree.iqtree` (model report), `iqtree.treefile` (genetic tree), `iqtree.timetree.lsd` (LSD2 report), `iqtree.timetree.nex` (dated). |
+| `<tool>.stdout.log` | Captured IQ-TREE stdout.                                                                                                                                                                                                                           |
+| `<tool>.stderr.log` | Captured IQ-TREE stderr (including timeout messages).                                                                                                                                                                                              |
 
 **Signature fields:** `kind: phylogeny-v1`, `dataset`, `process`, `fasta_sha256`, `reference_sha256`, `dates_sha256`, `n_cases`, `iqtree_model`, `iqtree_threads`, `iqtree_seed`, `clock_rate`, `iqtree_executable`, `implementation`.
 
@@ -522,12 +511,12 @@ Each phylogeny (raw + dated) has a single directory under `artifacts/trees/<id>/
 
 Boston trees follow the same structure as synthetic studies, with these differences:
 
-| File                      | Boston-specific notes                                                                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `raw.nwk`                 | Built from full Boston alignment (29,903 bp) + SARS-CoV-2 reference; IQ-TREE ModelFinder (`MFP`) for empirical data.                                                                                                                                           |
-| `dated.nwk`               | LSD2 dating using real collection dates (YYYY-MM-DD converted to days from earliest sample).                                                                                                                                                      |
-| `node_dates.tsv`          | Includes `calendar_date` and `sample_calendar_date` columns when calendar dates are provided.                                                                                                                                                     |
-| `phylogeny.json`          | `alignment_length: 29903`, `model: MFP`.                                                                                                                                                                                                          |
+| File             | Boston-specific notes                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `raw.nwk`        | Built from full Boston alignment (29,903 bp) + SARS-CoV-2 reference; IQ-TREE ModelFinder (`MFP`) for empirical data. |
+| `dated.nwk`      | LSD2 dating using real collection dates (YYYY-MM-DD converted to days from earliest sample).                         |
+| `node_dates.tsv` | Includes `calendar_date` and `sample_calendar_date` columns when calendar dates are provided.                        |
+| `phylogeny.json` | `alignment_length: 29903`, `model: MFP`.                                                                             |
 
 **Reference alignment compatibility:** Boston alignment is 29,903 bp (full SARS-CoV-2 genome). The reference sequence must be compatible (same strain/isolate backbone). Gap patterns in the alignment must match the reference to avoid artifactual branch lengths.
 
@@ -539,16 +528,17 @@ Boston trees follow the same structure as synthetic studies, with these differen
 
 TreeCluster reads the pruned `raw.nwk` or `dated.nwk` and writes per-setting artifacts under `clusters/` or `trees/`. Output files:
 
-| File                          | Contents                                                                                                         |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `memberships.parquet`         | Columns: `case_id`, `cluster_id`. `cluster_id: -1` indicates unclustered singleton (normalized before analysis). |
-| `clusters.parquet`            | Cluster-level summaries: `cluster_id`, `n_cases`, `within_pairs`, optional exposure/mutation counts.             |
-| `metrics.json`                | Partition-level metrics: `n_cases`, `n_clusters`, `size_mean`, `size_std`, `largest_cluster`.                    |
-| `algorithm.json`              | TreeCluster command, executable identity, `threshold_tree_units`.                                                |
-| `treecluster.stdout.log`      | TreeCluster output with `SequenceName` and `ClusterNumber` columns.                                              |
-| `treecluster.stderr.log`      | Captured stderr (including timeout messages).                                                                                                                                    |
+| File                     | Contents                                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `memberships.parquet`    | Columns: `case_id`, `cluster_id`. `cluster_id: -1` indicates unclustered singleton (normalized before analysis). |
+| `clusters.parquet`       | Cluster-level summaries: `cluster_id`, `n_cases`, `within_pairs`, optional exposure/mutation counts.             |
+| `metrics.json`           | Partition-level metrics: `n_cases`, `n_clusters`, `size_mean`, `size_std`, `largest_cluster`.                    |
+| `algorithm.json`         | TreeCluster command, executable identity, `threshold_tree_units`.                                                |
+| `treecluster.stdout.log` | TreeCluster output with `SequenceName` and `ClusterNumber` columns.                                              |
+| `treecluster.stderr.log` | Captured stderr (including timeout messages).                                                                    |
 
 **Threshold units:**
+
 - **Raw tree:** `threshold_units: snps`, threshold value = `snp_count / alignment_length` (substitutions/site)
 - **Dated tree:** `threshold_units: days`, threshold value = days (no conversion)
 
@@ -755,7 +745,7 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 
 | File             | Fields / purpose                                                                                                                                                                                                                                                |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manifest.json`  | Study `status`, normalized `config`, full `signature`, `git_revision`, actual study `n_cases`, `run_directory`, and optional caught `error`. Status is running/complete/partial/failed.                                                                         |
+| `manifest.json`  | Study `status`, `requested_stage` (`all` or `observations`), normalized `config`, full `signature`, `git_revision`, actual study `n_cases`, `run_directory`, and optional caught `error`. Status is running/complete/partial/failed.                            |
 | `reference.json` | Source `run_directory`, `run_fingerprint`, `selection_fingerprint`, `training_fingerprint`, `truth_fingerprint`, reference `n_cases`, `model_sha256`, and `baseline_implementation`.                                                                            |
 | `selection.json` | Exact frozen baseline selection document, including infeasible decisions.                                                                                                                                                                                       |
 | `settings.json`  | Only the selected setting definitions; definitions and setting IDs are unchanged from baseline.                                                                                                                                                                 |
@@ -763,6 +753,22 @@ The [perturbation runner](evaluation/02_synthetic_perturbation/README.md) has a 
 | `coverage.csv`   | One row per `scenario`, `mode`: replay `status`, `completed` metric rows, `expected` rows, and `error` when a whole replay failed. Expected count is unique selected settings times effective observation seeds, before duplicating rows for multiple criteria. |
 
 Study signatures include effective configuration, resolved reference identity, scenarios, current implementation/tool identities, and study truth ID. Each `scenarios/<scenario>/<mode>/manifest.json` records replay `status`, its exact configuration and signature, and an optional whole-replay error. A partial replay can contribute completed rows; failed/not-run replays contribute none to the top-level result tables. Study status remains partial until all requested scenario/mode comparisons have complete coverage.
+
+For `requested_stage: observations`, status describes ambiguity coverage only. An `all` run additionally requires complete ambiguity coverage.
+
+### Perturbed observation ambiguity
+
+The shared synthetic diagnostic implementation computes exact GD and GD/TD feature cells for every scenario/seed, including the fresh baseline control. Genetic processes and relationship endpoints match [exact observation feature cells](#exact-observation-feature-cells). Inference modes share observations, so these tables have **no `mode` column**.
+
+| File                          | Groups and values                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ambiguity_coverage.csv`      | One row per `(scenario, seed)`: `status`, `completed` / `expected` summary rows (12 per dataset), source `dataset` ID, diagnostic `artifact` path, and optional `error`. |
+| `ambiguity.csv`               | One row per `(scenario, seed, process, feature_set, endpoint)`, containing the diagnostic summary counts/ratios and scenario parameter metadata. Includes controls.      |
+| `ambiguity_summary.csv`       | Absolute metrics grouped by `(scenario, process, feature_set, endpoint)` with `_mean`, `_std`, `_min`, `_max`, `_count` and `n_realizations`.                            |
+| `ambiguity_deltas.csv`        | Perturbed rows matched to controls by `(seed, process, feature_set, endpoint)`, with `baseline_<metric>`, `delta_<metric>` and `control_available`.                      |
+| `ambiguity_delta_summary.csv` | Paired metrics grouped like absolute summaries, with the same statistic suffixes plus `n_controls`.                                                                      |
+
+`artifacts/feature_cells/<full-fingerprint>/` retains `cells.parquet`, `summary.csv`, `prevalence.csv` and `relationships.csv` with seed identifiers, using the diagnostic schemas in section 13. Completion manifests are keyed by source dataset, truth checksums and scoped diagnostic implementation/dependencies; changed evidence is rebuilt. `ambiguity_coverage.csv` links scenarios/seeds to these artifacts. Feature ambiguity measures exact-cell target/non-target mixing; minimum feature-only error is empirical. Missing controls and undefined ratios remain visible in the deltas and per-metric counts.
 
 ### Absolute results and rankings
 
@@ -808,7 +814,7 @@ Each metric receives `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. Mea
 
 `artifacts/backbones/<id>/transmission_tree.gml` stores the frozen reference topology, or its smoke prefix. Its manifest signature has `kind`, `reference_truth`, `nodes`, and `edges`, with normal completion checksums. Frozen logistic model bytes/manifests are copied to `artifacts/models/<training-id-prefix>/`; their original training dataset IDs refer to the reference baseline's pinned shared experiment. Perturbation's newly generated truth and observations remain under its own `artifacts/truth/` and `artifacts/observations/`; they are independent of the diagnostics/baseline shared observation pool. Boston's paths and schemas in section 10 are unchanged by shared synthetic preparation.
 
-`report.md` and `report.html` show coverage, parameter levels, frozen decisions, paired AP changes, and fixed-setting metric changes. `figures/paired_f1_<index>.png` contains a paired F1 heatmap for each criterion in sorted criterion-name order. Each heatmap has one panel per mode, pipelines as rows, and perturbations as columns. Smoke reports are explicitly labeled pipeline validation.
+`report.md` and `report.html` show comparison and feature-ambiguity coverage, absolute ambiguity and paired changes, parameter levels, frozen decisions, paired AP changes, and fixed-setting metric changes. `figures/paired_f1_<index>.png` contains a paired F1 heatmap for each criterion in sorted criterion-name order. Each heatmap has one panel per mode, pipelines as rows, and perturbations as columns. Smoke reports are explicitly labeled pipeline validation.
 
 ## 13. Shared experiments and diagnostics
 

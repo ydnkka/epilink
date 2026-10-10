@@ -7,7 +7,13 @@ from pathlib import Path
 import networkx as nx
 import pandas as pd
 
-from ..inputs.synthetic import prepare_observations, prepare_truth
+from ..diagnostics.observations import observation_diagnostics
+from ..inputs.synthetic import (
+    load_observations,
+    load_truth,
+    prepare_observations,
+    prepare_truth,
+)
 from ..provenance import (
     complete_artifact,
     fingerprint,
@@ -18,6 +24,7 @@ from ..provenance import (
     write_json,
 )
 from ..scorers import ScoringContext
+from ..schemas import DISTANCES, ENDPOINTS
 from .baseline import Baseline
 from .perturbation_config import scenarios
 from .reference import BaselineReference
@@ -77,17 +84,13 @@ class FrozenReplay(Baseline):
     """Reuse baseline evaluation machinery without baseline init, fitting or selection."""
 
     def __init__(self, study, scenario, mode):
-        self.config = deepcopy(study.reference.config)
-        self.config["generation"] = deepcopy(scenario["generation"])
+        self.config = study.observation_config(scenario)
         self.config["inference"] = deepcopy(
             scenario["generation"]
             if mode == "matched"
             else study.reference.config["inference"]
         )
         self.config["splits"]["evaluation"] = study.config["seeds"]
-        self.config["output_directory"] = str(study.root)
-        self.config["inputs"]["tree_path"] = str(study.backbone_path)
-        self.config["inputs"]["smoke_cases"] = study.config["case_limit"]
         self.implementation, self.tools = study.implementation, study.reference.tools
         self.root, self.tree, self.truth_directory = (
             study.root,
@@ -230,6 +233,119 @@ class PerturbationStudy:
             },
         )
 
+    def observation_config(self, scenario):
+        config = deepcopy(self.reference.config)
+        config["generation"] = deepcopy(scenario["generation"])
+        config["output_directory"] = str(self.root)
+        config["inputs"]["tree_path"] = str(self.backbone_path)
+        config["inputs"]["smoke_cases"] = self.config["case_limit"]
+        return config
+
+    def observations(self):
+        """Diagnose exact feature ambiguity once per scenario/seed, across modes."""
+        records, coverage = [], []
+        paths = (
+            "diagnostics/observations.py", "metrics/pairwise.py",
+            "schemas.py", "provenance.py",
+        )
+        implementation = {
+            "evaluation": {p: self.implementation["evaluation"][p] for p in paths},
+            "versions": {
+                p: self.implementation["versions"].get(p)
+                for p in ("numpy", "pandas", "pyarrow")
+            },
+        }
+        truth_manifest = read_json(self.truth_directory / "manifest.json")
+        truth_identity = {
+            "fingerprint": truth_manifest["fingerprint"],
+            "files": truth_manifest["files"],
+        }
+        expected = len(DISTANCES) * 2 * len(ENDPOINTS)
+        for scenario in self.scenarios:
+            config = self.observation_config(scenario)
+            for seed in self.config["seeds"]:
+                row = {
+                    "scenario": scenario["name"], "seed": seed,
+                    "status": "failed", "completed": 0, "expected": expected,
+                    "dataset": None, "artifact": None, "error": None,
+                }
+                artifact, signature = None, None
+                try:
+                    dataset = prepare_observations(
+                        config, self.tree, self.truth_directory, seed,
+                        self.implementation,
+                    )
+                    signature = {
+                        "kind": "diagnostic-feature-cells-v1",
+                        "dataset": dataset.name,
+                        "truth": truth_identity,
+                        "implementation": implementation,
+                    }
+                    artifact = self.root / "artifacts/feature_cells" / fingerprint(signature)
+                    row.update(dataset=dataset.name, artifact=str(artifact))
+                    if not valid_artifact(artifact, signature):
+                        LOG.info("Feature ambiguity scenario=%s seed=%s", scenario["name"], seed)
+                        artifact.mkdir(parents=True, exist_ok=True)
+                        write_json(artifact / "manifest.json", {
+                            "status": "running", "signature": signature,
+                        })
+                        observations, _ = load_observations(dataset)
+                        truth = load_truth(self.truth_directory, observations.pair_id)
+                        cells, summary, prevalence, relationships = observation_diagnostics(
+                            observations, truth
+                        )
+                        cells.assign(seed=seed).to_parquet(
+                            artifact / "cells.parquet", index=False
+                        )
+                        for name, table in (
+                            ("summary", summary), ("prevalence", prevalence),
+                            ("relationships", relationships),
+                        ):
+                            table.assign(seed=seed).to_csv(artifact / f"{name}.csv", index=False)
+                        complete_artifact(artifact, signature, [
+                            "cells.parquet", "summary.csv", "prevalence.csv",
+                            "relationships.csv",
+                        ])
+                        del observations, truth, cells, summary, prevalence, relationships
+                    summary = pd.read_csv(artifact / "summary.csv")
+                    records.append(summary.assign(**{
+                        "scenario": scenario["name"],
+                        **{k: scenario[k] for k in ("parameter", "value", "baseline_value", "multiplier")},
+                    }))
+                    row.update(
+                        status="complete" if len(summary) == expected else "partial",
+                        completed=len(summary),
+                    )
+                except Exception as exc:
+                    LOG.exception("Feature ambiguity failed: %s seed=%s", scenario["name"], seed)
+                    row["error"] = repr(exc)
+                    if artifact is not None:
+                        write_json(artifact / "manifest.json", {
+                            "status": "failed", "signature": signature, "error": repr(exc),
+                        })
+                coverage.append(row)
+        coverage = pd.DataFrame(coverage)
+        coverage.to_csv(self.directory / "ambiguity_coverage.csv", index=False)
+        keys = ["process", "feature_set", "endpoint"]
+        frame = pd.concat(records, ignore_index=True) if records else pd.DataFrame(
+            columns=["scenario", "seed", *keys]
+        )
+        metrics = numeric_metrics(frame)
+        group = ["scenario", *keys]
+        frame.to_csv(self.directory / "ambiguity.csv", index=False)
+        summarize(frame, group, metrics).to_csv(
+            self.directory / "ambiguity_summary.csv", index=False
+        )
+        paired = paired_deltas(frame, ["seed", *keys], metrics)
+        paired.to_csv(self.directory / "ambiguity_deltas.csv", index=False)
+        summarize(paired, group, [f"delta_{m}" for m in metrics]).to_csv(
+            self.directory / "ambiguity_delta_summary.csv", index=False
+        )
+        return bool(
+            coverage.status.eq("complete").all()
+            and coverage.completed.eq(coverage.expected).all()
+        )
+
     def collect(self):
         records, rankings, coverage = [], [], []
         decisions = pd.DataFrame(
@@ -305,9 +421,12 @@ class PerturbationStudy:
             and coverage.completed.eq(coverage.expected).all()
         )
 
-    def run(self):
+    def run(self, stage="all"):
+        if stage not in {"all", "observations"}:
+            raise ValueError(f"Unknown perturbation stage: {stage}")
         manifest = {
             "status": "running",
+            "requested_stage": stage,
             "config": self.config,
             "signature": self.signature,
             "git_revision": git_revision(),
@@ -316,12 +435,15 @@ class PerturbationStudy:
         }
         write_json(self.directory / "manifest.json", manifest)
         try:
-            for scenario in self.scenarios:
-                for mode in self.config["modes"]:
-                    LOG.info("Perturbation scenario=%s mode=%s", scenario["name"], mode)
-                    FrozenReplay(self, scenario, mode).run()
-                    self.collect()
-            manifest["status"] = "complete" if self.collect() else "partial"
+            complete = self.observations()
+            if stage == "all":
+                for scenario in self.scenarios:
+                    for mode in self.config["modes"]:
+                        LOG.info("Perturbation scenario=%s mode=%s", scenario["name"], mode)
+                        FrozenReplay(self, scenario, mode).run()
+                        self.collect()
+                complete = self.collect() and complete
+            manifest["status"] = "complete" if complete else "partial"
         except Exception as exc:
             manifest.update(status="failed", error=repr(exc))
             raise

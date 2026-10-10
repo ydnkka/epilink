@@ -45,7 +45,7 @@ def prepare_diagnostics(tmp_path, monkeypatch):
             {
                 "leiden": {
                     "objective": "CPM",
-                    "resolutions": [0.2, 0.8],
+                    "resolution_grid": [0.2, 0.8],
                     "restarts": 1,
                     "seed": 65001,
                 },

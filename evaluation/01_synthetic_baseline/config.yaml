@@ -21,8 +21,10 @@ clustering:
   leiden:
     objective: CPM
     weight_policies: [binary, native]
-    resolutions: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-    resolutions_by_weight_policy:
+    # Fallback grid for weight policies without an override.
+    default_resolution_grid: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    # Each policy-specific grid replaces the default for that policy.
+    resolution_grid_by_weight_policy:
       native: [0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     restarts: 5
     seed: 65001
@@ -51,7 +53,7 @@ grid_audit:
     thresholds:
       epilink: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
       logistic: [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-    leiden_resolutions: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
+    leiden_resolution_grid: [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0]
 selection:
   # Candidate criterion, not a previously selected operating point.
   # Add scientifically justified constraints after inspecting development curves.

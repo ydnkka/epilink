@@ -12,7 +12,7 @@ The study has three objectives:
 2. **Examine EpiLink parameter mismatch:** score the same perturbed observations using both `matched` inference (the scenario's parameter values) and `baseline_fixed` inference (the baseline values).
 3. **Measure robustness of the selected operating points:** replay the baseline's pairwise thresholds, graph settings, and TreeCluster rules across scenarios. Logistic models remain baseline-fitted in both inference modes.
 
-**Evidence produced:** absolute pairwise and clustering performance against known truth, plus paired changes in AP, recovery, contamination, and cluster structure. The matched/fixed comparison shows the effect of updating EpiLink's parameter inputs while keeping operating points fixed. Threshold reselection and classifier retraining would answer a separate adaptation question.
+**Evidence produced:** exact-feature ambiguity of perturbed observations, absolute pairwise and clustering performance against known truth, plus paired changes in ambiguity, AP, recovery, contamination, and cluster structure. The matched/fixed comparison shows the effect of updating EpiLink's parameter inputs while keeping operating points fixed. Threshold reselection and classifier retraining would answer a separate adaptation question.
 
 **Role in the study sequence:** the baseline establishes performance and selects settings; this study assesses their sensitivity under controlled changes. The [Boston application](../03_boston_application/README.md) independently applies the baseline reference to empirical observations and summarizes exposure composition and graph/phylogenetic partition agreement. This study instead varies the observation-generation parameters on synthetic data.
 
@@ -49,11 +49,14 @@ Replace `<completed-run-id>` with the ID of your completed baseline run.
 # Use the entire frozen backbone, all configured perturbations, and study seeds.
 python evaluation/02_synthetic_perturbation/run.py
 
+# Calculate observation ambiguity only, reusing cached observations when available.
+python evaluation/02_synthetic_perturbation/run.py --stage observations
+
 # Re-render saved smoke tables; no simulations or baseline reload.
 python evaluation/02_synthetic_perturbation/run.py --smoke --stage report
 ```
 
-Only `--stage all` (the default) and `--stage report` apply here. There is no perturbation fitting or selection stage. Repeat a run command to resume validated artifacts. Use `--config` for a different complete study YAML, or `--output` to override its output root. Repeat the same options on subsequent commands; `--smoke` appends `_smoke` to the resolved output root, including overrides.
+`--stage all` (the default) calculates observation ambiguity and replays frozen methods. `--stage observations` calculates ambiguity only, generating missing observations or reusing validated cached data, and renders its report. `--stage report` re-renders saved tables. An observations-only run's status describes diagnostic coverage, not completed method comparisons. There is no perturbation fitting or selection stage. Repeat a run command to resume validated artifacts. Use `--config` for a different complete study YAML, or `--output` to override its output root. Repeat the same options on subsequent commands; `--smoke` appends `_smoke` to the resolved output root, including overrides.
 
 ## Scientific comparison
 
@@ -73,6 +76,14 @@ delta = perturbed metric - unperturbed-control metric
 ```
 
 Controls are matched by inference mode, observation seed, pipeline, setting, and criterion; ranking controls are matched by mode, seed, and scorer. These deltas compare newly simulated paired realizations. Earlier baseline evaluation results supplied the reference context; their seeds are not reused as controls.
+
+### Ambiguity of perturbed observations
+
+Each scenario/seed uses the same exact-feature analysis as [synthetic diagnostics](../00_synthetic_diagnostics/README.md): group pairs by their saved GD or (GD, TD) values for deterministic and stochastic genetics, and assess mixing at M=0, M≤1, and M≤2. No additional binning or rounding is applied. A mixed cell contains both target and non-target pairs.
+
+Outputs include the mixed-cell fraction, pair- and target-weighted fractions in mixed cells, target prevalence within mixed cells, class-conditional overlap, and the minimum empirical feature-only misclassification rate. The latter sums `min(n_target, n_other)` across cells and divides by all observed pairs; it applies to binary decisions constant within these cells. Undefined ratios remain missing.
+
+Ambiguity is calculated **once per scenario and seed**, independently of inference mode: matched and baseline-fixed inference share identical observations. Paired ambiguity changes match controls by seed, genetic process, feature set, and endpoint. Across-seed means, sample SDs, ranges and defined-value counts describe variation conditional on the frozen backbone.
 
 Negative F1/AP deltas mean reduced recovery; positive contamination deltas mean more distant pairs. Undefined precision for an empty selection stays undefined. The same seed provides a paired simulation design but does not guarantee identical latent random draws after changing distributions. All realizations share one backbone; SD/range describe conditional observation variation.
 
@@ -131,10 +142,11 @@ Inside the run, inspect these files in order:
 
 1. `coverage.csv`: completion of each scenario/mode across the configured seeds.
 2. `reference.json`, `selection.json`, `scenarios.json`: source identity, unchanged operating decisions, and resolved parameter values.
-3. `report.html` / `report.md`: paired AP and fixed-setting changes, coverage, and F1 change heatmaps.
+3. `report.html` / `report.md`: absolute and paired feature ambiguity, paired AP and fixed-setting changes, coverage, and F1 change heatmaps.
 4. `results.csv` and `rankings.csv`: seed-specific operating metrics and rankings, including unperturbed controls.
 5. `results_deltas.csv` and `rankings_deltas.csv`: individual paired differences.
 6. `results_delta_summary.csv` and `rankings_delta_summary.csv`: paired mean, sample SD, range, and nonmissing counts. The corresponding `*_summary.csv` files summarize absolute performance, including controls.
+7. `ambiguity_coverage.csv`: diagnostic completion by scenario/seed, with source dataset and feature-cell artifact paths. `ambiguity.csv` / `ambiguity_summary.csv` contain seed-specific / across-seed absolute ambiguity; `ambiguity_deltas.csv` / `ambiguity_delta_summary.csv` contain paired changes and summaries. These tables have no inference-mode replication. Each linked feature-cell artifact retains `cells.parquet`, `summary.csv`, `prevalence.csv` and `relationships.csv` with checksummed completion metadata.
 
 `scenarios/<scenario>/<mode>/evaluation/seed_<seed>/` retains the baseline-style pairwise tables, cluster memberships, setting-level metrics, status, and tool logs. The field reference is in [OUTPUTS.md](../../OUTPUTS.md#12-perturbation-study-outputs).
 

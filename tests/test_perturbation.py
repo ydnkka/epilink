@@ -15,6 +15,7 @@ from epilink_evaluation.provenance import (
 )
 from epilink_evaluation.scorers import SCORERS
 from epilink_evaluation.workflows import baseline as baseline_module
+from epilink_evaluation.workflows import perturbation as perturbation_module
 from epilink_evaluation.workflows.baseline import Baseline
 from epilink_evaluation.workflows.perturbation import (
     FrozenReplay,
@@ -165,6 +166,9 @@ def test_frozen_replay_pairing_no_refit_and_cache_reuse(
     )
     assert "smoke validation" in (study.directory / "report.md").read_text()
     assert read_json(study.directory / "manifest.json")["status"] == "complete"
+    ambiguity = pd.read_csv(study.directory / "ambiguity.csv")
+    assert len(ambiguity) == 3 * 12
+    assert "mode" not in ambiguity
     for scenario in study.scenarios:
         saved_scores, dataset_ids = {}, []
         for mode in config["modes"]:
@@ -206,6 +210,106 @@ def test_frozen_replay_pairing_no_refit_and_cache_reuse(
         for p in baseline.root.rglob("*")
         if p.is_file()
     }
+
+
+def test_perturbed_observation_ambiguity_pairing_and_cache(
+    evaluated_baseline, tmp_path, monkeypatch
+):
+    config = study_config(tmp_path, evaluated_baseline)
+    study = PerturbationStudy(config)
+    calls = []
+    original = perturbation_module.observation_diagnostics
+
+    def diagnose(observations, truth):
+        calls.append(len(observations))
+        return original(observations, truth)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Observation diagnostics must not replay frozen methods")
+
+    monkeypatch.setattr(perturbation_module, "observation_diagnostics", diagnose)
+    monkeypatch.setattr(FrozenReplay, "run", forbidden)
+    assert study.run("observations")
+    assert len(calls) == len(study.scenarios) * len(config["seeds"])
+    manifest = read_json(study.directory / "manifest.json")
+    assert manifest["requested_stage"] == "observations"
+    coverage = pd.read_csv(study.directory / "ambiguity_coverage.csv")
+    assert coverage.status.eq("complete").all()
+    assert coverage.completed.eq(12).all()
+    frame = pd.read_csv(study.directory / "ambiguity.csv")
+    keys = ["seed", "process", "feature_set", "endpoint"]
+    assert "mode" not in frame
+    assert not frame.duplicated(["scenario", *keys]).any()
+    assert len(frame) == len(calls) * 12
+    assert set(frame.process) == {"deterministic", "stochastic"}
+    assert set(frame.feature_set) == {"GD", "GD_TD"}
+    assert set(frame.endpoint) == {"M0", "Mle1", "Mle2"}
+
+    # Verify cell-based ambiguity and minimum error from saved cell counts.
+    for row in coverage.itertuples():
+        cells = pd.read_parquet(Path(row.artifact) / "cells.parquet")
+        summary = frame.loc[(frame.scenario == row.scenario) & (frame.seed == row.seed)]
+        for result in summary.itertuples():
+            group = cells.loc[
+                (cells.process == result.process)
+                & (cells.feature_set == result.feature_set)
+                & (cells.endpoint == result.endpoint)
+            ]
+            mixed = group.n_target.gt(0) & group.n_other.gt(0)
+            assert result.mixed_cell_fraction == pytest.approx(mixed.mean())
+            assert result.pair_fraction_in_mixed_cells == pytest.approx(
+                group.loc[mixed, "n_pairs"].sum() / group.n_pairs.sum()
+            )
+            assert result.minimum_feature_only_misclassification_rate == pytest.approx(
+                np.minimum(group.n_target, group.n_other).sum() / group.n_pairs.sum()
+            )
+
+    deltas = pd.read_csv(study.directory / "ambiguity_deltas.csv")
+    control = frame.loc[frame.scenario == "baseline"].set_index(keys)
+    assert deltas.control_available.all()
+    for row in deltas.itertuples():
+        baseline = control.loc[tuple(getattr(row, key) for key in keys)]
+        assert row.delta_mixed_cell_fraction == pytest.approx(
+            row.mixed_cell_fraction - baseline.mixed_cell_fraction
+        )
+    summary = pd.read_csv(study.directory / "ambiguity_delta_summary.csv")
+    assert summary.n_controls.eq(len(config["seeds"])).all()
+    assert summary.delta_mixed_cell_fraction_count.eq(len(config["seeds"])).all()
+    assert "Paired feature-ambiguity changes" in (study.directory / "report.md").read_text()
+
+    cached = {
+        Path(row.artifact) / "cells.parquet": (Path(row.artifact) / "cells.parquet").stat().st_mtime_ns
+        for row in coverage.itertuples()
+    }
+    assert study.run("observations")
+    assert len(calls) == len(coverage)
+    assert cached == {path: path.stat().st_mtime_ns for path in cached}
+    # A changed diagnostic file must invalidate and rebuild its artifact.
+    damaged = Path(coverage.iloc[0].artifact) / "summary.csv"
+    damaged.write_text("changed evidence\n")
+    assert study.run("observations")
+    assert len(calls) == len(coverage) + 1
+    pd.testing.assert_frame_equal(frame, pd.read_csv(study.directory / "ambiguity.csv"))
+
+
+def test_ambiguity_missing_control_is_visible(evaluated_baseline, tmp_path, monkeypatch):
+    study = PerturbationStudy(study_config(tmp_path, evaluated_baseline, smoke=True))
+    original = perturbation_module.prepare_observations
+
+    def fail_control(config, *args):
+        if config["generation"] == study.reference.config["generation"]:
+            raise RuntimeError("Injected observation control failure")
+        return original(config, *args)
+
+    monkeypatch.setattr(perturbation_module, "prepare_observations", fail_control)
+    assert not study.run("observations")
+    coverage = pd.read_csv(study.directory / "ambiguity_coverage.csv")
+    assert set(coverage.loc[coverage.scenario == "baseline", "status"]) == {"failed"}
+    deltas = pd.read_csv(study.directory / "ambiguity_deltas.csv")
+    assert not deltas.empty
+    assert not deltas.control_available.any()
+    assert deltas.delta_mixed_cell_fraction.isna().all()
+    assert read_json(study.directory / "manifest.json")["status"] == "partial"
 
 
 def test_missing_control_is_reported_as_partial(
