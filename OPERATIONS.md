@@ -37,7 +37,7 @@ Use this guide to configure and run the project, locate results, and resume inte
 
 ## 1. How the pipeline works
 
-The studies live under `evaluation/`. Diagnostics characterizes development observations and known-truth graph/tree controls on a shared synthetic experiment. Baseline compares methods on those observations and freezes settings. Perturbation crosses baseline/matched inference with baseline/updated full-graph EpiLink Leiden resolution for EDD/EDS/ESD/ESS; Boston applies frozen settings to empirical observations. Both downstream studies use the completed baseline directly. Sections 3–9 describe shared preparation, diagnostics and baseline; section 12 gives the downstream commands.
+The studies live under `evaluation/`. Diagnostics characterizes development observations and endpoint-oracle graph controls on a shared synthetic experiment. Baseline compares methods on those observations and freezes settings. Perturbation crosses baseline/matched inference with baseline/updated full-graph EpiLink Leiden resolution for EDD/EDS/ESD/ESS; Boston applies frozen settings to empirical observations. Both downstream studies use the completed baseline directly. Sections 3–9 describe shared preparation, diagnostics and baseline; section 12 gives the downstream commands.
 
 ```text
 SCoVMod infection and transmission CSVs
@@ -45,7 +45,7 @@ SCoVMod infection and transmission CSVs
      -> full-tree relationship truth (AD, CA, M)
      -> simulate sampling dates and deterministic/stochastic genomes by seed
          -> shared development cases/pairs: genetic distance (GD), temporal distance (TD)
-            -> exact feature-cell diagnostics, endpoint-oracle graphs, known hop tree
+             -> exact feature-cell diagnostics, endpoint-oracle graphs
             -> complete diagnostics gate
             -> EpiLink, genetic-distance, and training-fitted logistic scores
               -> pairwise rankings and threshold metrics
@@ -183,11 +183,9 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scorers`                             | Any configured subset of EDD, EDS, ESD, ESS, GD_D, GD_S, LOGIT_D, LOGIT_S. Comparisons should cover both observed genetic processes.                                        |
 | `scorer.logistic_C`                   | Fixed inverse regularization strength for logistic fitting.                                                                                                                 |
-| `thresholds.epilink`                  | Graph compatibility cutoffs (also pairwise in`configured` mode); retain scores **\>=** the cutoff. Values can exceed one.                                                   |
+| `thresholds.epilink`                  | Graph compatibility cutoffs; retain scores **\>=** the cutoff. Values can exceed one.                                                                                         |
 | `thresholds.genetic`                  | Hamming-distance cutoffs in substitutions; retain distances**\<=** the cutoff.                                                                                              |
 | `thresholds.logistic`                 | Probability cutoffs in`[0, 1]`; retain scores **\>=** the cutoff.                                                                                                           |
-| `pairwise.selected_fractions`         | Candidate-budget fractions of all observed pairs; whole ties are retained and achieved sizes reported.                                                                      |
-| `pairwise.threshold_mode`             | `all_development_scores` (supplied): union of unique development cutoffs plus empty selection; `configured`: use `thresholds`. One shared cutoff is evaluated across seeds. |
 | `clustering.algorithms`               | `components`, `leiden`, or both.                                                                                                                                            |
 | `clustering.leiden.objective`         | `CPM` or `modularity`; resolution scales depend on objective and scorer.                                                                                                    |
 | `clustering.leiden.resolutions`       | Full-graph resolution grid. EpiLink/logistic use original scores including zeros; genetic-distance graphs use unit weights. One `leiden/<scorer>` pipeline per scorer.      |
@@ -204,12 +202,11 @@ The preserved convention uses `genome_length: 29903` and `simulation.sequence_le
 | `phylogeny.timeout`                   | IQ-TREE/LSD2 timeout in seconds.                                                                                                                                            |
 | `phylogeny.executable`                | IQ-TREE name/path; `iqtree` discovers versioned executable names.                                                                                                           |
 | `selection.criteria`                  | Objectives and constraints for freezing settings; see section 8.                                                                                                            |
-| `grid_audit.objective_tolerance`      | Absolute mean-objective refinement tolerance; supplied value 0.005. A numerical diagnostic, not a confidence interval.                                                      |
-| `grid_audit.reference`                | Coarse-grid overrides: `thresholds`, `leiden_resolution_grid`, and/or `treecluster` threshold lists. Compare on the same development observations.                          |
 
 Pairwise and component grids include an explicit empty-selection setting. Inclusive component cutoffs retain zero-valued observations when the cutoff allows them. Full Leiden graphs retain every observed edge, including zero score weights; `threshold` is null and `empty` is false.
 Exact pairwise candidates are generated only after all development curves exist;
-they never expand the clustering grids. `check` reports the configured clustering
+they always cover the union of distinct development score cutoffs plus empty selection,
+and never expand the clustering grids. `check` reports the configured clustering
 count and marks the total operating count as unknown until these candidates exist.
 
 ## 4. Prepare or regenerate the SCoVMod tree
@@ -312,18 +309,17 @@ With `--smoke`, that override becomes `evaluation/01_synthetic_baseline/outputs/
 | `backbone`     | Describe all pinned backbone cases: offspring heterogeneity, inclusive Poisson-percentile superspreading, concentration and generations; no observation generation. |
 | `observations` | Exact GD and GD/TD cells, ambiguity, prevalence, and relationship summaries.                                                                                        |
 | `graphs`       | One unit-weight oracle graph per M horizon; components and configured Leiden controls.                                                                              |
-| `trees`        | Known transmission-hop tree; TreeCluster method/hop-threshold controls evaluated at every endpoint.                                                                 |
-| `all`          | Backbone characterisation and all three diagnostic controls, with preparation as a dependency.                                                                      |
+| `all`          | Backbone characterisation, feature-cell diagnostics, and graph controls, with preparation as a dependency.                                                         |
 | `report`       | Render saved tables and coverage through the diagnostics root's`current.json`.                                                                                      |
 
-The standalone `backbone` stage describes all backbone cases once without generating observations. Other computational stages prepare development data as needed. Baseline is released only when all required diagnostics (backbone, observations, graphs, and trees when enabled) have complete, checksummed coverage of the exact development datasets. A successful diagnostics `prepare` or `backbone` alone is insufficient. Oracle graph/tree controls reuse identical truth and sampled-case sets across seeds and genetic processes; full sampling gives one graph per horizon and one hop tree, rather than independent control replicates. The tree preserves sampled ancestors as zero-length tips and retains unsampled intermediates. Forests are unsupported for this tree control and produce visible failure/incomplete coverage. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
+The standalone `backbone` stage describes all backbone cases once without generating observations. Other computational stages prepare development data as needed. Baseline is released only when all required diagnostics (backbone, observations, and graphs) have complete, checksummed coverage of the exact development datasets. A successful diagnostics `prepare` or `backbone` alone is insufficient. Oracle graph controls reuse identical truth and sampled-case sets across seeds and genetic processes; full sampling gives one graph per horizon, rather than independent control replicates. Unsampled intermediates remain in relationship truth. See the [diagnostics protocol](evaluation/00_synthetic_diagnostics/README.md).
 
 The following table applies to the **synthetic baseline**. All computational stages require a matching shared experiment and completed diagnostics. They reuse shared truth/development observations and prepare their training/model/score dependencies. Baseline `prepare` is optional before `develop`.
 
 | `--stage`  | Work performed                                                                                                            | Prerequisite / main saved output                                                                                                                         |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `prepare`  | Prepare shared training observations and validate/reuse development observations.                                         | Requires completed diagnostics; writes training datasets into the shared experiment.                                                                     |
-| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, thresholds, budgets, and calibration. | Prepares training/model/score dependencies. Writes per-seed`pairwise/` tables.                                                                           |
+| `pairwise` | Fit/reuse training logistic models, score development pairs, and evaluate rankings, exact development cutoffs, and calibration. | Prepares training/model/score dependencies. Writes per-seed`pairwise/` tables.                                                                      |
 | `clusters` | Fit/reuse scorers and run development graph/tree clustering sweeps.                                                       | Prepares training/model/score dependencies; writes per-setting memberships/metrics and per-seed status.                                                  |
 | `develop`  | Run`pairwise`, then `clusters`.                                                                                           | Writes the development comparison and report.                                                                                                            |
 | `select`   | Complete/reuse the declared development comparison and freeze settings under each criterion.                              | Requires a complete configured sweep. Writes`selection/operating_points.json`.                                                                           |
@@ -363,7 +359,6 @@ Baseline layout:
     diagnostics.json      matching diagnostics completion reference
     development/
       metrics.csv, summary.csv, frontier.csv
-      grid_adequacy.csv, grid_neighbors.csv
       pairwise_candidates/definitions.json, manifest.json
       seed_<seed>/pairwise/
         evidence/            cached curves and empty-selection metrics
@@ -390,10 +385,9 @@ Files appear as their stages complete. Reports, aggregate tables, and status fil
 
 1. **Coverage:** confirm expected seeds and methods completed. Inspect `development/seed_<seed>/clusters/status.json` for missing comparisons.
 2. **Pairwise discrimination:** compare scorers within the same observed genetic process using `figures/pairwise_precision_recall_<endpoint>.png` and each seed's `pairwise/rankings.csv`. `<endpoint>` is `M0`, `Mle1`, or `Mle2`. AP summarizes rankings; threshold-specific precision, recall, F1, and selected counts are in `pairwise/metrics.csv`.
-3. **Workload and calibration:** inspect `pairwise/budgets.csv` for achieved tie-aware candidate budgets and `pairwise/calibration.csv` for logistic reliability. Brier score and log loss are in `rankings.csv`.
+3. **Workload and calibration:** inspect `selected_pairs` and `selected_fraction` in `pairwise/metrics.csv` for tie-aware workload and `pairwise/calibration.csv` for logistic reliability. Brier score and log loss are in `rankings.csv`.
 4. **Clustering trade-offs:** use `components_thresholds_<endpoint>.png`, `leiden_resolution_<endpoint>.png`, `treecluster_thresholds_<endpoint>.png`, and `cluster_tradeoffs_<endpoint>.png` under `figures/`. Leiden plots sweep resolution on full graphs. Inspect singleton/largest-cluster behavior alongside recovery and contamination.
-5. **Grid adequacy:** inspect `development/grid_adequacy.csv` and `grid_neighbors.csv`. Extend arbitrary search boundaries and refine useful intervals. Keep declared reference clustering settings in the expanded sweep for a complete comparison. A gain within tolerance is only a numerical diagnostic; unchanged grids are labelled `not_refined`, and zero GD is a natural boundary.
-6. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by endpoint and pipeline, keeping `_mean` column suffixes. Use `settings.json` to translate a setting ID into thresholds and algorithms.
+5. **Realization variation:** `development/metrics.csv` retains seed-specific results. `summary.csv` provides equal-realization means, SDs, and ranges; `frontier.csv` lists non-dominated mean precision/recall settings by endpoint and pipeline, keeping `_mean` column suffixes. Use `settings.json` to translate a setting ID into thresholds and algorithms.
 
 For M=0, every M\>0 pair is a false positive. M\>=3 contamination measures only distant relationships. Cluster precision includes every within-cluster pair, including pairs connected only transitively by graph edges. An empty selection or all-singleton partition has undefined pair precision; `undefined`/blank values in the reports can therefore be expected. Logistic calibration applies to probabilities; EpiLink values are raw compatibility scores. Baseline SD is undefined when a split has only one realization, as in the smoke workflow.
 

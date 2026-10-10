@@ -8,7 +8,7 @@ Evaluation of EpiLink compatibility scores, genetic-distance rankings, logistic 
 
 | Study                                                                         | Purpose                                                                                                           | Main evidence                                                                      |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth graph/tree controls before baseline comparison.        | Exact feature cells, endpoint-oracle graphs, and transmission-hop tree partitions. |
+| [00 — Synthetic diagnostics](evaluation/00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and endpoint-oracle graph controls before baseline comparison.        | Exact feature cells and endpoint-oracle graph partitions. |
 | [01 — Synthetic baseline](evaluation/01_synthetic_baseline/README.md)         | Compare methods against known relationships, select operating points, and evaluate them on held-out observations. | Pairwise and clustering accuracy, development sweeps, and frozen settings.         |
 | [02 — Synthetic perturbation](evaluation/02_synthetic_perturbation/README.md) | Test all four EpiLink scorers under baseline/matched inference and baseline/updated full-graph Leiden resolution. | Paired clustering differences from fresh unperturbed controls.                     |
 | [03 — Boston application](evaluation/03_boston_application/README.md)         | Examine empirical transfer, exposure concentration/recovery, and graph/phylogenetic partition agreement.          | Descriptive exposure summaries and frozen graph/phylogenetic partitions.           |
@@ -20,7 +20,7 @@ Diagnostics and baseline use one [shared synthetic experiment](evaluation/shared
 | Capability               | Active implementation                                                                                                                               |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | SCoVMod tree preparation | Available:`epilink-evaluate scovmod --stage prepare`. Matching prepared inputs are reused.                                                          |
-| Synthetic diagnostics    | Available:`epilink-evaluate diagnostics --stage all`, with feature-cell, oracle-graph, and known-tree controls.                                     |
+| Synthetic diagnostics    | Available:`epilink-evaluate diagnostics --stage all`, with backbone characterisation, feature-cell diagnostics, and oracle-graph controls.        |
 | Synthetic baseline       | Available: pairwise comparisons, clustering sweeps, operating-point selection, held-out replay, and reports.                                        |
 | Parameter sensitivity    | Available:`epilink-evaluate perturbation`, with four full-graph EpiLink clustering modes: baseline/matched inference × baseline/updated resolution. |
 | Boston input preparation | Available:`epilink-evaluate boston --stage prepare`.                                                                                                |

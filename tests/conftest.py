@@ -45,16 +45,9 @@ def prepare_diagnostics(tmp_path, monkeypatch):
             {
                 "leiden": {
                     "objective": "CPM",
-                    "resolution_grid": [0.2, 0.8],
+                    "resolutions": [0.2, 0.8],
                     "restarts": 1,
                     "seed": 65001,
-                },
-                "treecluster": {
-                    "enabled": False,
-                    "methods": ["max_clade"],
-                    "threshold_hops": [0, 2],
-                    "command_timeout_seconds": 30,
-                    "executables": {"treecluster": "TreeCluster.py"},
                 },
             },
         )

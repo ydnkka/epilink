@@ -121,7 +121,7 @@ def generation_signature(implementation):
 
 def tree_inference_signature(implementation):
     """Tree inference producers only; separate from observation generation.
-    
+
     This allows tree workflow changes without invalidating observation caches.
     """
     paths = (
@@ -137,8 +137,7 @@ def tree_inference_signature(implementation):
             if "phylogeny" in p or "simulation" in p
         },
         "versions": {
-            p: implementation["versions"].get(p)
-            for p in ("epilink", "biopython")
+            p: implementation["versions"].get(p) for p in ("epilink", "biopython")
         },
     }
 

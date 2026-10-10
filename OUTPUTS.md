@@ -58,7 +58,7 @@ Within one run, a per-setting result row is keyed by `(split, seed, pipeline, se
 - Structural blanks arise when pairwise and cluster rows are combined, or when calibration metrics apply only to logistic scorers.
 - JSON `threshold: null` with `empty: true` explicitly defines an empty selection.
 
-An absent file generally means its stage has not produced it. Some intentionally empty CSVs have no header and raise `pandas.errors.EmptyDataError`; for example, evaluation `budgets.csv` is empty because budget sweeps are development-only.
+An absent file generally means its stage has not produced it. Some intentionally empty CSVs have no header and raise `pandas.errors.EmptyDataError`; for example, `calibration.csv` is empty when no logistic scorers are included.
 
 ## 2. Shared pair-metric columns
 
@@ -125,7 +125,7 @@ Directory: `<run>/<split>/seed_<seed>/pairwise/`. The common scorer identifiers 
 
 ### `metrics.csv`
 
-**One row per scorer threshold setting.** Columns are the four scorer identifiers, `pipeline`, `setting_id`, and every shared metric in section 2. With `pairwise.threshold_mode: all_development_scores`, development covers the union of distinct development score cutoffs for each scorer plus an empty selection. Every cutoff is applied to every development seed, retaining whole ties. `configured` mode covers the declared threshold grid. Evaluation covers selected pairwise settings only; it does not discover new candidate cutoffs. Look up the actual threshold and its direction in `settings.json` and the scorer definitions; there is no `threshold` column in this file.
+**One row per scorer threshold setting.** Columns are the four scorer identifiers, `pipeline`, `setting_id`, and every shared metric in section 2. Development always covers the union of distinct development score cutoffs for each scorer plus an empty selection. Every cutoff is applied to every development seed, retaining whole ties. Evaluation covers selected pairwise settings only; it does not discover new candidate cutoffs. Look up the actual threshold and its direction in `settings.json` and the scorer definitions; there is no `threshold` column in this file.
 
 ### `rankings.csv`
 
@@ -155,11 +155,7 @@ The six endpoint columns expand to `M0_AP`, `M0_prevalence`, `Mle1_AP`, `Mle1_pr
 
 Rows run from strict to permissive within each scorer. There is no synthetic zero-selection row; its recall of zero is implicit in the AP calculation. This curve uses unique observed values rather than the configured operating grid. The evaluation file is an empty table because full curves are not saved there.
 
-Development `pairwise/evidence/` checkpoints these curves and the ranking, budget and calibration tables before candidate enumeration, together with `empty_metrics.json` and its artifact manifest. The top-level pairwise tables remain the analysis interface. `development/pairwise_candidates/definitions.json` maps IDs to pairwise definitions; its manifest binds the run and all source evidence-manifest hashes. `settings.json` combines these candidates with the independently configured clustering settings. Cached candidates are restored on resumption and before evaluation replay.
-
-### `budgets.csv`
-
-**One row per scorer and requested candidate fraction**, saved for development. Columns are those of the precision–recall table plus `requested_fraction`. The selected point is the first curve row whose `selected_fraction` reaches or exceeds that request. Compare requested and achieved fractions/counts to measure tie-induced budget overshoot. Different requested budgets can select the same curve point. Evaluation writes an empty file.
+Development `pairwise/evidence/` checkpoints these curves and the ranking and calibration tables before candidate enumeration, together with `empty_metrics.json` and its artifact manifest. The top-level pairwise tables remain the analysis interface. `development/pairwise_candidates/definitions.json` maps IDs to pairwise definitions; its manifest binds the run and all source evidence-manifest hashes. `settings.json` combines these candidates with the independently configured clustering settings. Cached candidates are restored on resumption and before evaluation replay.
 
 ### `calibration.csv`
 
@@ -269,16 +265,6 @@ Joins evaluation metric rows to their selected `criterion` names. Columns are th
 For all three endpoints, precision, recall, F1 and enrichment receive `_mean`, `_std`, `_min`, `_max`, and `_count` suffixes. The same summaries are included for distant/separate contamination, direct-edge/shared-infector retention, selected pair counts/fractions, singleton fraction, largest-cluster fraction and number of clusters when present. `_count` is the number of defined values for that metric; `n_realizations` counts seeds even when a metric is undefined. `_std` uses `ddof=1`. Cluster-size metrics are undefined for pairwise pipelines.
 
 `objective_mean`, `objective_std`, `objective_min`, `objective_max`, and `objective_count` alias the corresponding summaries of the actual optimized metric, including arbitrary supported objectives. The report displays the optimized endpoint's precision/recall/F1 prominently; the CSV retains every endpoint for cross-endpoint comparisons.
-
-### `development/grid_adequacy.csv` and `grid_neighbors.csv`
-
-These are report-generated **development-only** diagnostics. They can be empty before all development seeds are available and do not change frozen decisions.
-
-`grid_adequacy.csv` has one row per `(pipeline, criterion)` with status, objective, endpoint, selected setting/parameters, `objective_mean` and `objective_sd` (selection convention, `ddof=0`), candidate counts, and comparison against the declared `grid_audit.reference`. `reference_status` distinguishes selected, infeasible, incomplete and unavailable reference evidence. `refinement_gain` is current minus reference mean objective, using the same development realizations and per-seed constraints. `objective_tolerance` is an absolute numerical tolerance.
-
-`refinement_assessment` is `material_improvement`, `within_tolerance`, `reference_better`, `not_refined` (identical candidate searches), or `unassessed`. `search_scope` distinguishes `exhaustive_development_scores` from `finite_grid`. `threshold_boundary`/`resolution_boundary` are `interior`, `search_lower`, `search_upper`, `natural_lower` (zero cutoff), `natural_upper` (probability one), `single_value`, `empty`, or `not_applicable`. `inspect_search_boundary` flags arbitrary limits/single-value axes. These labels do not certify a global optimum.
-
-`grid_neighbors.csv` has one row per available adjacent numerical setting: pipeline, criterion, selected and neighboring setting IDs, axis, side, value, per-seed-constraint feasibility, and mean objective/endpoint precision and recall, distant contamination and cluster-size metrics. Other coordinates and the TreeCluster method are held fixed. Missing reference clustering settings produce incomplete coverage, not a silently reduced comparison. Pairwise reference cutoffs are evaluated directly from saved full PR curves.
 
 ## 6. Truth, observations, scores, and fitted models
 
@@ -831,12 +817,12 @@ Here `<diagnostics-root>` is `evaluation/00_synthetic_diagnostics/outputs/diagno
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<diagnostics-root>/current.json`                         | `run_directory`, diagnostics `fingerprint`, and shared `experiment` identity.                                                                                                                                                           |
 | `<diagnostics-run>/manifest.json`                         | `signature`, `status`, `requested_stage`, `experiment`, resolved `config`, `run_directory`, `coverage_complete`, and optional `error`.                                                                                                  |
-| `<diagnostics-run>/<stage>/index.json`                    | `status`, `records`, `errors`, and seed-to-dataset map. `backbone` has one record and an empty dataset map; other stages use exact development datasets. Records link absolute `artifact` paths; graph/tree records also link `source`. |
+| `<diagnostics-run>/<stage>/index.json`                    | `status`, `records`, `errors`, and seed-to-dataset map. `backbone` has one record and an empty dataset map; other stages use exact development datasets. Records link absolute `artifact` paths; graph records also link `source`. |
 | `<diagnostics-root>/artifacts/<kind>/<full-fingerprint>/` | Diagnostic feature tables or known-truth controls with completion manifests; failed artifacts retain `status: failed` and `error`. Kinds are described below.                                                                           |
 | `<diagnostics-run>/completion/`                           | Checksummed `coverage.json` and manifest, released only when all required stages and their evidence validate.                                                                                                                           |
 | `<diagnostics-run>/report.md`, `report.html`, `figures/`  | Saved-table reports with stage coverage, visible errors, descriptive summaries, and figures.                                                                                                                                            |
 
-Completion signature fields are `experiment`, `diagnostics` (run fingerprint), and `datasets`. `coverage.json` has `status`, required `stages`, `datasets`, `aggregation`, and `artifacts`: absolute directory → `manifest_sha256` plus the file-name-to-SHA256 `files` inventory. Baseline validates this inventory as well as the marker. A complete requested `prepare` or individual stage is insufficient without full required coverage. Disabled tree controls are explicitly labeled; enabled but failed controls prevent completion. Report-only execution reads saved files without generating observations.
+Completion signature fields are `experiment`, `diagnostics` (run fingerprint), and `datasets`. `coverage.json` has `status`, required `stages` (`backbone`, `observations`, `graphs`), `datasets`, `aggregation`, and `artifacts`: absolute directory → `manifest_sha256` plus the file-name-to-SHA256 `files` inventory. Baseline validates this inventory as well as the marker. A complete requested `prepare` or individual stage is insufficient without full required coverage. Failed graph controls prevent completion. Report-only execution reads saved files without generating observations.
 
 ### Fixed transmission-backbone characterisation
 
@@ -914,19 +900,12 @@ For each sampled-case set, one graph per horizon h=0,1,2 connects precisely fini
 
 `graphs/metrics.csv` has one row per `(seed, endpoint, algorithm, resolution)`; components has null resolution. `endpoint` identifies the graph's edge rule; each row includes metrics for **all** endpoints and all within-cluster pairs, including graph nonedges. `graphs/summary.csv` aggregates across seeds with the same `_mean`, `_min`, `_max`, `_count`, `n_seeds` convention. `graph_summary.csv` has one row per seed/endpoint with graph-structure fields; `graph_summary_aggregate.csv` aggregates those by endpoint.
 
-### Known transmission-hop tree controls
-
-`artifacts/hop_trees/<id>/` contains `transmission_hops.nwk`, `cases.parquet`, `provenance.json`, and its manifest. Transmission edges have length one; every sampled case, including a sampled ancestor, is a named zero-length terminal tip attached to its transmission node. Unsampled intermediates, unary paths, multifurcations, and the original root are retained; only branches without sampled descendants are pruned. Forests are explicitly unsupported, with failure recorded in artifact manifests and stage coverage.
-
-`artifacts/tree_partitions/<id>/` saves the same partition tables and algorithm/provenance files as graph controls, along with TreeCluster output/logs. Each method/`threshold_hops` is applied once to the known tree; its partition is then evaluated at all endpoints. `trees/metrics.csv` has one row per `(seed, method, threshold_hops)`, with wide endpoint metrics; `trees/summary.csv` aggregates by method/threshold. Hop thresholds are not days or substitutions/site. M differs from total tree hops: AD hops=M+1; CA hops=M+2. This known transmission tree is not an inferred molecular genealogy.
-
-Graph/tree controls are keyed by truth and the canonical sampled-case set, independently of seed, GD/TD, and genetic process. Full sampling reuses one tree and one graph per horizon across seeds/processes. The stage tables repeat shared results by seed for descriptive equal-seed summaries, not independent control replicates. Neither these oracle partitions nor dependent pairs establish a universal performance ceiling or pair-based confidence interval.
+Graph controls are keyed by truth and the canonical sampled-case set, independently of seed, GD/TD, and genetic process. Full sampling reuses one graph per horizon across seeds/processes. The stage tables repeat shared results by seed for descriptive equal-seed summaries, not independent control replicates. Neither these oracle partitions nor dependent pairs establish a universal performance ceiling or pair-based confidence interval.
 
 ### Diagnostic figures
 
 - `feature_cells_deterministic.png`, `feature_cells_stochastic.png`: exact GD_TD target fraction and occupancy for the lowest completed development seed, explicitly labeled as a single-realization example; occupancy uses log color.
 - `backbone_characterisation.png`: offspring frequencies with saved negative-binomial/Poisson fits and the inclusive superspreading cutoff, transmission concentration, and cases by root-relative generation; one full or smoke backbone, without seed replication.
 - `oracle_graph_precision_recall.png`: equal-seed within-pair precision/recall for components and Leiden, with Leiden resolution labels, by graph endpoint.
-- `transmission_hop_thresholds.png`: mean endpoint precision/recall against hop threshold for each TreeCluster method.
 
 Figures live under the diagnostics run's `figures/` and appear as evidence becomes available. Reports expose partial coverage and failed controls alongside completed tables; inspect coverage before interpreting a summary.

@@ -1,11 +1,9 @@
 from copy import deepcopy
 from pathlib import Path
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
-from Bio import Phylo
 
 from epilink_evaluation.provenance import (
     digest_file,
@@ -30,16 +28,9 @@ def diagnostics_config(small_config, tmp_path):
     config["diagnostics"] = {
         "leiden": {
             "objective": "CPM",
-            "resolution_grid": [0.2, 0.8],
+            "resolutions": [0.2, 0.8],
             "restarts": 2,
             "seed": 65001,
-        },
-        "treecluster": {
-            "enabled": False,
-            "methods": ["max_clade"],
-            "threshold_hops": [0, 2],
-            "command_timeout_seconds": 30,
-            "executables": {"treecluster": "TreeCluster.py"},
         },
     }
     # This fixture originates in a baseline config; diagnostics needs no scoring policy.
@@ -47,7 +38,6 @@ def diagnostics_config(small_config, tmp_path):
         "scorers",
         "scorer",
         "inference",
-        "pairwise",
         "clustering",
         "treecluster",
         "selection",
@@ -68,7 +58,11 @@ def _timestamps(root):
     return {str(p): p.stat().st_mtime_ns for p in root.rglob("*") if p.is_file()}
 
 
-def test_development_only_preparation_and_complete_marker(diagnostics_config):
+def test_development_only_preparation_and_complete_marker(
+    diagnostics_config, monkeypatch, tmp_path
+):
+    from evaluation.results import fig01
+
     diagnostics = Diagnostics(diagnostics_config)
     assert diagnostics.run("prepare")
     seeds = diagnostics_config["splits"]["development"]
@@ -111,8 +105,24 @@ def test_development_only_preparation_and_complete_marker(diagnostics_config):
     assert observed == set(diagnostics.datasets.values())
     report = (diagnostics.directory / "report.md").read_text()
     assert "not a population ceiling" in report
-    assert "disabled by configuration" in report
+    assert "TreeCluster" not in report
+    assert not (diagnostics.directory / "trees").exists()
+    assert set(diagnostics.implementation) == {"backbone", "observations", "graphs"}
     assert "development seed 62001" in report
+    data = fig01.load_data(diagnostics.directory)
+    assert set(data) == {"summary_aggregate", "graphs"}
+    save_figure = fig01.style.save_figure
+
+    def save_six_panels(fig, *args, **kwargs):
+        assert len(fig.axes) == 6
+        assert not any("TreeCluster" in text.get_text() for ax in fig.axes for text in ax.texts)
+        return save_figure(fig, *args, **kwargs)
+
+    monkeypatch.setattr(fig01.style, "save_figure", save_six_panels)
+    output = tmp_path / "manuscript" / "fig01_diagnostics_figure"
+    fig01.create_figure(data, output)
+    assert output.with_suffix(".pdf").is_file()
+    assert output.with_suffix(".png").is_file()
 
 
 def test_oracles_deduplicate_and_stages_reuse_checkpoints(
@@ -155,7 +165,7 @@ def test_oracles_deduplicate_and_stages_reuse_checkpoints(
     before = _timestamps(diagnostics.root / "artifacts")
     stage_before = {
         stage: _timestamps(diagnostics.directory / stage)
-        for stage in ("backbone", "observations", "graphs", "trees", "completion")
+        for stage in ("backbone", "observations", "graphs", "completion")
     }
 
     def unexpected(*args, **kwargs):
@@ -183,13 +193,16 @@ def test_report_changes_do_not_invalidate_computation(diagnostics_config, monkey
     full = workflow.implementation_signature()
     full["evaluation"]["reporting/diagnostics.py"] = "report-only-edit"
     full["evaluation"]["workflows/baseline.py"] = "unrelated-baseline-edit"
+    full["evaluation"]["clusterers/treecluster.py"] = "unrelated-tree-edit"
+    full["evaluation"]["phylogeny/trees.py"] = "unrelated-inference-edit"
+    full["versions"]["TreeCluster"] = "unrelated-version"
     monkeypatch.setattr(workflow, "implementation_signature", lambda: full)
     resumed = Diagnostics(deepcopy(diagnostics_config))
     assert resumed.directory == diagnostics.directory
     assert resumed.signature == diagnostics.signature
     # Altering a Leiden grid creates a study run, but keeps feature artifacts reusable.
     changed = deepcopy(diagnostics_config)
-    changed["diagnostics"]["leiden"]["resolution_grid"] = [0.3]
+    changed["diagnostics"]["leiden"]["resolutions"] = [0.3]
     new_grid = Diagnostics(changed)
     assert new_grid.directory != diagnostics.directory
     before = _timestamps(diagnostics.root / "artifacts/observations")
@@ -197,51 +210,48 @@ def test_report_changes_do_not_invalidate_computation(diagnostics_config, monkey
     assert _timestamps(diagnostics.root / "artifacts/observations") == before
 
 
-def test_tree_failure_is_visible_and_successful_settings_resume(
+def test_graph_failure_is_visible_and_successful_settings_resume(
     diagnostics_config, monkeypatch
 ):
-    diagnostics_config["diagnostics"]["treecluster"]["enabled"] = True
     calls = []
     fail = True
+    original = workflow.leiden
 
-    def fake_treecluster(tree_path, cases, method, threshold, config, directory):
-        calls.append(threshold)
-        tree = Phylo.read(tree_path, "newick")
-        assert {c.name for c in tree.get_terminals()} == set(cases.case_id)
-        assert all(c.branch_length in (0, 1) for c in tree.find_clades())
-        if threshold == 2 and fail:
-            raise RuntimeError("visible external failure")
-        return np.arange(len(cases)), {"test_adapter": True}
+    def failing_leiden(graph, resolution, objective, restarts, seed):
+        calls.append(resolution)
+        if resolution == 0.8 and fail:
+            raise RuntimeError("visible graph failure")
+        return original(graph, resolution, objective, restarts, seed)
 
-    monkeypatch.setattr(workflow, "treecluster", fake_treecluster)
+    monkeypatch.setattr(workflow, "leiden", failing_leiden)
     diagnostics = Diagnostics(diagnostics_config)
     assert not diagnostics.run("all")
-    assert calls == [0, 2]  # One sampled-case set, independent of seed/process.
+    assert calls == [0.2, 0.8] * len(ENDPOINTS)
     assert not (diagnostics.exp.directory / "diagnostics.json").exists()
     assert not (diagnostics.directory / "completion/manifest.json").exists()
     assert read_json(diagnostics.directory / "manifest.json")["status"] == "partial"
     assert (
-        "visible external failure" in (diagnostics.directory / "report.md").read_text()
+        "visible graph failure" in (diagnostics.directory / "report.md").read_text()
     )
-    records = read_json(diagnostics.directory / "trees/index.json")["records"]
+    records = read_json(diagnostics.directory / "graphs/index.json")["records"]
     completed = Path(records[0]["artifact"])
     before = _timestamps(completed)
     fail = False
-    assert diagnostics.run("trees")
-    assert calls == [0, 2, 2]
+    assert diagnostics.run("graphs")
+    assert calls == [0.2, 0.8] * len(ENDPOINTS) + [0.8] * len(ENDPOINTS)
     assert _timestamps(completed) == before
     marker = read_json(diagnostics.exp.directory / "diagnostics.json")
     assert valid_artifact(
         diagnostics.directory / "completion", _completion_signature(diagnostics, marker)
     )
-    assert len(list((diagnostics.root / "artifacts/hop_trees").iterdir())) == 1
-    assert (diagnostics.directory / "figures/transmission_hop_thresholds.png").exists()
+    assert len(list((diagnostics.root / "artifacts/graphs").iterdir())) == len(ENDPOINTS)
+    assert (diagnostics.directory / "figures/oracle_graph_precision_recall.png").exists()
     # A later broken checkpoint must revoke this run's existing completion marker.
-    records = read_json(diagnostics.directory / "trees/index.json")["records"]
-    failed = next(Path(r["artifact"]) for r in records if r["threshold_hops"] == 2)
+    records = read_json(diagnostics.directory / "graphs/index.json")["records"]
+    failed = next(Path(r["artifact"]) for r in records if r["resolution"] == 0.8)
     (failed / "metrics.json").write_text("interrupted write")
     fail = True
-    assert not diagnostics.run("trees")
+    assert not diagnostics.run("graphs")
     assert not (diagnostics.exp.directory / "diagnostics.json").exists()
     assert not valid_artifact(
         diagnostics.directory / "completion", _completion_signature(diagnostics, marker)
@@ -249,18 +259,15 @@ def test_tree_failure_is_visible_and_successful_settings_resume(
     assert _timestamps(completed) == before
 
 
-def test_forest_control_is_explicitly_partial(diagnostics_config):
-    diagnostics_config["diagnostics"]["treecluster"]["enabled"] = True
+def test_removed_tree_stage_is_rejected(diagnostics_config):
+    from epilink_evaluation.cli import main
+
     diagnostics = Diagnostics(diagnostics_config)
-    diagnostics.prepare()
-    # The shared experiment may itself reject forests; exercise the control boundary.
-    diagnostics.tree = nx.DiGraph(diagnostics.tree)
-    diagnostics.tree.remove_edge(*next(iter(diagnostics.tree.edges)))
-    assert not diagnostics.run("trees")
-    index = read_json(diagnostics.directory / "trees/index.json")
-    assert index["status"] == "partial"
-    assert "single rooted transmission tree" in index["errors"][0]["error"]
-    assert not (diagnostics.exp.directory / "diagnostics.json").exists()
+    with pytest.raises(ValueError, match="Unknown diagnostics stage: trees"):
+        diagnostics.run("trees")
+    with pytest.raises(SystemExit) as error:
+        main(["diagnostics", "--stage", "trees"])
+    assert error.value.code == 2
 
 
 def test_backbone_stage_uses_all_cases_without_observation_generation(

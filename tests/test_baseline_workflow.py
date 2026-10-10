@@ -9,6 +9,7 @@ from epilink_evaluation.workflows.baseline import Baseline
 
 
 def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics):
+    assert "pairwise" not in small_config
     small_config["splits"]["development"] = [72001, 72002]
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
@@ -79,7 +80,10 @@ def test_development_freeze_and_heldout_replay(small_config, prepare_diagnostics
         assert (
             baseline.directory / f"figures/pairwise_precision_recall_{endpoint}.png"
         ).exists()
-    assert (baseline.directory / "development/grid_adequacy.csv").exists()
+    assert not (baseline.directory / "development/grid_adequacy.csv").exists()
+    assert not (baseline.directory / "development/grid_neighbors.csv").exists()
+    assert "Development grid adequacy" not in (baseline.directory / "report.md").read_text()
+    assert not list(baseline.directory.rglob("budgets.csv"))
 
     # A fresh process-equivalent context reuses completed observations unchanged.
     resumed = Baseline(deepcopy(small_config))

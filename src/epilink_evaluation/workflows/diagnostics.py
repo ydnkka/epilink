@@ -1,4 +1,4 @@
-"""Development-only feature diagnostics and known-truth partition controls."""
+"""Development-only feature diagnostics and endpoint-oracle graph controls."""
 
 from __future__ import annotations
 
@@ -7,17 +7,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from Bio import Phylo
 
-from ..clusterers import components, leiden, treecluster
+from ..clusterers import components, leiden
 from ..diagnostics.backbone import backbone_diagnostics, backbone_settings
 from ..diagnostics.graphs import graph_summary, oracle_graph
 from ..diagnostics.observations import observation_diagnostics
-from ..diagnostics.trees import transmission_hop_tree
 from ..inputs.experiment import prepare_experiment
 from ..inputs.synthetic import load_observations, load_truth
 from ..metrics.partitions import PartitionEvaluator
-from ..phylogeny.external import command_identity
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -57,25 +54,14 @@ def _implementation(full, stage):
     else:
         paths.update({"metrics/partitions.py", "truth/relationships.py"})
         packages.update({"scipy", "networkx"})
-        if stage == "graphs":
-            paths.update(
-                {
-                    "diagnostics/graphs.py",
-                    "diagnostics/observations.py",
-                    "clusterers/graph.py",
-                }
-            )
-            packages.add("igraph")
-        else:
-            paths.update(
-                {
-                    "diagnostics/trees.py",
-                    "clusterers/treecluster.py",
-                    "phylogeny/external.py",
-                    "phylogeny/trees.py",
-                }
-            )
-            packages.update({"TreeCluster", "biopython"})
+        paths.update(
+            {
+                "diagnostics/graphs.py",
+                "diagnostics/observations.py",
+                "clusterers/graph.py",
+            }
+        )
+        packages.add("igraph")
     return {
         "evaluation": {p: full["evaluation"][p] for p in sorted(paths)},
         "versions": {p: full["versions"].get(p) for p in sorted(packages)},
@@ -115,25 +101,14 @@ class Diagnostics:
         self.backbone_config = backbone_settings(self.settings.get("backbone"))
         self.implementation = {
             stage: _implementation(full, stage)
-            for stage in ("backbone", "observations", "graphs", "trees")
+            for stage in ("backbone", "observations", "graphs")
         }
-        self.tools = {}
-        if self.settings["treecluster"]["enabled"]:
-            command = self.settings["treecluster"]["executables"]["treecluster"]
-            try:
-                self.tools["treecluster"] = command_identity(command)
-            except (OSError, ValueError) as exc:
-                self.tools["treecluster"] = {
-                    "unavailable": str(exc),
-                    "command": command,
-                }
         self.signature = {
             "kind": "synthetic-diagnostics-v1",
             "experiment": self.exp.identity,
             "backbone": self.exp.signature["backbone"],
             "implementation": self.implementation,
             "settings": {**self.settings, "backbone": self.backbone_config},
-            "tools": self.tools,
         }
         self.root = Path(config["output_directory"]).resolve()
         self.directory = self.root / "runs" / fingerprint(self.signature)
@@ -197,15 +172,13 @@ class Diagnostics:
             settings = self.backbone_config
         elif stage == "graphs":
             settings = self.settings["leiden"]
-        elif stage == "trees":
-            settings = self.settings["treecluster"]
         return {
             "kind": f"diagnostics-{stage}-coverage-v1",
             "experiment": self.exp.identity,
             "datasets": {} if stage == "backbone" else {str(s): p.name for s, p in self.datasets.items()},
             "implementation": self.implementation[stage],
             "settings": settings,
-            "tools": self.tools if stage == "trees" else {},
+            "tools": {},
         }
 
     def _save_stage(self, stage, records, errors, tables):
@@ -464,7 +437,7 @@ class Diagnostics:
                     "seed": settings["seed"],
                     "restart_selection": "maximum objective",
                 }
-                for resolution in settings["resolution_grid"]
+                for resolution in settings["resolutions"]
             )
             for setting in definitions:
                 try:
@@ -512,122 +485,28 @@ class Diagnostics:
                     errors.append({**base, "setting": setting, "error": repr(exc)})
         return records, errors
 
-    def _tree_controls(self, ids, identity):
-        pairs, cases, truth, evaluator = self._control_data(ids)
-        signature = {
-            "kind": "sampled-transmission-hop-tree-v1",
-            "input": identity,
-            "implementation": self.implementation["trees"],
-        }
-
-        def produce(directory):
-            hop_tree = transmission_hop_tree(
-                self.tree, ids
-            )  # Explicitly rejects forests.
-            Phylo.write(hop_tree, directory / "transmission_hops.nwk", "newick")
-            cases.to_parquet(directory / "cases.parquet", index=False)
-            write_json(
-                directory / "provenance.json",
-                {
-                    **identity,
-                    "units": "transmission hops",
-                    "transmission_edge_length": 1,
-                    "sampled_tip_length": 0,
-                    "topology": "known transmission tree",
-                },
-            )
-            return ["transmission_hops.nwk", "cases.parquet", "provenance.json"]
-
-        source = self._artifact("hop_trees", signature, produce)
-        records, errors = [], []
-        settings = self.settings["treecluster"]
-        for method in settings["methods"]:
-            for threshold in settings["threshold_hops"]:
-                setting = {"method": method, "threshold_hops": threshold}
-                try:
-                    signature = {
-                        "kind": "hop-tree-partition-v1",
-                        "tree": source.name,
-                        "setting": setting,
-                        "implementation": self.implementation["trees"],
-                        "tools": self.tools,
-                        "timeout": settings["command_timeout_seconds"],
-                    }
-
-                    def partition(directory):
-                        return treecluster(
-                            source / "transmission_hops.nwk",
-                            cases,
-                            method,
-                            threshold,
-                            settings,
-                            directory,
-                        )
-
-                    artifact = self._partition(
-                        "tree_partitions",
-                        signature,
-                        cases,
-                        evaluator,
-                        partition,
-                        {
-                            "tree_directory": str(source),
-                            "tree_fingerprint": source.name,
-                            "units": "transmission hops",
-                            "evaluation": "all within-cluster sampled pairs",
-                            "reference": "reconstructed transmission tree restricted to sampled cases",
-                        },
-                    )
-                    records.append(
-                        {
-                            "control_id": fingerprint(identity),
-                            **setting,
-                            "source": str(source),
-                            "artifact": str(artifact),
-                        }
-                    )
-                except Exception as exc:
-                    errors.append(
-                        {
-                            "control_id": fingerprint(identity),
-                            **setting,
-                            "error": repr(exc),
-                        }
-                    )
-        return records, errors
-
-    def _controls(self, stage):
+    def graphs(self):
         self.prepare()
+        stage = "graphs"
         if self._stage_valid(stage):
             return True
         records, errors, controls = [], [], {}
-        enabled = stage != "trees" or self.settings["treecluster"]["enabled"]
-        if enabled:
-            for seed, dataset in self.datasets.items():
-                try:
-                    ids, identity = self._sample(dataset)
-                    key = fingerprint(identity)
-                    if key not in controls:
-                        producer = (
-                            self._graph_controls
-                            if stage == "graphs"
-                            else self._tree_controls
-                        )
-                        controls[key] = producer(ids, identity)
-                    completed, failed = controls[key]
-                    records.extend(
-                        {"seed": seed, "dataset": dataset.name, **r} for r in completed
-                    )
-                    errors.extend({"seed": seed, **r} for r in failed)
-                except Exception as exc:
-                    errors.append({"seed": seed, "error": repr(exc)})
+        for seed, dataset in self.datasets.items():
+            try:
+                ids, identity = self._sample(dataset)
+                key = fingerprint(identity)
+                if key not in controls:
+                    controls[key] = self._graph_controls(ids, identity)
+                completed, failed = controls[key]
+                records.extend(
+                    {"seed": seed, "dataset": dataset.name, **r} for r in completed
+                )
+                errors.extend({"seed": seed, **r} for r in failed)
+            except Exception as exc:
+                errors.append({"seed": seed, "error": repr(exc)})
         for error in errors:
             LOG.error("%s diagnostics failed: %s", stage, error)
-        keys = (
-            ["endpoint", "algorithm", "resolution"]
-            if stage == "graphs"
-            else ["method", "threshold_hops"]
-        )
+        keys = ["endpoint", "algorithm", "resolution"]
         rows = [
             {
                 "seed": r["seed"],
@@ -638,40 +517,31 @@ class Diagnostics:
         ]
         frame = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["seed", *keys])
         tables = {"metrics.csv": frame, "summary.csv": _aggregate(frame, keys)}
-        if stage == "graphs":
-            sources = {(r["seed"], r["endpoint"]): r["source"] for r in records}
-            rows = [
-                {
-                    "seed": seed,
-                    "endpoint": endpoint,
-                    **read_json(Path(source) / "summary.json"),
-                }
-                for (seed, endpoint), source in sources.items()
-            ]
-            frame = (
-                pd.DataFrame(rows)
-                if rows
-                else pd.DataFrame(columns=["seed", "endpoint"])
-            )
-            tables.update(
-                {
-                    "graph_summary.csv": frame,
-                    "graph_summary_aggregate.csv": _aggregate(frame, ["endpoint"]),
-                }
-            )
+        sources = {(r["seed"], r["endpoint"]): r["source"] for r in records}
+        rows = [
+            {
+                "seed": seed,
+                "endpoint": endpoint,
+                **read_json(Path(source) / "summary.json"),
+            }
+            for (seed, endpoint), source in sources.items()
+        ]
+        frame = (
+            pd.DataFrame(rows)
+            if rows
+            else pd.DataFrame(columns=["seed", "endpoint"])
+        )
+        tables.update(
+            {
+                "graph_summary.csv": frame,
+                "graph_summary_aggregate.csv": _aggregate(frame, ["endpoint"]),
+            }
+        )
         return self._save_stage(stage, records, errors, tables)
-
-    def graphs(self):
-        return self._controls("graphs")
-
-    def trees(self):
-        return self._controls("trees")
 
     def _coverage(self):
         """Validate all checkpoints and save a checksummed inventory for baseline."""
         stages = ["backbone", "observations", "graphs"]
-        if self.settings["treecluster"]["enabled"]:
-            stages.append("trees")
         if any(not (self.directory / stage / "index.json").exists() for stage in stages):
             return False
         if not self.datasets:
@@ -755,7 +625,7 @@ class Diagnostics:
             marker.unlink()
 
     def run(self, stage):
-        if stage not in {"prepare", "backbone", "observations", "graphs", "trees", "report", "all"}:
+        if stage not in {"prepare", "backbone", "observations", "graphs", "report", "all"}:
             raise ValueError(f"Unknown diagnostics stage: {stage}")
         if stage == "report":
             # The CLI can call render_report directly to avoid even experiment setup.
@@ -775,7 +645,7 @@ class Diagnostics:
         complete = True
         try:
             for requested in (
-                ("backbone", "observations", "graphs", "trees") if stage == "all" else (stage,)
+                ("backbone", "observations", "graphs") if stage == "all" else (stage,)
             ):
                 complete = getattr(self, requested)() and complete
             covered = self._coverage() if complete else False

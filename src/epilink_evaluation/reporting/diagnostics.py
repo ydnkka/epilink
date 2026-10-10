@@ -42,14 +42,11 @@ def render_report(directory):
         "not be transitive: partitions are evaluated on every within-cluster pair, including "
         "nonedges. These controls are not an absolute performance ceiling. Leiden restarts "
         "are selected by the algorithm objective, never by truth-based performance.",
-        "The sampled-tip tree preserves known transmission topology, with unit transmission "
-        "edges and zero-length sampled tips. It is a transmission-hop control, not a molecular "
-        "genealogy. M is a relationship horizon and differs from total transmission hops. "
         "Reference memberships are reconstructed from the full transmission tree and restricted "
         "to observed cases; unsampled intermediates are retained.",
         "Oracle controls are deduplicated by truth and canonical sampled-case set across "
         "observation seeds and both distance processes. Repeated full-sampling controls "
-        "therefore represent the same graph/tree, not independent oracle replicates.",
+        "therefore represent the same graphs, not independent oracle replicates.",
     ]
     if "error" in manifest:
         notes.append(f"Run error: {manifest['error']}")
@@ -74,7 +71,7 @@ def render_report(directory):
                     f"<figcaption>{html.escape(caption)}</figcaption></figure>")
 
     coverage, errors, indices = [], [], {}
-    for stage in ("backbone", "observations", "graphs", "trees"):
+    for stage in ("backbone", "observations", "graphs"):
         path = directory / stage / "index.json"
         if path.exists():
             index = indices[stage] = read_json(path)
@@ -85,8 +82,6 @@ def render_report(directory):
             errors.extend({"stage": stage, **error} for error in index["errors"])
         else:
             coverage.append({"stage": stage, "status": "not run"})
-    if not manifest["config"]["diagnostics"]["treecluster"]["enabled"]:
-        coverage[-1]["status"] = "disabled by configuration"
     section("Coverage", pd.DataFrame(coverage))
     if errors:
         section("Visible failures — incomplete coverage", pd.DataFrame(errors))
@@ -173,31 +168,16 @@ def render_report(directory):
             axis.legend()
         figure(fig, "oracle_graph_precision_recall", "Endpoint-oracle partition trade-offs, equal seed weights. Leiden points are labelled by resolution and connected in resolution order.")
 
-    trees = read_table(directory / "trees/summary.csv")
-    if not trees.empty:
-        fig, axes = plt.subplots(2, len(ENDPOINTS), figsize=(15, 8), squeeze=False)
-        for col, endpoint in enumerate(ENDPOINTS):
-            for row, metric in enumerate(("precision", "recall")):
-                axis = axes[row, col]
-                for method, points in trees.groupby("method", sort=True):
-                    points = points.sort_values("threshold_hops")
-                    axis.plot(points.threshold_hops, points[f"{endpoint}_{metric}_mean"], "o-", label=method)
-                axis.set(title=endpoint, xlabel="TreeCluster threshold (transmission hops)",
-                         ylabel=f"Mean within-pair {metric}", ylim=(-0.02, 1.02))
-                axis.legend(fontsize=8)
-        figure(fig, "transmission_hop_thresholds", "Known-transmission-hop tree controls by endpoint and method; equal development-seed weights, all configured thresholds.")
-
     links = [f"[{stage}/{name}]({stage}/{name})"
              for stage, names in {
                  "backbone": ("index.json", "summary.csv"),
                  "observations": ("summary.csv", "summary_aggregate.csv", "prevalence.csv", "relationships.csv"),
                  "graphs": ("metrics.csv", "summary.csv", "graph_summary.csv"),
-                 "trees": ("metrics.csv", "summary.csv"),
              }.items() for name in names if (directory / stage / name).exists()]
     text.extend(["## Saved tables", "\n\n".join(links)])
     body.append("<h2>Saved tables</h2><ul>" + "".join(
         f'<li><a href="{stage}/{name}">{stage}/{name}</a></li>'
-        for stage in ("backbone", "observations", "graphs", "trees")
+        for stage in ("backbone", "observations", "graphs")
         for name in ("index.json", "metrics.csv", "summary.csv")
         if (directory / stage / name).exists()
     ) + "</ul>")

@@ -15,7 +15,7 @@ import pandas as pd
 from ..provenance import read_json
 from ..schemas import ENDPOINTS
 from ..selection.operating import endpoint_frontiers
-from .baseline_tables import grid_adequacy, operating_summary
+from .baseline_tables import operating_summary
 
 
 def read_table(path):
@@ -237,7 +237,7 @@ def render_report(directory):
         section(
             "Pre-baseline diagnostics",
             explanation=(
-                "Feature-cell ambiguity and known-truth graph/tree controls were examined "
+                "Feature-cell ambiguity and endpoint-oracle graph controls were examined "
                 "on these exact development observations before method comparison. "
                 f"Shared experiment: {diagnostics['experiment']['fingerprint']}."
             ),
@@ -287,28 +287,6 @@ def render_report(directory):
         summary = read_table(directory / split / "summary.csv")
         if not summary.empty:
             endpoint_frontiers(summary).to_csv(directory / split / "frontier.csv", index=False)
-    if not development.empty:
-        curves = {
-            seed: pd.read_parquet(directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet")
-            for seed in config["splits"]["development"]
-            if (directory / "development" / f"seed_{seed}" / "pairwise/precision_recall.parquet").exists()
-        }
-        adequacy, neighbors = grid_adequacy(development, definitions, config, curves)
-        adequacy.to_csv(directory / "development/grid_adequacy.csv", index=False)
-        neighbors.to_csv(directory / "development/grid_neighbors.csv", index=False)
-        columns = [c for c in (
-            "pipeline", "criterion", "status", "search_scope", "threshold", "resolution", "method",
-            "objective_mean", "reference_status", "reference_objective_mean", "refinement_gain",
-            "refinement_assessment", "threshold_boundary", "resolution_boundary",
-        ) if c in adequacy]
-        section(
-            "Development grid adequacy", adequacy[columns],
-            "Reference and current searches use the same development realizations and per-seed constraints. "
-            "A refinement gain within the configured numerical tolerance does not prove a global optimum. "
-            "Inspect search boundaries and neighboring precision/recall, contamination and cluster sizes in grid_neighbors.csv. "
-            "Natural zero-distance boundaries are distinguished from arbitrary search limits. "
-            "Exact pairwise selection exhausts development score cutoffs, independently of clustering grids.",
-        )
     frozen_path = directory / "selection/operating_points.json"
     if frozen_path.exists():
         frozen = read_json(frozen_path)

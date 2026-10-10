@@ -20,7 +20,7 @@ The study has three objectives:
 
 | Study                                                                | Scientific role                                                                        | Main evidence                                                                               |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells, endpoint-oracle graph partitions, and transmission-hop tree controls. |
+| [**Synthetic diagnostics**](../00_synthetic_diagnostics/README.md)   | Characterize development feature ambiguity and known-truth controls before comparison. | Exact GD/GD_TD cells and endpoint-oracle graph partitions. |
 | **Synthetic baseline** (this study)                                  | Compare methods, select settings, and evaluate them on held-out observations.          | Truth-based performance and frozen models/operating points.                                 |
 | [**Synthetic perturbation**](../02_synthetic_perturbation/README.md) | Test all four EpiLink scorers under inference mismatch and resolution adaptation.      | Paired clustering changes in the four inference/resolution modes.                           |
 | [**Boston application**](../03_boston_application/README.md)         | Apply frozen settings to empirical observations.                                       | Exposure concentration/recovery and graph/tree partition agreement.                         |
@@ -50,9 +50,9 @@ For M=0, **all M>0 pairs are false positives**. M≥3 contamination is an additi
 
 Compare scorers within the same observed process, on identical cases/pairs/seeds. Logistic regression uses an intercept and standardized GD and absolute TD, with training-only standardization and prevalence-preserving count weights. Its regularization is fixed in configuration. Identical feature cells are compressed without changing their statistical weight. Neither case IDs nor truth geometry are model inputs. M≤1/M≤2 evaluate the same M=0-trained score; a future horizon-specific classifier must declare its distinct target.
 
-**Evidence:** full tie-aware precision–recall curves, AP, absolute precision, recall, F1, enrichment over prevalence, selected counts, and AD/CA/M composition. Candidate budgets retain whole ties and report requested and achieved sizes. Genetic ties are not broken using time or truth. Empty selections have undefined precision and zero recall when positive pairs exist. Calibration curves, Brier score, and log loss apply to logistic probabilities. Compatibility is not treated as a calibrated probability, clipped to [0,1], or normalized into one.
+**Evidence:** full tie-aware precision–recall curves, AP, absolute precision, recall, F1, enrichment over prevalence, selected counts/fractions, and AD/CA/M composition. Genetic ties are not broken using time or truth. Empty selections have undefined precision and zero recall when positive pairs exist. Calibration curves, Brier score, and log loss apply to logistic probabilities. Compatibility is not treated as a calibrated probability, clipped to [0,1], or normalized into one.
 
-The default `pairwise.threshold_mode: all_development_scores` evaluates the union of distinct score values across **development** realizations, plus an empty selection. Each candidate is one inclusive cutoff shared across seeds, evaluated from cumulative whole-tie PR curves. Selection uses equal-seed means and per-seed constraints. Evaluation replays the frozen cutoff. `configured` mode uses finite `thresholds` lists. Components use those finite lists; full-graph Leiden selects only resolution.
+Pairwise selection always evaluates the union of distinct score values across **development** realizations, plus an empty selection. Each candidate is one inclusive cutoff shared across seeds, evaluated from cumulative whole-tie PR curves. Selection uses equal-seed means and per-seed constraints. Evaluation replays the frozen cutoff. Components use the finite `thresholds` lists; full-graph Leiden selects only resolution.
 
 ## 3. What relationships do clusters contain?
 
@@ -75,13 +75,9 @@ Use the declared clustering grids in `config.yaml`. Inspect component cutoff cur
 
 Reports and figures cover **M0, Mle1 and Mle2**, with endpoint suffixes on figure filenames. `frontier.csv` is endpoint-labelled and retains the explicit `*_precision_mean`/`*_recall_mean` names. Held-out tables display each criterion's actual frozen objective; `operating_summary.csv` retains all endpoints, AD0/CA00 retention, workload, cluster-size metrics and defined-value counts. The endpoint is derived from the objective, not from the criterion's name.
 
-An optional `grid_audit.reference` compares selected settings with a coarse grid on the same development observations. It may override `thresholds`, `leiden_resolution_grid`, and TreeCluster `genetic_threshold_snps` or `temporal_threshold_days`. `grid_neighbors.csv` reports adjacent settings, feasibility and recovery/contamination/cluster sizes. The supplied simplified config omits a coarse reference; neighboring-resolution diagnostics remain available.
-
-The audit distinguishes natural zero cutoffs from arbitrary search boundaries, and reports `material_improvement`, `within_tolerance`, `not_refined`, `reference_better`, or `unassessed`. The supplied absolute objective tolerance is 0.005. It is a numerical refinement diagnostic, not a confidence interval or proof of a global optimum. Inspect boundary flags and scientific trade-offs as well as objective changes before freezing. An unchanged reference grid is labelled `not_refined`, rather than evidence of refinement stability.
-
 The preceding diagnostics study reports exact `GD` and `GD_TD` feature cells for both genetic processes and every endpoint. The minimum empirical feature-only error count is `sum_cells min(n_target, n_other)`; its rate divides by all observed pairs. It applies to decisions constant within those cells, not population performance or partition recovery. Mixed-cell target prevalence and the fraction of all targets in mixed cells have different denominators.
 
-Endpoint-oracle graphs connect finite M≤h pairs with unit weights; components and Leiden are assessed on all within-cluster pairs, including graph nonedges. The known transmission-hop tree retains unsampled intermediates and represents sampled ancestors as zero-length terminal tips. Each method/threshold partition of that one tree is evaluated at all endpoints. These controls are deduplicated by truth and sampled-case set across seeds/processes; full-sampling repeats are not independent controls. The tree control explicitly rejects forests with visible failure. Neither oracle partition performance nor feature ambiguity is a universal performance ceiling; the hop tree is not a molecular genealogy.
+Endpoint-oracle graphs connect finite M≤h pairs with unit weights; components and Leiden are assessed on all within-cluster pairs, including graph nonedges. Unsampled intermediates remain in relationship truth. These controls are deduplicated by truth, endpoint, and sampled-case set across seeds/processes; full-sampling repeats are not independent controls. Neither oracle partition performance nor feature ambiguity is a universal performance ceiling.
 
 ## 5. Which operating criteria should be carried forward?
 
@@ -136,7 +132,7 @@ python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all
 python evaluation/01_synthetic_baseline/run.py --smoke --stage all
 ```
 
-Baseline defaults to `develop`; diagnostics defaults to `all` and supports `prepare`, `observations`, `graphs`, `trees`, `all`, and `report`. Its `prepare` stage alone does not complete the required diagnostics. Retained outputs describe earlier workflow checkpoints; current evidence requires the diagnostics-first sequence above.
+Baseline defaults to `develop`; diagnostics defaults to `all` and supports `prepare`, `backbone`, `observations`, `graphs`, `all`, and `report`. Its `prepare` stage alone does not complete the required diagnostics. Retained outputs describe earlier workflow checkpoints; current evidence requires the diagnostics-first sequence above.
 
 IQ-TREE builds raw trees and performs LSD2 dating; TreeCluster partitions them. Set `phylogeny.executable` and `treecluster.executable` to override discovery on PATH or beside the interpreter. Reports expose failures. Source inputs are preserved, and `scovmod --stage prepare` shares backbone preparation with diagnostics. Managed artifacts are reused only when inputs, settings, producer identities and checksums match; explicit prebuilt backbones without manifests are retained.
 
@@ -171,11 +167,11 @@ Column definitions, formulas, missing-value conventions, metadata fields, and an
 
 `outputs/baseline/` contains `artifacts/` for fitted models, scores, and inferred trees, and fingerprinted `runs/<id>/` directories. `current.json` points to the current run. Each run contains `development/` (pairwise curves and clustering sweeps), `selection/operating_points.json`, `evaluation/` (fixed-setting results), and `report.md`, `report.html`, `figures/`, and a run manifest. Revising criteria after accessing evaluation data requires fresh evaluation seeds in the shared config and diagnostics for the updated design. The shared `heldout_access/seed_<seed>.json` ledger survives `reset-outputs`, as do all shared synthetic outputs. Smoke outputs use `outputs/baseline_smoke/` and `../shared_synthetic/outputs/synthetic_smoke/`. The revised supplied design reserves fresh full-evaluation seeds 63101–63103; 63001–63003 belong to the previous completed comparison. Smoke retains its separate validation seeds and never substitutes for full scientific evaluation.
 
-Each development `pairwise/evidence/` artifact checkpoints cumulative curves, rankings, budgets, calibration, and empty-selection metrics. Once every seed's evidence is available, `development/pairwise_candidates/` pins the candidate definitions and source-manifest hashes. `settings.json` includes these definitions alongside the static clustering grids; a fresh process restores them before replay.
+Each development `pairwise/evidence/` artifact checkpoints cumulative curves, rankings, calibration, and empty-selection metrics. Once every seed's evidence is available, `development/pairwise_candidates/` pins the candidate definitions and source-manifest hashes. `settings.json` includes these definitions alongside the static clustering grids; a fresh process restores them before replay.
 
 Shared code is under `src/epilink_evaluation/`: inputs, truth, scorers, graphs, phylogeny, clusterers, metrics, selection, workflows, and reporting. Scorers do not compute evaluation metrics; clusterers do not access truth; reporting reads saved result tables. `inputs.synthetic.analysis_table` provides an optional joined view without duplicating stored truth for every model.
 
-The optional `pairwise` configuration defaults to `threshold_mode: all_development_scores` and no candidate-budget fractions. It is omitted from the simplified YAML; pairwise cutoffs remain independent of the full-graph Leiden resolution grid.
+No `pairwise` configuration block is needed; exact development-score cutoffs are the fixed selection policy and remain independent of the full-graph Leiden resolution grid.
 
 ## Manuscript figures and tables
 

@@ -143,7 +143,7 @@ def offspring_statistics(counts, settings=None):
         if total
         else np.nan,
         "n_cases_for_80_percent": n80,
-        "fraction_for_80_percent": n80 / n if total else np.nan,
+        "fraction_for_80_percent": n80 / n if n80 is not None else np.nan,
         "top20_n_cases": top20,
         "top20_case_fraction": top20 / n,
         "top20_transmission_fraction": float(ranked[:top20].sum() / total)

@@ -232,7 +232,7 @@ class Baseline:
             return directory
         directory.mkdir(parents=True, exist_ok=True)
         truth = PairTruth(truth_frame)
-        rankings, curves, budgets, calibrations = [], [], [], []
+        rankings, curves, calibrations = [], [], []
         for name in self.config["scorers"]:
             spec = SCORERS[name].spec
             values = scores[name].to_numpy(float)
@@ -244,9 +244,6 @@ class Baseline:
                 "data_process": spec.data_process,
             }
             curves.append(curve.assign(**base))
-            for fraction in self.config["pairwise"]["selected_fractions"]:
-                row = curve.loc[curve.selected_fraction >= fraction].iloc[0].to_dict()
-                budgets.append({**base, "requested_fraction": fraction, **row})
             if spec.family == "logistic":
                 bins, summary = calibration(values, truth)
                 calibrations.append(bins.assign(**base))
@@ -256,7 +253,6 @@ class Baseline:
             directory / "precision_recall.parquet", index=False
         )
         pd.DataFrame(rankings).to_csv(directory / "rankings.csv", index=False)
-        pd.DataFrame(budgets).to_csv(directory / "budgets.csv", index=False)
         (
             pd.concat(calibrations, ignore_index=True)
             if calibrations
@@ -272,7 +268,6 @@ class Baseline:
             [
                 "precision_recall.parquet",
                 "rankings.csv",
-                "budgets.csv",
                 "calibration.csv",
                 "empty_metrics.json",
             ],
@@ -349,7 +344,6 @@ class Baseline:
             files = [
                 "precision_recall.parquet",
                 "rankings.csv",
-                "budgets.csv",
                 "calibration.csv",
             ]
             for filename in files:
@@ -384,26 +378,17 @@ class Baseline:
                 continue
             directory.mkdir(parents=True, exist_ok=True)
             truth = PairTruth(truth_frame)
-            metrics, rankings, curves, budgets, calibrations = [], [], [], [], []
+            metrics, rankings, calibrations = [], [], []
             for name in self.config["scorers"]:
                 spec = SCORERS[name].spec
                 values = scores[name].to_numpy(float)
-                curve, ranking = precision_recall_curve(values, spec, truth)
+                _, ranking = precision_recall_curve(values, spec, truth)
                 base = {
                     "split": split,
                     "seed": seed,
                     "score_name": name,
                     "data_process": spec.data_process,
                 }
-                if split == "development":
-                    curves.append(curve.assign(**base))
-                    for fraction in self.config["pairwise"]["selected_fractions"]:
-                        row = (
-                            curve.loc[curve.selected_fraction >= fraction]
-                            .iloc[0]
-                            .to_dict()
-                        )
-                        budgets.append({**base, "requested_fraction": fraction, **row})
                 if spec.family == "logistic":
                     bins, calibration_summary = calibration(values, truth)
                     calibrations.append(bins.assign(**base))
@@ -425,10 +410,7 @@ class Baseline:
                     )
             pd.DataFrame(metrics).to_csv(directory / "metrics.csv", index=False)
             pd.DataFrame(rankings).to_csv(directory / "rankings.csv", index=False)
-            pd.DataFrame(budgets).to_csv(directory / "budgets.csv", index=False)
-            (
-                pd.concat(curves, ignore_index=True) if curves else pd.DataFrame()
-            ).to_parquet(directory / "precision_recall.parquet", index=False)
+            pd.DataFrame().to_parquet(directory / "precision_recall.parquet", index=False)
             (
                 pd.concat(calibrations, ignore_index=True)
                 if calibrations
@@ -440,7 +422,6 @@ class Baseline:
                 [
                     "metrics.csv",
                     "rankings.csv",
-                    "budgets.csv",
                     "precision_recall.parquet",
                     "calibration.csv",
                 ],

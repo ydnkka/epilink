@@ -1,19 +1,14 @@
-from io import StringIO
-from itertools import combinations
-
 import igraph as ig
 import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
-from Bio import Phylo
 
 from epilink_evaluation.clusterers.graph import components, leiden
 from epilink_evaluation.diagnostics import (
     graph_summary,
     observation_diagnostics,
     oracle_graph,
-    transmission_hop_tree,
 )
 from epilink_evaluation.metrics.pairwise import CATEGORIES
 from epilink_evaluation.metrics.partitions import PartitionEvaluator
@@ -395,106 +390,3 @@ def test_closed_wedges_and_graph_validation():
     repeated = observations_for(truth).assign(a=[0, 1], b=[1, 0])
     with pytest.raises(ValueError, match="Duplicate unordered target pairs"):
         oracle_graph(repeated, 2, truth, "M0")
-
-
-def test_hop_tree_preserves_sampled_ancestors_intermediates_and_all_distances():
-    tree = nx.DiGraph(
-        [
-            ("R", "A"),
-            ("A", "u"),
-            ("u", "B"),
-            ("B", "C"),
-            ("A", "D"),
-            ("A", "E"),
-            ("R", "dead"),
-            ("dead", "dead_tip"),
-        ]
-    )
-    original_edges = set(tree.edges)
-    cases = ["C", "A", "D", "B", "E"]
-    result = transmission_hop_tree(tree, cases)
-    assert result.rooted
-    assert result.root.branch_length == 0
-    assert set(tip.name for tip in result.get_terminals()) == set(cases)
-    assert len(result.get_terminals()) == len(cases)
-    assert all(tip.branch_length == 0 for tip in result.get_terminals())
-    assert all(clade.name is None for clade in result.get_nonterminals())
-    assert all(
-        clade.branch_length == 1
-        for clade in result.get_nonterminals()
-        if clade is not result.root
-    )
-    assert len(result.get_nonterminals()) == 7  # R, A, u, B, C, D, E.
-    assert max(len(clade.clades) for clade in result.get_nonterminals()) == 4
-    undirected = tree.to_undirected()
-    for a, b in combinations(cases, 2):
-        assert result.distance(a, b) == nx.shortest_path_length(undirected, a, b)
-    for case in cases:
-        assert result.distance(case) == nx.shortest_path_length(tree, "R", case)
-    assert set(tree.edges) == original_edges
-    reordered = transmission_hop_tree(tree, cases[::-1])
-    assert result.format("newick") == reordered.format("newick")
-    handle = StringIO()
-    assert Phylo.write(result, handle, "newick") == 1
-    handle.seek(0)
-    restored = Phylo.read(handle, "newick")
-    assert {tip.name for tip in restored.get_terminals()} == set(cases)
-    for a, b in combinations(cases, 2):
-        assert restored.distance(a, b) == nx.shortest_path_length(undirected, a, b)
-
-
-def test_hop_tree_matches_numeric_identifiers_and_supports_single_samples():
-    tree = nx.DiGraph([(0, 1), (1, 2)])
-    result = transmission_hop_tree(tree, ["2", "0"])
-    assert {tip.name for tip in result.get_terminals()} == {"0", "2"}
-    assert result.distance("0", "2") == 2
-    single = transmission_hop_tree(tree, [2])
-    assert [tip.name for tip in single.get_terminals()] == ["2"]
-    assert single.distance("2") == 2
-    isolated = nx.DiGraph()
-    isolated.add_node("isolated")
-    single = transmission_hop_tree(isolated, ["isolated"])
-    assert single.root.name is None
-    assert [tip.name for tip in single.get_terminals()] == ["isolated"]
-    assert single.distance("isolated") == 0
-
-
-def test_hop_tree_rejects_forests_even_when_only_one_component_is_sampled():
-    forest = nx.DiGraph([("A", "B"), ("C", "D")])
-    with pytest.raises(ValueError, match="single rooted.*multi-root forests"):
-        transmission_hop_tree(forest, ["A", "B"])
-
-
-@pytest.mark.parametrize(
-    "tree",
-    [
-        nx.DiGraph(),
-        nx.Graph([("A", "B")]),
-        nx.DiGraph([("A", "B"), ("B", "A")]),
-        nx.DiGraph([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")]),
-    ],
-)
-def test_hop_tree_uses_tree_index_topology_validation(tree):
-    with pytest.raises(ValueError, match="nonempty, acyclic single-parent forest"):
-        transmission_hop_tree(tree, ["A", "B"])
-
-
-@pytest.mark.parametrize(
-    "cases, error, message",
-    [
-        ([], ValueError, "At least one"),
-        (["A", "A"], ValueError, "unique"),
-        (["missing"], ValueError, "absent"),
-        ([""], ValueError, "nonempty"),
-        ("A", TypeError, "collection"),
-        (b"A", TypeError, "collection"),
-    ],
-)
-def test_hop_tree_rejects_invalid_case_universes(cases, error, message):
-    with pytest.raises(error, match=message):
-        transmission_hop_tree(nx.DiGraph([("A", "B")]), cases)
-
-
-def test_hop_tree_rejects_ambiguous_node_labels():
-    with pytest.raises(ValueError, match="ambiguous as strings"):
-        transmission_hop_tree(nx.DiGraph([(1, "1")]), ["1"])

@@ -35,13 +35,6 @@ FEATURE_LABELS = {"GD": "Genetics", "GD_TD": "Genetics\n+ sampling time"}
 PROCESSES = ("deterministic", "stochastic")
 PROCESS_LABELS = {"deterministic": "Deterministic", "stochastic": "Stochastic"}
 
-TREE_METHODS = ("avg_clade", "max_clade", "single_linkage")
-METHOD_LABELS = {
-    "avg_clade": "Average clade",
-    "max_clade": "Maximum clade",
-    "single_linkage": "Single Linkage",
-}
-
 COLORS = {
     "deterministic": "#0072B2",
     "stochastic": "#D55E00",
@@ -115,7 +108,6 @@ def load_data(run_dir: Path) -> dict[str, pd.DataFrame]:
             run_dir / "observations" / "summary_aggregate.csv"
         ),
         "graphs": pd.read_csv(run_dir / "graphs" / "summary.csv"),
-        "trees": pd.read_csv(run_dir / "trees" / "summary.csv"),
     }
 
 
@@ -250,22 +242,6 @@ def plot_oracle_pr(ax: Axes, data: pd.DataFrame, endpoint: str) -> None:
     ax.set_ylim(-0.05, 1.05)
 
 
-def plot_tree_performance(
-    ax: Axes,
-    data: pd.DataFrame,
-    method: str,
-    endpoint: str,
-) -> None:
-    """Plot tree threshold performance for one method and endpoint."""
-    method_data = data[data["method"].astype(str) == method].copy()
-    method_data = method_data.sort_values("threshold_hops")
-
-    plot_score_metrics(ax, method_data, endpoint, "threshold_hops", SCORE_METRICS)
-    plot_f1_error_bars(ax, method_data, endpoint, "threshold_hops")
-
-    ax.set_ylim(-0.05, 1.05)
-
-
 def metric_legend_handles(metrics: tuple[MetricSpec, ...]) -> list[Line2D]:
     return [
         Line2D(
@@ -309,7 +285,6 @@ def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
     labels = [
         "Observation\nambiguity",
         "Exact target links\nCC / Leiden",
-        *[f"TreeCluster\n{METHOD_LABELS[method]}" for method in TREE_METHODS],
     ]
     for ax, label in zip(row_axes, labels):
         ax.annotate(
@@ -337,17 +312,16 @@ def create_figure(
     """Create and save the diagnostics figure."""
     fig, axes = style.new_figure(
         width="double",
-        height_in=8,
-        nrows=2 + len(TREE_METHODS),
+        height_in=4.5,
+        nrows=2,
         ncols=len(ENDPOINTS),
         layout="constrained",
     )
 
-    # Share directly with each group's reference so limits AND tick locators
-    # stay identical, including across all three tree-method rows.
+    # Share each row's limits and tick locators across endpoints.
     for row, row_axes in enumerate(axes):
-        x_reference = axes[min(2, row), 0]
-        y_reference = axes[0 if row == 0 else 1, 0]
+        x_reference = axes[row, 0]
+        y_reference = axes[row, 0]
         for ax in row_axes:
             if ax is not x_reference:
                 ax.sharex(x_reference)
@@ -367,24 +341,13 @@ def create_figure(
         plot_oracle_pr(axes[1, col], data["graphs"], endpoint)
         axes[0, col].set_title(ENDPOINT_LABELS[endpoint], fontweight="bold", pad=10)
 
-    for row, method in enumerate(TREE_METHODS):
-        for col, endpoint in enumerate(ENDPOINTS):
-            plot_tree_performance(
-                axes[2 + row, col],
-                data["trees"],
-                method,
-                endpoint,
-            )
-
     axes[0, 0].yaxis.set_major_locator(MaxNLocator(nbins=4))
     axes[1, 0].set_yticks([0, 0.5, 1])
     axes[1, 0].set_xticks(
         [-0.15, 0.2, 0.4, 0.6, 0.8, 1.0],
         ["CC", "0.2", "0.4", "0.6", "0.8", "1.0"],
     )
-    axes[2, 0].xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
-
-    x_labels = ("Observed information", "Leiden resolution") + ("Cutoff (transmission hops)",) * len(TREE_METHODS)
+    x_labels = ("Observed information", "Leiden resolution")
     for row, row_axes in enumerate(axes):
         row_axes[0].set_ylabel(
             "Fraction of mixed\nobserved combinations" if row == 0 else "Metric value"

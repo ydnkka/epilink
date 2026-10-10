@@ -1,15 +1,10 @@
-from copy import deepcopy
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from epilink_evaluation.config import validate
 from epilink_evaluation.metrics.pairwise import metrics_at_thresholds
-from epilink_evaluation.reporting.baseline_tables import (
-    grid_adequacy,
-    operating_summary,
-)
+from epilink_evaluation.reporting.baseline_tables import operating_summary
 from epilink_evaluation.selection.operating import (
     endpoint_frontiers,
     select_operating_points,
@@ -60,13 +55,15 @@ def test_one_shared_development_cutoff_beats_coarse_grid_without_per_seed_optimi
     assert point["status"] == "infeasible"  # undefined precision also fails bounds
 
 
-def test_exact_cutoffs_do_not_expand_full_graph_resolution_grid(
+def test_exact_cutoffs_do_not_expand_full_graph_resolutions(
     small_config,
 ):
     small_config["scorers"] = ["LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     leiden = small_config["clustering"]["leiden"]
     leiden["resolutions"] = [0.2, 0.8]
+    assert "pairwise" not in small_config
+    assert all(d["kind"] != "pairwise" for d in settings_registry(small_config).values())
     definitions = settings_registry(
         small_config, {"LOGIT_D": np.linspace(0, 1, 101).tolist()}
     )
@@ -140,71 +137,8 @@ def test_frontiers_use_each_endpoints_precision_and_recall():
     assert "M0_precision_mean" in frontier
 
 
-def test_grid_audit_distinguishes_natural_boundaries_and_measures_refinement(
-    small_config,
-):
-    config = deepcopy(small_config)
-    config["scorers"] = ["GD_D", "LOGIT_D"]
-    config["thresholds"].update(genetic=[0, 1], logistic=[0.1, 0.2])
-    config["splits"]["development"] = [11, 12]
-    config["selection"]["criteria"] = [
-        {"name": "balanced", "objective": "M0_f1", "constraints": {}}
-    ]
-    config["grid_audit"] = {
-        "objective_tolerance": 0.005,
-        "reference": {"thresholds": {"genetic": [0], "logistic": [0.2]}},
-    }
-    definitions = settings_registry(config)
-    rows = []
-    for key, definition in definitions.items():
-        if definition["empty"]:
-            f1 = 0
-        elif definition["score_name"] == "GD_D":
-            f1 = 0.8 if definition["threshold"] == 0 else 0.7
-        else:
-            f1 = 0.9 if definition["threshold"] == 0.1 else 0.6
-        for seed in [11, 12]:
-            rows.append(
-                {
-                    "split": "development",
-                    "seed": seed,
-                    "pipeline": definition["pipeline"],
-                    "setting_id": key,
-                    "M0_f1": f1,
-                }
-            )
-    frame = pd.DataFrame(rows)
-    audit, neighbors = grid_adequacy(frame, definitions, config, {})
-    audit = audit.set_index("pipeline")
-    assert audit.loc["components/GD_D", "threshold_boundary"] == "natural_lower"
-    assert not audit.loc["components/GD_D", "inspect_search_boundary"]
-    assert audit.loc["components/LOGIT_D", "threshold_boundary"] == "search_lower"
-    assert audit.loc["components/LOGIT_D", "refinement_gain"] == pytest.approx(0.3)
-    assert (
-        audit.loc["components/LOGIT_D", "refinement_assessment"]
-        == "material_improvement"
-    )
-    assert set(neighbors.side) == {"upper"}
-    assert neighbors.feasible.all()
-    config["grid_audit"]["reference"]["thresholds"]["genetic"] = [0, 2]
-    incomplete, _ = grid_adequacy(frame, definitions, config, {})
-    incomplete = incomplete.set_index("pipeline")
-    assert incomplete.loc["components/GD_D", "reference_status"] == "incomplete"
-    assert incomplete.loc["components/GD_D", "refinement_assessment"] == "unassessed"
-    frame["split"] = "evaluation"
-    with pytest.raises(ValueError, match="development"):
-        grid_adequacy(frame, definitions, config, {})
-
-
-@pytest.mark.parametrize("field", ["mode", "resolution", "tolerance", "reference"])
-def test_invalid_search_configuration_is_rejected(small_config, field):
-    if field == "mode":
-        small_config["pairwise"]["threshold_mode"] = "evaluation_scores"
-    elif field == "resolution":
-        small_config["clustering"]["leiden"]["resolutions"] = [0]
-    elif field == "tolerance":
-        small_config["grid_audit"] = {"objective_tolerance": -1}
-    else:
-        small_config["grid_audit"] = {"reference": {"thresholds": {"logistic": [-0.1]}}}
+@pytest.mark.parametrize("resolutions", [[], [0], [-0.1], [np.inf], [np.nan]])
+def test_invalid_search_configuration_is_rejected(small_config, resolutions):
+    small_config["clustering"]["leiden"]["resolutions"] = resolutions
     with pytest.raises(ValueError):
         validate(small_config)

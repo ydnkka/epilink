@@ -5,7 +5,7 @@ from ..scorers import SCORERS
 
 
 def settings_registry(config, pairwise_thresholds=None):
-    """Leiden selects resolution on full graphs; other cutoffs remain independent."""
+    """Pairwise cutoffs come from development scores; clustering grids are independent."""
     definitions = {}
 
     def add(definition):
@@ -15,9 +15,7 @@ def settings_registry(config, pairwise_thresholds=None):
     for name in config["scorers"]:
         spec = SCORERS[name].spec
         thresholds = [None, *sorted(set(config["thresholds"][spec.family]))]
-        if config["pairwise"].get("threshold_mode", "configured") == "configured":
-            pair_thresholds = thresholds
-        elif pairwise_thresholds is not None:
+        if pairwise_thresholds is not None:
             pair_thresholds = [None, *sorted(set(pairwise_thresholds[name]))]
         else:
             pair_thresholds = []  # Not known until all development curves exist.

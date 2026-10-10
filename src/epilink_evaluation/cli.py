@@ -35,8 +35,7 @@ def smoke_config(config):
     config["inputs"]["smoke_cases"] = 64
     config["splits"] = {"train": [71001], "development": [72001], "evaluation": [73001]}
     if "diagnostics" in config:
-        config["diagnostics"]["leiden"].update(resolution_grid=[0.1, 0.5], restarts=2)
-        config["diagnostics"]["treecluster"]["threshold_hops"] = [0, 1, 2, 4]
+        config["diagnostics"]["leiden"].update(resolutions=[0.1, 0.5], restarts=2)
         return config
     config["scorer"]["mc_samples"] = 1024
     config["thresholds"] = {
@@ -110,12 +109,11 @@ def main(argv=None):
             "backbone",
             "observations",
             "graphs",
-            "trees",
             "report",
             "all",
         ):
             parser.error(
-                "Diagnostics supports prepare, backbone, observations, graphs, trees, report or all"
+                "Diagnostics supports prepare, backbone, observations, graphs, report or all"
             )
         config = load_diagnostics_config(
             args.config or "evaluation/00_synthetic_diagnostics/config.yaml"
@@ -265,20 +263,11 @@ def main(argv=None):
                     "tools": tools,
                     "splits": config["splits"],
                     "output": config["output_directory"],
-                    "operating_definitions_per_realization": None
-                    if config["pairwise"].get("threshold_mode")
-                    == "all_development_scores"
-                    else len(settings),
+                    "operating_definitions_per_realization": None,
                     "configured_clustering_definitions_per_realization": sum(
                         d["kind"] != "pairwise" for d in settings.values()
                     ),
-                    "pairwise_threshold_mode": config["pairwise"].get(
-                        "threshold_mode", "configured"
-                    ),
-                    "pairwise_candidates_pending_development": config["pairwise"].get(
-                        "threshold_mode"
-                    )
-                    == "all_development_scores",
+                    "pairwise_candidates_pending_development": True,
                     "tree_input_exists": Path(config["inputs"]["tree_path"]).exists(),
                 },
                 indent=2,

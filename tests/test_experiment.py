@@ -236,7 +236,7 @@ def test_analysis_changes_preserve_generation_artifacts(
     config = deepcopy(small_config)
     if change == "diagnostics":
         config["diagnostics"] = deepcopy(diagnostics.settings)
-        config["diagnostics"]["leiden"]["resolution_grid"] = [0.4]
+        config["diagnostics"]["leiden"]["resolutions"] = [0.4]
         implementation = implementation_signature()
         implementation["evaluation"]["diagnostics/graphs.py"] = "revised diagnostics"
         monkeypatch.setattr(
@@ -441,11 +441,22 @@ def test_shared_yaml_uses_one_generation_design_and_matched_inference(
     diagnostics_path.write_text(yaml.safe_dump(diagnostics))
     loaded_baseline = load_config(baseline_path)
     loaded_diagnostics = load_diagnostics_config(diagnostics_path)
+    assert "pairwise" not in loaded_baseline
     for key in ("inputs", "generation", "simulation", "splits", "experiment_root"):
         assert loaded_baseline[key] == loaded_diagnostics[key]
     assert loaded_baseline["inference"] == shared["generation"]
     assert loaded_baseline["inference"] is not loaded_baseline["generation"]
     assert Path(loaded_baseline["experiment_root"]) == tmp_path / "shared"
+    from epilink_evaluation.cli import smoke_config
+
+    assert set(loaded_diagnostics["diagnostics"]) == {"backbone", "leiden"}
+    smoke = smoke_config(loaded_diagnostics)
+    assert set(smoke["diagnostics"]) == {"backbone", "leiden"}
+    assert smoke["diagnostics"]["leiden"]["resolutions"] == [0.1, 0.5]
+    diagnostics["diagnostics"]["treecluster"] = {"enabled": True}
+    diagnostics_path.write_text(yaml.safe_dump(diagnostics))
+    with pytest.raises(ValueError, match="Unknown diagnostic settings.*treecluster"):
+        load_diagnostics_config(diagnostics_path)
     baseline["generation"] = deepcopy(shared["generation"])
     baseline["generation"]["incubation"]["mean"] = 9.0
     baseline_path.write_text(yaml.safe_dump(baseline))
