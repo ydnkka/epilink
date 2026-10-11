@@ -4,14 +4,19 @@ The source TN93 file is censored at 0.0005 substitutions/site. This adapter
 records that restriction and never imputes missing pairs as zero distance.
 """
 
+import logging
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from ..progress import logged_stage
 from ..provenance import complete_artifact, digest_file, valid_artifact
 
+LOG = logging.getLogger(__name__)
 
+
+@logged_stage("Boston input preparation")
 def prepare_boston(data_root, output):
     data_root, output = Path(data_root), Path(output)
     raw = data_root / "raw/boston"
@@ -28,7 +33,9 @@ def prepare_boston(data_root, output):
         "reference_length": 29903,
     }
     if valid_artifact(output, signature):
+        LOG.info("Boston prepared inputs reused: %s", output)
         return output
+    LOG.info("Load Boston metadata and clades: %s", raw)
     metadata = pd.read_csv(raw / names[0], parse_dates=["collection_date"]).rename(
         columns={"seq_id": "case_id", "collection_date": "sample_date"}
     )
@@ -90,6 +97,7 @@ def prepare_boston(data_root, output):
     if not np.isfinite(pairs[["GD", "TD"]].to_numpy()).all():
         raise ValueError("Boston pairs contain missing or non-finite observations")
     output.mkdir(parents=True, exist_ok=True)
+    LOG.info("Export Boston inputs cases=%s observed_pairs=%s", len(cases), len(pairs))
     cases.to_parquet(output / "cases.parquet", index=False)
     pairs.to_parquet(output / "observed_pairs.parquet", index=False)
     complete_artifact(

@@ -84,7 +84,9 @@ def load_study_config(argv=None, config_path=None, baseline_run=None, output=Non
     if trees["enabled"]:
         for key in ("alignment_path", "reference_path"):
             if not trees.get(key):
-                raise ValueError(f"Boston trees.{key} is required when trees are enabled")
+                raise ValueError(
+                    f"Boston trees.{key} is required when trees are enabled"
+                )
             trees[key] = str((config_path.parent / trees[key]).resolve())
         config.setdefault("phylogeny", {})
     config["implementation"] = implementation_signature()

@@ -1,13 +1,17 @@
 """Training-free scores on Boston's single observed TN93 distance table."""
 
+import logging
 from copy import deepcopy
 
 import numpy as np
 import pandas as pd
 
+from ..progress import log_progress
 from ..provenance import fingerprint
 from ..schemas import ScoreSpec
 from ..scorers.logistic import predict_logistic
+
+LOG = logging.getLogger(__name__)
 
 # S/D in the GD names identifies the synthetic origin of the operating rule,
 # not separate empirical measurements. Both use the same observed GD values.
@@ -68,7 +72,8 @@ def score_observations(observations, context, names):
     ):
         raise ValueError("Boston GD and TD must be finite nonnegative observations")
     scores = {}
-    for name in names:
+    for index, name in enumerate(names, start=1):
+        LOG.info("Boston score model=%s pairs=%s", name, len(observations))
         spec = BOSTON_SPECS[name]
         if not len(observations) or spec.family == "genetic":
             values = gd.copy()
@@ -91,6 +96,7 @@ def score_observations(observations, context, names):
         if values.shape != gd.shape or not (np.isfinite(values) & (values >= 0)).all():
             raise ValueError(f"Invalid Boston scores from {name}")
         scores[name] = values
+        log_progress(LOG, "Boston scorers", index, len(names), model=name)
     return pd.DataFrame(scores, index=observations.index)
 
 

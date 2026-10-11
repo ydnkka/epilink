@@ -6,6 +6,7 @@ from pathlib import Path
 import networkx as nx
 
 from ..config import validate_experiment
+from ..progress import logged_stage
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -171,10 +172,12 @@ class SyntheticExperiment:
         )
         return directory
 
+    @logged_stage("Shared development observation preparation")
     def prepare_development(self):
         for seed in self.config["splits"]["development"]:
             self.dataset(seed, prepare=True)
 
+    @logged_stage("Diagnostic evidence validation")
     def require_diagnostics(self):
         marker_path = self.directory / "diagnostics.json"
         if not marker_path.exists():
@@ -212,6 +215,7 @@ class SyntheticExperiment:
         return marker
 
 
+@logged_stage("Shared synthetic experiment preparation")
 def prepare_experiment(config, implementation=None):
     validate_experiment(config)
     implementation = implementation or implementation_signature()
@@ -267,6 +271,7 @@ def prepare_experiment(config, implementation=None):
     return experiment
 
 
+@logged_stage("Shared synthetic experiment validation")
 def load_experiment(config, implementation=None):
     root = Path(config["experiment_root"])
     pointer = root / "current.json"

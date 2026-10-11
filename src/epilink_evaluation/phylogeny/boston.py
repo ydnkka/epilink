@@ -7,6 +7,7 @@ from Bio import SeqIO
 from Bio.Phylo._io import read as read_phylo
 from Bio.Phylo._io import write as write_phylo
 
+from ..progress import logged_stage
 from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
 from .external import command_identity
 from .trees import _prune_reference_tip, root_signature, validate_tree
@@ -19,18 +20,24 @@ def alignment_length(path, cases):
         identifiers.append(record.id)
         lengths.add(len(record.seq))
     if (
-        not identifiers or len(set(identifiers)) != len(identifiers)
+        not identifiers
+        or len(set(identifiers)) != len(identifiers)
         or set(identifiers) != set(cases.case_id.astype(str))
     ):
         raise ValueError("Boston alignment IDs must match the unique case universe")
     if len(lengths) != 1 or next(iter(lengths)) <= 0:
-        raise ValueError("Boston alignment must contain equal-length nonempty sequences")
+        raise ValueError(
+            "Boston alignment must contain equal-length nonempty sequences"
+        )
     return next(iter(lengths))
 
 
-def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_config, implementation):
+@logged_stage("Boston phylogeny")
+def prepare_boston_phylogeny(
+    root, alignment_path, reference_path, cases, phylo_config, implementation
+):
     """Build IQ-TREE trees from Boston alignment.
-    
+
     Parameters
     ----------
     root : Path
@@ -45,7 +52,7 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         Phylogeny configuration block
     implementation : dict
         Implementation signature for provenance
-        
+
     Returns
     -------
     tuple
@@ -53,14 +60,14 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
     """
     alignment_path = Path(alignment_path)
     reference_path = Path(reference_path)
-    
+
     sequence_length = alignment_length(alignment_path, cases)
     case_ids = cases.case_id.tolist()
     iqtree_executable = phylo_config.get(
         "executable", phylo_config.get("iqtree_executable", "iqtree")
     )
     iqtree_tool = command_identity(iqtree_executable)
-    
+
     signature = {
         "kind": "boston-phylogeny-v1",
         "alignment_sha256": digest_file(alignment_path),
@@ -74,23 +81,25 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         "iqtree_executable": iqtree_tool,
         "implementation": implementation,
     }
-    
+
     directory = Path(root) / "artifacts/trees" / fingerprint(signature)[:20]
-    
+
     if valid_artifact(directory, signature):
         validate_tree(directory / "raw.nwk", cases.case_id)
         validate_tree(directory / "dated.nwk", cases.case_id)
         return directory, sequence_length
-    
+
     directory.mkdir(parents=True, exist_ok=True)
-    
+
     dates_df = cases[["case_id", "sample_date"]].copy()
-    dates_df["sample_date"] = pd.to_datetime(dates_df["sample_date"]).dt.strftime("%Y-%m-%d")
+    dates_df["sample_date"] = pd.to_datetime(dates_df["sample_date"]).dt.strftime(
+        "%Y-%m-%d"
+    )
     dates_path = directory / "sampling_dates.csv"
     dates_df.to_csv(dates_path, index=False)
-    
+
     from epilink import PhylogenyError, build_phylogenetic_tree_from_fasta
-    
+
     try:
         result = build_phylogenetic_tree_from_fasta(
             alignment_fasta=str(alignment_path),
@@ -107,19 +116,23 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         )
     except PhylogenyError as exc:
         raise RuntimeError(f"IQ-TREE inference failed: {exc}")
-    
+
     raw_tree = read_phylo(str(result.output_paths["raw_tree"]), "newick")
     reference_name = result.reference_name
     raw_pruned = _prune_reference_tip(raw_tree, reference_name)
     validate_tree(raw_pruned, cases.case_id)
-    write_phylo(raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g")
-    
+    write_phylo(
+        raw_pruned, directory / "raw.nwk", "newick", format_branch_length="%.12g"
+    )
+
     dated_tree = read_phylo(str(result.output_paths["dated_tree"]), "newick")
     validate_tree(dated_tree, cases.case_id)
-    write_phylo(dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g")
-    
+    write_phylo(
+        dated_tree, directory / "dated.nwk", "newick", format_branch_length="%.12g"
+    )
+
     result.node_dates.to_csv(directory / "node_dates.tsv", sep="\t", index=False)
-    
+
     phylogeny_meta = {
         "model": phylo_config.get("model", "MFP"),
         "threads": phylo_config.get("threads", 1),
@@ -134,8 +147,10 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         },
         "backend_paths": {k: str(v) for k, v in result.output_paths.items()},
     }
-    pd.DataFrame([phylogeny_meta]).to_json(directory / "phylogeny.json", orient="records", indent=2)
-    
+    pd.DataFrame([phylogeny_meta]).to_json(
+        directory / "phylogeny.json", orient="records", indent=2
+    )
+
     complete_artifact(
         directory,
         signature,
@@ -145,5 +160,5 @@ def prepare_boston_phylogeny(root, alignment_path, reference_path, cases, phylo_
         root_split=root_signature(raw_pruned),
         dated_root_split=root_signature(dated_tree),
     )
-    
+
     return directory, sequence_length

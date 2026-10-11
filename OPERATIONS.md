@@ -421,6 +421,31 @@ Evaluation checks that configuration, training, criteria, and development eviden
 
 ## 9. Resume work and understand caching
 
+### Project-wide progress logs
+
+All computational workflows log stage starts, completion/partial/failure status, and elapsed seconds. Logs cover shared inputs and truth, observation preparation, diagnostics and oracle controls, pairwise curves, component cutoff counts, Leiden resolutions and restarts, phylogenetic inference and exports, TreeCluster cutoffs, operating-point selection, held-out evaluation, perturbation arms, Boston assessment, and report generation. Cache reuse is identified separately from new work.
+
+IQ-TREE milestones and search iterations are relayed to the terminal while complete backend output remains in `inference.log`. A one-minute heartbeat reports elapsed time during quiet inference phases. Task counts describe completed seeds/settings/restarts, rather than an overall runtime percentage or a guaranteed ETA.
+
+Any study entry point accepts `--log-file PATH` to append the same timestamped progress messages to a persistent file:
+
+```bash
+python evaluation/01_synthetic_baseline/run.py --stage develop --phylogeny-timeout 7200 --phylogeny-threads 4 --log-file evaluation/01_synthetic_baseline/outputs/development.log
+```
+
+### Repeatable pipeline smoke validation
+
+Baseline smoke mode explicitly enables TreeCluster and uses a separate 64-case output namespace. Run both diagnostics and the complete baseline pipeline to exercise IQ-TREE inference, raw and dated TreeCluster, selection, and held-out replay:
+
+```bash
+python evaluation/00_synthetic_diagnostics/run.py --smoke --stage all --log-file evaluation/00_synthetic_diagnostics/outputs/smoke.log
+python evaluation/01_synthetic_baseline/run.py --smoke --stage all --phylogeny-timeout 7200 --phylogeny-threads 4 --log-file evaluation/01_synthetic_baseline/outputs/smoke.log
+```
+
+IQ-TREE and TreeCluster must be installed for this smoke validation; enabled tree comparisons fail visibly if a tool is unavailable. Confirm both `treecluster/<process>/raw` and `treecluster/<process>/dated` in development and evaluation metrics. A `--stage develop` smoke invocation runs development only; `--stage all` includes selection and held-out replay.
+
+### Checkpoint reuse
+
 To resume interrupted development, repeat the same command with the same config, code, environment, and output root:
 
 ```bash
@@ -453,6 +478,19 @@ Run IDs incorporate scientific configuration, input/truth identity, implementati
 
 Changing `target_component_size` or `tree_seed` invalidates a managed backbone's preparation signature and triggers reconstruction. Different targets can still select the same component. Explicit prebuilt trees without a manifest are retained; use a separate input directory to reconstruct a different backbone while keeping the existing one.
 
+### Clean restart after updating phylogeny code
+
+Deep inferred trees are exported without recursively copying their topology. EpiLink's dated NEXUS export restores original tip names even if writing fails; the evaluation adapter copies clades iteratively before pruning the reference. The fixes span this repository and the sibling EpiLink package used by the active environment.
+
+After clearing study results, run diagnostics before baseline so the shared experiment and diagnostic provenance match the updated implementation:
+
+```bash
+python evaluation/00_synthetic_diagnostics/run.py --stage all
+python evaluation/01_synthetic_baseline/run.py --stage develop --phylogeny-timeout 7200 --phylogeny-threads 4
+```
+
+New baseline runs exclude `GD_D` and `GD_S` from initial and refined Leiden settings while retaining their pairwise and connected-component comparisons. The phylogeny code update changes implementation fingerprints; completed diagnostics from the earlier code are not a substitute for this fresh diagnostic stage.
+
 ## 10. Troubleshooting
 
 | Symptom                                                              | What to check / next action                                                                                                                                                                                                          |
@@ -460,6 +498,7 @@ Changing `target_component_size` or `tree_seed` invalidates a managed backbone's
 | `epilink-evaluate: command not found` or module import failure       | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.                                                                    |
 | `Executable not found`                                               | Run`check`, install the missing tool, or set `phylogeny.executable` / `treecluster.executable` to an explicit path.                                                                                                                  |
 | IQ-TREE inference failure                                            | Inspect`backend/run-*/inference.log`; check alignment/reference compatibility and complete sampling dates. For a baseline timeout, retry with `--phylogeny-timeout 7200` to preserve the configured run identity.                    |
+| `RecursionError` during tree copying after successful IQ-TREE dating | Update both EpiLink and the evaluation adapter to the depth-safe tree-processing code. For a clean restart, run diagnostics followed by baseline as described above. |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                                                                                   |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct.                                                       |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                                                                      |

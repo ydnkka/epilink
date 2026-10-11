@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import textwrap
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from epilink import (
 )
 
 from ..natural_history import natural_history
+from ..progress import logged_stage, progress_stage
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -28,8 +30,10 @@ from ..truth import TreeIndex, relationship_table
 from .scovmod import prepare_tree
 
 _PACK_SHIFTS = np.arange(62, -2, -2, dtype=np.uint64)
+LOG = logging.getLogger(__name__)
 
 
+@logged_stage("Transmission backbone loading")
 def load_backbone(config):
     path = prepare_tree(config)
     tree = nx.read_gml(path)
@@ -41,9 +45,11 @@ def load_backbone(config):
         keep = list(nx.topological_sort(tree))[:count]
         tree = tree.subgraph(keep).copy()
     TreeIndex(tree)
+    LOG.info("Backbone ready cases=%s edges=%s", len(tree), tree.number_of_edges())
     return tree
 
 
+@logged_stage("Relationship truth preparation")
 def prepare_truth(config, tree, implementation):
     signature = {
         "kind": "truth-v1",
@@ -58,6 +64,11 @@ def prepare_truth(config, tree, implementation):
         / fingerprint(signature)[:20]
     )
     if not valid_artifact(directory, signature):
+        LOG.info(
+            "Construct relationship truth cases=%s pairs=%s",
+            len(tree),
+            len(tree) * (len(tree) - 1) // 2,
+        )
         directory.mkdir(parents=True, exist_ok=True)
         frame = relationship_table(tree)
         frame.to_parquet(directory / "relationships.parquet", index=False)
@@ -71,6 +82,8 @@ def prepare_truth(config, tree, implementation):
             n_cases=len(tree),
             n_pairs=len(frame),
         )
+    else:
+        LOG.info("Relationship truth reused: %s", directory)
     return directory
 
 
@@ -140,6 +153,7 @@ def _export_sampling_dates(cases, filepath):
     )
 
 
+@logged_stage("Synthetic observation preparation", fields=("seed",))
 def prepare_observations(config, tree, truth_directory, seed, implementation):
     signature = {
         "kind": "observations-v3",
@@ -155,6 +169,7 @@ def prepare_observations(config, tree, truth_directory, seed, implementation):
         / fingerprint(signature)[:20]
     )
     if valid_artifact(directory, signature):
+        LOG.info("Observations reused seed=%s artifact=%s", seed, directory)
         return directory
     directory.mkdir(parents=True, exist_ok=True)
     profile = InfectiousnessToTransmission(
@@ -166,7 +181,8 @@ def prepare_observations(config, tree, truth_directory, seed, implementation):
     genomes = simulate_genomic_sequences(
         profile, populated, config["simulation"]["sequence_length"]
     )
-    original = build_pairwise_case_table(genomes["packed"], populated)
+    with progress_stage(LOG, "Pairwise observation construction", seed=seed):
+        original = build_pairwise_case_table(genomes["packed"], populated)
     nodes = list(populated)
     full_lookup = {str(node): i for i, node in enumerate(nodes)}
     cases = pd.DataFrame(
@@ -218,6 +234,12 @@ def prepare_observations(config, tree, truth_directory, seed, implementation):
     np.testing.assert_array_equal(truth.M.eq(0).fillna(False), original_labels)
 
     sampled_case_ids = cases.case_id.tolist()
+    LOG.info(
+        "Export observations seed=%s cases=%s pairs=%s",
+        seed,
+        len(cases),
+        len(observations),
+    )
     _export_sampled_fasta(
         genomes.packed.deterministic,
         sampled_case_ids,

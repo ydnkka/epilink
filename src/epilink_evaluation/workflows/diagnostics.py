@@ -16,6 +16,7 @@ from ..diagnostics.observations import observation_diagnostics
 from ..inputs.experiment import prepare_experiment
 from ..inputs.synthetic import load_observations, load_truth
 from ..metrics.partitions import PartitionEvaluator
+from ..progress import logged_stage, progress_stage
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -133,6 +134,7 @@ class Diagnostics:
         }
         self.datasets = {}
 
+    @logged_stage("Diagnostic observation preparation")
     def prepare(self):
         self.exp.prepare_development()
         self.datasets = {seed: Path(self.exp.dataset(seed)) for seed in self.seeds}
@@ -145,6 +147,7 @@ class Diagnostics:
             self.prepare()
         return self.datasets[seed]
 
+    @logged_stage("Diagnostic artifact", fields=("kind",))
     def _artifact(self, kind, signature, producer):
         directory = self.root / "artifacts" / kind / fingerprint(signature)
         if not valid_artifact(directory, signature):
@@ -169,6 +172,8 @@ class Diagnostics:
                     },
                 )
                 raise
+        else:
+            LOG.info("Diagnostic artifact reused kind=%s path=%s", kind, directory)
         return directory
 
     def _stage_signature(self, stage):
@@ -235,6 +240,7 @@ class Diagnostics:
                     return False
         return True
 
+    @logged_stage("Backbone diagnostics")
     def backbone(self):
         """Describe topology without generating or accessing observations."""
         if self._stage_valid("backbone"):
@@ -287,6 +293,7 @@ class Diagnostics:
             LOG.error("Backbone diagnostics failed: %s", exc)
         return self._save_stage("backbone", records, errors, tables)
 
+    @logged_stage("Observation diagnostics")
     def observations(self):
         self.prepare()
         if self._stage_valid("observations"):
@@ -418,6 +425,12 @@ class Diagnostics:
         records, errors = [], []
         settings = self.settings["leiden"]
         for endpoint in ENDPOINTS:
+            LOG.info(
+                "Oracle graph endpoint=%s cases=%s pairs=%s",
+                endpoint,
+                len(cases),
+                len(pairs),
+            )
             base = {"control_id": fingerprint(identity), "endpoint": endpoint}
             try:
                 graph = oracle_graph(pairs, len(cases), truth, endpoint)
@@ -474,6 +487,12 @@ class Diagnostics:
                 for resolution in initial_resolutions(settings["resolutions"])
             )
             for setting in definitions:
+                LOG.info(
+                    "Oracle partition endpoint=%s algorithm=%s resolution=%s",
+                    endpoint,
+                    setting["algorithm"],
+                    setting["resolution"],
+                )
                 try:
                     signature = {
                         "kind": "oracle-graph-partition-v1",
@@ -572,6 +591,7 @@ class Diagnostics:
                     errors.append({**base, "setting": setting, "error": repr(exc)})
         return records, errors
 
+    @logged_stage("Oracle graph diagnostics")
     def graphs(self):
         self.prepare()
         stage = "graphs"
@@ -628,6 +648,7 @@ class Diagnostics:
         )
         return self._save_stage(stage, records, errors, tables)
 
+    @logged_stage("Diagnostic coverage validation")
     def _coverage(self):
         """Validate all checkpoints and save a checksummed inventory for baseline."""
         stages = ["backbone", "observations", "graphs"]
@@ -724,6 +745,7 @@ class Diagnostics:
         ):
             marker.unlink()
 
+    @logged_stage("Diagnostics workflow", fields=("stage",))
     def run(self, stage):
         if stage not in {
             "prepare",
@@ -773,5 +795,6 @@ class Diagnostics:
             write_json(self.directory / "manifest.json", manifest)
         from ..reporting.diagnostics import render_report
 
-        render_report(self.directory)
+        with progress_stage(LOG, "Diagnostic report"):
+            render_report(self.directory)
         return complete

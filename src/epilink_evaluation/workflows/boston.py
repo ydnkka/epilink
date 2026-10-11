@@ -20,6 +20,7 @@ from ..clusterers.treecluster import treecluster
 from ..graphs.construction import build_graph
 from ..phylogeny.boston import alignment_length, prepare_boston_phylogeny
 from ..phylogeny.external import command_identity, treecluster_executable
+from ..progress import log_progress, logged_stage, progress_stage
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -238,6 +239,7 @@ class BostonEmpirical:
             },
         )
 
+    @logged_stage("Boston scoring")
     def score(self):
         signature = {
             "kind": "boston-scores-v2",
@@ -261,9 +263,11 @@ class BostonEmpirical:
             score_frame.to_parquet(score_dir / "scores.parquet", index=False)
             complete_artifact(score_dir, signature, ["scores.parquet"])
         else:
+            LOG.info("Boston scores reused: %s", score_dir)
             score_frame = pd.read_parquet(score_dir / "scores.parquet")
         return score_frame, score_id
 
+    @logged_stage("Boston graph clustering")
     def clusters(self, scores, score_id, definitions=None, directory=None):
         definitions = self.definitions if definitions is None else definitions
         directory = (
@@ -278,7 +282,15 @@ class BostonEmpirical:
         all_complete = True
         rows, errors = [], []
         graphs, partitions = {}, {}
-        for key, definition in cluster_definitions.items():
+        for index, (key, definition) in enumerate(cluster_definitions.items(), start=1):
+            LOG.info(
+                "Boston partition %s/%s pipeline=%s resolution=%s cutoff=%s",
+                index,
+                len(cluster_definitions),
+                definition["pipeline"],
+                definition.get("resolution"),
+                definition.get("threshold"),
+            )
             artifact = directory / key
             signature = {
                 "run": fingerprint(self.signature),
@@ -294,6 +306,7 @@ class BostonEmpirical:
                 "baseline_score_name": definition.get("baseline_score_name"),
             }
             if valid_artifact(artifact, signature):
+                LOG.info("Boston partition reused setting=%s", key)
                 rows.append({**base, **read_json(artifact / "metrics.json")})
                 continue
             artifact.mkdir(parents=True, exist_ok=True)
@@ -392,6 +405,13 @@ class BostonEmpirical:
             },
         )
         all_complete &= not errors
+        log_progress(
+            LOG,
+            "Boston graph settings",
+            len(rows),
+            len(cluster_definitions),
+            errors=len(errors),
+        )
         return all_complete
 
     def _summarize_partition(self, memberships):
@@ -419,6 +439,7 @@ class BostonEmpirical:
                     clusters[f"n_{col}_{val}"] = positive
         return clusters
 
+    @logged_stage("Boston tree clustering")
     def trees(self, definitions=None, directory=None):
         """Apply the selected baseline raw/dated TreeCluster rules to Boston trees."""
         if not self.trees_enabled:
@@ -456,6 +477,13 @@ class BostonEmpirical:
                 continue
             artifact = directory / key
             kind = definition["tree_kind"]
+            LOG.info(
+                "Boston TreeCluster tree=%s method=%s cutoff=%s units=%s",
+                kind,
+                definition["method"],
+                definition["threshold"],
+                definition["threshold_units"],
+            )
             signature = {
                 "run": fingerprint(self.signature),
                 "definition": definition,
@@ -541,6 +569,7 @@ class BostonEmpirical:
         )
         return not errors
 
+    @logged_stage("Boston workflow", fields=("stage",))
     def run(self, stage="all"):
         manifest = {
             "status": "running",
@@ -562,16 +591,17 @@ class BostonEmpirical:
                 complete = True
             if self.trees_enabled:
                 complete = self.trees() and complete
-            assess_partitions(
-                self.directory,
-                self.cases,
-                self.definitions,
-                self.focus_exposures,
-                self.min_cluster_size,
-                self.comparator,
-                self.n_observed_pairs,
-                self.n_all_pairs,
-            )
+            with progress_stage(LOG, "Boston partition assessment"):
+                assess_partitions(
+                    self.directory,
+                    self.cases,
+                    self.definitions,
+                    self.focus_exposures,
+                    self.min_cluster_size,
+                    self.comparator,
+                    self.n_observed_pairs,
+                    self.n_all_pairs,
+                )
             manifest["status"] = "complete" if complete else "partial"
         except Exception as exc:
             manifest.update(status="failed", error=repr(exc))
@@ -580,7 +610,8 @@ class BostonEmpirical:
             write_json(self.directory / "manifest.json", manifest)
             from ..reporting.boston import render_report
 
-            render_report(self.directory)
+            with progress_stage(LOG, "Boston report"):
+                render_report(self.directory)
         LOG.info("Boston report: %s", self.directory / "report.html")
         return manifest["status"] == "complete"
 

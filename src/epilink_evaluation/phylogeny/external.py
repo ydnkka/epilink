@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from ..progress import logged_stage
 from ..provenance import digest_file
+
+LOG = logging.getLogger(__name__)
 
 
 def executable(name):
@@ -35,9 +40,13 @@ def treecluster_executable(config):
     )
 
 
+@logged_stage("External command", fields=("name", "timeout"))
 def run_command(argv, directory, name, timeout):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    LOG.info(
+        "Command: %s; logs=%s", shlex.join([str(value) for value in argv]), directory
+    )
     environment = os.environ.copy()
     environment["PATH"] = (
         str(Path(argv[0]).parent) + os.pathsep + environment.get("PATH", "")

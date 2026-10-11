@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import ast
 import csv
+import logging
 from os.path import relpath
 from pathlib import Path
 
 import networkx as nx
 import numpy as np
 
+from ..progress import logged_stage
 from ..provenance import complete_artifact, digest_file, valid_artifact, write_json
 from ..truth import TreeIndex
 
+LOG = logging.getLogger(__name__)
 
+
+@logged_stage("SCoVMod CSV parsing", fields=("path",))
 def parse_scovmod(path):
     with Path(path).open(newline="") as handle:
         rows = csv.reader(handle)
@@ -25,6 +30,7 @@ def parse_scovmod(path):
         ]
 
 
+@logged_stage("SCoVMod tree construction", fields=("target_size", "seed"))
 def build_tree(infections, transmissions, target_size, seed):
     rng = np.random.default_rng(seed)
     lookup = {(time, location): ids for time, location, ids in infections}
@@ -62,6 +68,7 @@ def build_tree(infections, transmissions, target_size, seed):
     return tree
 
 
+@logged_stage("SCoVMod input preparation")
 def prepare_scovmod_inputs(config):
     """Build or reuse the configured backbone and its provenance artifact."""
     settings = config["inputs"]
@@ -84,6 +91,7 @@ def prepare_scovmod_inputs(config):
         "implementation": digest_file(__file__),
     }
     if valid_artifact(output, signature):
+        LOG.info("SCoVMod backbone reused: %s", tree_path)
         TreeIndex(nx.read_gml(tree_path))
         return output
     tree = build_tree(
@@ -116,6 +124,7 @@ def prepare_scovmod_inputs(config):
     return output
 
 
+@logged_stage("Transmission tree preparation")
 def prepare_tree(config):
     """Use a supplied tree or prepare a managed SCoVMod input artifact."""
     settings = config["inputs"]

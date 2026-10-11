@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from copy import copy, deepcopy
 from pathlib import Path
 
 import numpy as np
@@ -9,8 +11,11 @@ from Bio.Phylo._io import write as write_phylo
 from Bio.Phylo.BaseTree import Tree
 
 from ..inputs.synthetic import load_tree_inputs
+from ..progress import logged_stage
 from ..provenance import complete_artifact, digest_file, fingerprint, valid_artifact
 from .external import command_identity
+
+LOG = logging.getLogger(__name__)
 
 
 def validate_tree(source, case_ids):
@@ -37,11 +42,28 @@ def root_signature(tree):
     )
 
 
+def _copy_tree(tree):
+    """Copy clade topology iteratively, retaining deep-copied node metadata."""
+    memo = {id(tree): copy(tree)}
+    nodes, pending = [], [tree.root]
+    while pending:
+        node = pending.pop()
+        if id(node) in memo:
+            continue
+        memo[id(node)] = copy(node)
+        nodes.append(node)
+        pending.extend(node.clades)
+    # Pre-memoizing every clade prevents deepcopy from descending the topology.
+    for node in nodes:
+        memo[id(node)].__dict__ = deepcopy(node.__dict__, memo)
+    result = memo[id(tree)]
+    result.__dict__ = deepcopy(tree.__dict__, memo)
+    return result
+
+
 def _prune_reference_tip(tree, reference_name):
     """Remove reference tip from tree. Returns pruned tree (does not modify input)."""
-    from copy import deepcopy
-
-    tree = deepcopy(tree)
+    tree = _copy_tree(tree)
     for clade in list(tree.find_clades()):
         if clade.name == reference_name and clade.is_terminal():
             tree.prune(clade)
@@ -49,6 +71,7 @@ def _prune_reference_tip(tree, reference_name):
     return tree
 
 
+@logged_stage("Synthetic phylogeny", fields=("process", "dataset_id"))
 def prepare_phylogeny(config, observation_dir, process, dataset_id, implementation):
     """Build IQ-TREE genetic + dated trees from persisted FASTA.
 
@@ -116,6 +139,7 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
     )
 
     if valid_artifact(directory, signature):
+        LOG.info("Phylogeny reused process=%s artifact=%s", process, directory)
         validate_tree(
             directory / "raw.nwk", pd.read_parquet(inputs["cases_parquet"]).case_id
         )
@@ -128,6 +152,15 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
 
     from epilink import PhylogenyError, build_phylogenetic_tree_from_fasta
 
+    LOG.info(
+        "Infer phylogeny process=%s cases=%s model=%s threads=%s timeout=%s artifact=%s",
+        process,
+        inputs["n_cases"],
+        model,
+        threads,
+        timeout,
+        directory,
+    )
     try:
         result = build_phylogenetic_tree_from_fasta(
             alignment_fasta=str(fasta_path),
@@ -188,6 +221,9 @@ def prepare_phylogeny(config, observation_dir, process, dataset_id, implementati
         rooting="IQ-TREE reference outgroup, pruned (raw) / LSD2 clock (dated)",
         root_split=root_signature(raw_pruned),
         dated_root_split=root_signature(dated_tree),
+    )
+    LOG.info(
+        "Raw and dated phylogenies saved process=%s artifact=%s", process, directory
     )
 
     return directory

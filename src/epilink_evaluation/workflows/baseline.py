@@ -7,6 +7,7 @@ import subprocess
 from copy import deepcopy
 from pathlib import Path
 from shutil import copyfile
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,7 @@ from ..metrics.pairwise import (
 from ..metrics.partitions import PartitionEvaluator
 from ..phylogeny.external import command_identity, treecluster_executable
 from ..phylogeny.trees import prepare_phylogeny
+from ..progress import log_progress, logged_stage, progress_stage
 from ..provenance import (
     baseline_signature,
     complete_artifact,
@@ -148,11 +150,13 @@ class Baseline:
             )
         return self.datasets[seed]
 
+    @logged_stage("Baseline observation preparation")
     def prepare(self):
         for split in ("train", "development"):
             for seed in self.config["splits"][split]:
                 self.dataset(seed)
 
+    @logged_stage("Logistic model preparation")
     def train(self):
         if self.context is not None:
             return
@@ -187,8 +191,11 @@ class Baseline:
                 ["models.json"],
                 seeds=self.config["splits"]["train"],
             )
+        else:
+            LOG.info("Logistic models reused: %s", directory)
         self.context = ScoringContext(self.config, read_json(directory / "models.json"))
 
+    @logged_stage("Pair scoring", fields=("seed",))
     def scores(self, seed):
         self.train()
         if self.context is None:
@@ -212,12 +219,22 @@ class Baseline:
             scores = pd.DataFrame({"pair_id": observations.pair_id})
             for name in self.config["scorers"]:
                 LOG.info("Score seed=%s model=%s", seed, name)
+                started = perf_counter()
                 values = SCORERS[name].predict(observations, self.context)
                 if len(values) != len(scores) or not np.all(np.isfinite(values)):
                     raise ValueError(f"Invalid score output: {name}")
                 scores[name] = values
+                LOG.info(
+                    "Score finished seed=%s model=%s pairs=%s elapsed_seconds=%.3f",
+                    seed,
+                    name,
+                    len(values),
+                    perf_counter() - started,
+                )
             scores.to_parquet(directory / "scores.parquet", index=False)
             complete_artifact(directory, signature, ["scores.parquet"])
+        else:
+            LOG.info("Scores reused seed=%s artifact=%s", seed, directory)
         scores = pd.read_parquet(directory / "scores.parquet")
         if not observations.pair_id.equals(scores.pair_id):
             raise ValueError("Cached scores are not pair-aligned")
@@ -240,6 +257,7 @@ class Baseline:
             "evidence": {seed: digest_file(path) for seed, path in manifests.items()},
         }
 
+    @logged_stage("Development pairwise curves", fields=("seed",))
     def _development_pairwise_evidence(self, seed):
         """Checkpoint cumulative score evidence independently of candidate cutoffs."""
         _, _, truth_frame, scores, score_id = self.scores(seed)
@@ -253,11 +271,15 @@ class Baseline:
             "seed": seed,
         }
         if valid_artifact(directory, signature):
+            LOG.info("Pairwise curves reused seed=%s", seed)
             return directory
         directory.mkdir(parents=True, exist_ok=True)
         truth = PairTruth(truth_frame)
         rankings, curves, calibrations = [], [], []
         for name in self.config["scorers"]:
+            LOG.info(
+                "Pairwise curves seed=%s model=%s pairs=%s", seed, name, len(scores)
+            )
             spec = SCORERS[name].spec
             values = scores[name].to_numpy(float)
             curve, ranking = precision_recall_curve(values, spec, truth)
@@ -298,6 +320,7 @@ class Baseline:
         )
         return directory
 
+    @logged_stage("Development cutoff construction")
     def _development_pairwise(self):
         sources = {
             seed: self._development_pairwise_evidence(seed)
@@ -322,6 +345,11 @@ class Baseline:
             write_json(candidates / "definitions.json", definitions)
             complete_artifact(candidates, signature, ["definitions.json"])
         definitions = read_json(candidates / "definitions.json")
+        LOG.info(
+            "Development candidates ready pairwise=%s components=%s",
+            sum(d["kind"] == "pairwise" for d in definitions.values()),
+            sum(d["kind"] == "components" for d in definitions.values()),
+        )
         searches = {
             k: d
             for k, d in self.definitions.items()
@@ -382,6 +410,7 @@ class Baseline:
             complete_artifact(directory, stage_signature, ["metrics.csv", *files])
         self.collect("development")
 
+    @logged_stage("Pairwise evaluation", fields=("split",))
     def pairwise(self, split="development", selected=None):
         if split == "development":
             if selected is not None:
@@ -461,6 +490,7 @@ class Baseline:
             )
         self.collect(split)
 
+    @logged_stage("Component cutoff sweep", fields=("seed", "name"))
     def _component_sweep(
         self,
         directory,
@@ -482,6 +512,9 @@ class Baseline:
             "definitions": choices,
         }
         if not valid_artifact(source, signature):
+            LOG.info(
+                "Component sweep seed=%s model=%s cutoffs=%s", seed, name, len(choices)
+            )
             source.mkdir(parents=True, exist_ok=True)
             spec = SCORERS[name].spec
             sweep = ComponentSweep(evaluator, values, spec.higher_is_better)
@@ -499,7 +532,8 @@ class Baseline:
                 ),
             )
             rows, files, summary, partition_id = [], [], None, None
-            for key in ordered:
+            interval = max(100, len(ordered) // 10)
+            for index, key in enumerate(ordered, start=1):
                 changed = sweep.advance(choices[key]["threshold"])
                 if changed or summary is None:
                     labels, summary, clusters = sweep.evaluate()
@@ -532,6 +566,16 @@ class Baseline:
                         **summary,
                     }
                 )
+                if index % interval == 0 or index == len(ordered):
+                    log_progress(
+                        LOG,
+                        "Component cutoffs",
+                        index,
+                        len(ordered),
+                        seed=seed,
+                        model=name,
+                        partitions=len(files) // 3,
+                    )
             pd.DataFrame(rows).to_parquet(source / "metrics.parquet", index=False)
             write_json(
                 source / "algorithm.json",
@@ -545,6 +589,13 @@ class Baseline:
             )
             complete_artifact(
                 source, signature, ["metrics.parquet", "algorithm.json", *files]
+            )
+        else:
+            LOG.info(
+                "Component sweep reused seed=%s model=%s cutoffs=%s",
+                seed,
+                name,
+                len(choices),
             )
         return pd.read_parquet(source / "metrics.parquet")
 
@@ -610,6 +661,7 @@ class Baseline:
             "seeds": self.config["splits"]["development"],
         }
 
+    @logged_stage("Leiden resolution search")
     def _adaptive_leiden(self, criteria=None):
         criteria = (
             self.config["selection"]["criteria"] if criteria is None else criteria
@@ -626,7 +678,16 @@ class Baseline:
             initial.update(read_json(search / "definitions.json"))
         self.definitions.update(initial)
         batch = {k: d for k, d in self.definitions.items() if d["kind"] == "leiden"}
+        batch_index = 0
         while batch:
+            batch_index += 1
+            LOG.info(
+                "Leiden batch=%s settings=%s resolutions=%s seeds=%s",
+                batch_index,
+                len(batch),
+                sorted({d["resolution"] for d in batch.values()}),
+                len(self.config["splits"]["development"]),
+            )
             self.definitions.update(batch)
             write_json(self.directory / "settings.json", self.definitions)
             if not self._clusters("development", batch):
@@ -658,6 +719,12 @@ class Baseline:
                 },
             )
             complete_artifact(search, signature, ["definitions.json", "search.json"])
+            LOG.info(
+                "Leiden batch finished=%s evaluated_resolutions=%s next_resolutions=%s",
+                batch_index,
+                len({d["resolution"] for d in trials.values()}),
+                values,
+            )
             batch = {}
             for value in values:
                 for name in leiden_scorers(self.config):
@@ -665,6 +732,7 @@ class Baseline:
                     batch[fingerprint(definition)[:20]] = definition
         return True
 
+    @logged_stage("Clustering evaluation", fields=("split",))
     def clusters(self, split="development", selected=None):
         if split != "development" or selected is not None:
             return self._clusters(split, selected)
@@ -693,6 +761,7 @@ class Baseline:
             "seeds": self.config["splits"]["development"],
         }
 
+    @logged_stage("TreeCluster cutoff search")
     def _adaptive_treecluster(self):
         for kind, field in TREE_CUTOFF_FIELDS.items():
             settings = self.config["treecluster"][field]
@@ -713,6 +782,13 @@ class Baseline:
                 if d["kind"] == "treecluster" and d["tree_kind"] == kind
             }
             while batch:
+                LOG.info(
+                    "TreeCluster batch tree=%s settings=%s cutoffs=%s units=%s",
+                    kind,
+                    len(batch),
+                    sorted({d["threshold_input"] for d in batch.values()}),
+                    "snps" if integer else "days",
+                )
                 self.definitions.update(batch)
                 write_json(self.directory / "settings.json", self.definitions)
                 if not self._clusters("development", batch):
@@ -754,6 +830,12 @@ class Baseline:
                 complete_artifact(
                     search, signature, ["definitions.json", "search.json"]
                 )
+                LOG.info(
+                    "TreeCluster batch finished tree=%s evaluated_cutoffs=%s next_cutoffs=%s",
+                    kind,
+                    len({d["threshold_input"] for d in trials.values()}),
+                    values,
+                )
                 batch = {}
                 processes = sorted({d["data_process"] for d in trials.values()})
                 for value in values:
@@ -765,6 +847,7 @@ class Baseline:
                             batch[fingerprint(definition)[:20]] = definition
         return True
 
+    @logged_stage("Clustering batch", fields=("split",))
     def _clusters(self, split="development", selected=None):
         definitions = self.definitions if selected is None else selected
         definitions = {
@@ -773,7 +856,15 @@ class Baseline:
             if value["kind"] != "pairwise"
         }
         all_complete = True
-        for seed in self.config["splits"][split]:
+        for seed_index, seed in enumerate(self.config["splits"][split], start=1):
+            LOG.info(
+                "Clustering seed=%s/%s split=%s observation_seed=%s settings=%s",
+                seed_index,
+                len(self.config["splits"][split]),
+                split,
+                seed,
+                len(definitions),
+            )
             observations, cases, truth, scores, score_id = self.scores(seed)
             evaluator = PartitionEvaluator(
                 observations,
@@ -837,6 +928,7 @@ class Baseline:
                     rows.append({**base, **read_json(artifact / "metrics.json")})
                     continue
                 artifact.mkdir(parents=True, exist_ok=True)
+                setting_started = perf_counter()
                 try:
                     if definition["kind"] == "treecluster":
                         process, kind = (
@@ -846,6 +938,11 @@ class Baseline:
                         if (process, kind) not in trees:
                             try:
                                 obs_dir = self.dataset(seed)
+                                LOG.info(
+                                    "Phylogeny requested seed=%s process=%s",
+                                    seed,
+                                    process,
+                                )
                                 trees[process, kind] = prepare_phylogeny(
                                     self.config,
                                     obs_dir,
@@ -865,6 +962,15 @@ class Baseline:
                             "raw.nwk" if kind == "raw" else "dated.nwk"
                         )
                         threshold = definition["threshold"]
+                        LOG.info(
+                            "TreeCluster seed=%s process=%s tree=%s method=%s cutoff=%s units=%s",
+                            seed,
+                            process,
+                            kind,
+                            definition["method"],
+                            definition["threshold_input"],
+                            definition["threshold_units"],
+                        )
                         labels, metadata = treecluster(
                             tree_path,
                             cases,
@@ -882,6 +988,12 @@ class Baseline:
                             definition.get("graph_mode"),
                         )
                         if requested_graph != graph_key:
+                            LOG.info(
+                                "Graph construction seed=%s model=%s pairs=%s",
+                                seed,
+                                spec.name,
+                                len(observations),
+                            )
                             graph = None
                             graph = build_graph(
                                 observations,
@@ -893,10 +1005,23 @@ class Baseline:
                                 full=definition.get("graph_mode") == "full",
                             )
                             graph_key = requested_graph
+                            LOG.info(
+                                "Graph ready seed=%s model=%s edges=%s",
+                                seed,
+                                spec.name,
+                                graph.ecount(),
+                            )
                         assert graph is not None
                         if definition["kind"] == "components":
                             labels, metadata = components(graph)
                         else:
+                            LOG.info(
+                                "Leiden seed=%s model=%s resolution=%s restarts=%s",
+                                seed,
+                                spec.name,
+                                definition["resolution"],
+                                definition["restarts"],
+                            )
                             labels, metadata = leiden(
                                 graph,
                                 definition["resolution"],
@@ -929,6 +1054,13 @@ class Baseline:
                         ],
                     )
                     rows.append({**base, **summary})
+                    LOG.info(
+                        "Partition finished seed=%s pipeline=%s clusters=%s elapsed_seconds=%.3f",
+                        seed,
+                        definition["pipeline"],
+                        summary.get("n_clusters"),
+                        perf_counter() - setting_started,
+                    )
                 except (
                     OSError,
                     subprocess.SubprocessError,
@@ -974,9 +1106,20 @@ class Baseline:
                 },
             )
             all_complete &= not errors
+            log_progress(
+                LOG,
+                "Clustering seeds",
+                seed_index,
+                len(self.config["splits"][split]),
+                split=split,
+                seed=seed,
+                completed_settings=len(rows),
+                errors=len(errors),
+            )
         self.collect(split)
         return all_complete
 
+    @logged_stage("Metric aggregation", fields=("split",))
     def collect(self, split):
         parent = self.directory / split
         parent.mkdir(parents=True, exist_ok=True)
@@ -1004,6 +1147,7 @@ class Baseline:
         endpoint_frontiers(aggregated).to_csv(parent / "frontier.csv", index=False)
         return frame
 
+    @logged_stage("Operating-point selection")
     def select(self):
         # Complete the declared development grid before freezing comparisons.
         self.pairwise()
@@ -1053,6 +1197,7 @@ class Baseline:
         write_json(path, frozen)
         return frozen
 
+    @logged_stage("Held-out evaluation")
     def evaluate(self):
         path = self.directory / "selection/operating_points.json"
         if not path.exists():
@@ -1115,6 +1260,7 @@ class Baseline:
         write_json(self.directory / "evaluation/selection_used.json", frozen)
         return complete
 
+    @logged_stage("Baseline workflow", fields=("stage",))
     def run(self, stage):
         manifest = {
             "status": "running",
@@ -1153,6 +1299,7 @@ class Baseline:
             write_json(self.directory / "manifest.json", manifest)
             from ..reporting.report import render_report
 
-            render_report(self.directory)
+            with progress_stage(LOG, "Baseline report"):
+                render_report(self.directory)
         LOG.info("Report: %s", self.directory / "report.html")
         return complete

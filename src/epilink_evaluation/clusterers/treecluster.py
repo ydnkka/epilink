@@ -6,9 +6,11 @@ import pandas as pd
 
 from ..phylogeny.external import command_identity, run_command, treecluster_executable
 from ..phylogeny.trees import validate_tree
+from ..progress import logged_stage
 from ..schemas import validate_partition
 
 
+@logged_stage("TreeCluster partition", fields=("method", "threshold"))
 def treecluster(tree_path, cases, method, threshold, config, directory):
     validate_tree(tree_path, cases.case_id)
     tool = command_identity(treecluster_executable(config))

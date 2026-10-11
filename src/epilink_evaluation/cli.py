@@ -52,6 +52,7 @@ def smoke_config(config):
         restarts=2,
     )
     config["treecluster"].update(
+        enabled=True,
         genetic_threshold_snps={"min": 1, "max": 10, "initial_points": 3, "budget": 5},
         temporal_threshold_days={
             "min": 14,
@@ -72,6 +73,18 @@ def main(argv=None):
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
     arguments = list(sys.argv[1:] if argv is None else argv)
+    log_parser = argparse.ArgumentParser(add_help=False)
+    log_parser.add_argument("--log-file", type=Path)
+    logging_args, _ = log_parser.parse_known_args(arguments)
+    file_handler = None
+    if logging_args.log_file is not None:
+        path = logging_args.log_file.expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(path, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        logging.getLogger().addHandler(file_handler)
     LOG.info("Execution started: %s", shlex.join(arguments))
     status = "failed"
     try:
@@ -90,6 +103,9 @@ def main(argv=None):
             status,
             perf_counter() - started,
         )
+        if file_handler is not None:
+            logging.getLogger().removeHandler(file_handler)
+            file_handler.close()
 
 
 def _execute(argv):
@@ -108,6 +124,11 @@ def _execute(argv):
         ),
     )
     parser.add_argument("--config", type=Path)
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        help="Append timestamped project progress logs to this file",
+    )
     parser.add_argument("--stage", choices=STAGES)
     parser.add_argument(
         "--phylogeny-timeout",
@@ -129,7 +150,7 @@ def _execute(argv):
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="64-case pipeline validation in a separate output namespace",
+        help="64-case pipeline validation including raw/dated TreeCluster in a separate output namespace",
     )
     parser.add_argument("--output", type=Path, help="Override output root")
     parser.add_argument(

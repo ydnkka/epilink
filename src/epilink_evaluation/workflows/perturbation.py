@@ -8,6 +8,7 @@ import networkx as nx
 import pandas as pd
 
 from ..inputs.synthetic import prepare_observations, prepare_truth
+from ..progress import log_progress, logged_stage, progress_stage
 from ..provenance import (
     complete_artifact,
     digest_file,
@@ -141,6 +142,7 @@ class ClusteringReplay(Baseline):
             )
         return self.datasets[seed]
 
+    @logged_stage("Perturbation resolution selection")
     def select(self):
         """Reselect resolution within baseline bounds on fresh development."""
         candidates = {
@@ -174,6 +176,7 @@ class ClusteringReplay(Baseline):
             )
         self.definitions = {p["setting_id"]: p["definition"] for p in self.points}
 
+    @logged_stage("Perturbation clustering replay")
     def run(self):
         manifest = {
             "status": "running",
@@ -321,6 +324,7 @@ class PerturbationStudy:
         config["inputs"]["smoke_cases"] = self.config["case_limit"]
         return config
 
+    @logged_stage("Perturbation aggregation")
     def collect(self):
         records, coverage = [], []
         expected = len(self.config["scorers"]) * len(self.config["seeds"])
@@ -401,6 +405,7 @@ class PerturbationStudy:
             and coverage.completed.eq(coverage.expected).all()
         )
 
+    @logged_stage("Perturbation workflow", fields=("stage",))
     def run(self, stage="all"):
         if stage != "all":
             raise ValueError(f"Unknown perturbation stage: {stage}")
@@ -415,12 +420,23 @@ class PerturbationStudy:
         }
         write_json(self.directory / "manifest.json", manifest)
         try:
+            completed = 0
+            total = len(self.scenarios) * len(self.config["modes"])
             for scenario in self.scenarios:
                 for mode in self.config["modes"]:
                     LOG.info(
                         "EpiLink clustering scenario=%s mode=%s", scenario["name"], mode
                     )
                     ClusteringReplay(self, scenario, mode).run()
+                    completed += 1
+                    log_progress(
+                        LOG,
+                        "Perturbation arms",
+                        completed,
+                        total,
+                        scenario=scenario["name"],
+                        mode=mode,
+                    )
                     self.collect()
             manifest["status"] = "complete" if self.collect() else "partial"
         except Exception as exc:
@@ -430,6 +446,7 @@ class PerturbationStudy:
             write_json(self.directory / "manifest.json", manifest)
             from ..reporting.perturbation import render_report
 
-            render_report(self.directory)
+            with progress_stage(LOG, "Perturbation report"):
+                render_report(self.directory)
         LOG.info("Perturbation report: %s", self.directory / "report.html")
         return manifest["status"] == "complete"

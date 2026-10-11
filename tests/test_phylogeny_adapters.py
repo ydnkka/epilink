@@ -9,12 +9,17 @@ import numpy as np
 import pandas as pd
 import pytest
 from Bio.Phylo._io import read as read_phylo
+from Bio.Phylo.BaseTree import Clade, Tree
 
 from epilink_evaluation import cli
 from epilink_evaluation.clusterers import treecluster
 from epilink_evaluation.phylogeny import trees
 from epilink_evaluation.phylogeny.external import executable
-from epilink_evaluation.provenance import digest_file, implementation_signature, read_json
+from epilink_evaluation.provenance import (
+    digest_file,
+    implementation_signature,
+    read_json,
+)
 from epilink_evaluation.workflows import baseline as baseline_module
 from epilink_evaluation.workflows.settings import settings_registry
 
@@ -149,6 +154,34 @@ def test_reference_pruned_from_raw_tree():
     assert pruned.distance("b", "c") == pytest.approx(original.distance("b", "c"))
 
 
+def test_reference_pruning_copies_deep_topology_and_metadata_without_recursion():
+    sample = Clade(name="sample_0", branch_length=0.1)
+    root = Clade(
+        branch_length=0.5,
+        clades=[Clade(name="reference", branch_length=0.25), sample],
+    )
+    for index in range(1, 301):
+        root = Clade(
+            branch_length=0.5,
+            clades=[Clade(name=f"sample_{index}", branch_length=0.25), root],
+        )
+    original = Tree(root=root, rooted=True)
+    original.metadata = {"focus": sample, "tags": ["original"]}
+    expected_distance = original.distance("sample_0", "sample_300")
+    before = [(node.name, node.branch_length) for node in original.find_clades()]
+    pruned = trees._prune_reference_tip(original, "reference")
+    assert [
+        (node.name, node.branch_length) for node in original.find_clades()
+    ] == before
+    assert len(pruned.get_terminals()) == 301
+    assert "reference" not in {tip.name for tip in pruned.get_terminals()}
+    assert pruned.distance("sample_0", "sample_300") == pytest.approx(expected_distance)
+    assert pruned.metadata["focus"] is not sample
+    assert pruned.metadata["focus"] in pruned.get_terminals()
+    pruned.metadata["tags"].append("copy")
+    assert original.metadata["tags"] == ["original"]
+
+
 def test_day_thresholds_no_conversion(small_config):
     small_config["simulation"]["alignment_length"] = 5000
     small_config["treecluster"].update(
@@ -264,8 +297,13 @@ def test_baseline_treecluster_uses_observation_paths(
     ],
 )
 def test_cli_phylogeny_recovery_preserves_cached_graph_work(
-    small_config, prepare_diagnostics, mocked_iqtree, monkeypatch, caplog,
-    initial_overrides, recovery_overrides,
+    small_config,
+    prepare_diagnostics,
+    mocked_iqtree,
+    monkeypatch,
+    caplog,
+    initial_overrides,
+    recovery_overrides,
 ):
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["clustering"]["leiden"].update(resolutions=[0.1, 0.5], restarts=1)
@@ -277,7 +315,8 @@ def test_cli_phylogeny_recovery_preserves_cached_graph_work(
     )
     monkeypatch.setattr(cli, "load_config", lambda path: deepcopy(small_config))
     monkeypatch.setattr(
-        baseline_module, "treecluster",
+        baseline_module,
+        "treecluster",
         lambda path, cases, *args: (np.zeros(len(cases), dtype=int), {}),
     )
     prepare_diagnostics(small_config)
@@ -318,7 +357,9 @@ def test_cli_phylogeny_recovery_preserves_cached_graph_work(
                 cached_files.add(path)
                 cached_files.update(path.parent / name for name in saved["files"])
     assert cached_files
-    before = {path: (digest_file(path), path.stat().st_mtime_ns) for path in cached_files}
+    before = {
+        path: (digest_file(path), path.stat().st_mtime_ns) for path in cached_files
+    }
 
     def forbidden(*args, **kwargs):
         raise AssertionError("Recovery must reuse completed training and graph work")
@@ -348,8 +389,9 @@ def test_cli_phylogeny_recovery_preserves_cached_graph_work(
                 field, small_config["phylogeny"][field]
             )
         artifact = Path(call["output_dir"]).parent
-        assert read_json(artifact / "manifest.json")["signature"]["iqtree_threads"] == (
-            call["threads"]
+        assert (
+            read_json(artifact / "manifest.json")["signature"]["iqtree_threads"]
+            == (call["threads"])
         )
         assert read_json(artifact / "phylogeny.json")[0]["threads"] == call["threads"]
     assert before == {
