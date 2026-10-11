@@ -1,3 +1,5 @@
+import logging
+from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,10 +10,11 @@ import pandas as pd
 import pytest
 from Bio.Phylo._io import read as read_phylo
 
+from epilink_evaluation import cli
 from epilink_evaluation.clusterers import treecluster
 from epilink_evaluation.phylogeny import trees
 from epilink_evaluation.phylogeny.external import executable
-from epilink_evaluation.provenance import implementation_signature, read_json
+from epilink_evaluation.provenance import digest_file, implementation_signature, read_json
 from epilink_evaluation.workflows import baseline as baseline_module
 from epilink_evaluation.workflows.settings import settings_registry
 
@@ -250,3 +253,113 @@ def test_baseline_treecluster_uses_observation_paths(
     )
     assert status["status"] == "complete"
     assert not status["errors"]
+
+
+@pytest.mark.parametrize(
+    "initial_overrides, recovery_overrides",
+    [
+        ({"timeout": 3600}, {"timeout": 7200}),
+        ({"threads": 2}, {"threads": 4}),
+        ({"timeout": 3600, "threads": 2}, {"timeout": 7200, "threads": 4}),
+    ],
+)
+def test_cli_phylogeny_recovery_preserves_cached_graph_work(
+    small_config, prepare_diagnostics, mocked_iqtree, monkeypatch, caplog,
+    initial_overrides, recovery_overrides,
+):
+    small_config["clustering"]["algorithms"] = ["components", "leiden"]
+    small_config["clustering"]["leiden"].update(resolutions=[0.1, 0.5], restarts=1)
+    small_config["treecluster"].update(
+        enabled=True,
+        methods=["max_clade"],
+        genetic_threshold_snps=[1],
+        temporal_threshold_days=[7],
+    )
+    monkeypatch.setattr(cli, "load_config", lambda path: deepcopy(small_config))
+    monkeypatch.setattr(
+        baseline_module, "treecluster",
+        lambda path, cases, *args: (np.zeros(len(cases), dtype=int), {}),
+    )
+    prepare_diagnostics(small_config)
+    baseline = baseline_module.Baseline(small_config)
+    manifest_path = baseline.directory / "manifest.json"
+
+    def arguments(overrides):
+        argv = ["baseline", "--stage", "develop"]
+        for field, value in overrides.items():
+            argv.extend([f"--phylogeny-{field}", str(value)])
+        return argv
+
+    def interrupted(**kwargs):
+        for field in ("timeout", "threads"):
+            assert kwargs[field] == initial_overrides.get(
+                field, small_config["phylogeny"][field]
+            )
+        raise epilink.PhylogenyError(f"timed out after {kwargs['timeout']} seconds")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(epilink, "build_phylogenetic_tree_from_fasta", interrupted)
+        with pytest.raises(RuntimeError, match="IQ-TREE inference failed"):
+            cli.main(arguments(initial_overrides))
+    failed = read_json(manifest_path)
+    assert failed["status"] == "failed"
+    assert failed["config"] == small_config
+    assert failed["signature"] == baseline.signature
+    assert failed["execution_overrides"] == {"phylogeny": initial_overrides}
+
+    # Track completed artifacts, excluding aggregate/status files that are rebuilt.
+    seed = small_config["splits"]["development"][0]
+    clusters = baseline.directory / "development" / f"seed_{seed}" / "clusters"
+    cached_files = set()
+    for root in (clusters, baseline.root / "artifacts"):
+        for path in root.rglob("manifest.json"):
+            saved = read_json(path)
+            if saved.get("status") == "complete":
+                cached_files.add(path)
+                cached_files.update(path.parent / name for name in saved["files"])
+    assert cached_files
+    before = {path: (digest_file(path), path.stat().st_mtime_ns) for path in cached_files}
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Recovery must reuse completed training and graph work")
+
+    monkeypatch.setattr(baseline_module, "fit_logistic", forbidden)
+    monkeypatch.setattr(baseline_module, "ComponentSweep", forbidden)
+    monkeypatch.setattr(baseline_module, "leiden", forbidden)
+    with caplog.at_level(logging.INFO, logger=cli.__name__):
+        assert cli.main(arguments(recovery_overrides)) == 0
+    if "timeout" in recovery_overrides:
+        assert "IQ-TREE runtime timeout override: 7200.0 seconds" in caplog.text
+    if "threads" in recovery_overrides:
+        assert "IQ-TREE runtime threads override: 4" in caplog.text
+    assert f"run={baseline.directory.name}" in caplog.text
+    resumed = read_json(manifest_path)
+    assert resumed["status"] == "complete"
+    assert resumed["signature"] == baseline.signature
+    assert resumed["config"] == small_config
+    assert resumed["execution_overrides"] == {"phylogeny": recovery_overrides}
+    assert read_json(baseline.root / "current.json")["run_directory"] == str(
+        baseline.directory
+    )
+    assert len(mocked_iqtree) == 2
+    for call in mocked_iqtree:
+        for field in ("timeout", "threads"):
+            assert call[field] == recovery_overrides.get(
+                field, small_config["phylogeny"][field]
+            )
+        artifact = Path(call["output_dir"]).parent
+        assert read_json(artifact / "manifest.json")["signature"]["iqtree_threads"] == (
+            call["threads"]
+        )
+        assert read_json(artifact / "phylogeny.json")[0]["threads"] == call["threads"]
+    assert before == {
+        path: (digest_file(path), path.stat().st_mtime_ns) for path in cached_files
+    }
+
+    # Returning to YAML defaults still reuses completed comparator partitions.
+    assert cli.main(["baseline", "--stage", "clusters"]) == 0
+    assert len(mocked_iqtree) == 2
+    configured = read_json(manifest_path)
+    assert configured["signature"] == baseline.signature
+    assert configured["config"] == small_config
+    assert "execution_overrides" not in configured

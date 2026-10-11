@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import shlex
 import sys
 from copy import deepcopy
@@ -12,7 +13,7 @@ from pathlib import Path
 from time import perf_counter
 
 from .config import load_config, load_diagnostics_config
-from .provenance import read_json, versions
+from .provenance import read_json, versions, write_json
 
 LOG = logging.getLogger(__name__)
 
@@ -109,6 +110,18 @@ def _execute(argv):
     parser.add_argument("--config", type=Path)
     parser.add_argument("--stage", choices=STAGES)
     parser.add_argument(
+        "--phylogeny-timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Baseline IQ-TREE/LSD2 runtime timeout override; preserves the configured run identity",
+    )
+    parser.add_argument(
+        "--phylogeny-threads",
+        type=int,
+        metavar="N",
+        help="Baseline IQ-TREE thread count for pending inference; preserves the configured run identity",
+    )
+    parser.add_argument(
         "--baseline-run",
         type=Path,
         help="Frozen baseline reference: runs/<id> or current.json",
@@ -131,6 +144,23 @@ def _execute(argv):
         help="Show what would be deleted without actually deleting",
     )
     args = parser.parse_args(argv)
+    phylogeny_overrides = {}
+    if args.phylogeny_timeout is not None:
+        if not math.isfinite(args.phylogeny_timeout) or args.phylogeny_timeout <= 0:
+            parser.error("--phylogeny-timeout must be finite and positive")
+        phylogeny_overrides["timeout"] = args.phylogeny_timeout
+    if args.phylogeny_threads is not None:
+        if args.phylogeny_threads < 1:
+            parser.error("--phylogeny-threads must be a positive integer")
+        phylogeny_overrides["threads"] = args.phylogeny_threads
+    for field in phylogeny_overrides:
+        option = f"--phylogeny-{field}"
+        if args.command != "baseline":
+            parser.error(f"{option} applies to baseline only")
+        if args.stage not in (None, "develop", "clusters", "select", "evaluate", "all"):
+            parser.error(
+                f"{option} requires develop, clusters, select, evaluate or all"
+            )
     if args.command == "reset-outputs":
         return _reset_outputs(args)
     if args.command == "diagnostics":
@@ -326,7 +356,41 @@ def _execute(argv):
         return 0
     from .workflows.baseline import Baseline
 
-    return 0 if Baseline(config).run(args.stage) else 1
+    baseline = Baseline(config)
+    if not phylogeny_overrides:
+        return 0 if baseline.run(args.stage) else 1
+
+    # Initialize scientific identities before applying runtime recovery options.
+    # CLI code is excluded from baseline_signature, preserving existing caches.
+    configured_phylogeny = deepcopy(baseline.config.get("phylogeny", {}))
+    baseline.config.setdefault("phylogeny", {}).update(phylogeny_overrides)
+    if args.phylogeny_timeout is not None:
+        LOG.info(
+            "IQ-TREE runtime timeout override: %s seconds; run=%s",
+            args.phylogeny_timeout,
+            baseline.directory.name,
+        )
+    if args.phylogeny_threads is not None:
+        LOG.info(
+            "IQ-TREE runtime threads override: %s; run=%s",
+            args.phylogeny_threads,
+            baseline.directory.name,
+        )
+    try:
+        return 0 if baseline.run(args.stage) else 1
+    finally:
+        # Frozen-reference consumers require config to match signature.config.
+        # Record execution options separately, including on failed attempts.
+        if "phylogeny" in config:
+            baseline.config["phylogeny"] = configured_phylogeny
+        else:
+            baseline.config.pop("phylogeny", None)
+        manifest_path = baseline.directory / "manifest.json"
+        if manifest_path.is_file():
+            manifest = read_json(manifest_path)
+            manifest["config"] = baseline.config
+            manifest["execution_overrides"] = {"phylogeny": phylogeny_overrides}
+            write_json(manifest_path, manifest)
 
 
 def _reset_outputs(args):

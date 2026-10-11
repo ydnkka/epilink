@@ -429,6 +429,24 @@ python evaluation/01_synthetic_baseline/run.py --config evaluation/01_synthetic_
 
 Artifacts are reused when their signatures and file checksums match completed manifests. Pairwise checkpoints cover a seed's pairwise stage; clustering checkpoints cover individual settings. Unfinished work is retried, so progress messages such as "Prepare observations" can appear even when a valid artifact is being reused. A process killed abruptly may leave the last run status `running`; artifact manifests determine what can be resumed.
 
+If baseline IQ-TREE inference reaches its timeout, retry with a longer runtime limit while keeping the configured run identity:
+
+```bash
+python evaluation/01_synthetic_baseline/run.py --stage develop --phylogeny-timeout 7200
+```
+
+`--phylogeny-timeout` is a finite, positive number of seconds per IQ-TREE/LSD2 invocation. It applies to baseline stages `develop`, `clusters`, `select`, `evaluate`, and `all` (including the default `develop` stage). Keep the same YAML, output root, scientific code, environment, and tool settings: the override preserves existing model, score, component-sweep, Leiden, and completed tree artifacts. Cache validation and loading still take time. The run manifest retains the configured scientific identity and records the effective limit under `execution_overrides.phylogeny.timeout` when the attempt finishes or raises an exception. Repeat the flag on subsequent attempts that need the longer limit; it does not change the YAML default.
+
+Use `--phylogeny-threads N` to set a positive integer thread count for pending IQ-TREE inference. It can be used independently or alongside the timeout override:
+
+```bash
+python evaluation/01_synthetic_baseline/run.py --stage develop --phylogeny-timeout 7200 --phylogeny-threads 4
+```
+
+The threads option supports the same baseline stages and preserves the configured run identity and completed graph work. It is recorded under `execution_overrides.phylogeny.threads`; inferred tree metadata and tree artifact signatures record the actual thread count. Thread count participates in tree artifact identity, so newly needed trees use the requested count and only reuse tree artifacts with matching inference settings. Completed TreeCluster partitions remain checkpointed; the option does not force their regeneration. Repeat the same overrides for subsequent stages that need new trees. Neither option changes the YAML defaults.
+
+The current IQ-TREE backend creates a fresh working directory for each attempt, so incomplete IQ-TREE checkpoint files are not automatically resumed. Tree inference retries with the longer limit; completed evaluation artifacts remain reusable. A two-hour limit is a starting point for the approximately 5,000-case synthetic alignment, not a guaranteed completion time.
+
 Run IDs incorporate scientific configuration, input/truth identity, implementation hashes, recorded package versions, and external-tool identities. Changes to these can create a new run directory. Absolute resolved input paths also participate, so moving a checkout can change its run ID. Shared artifacts are reused according to their own signatures. Keep the per-run `manifest.json` when comparing runs.
 
 `selection`, `output_directory`, and the config-file path itself are excluded from the scientific configuration portion of the run ID. Selection decisions have their own validation; changing the output root changes where artifacts are found. The root-level pointer is updated when a run is initialized. Each run keeps its own directory; the pointer is not an index of successful runs.
@@ -441,14 +459,14 @@ Changing `target_component_size` or `tree_seed` invalidates a managed backbone's
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `epilink-evaluate: command not found` or module import failure       | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.              |
 | `Executable not found`                                               | Run`check`, install the missing tool, or set `phylogeny.executable` / `treecluster.executable` to an explicit path.                                                            |
-| IQ-TREE inference failure                                            | Inspect`backend/run-*/inference.log`; check alignment/reference compatibility and complete sampling dates. Adjust threads or increase timeout if needed.                       |
+| IQ-TREE inference failure                                            | Inspect`backend/run-*/inference.log`; check alignment/reference compatibility and complete sampling dates. For a baseline timeout, retry with `--phylogeny-timeout 7200` to preserve the configured run identity. |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                             |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct. |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                |
 | Report says`partial` / selection reports an incomplete sweep         | Inspect`seed_<seed>/clusters/status.json` and failed setting manifests. Fix the cause and rerun `clusters` or `develop`.                                                       |
 | IQ-TREE or TreeCluster fails                                         | Inspect`<output-root>/artifacts/trees/<id>/backend/run-*/` for IQ-TREE logs, or `<setting-id>/treecluster.stderr.log`. Commands and paths are saved in manifests.              |
 | TreeCluster fails                                                    | Inspect`<run>/development/seed_<seed>/clusters/<setting-id>/treecluster.stderr.log` and its manifest; evaluation uses the analogous evaluation path.                           |
-| External command times out                                           | Inspect its stderr log and`treecluster.command_timeout_seconds`. Increasing the configured timeout changes the experiment signature and can create a new run.                  |
+| External command times out                                           | Inspect the command log and `phylogeny.timeout` or `treecluster.timeout`. Changing the YAML timeout can create a new run; baseline `--phylogeny-timeout` overrides IQ-TREE's runtime limit while preserving the configured identity. |
 | No frozen operating settings                                         | Run`select` for the exact experiment/output root before `evaluate`.                                                                                                            |
 | `No operating criterion is feasible`                                 | Inspect the frozen decisions and development metrics; revise objectives, bounds, or grids using development evidence.                                                          |
 | Criteria changed or held-out seeds already accessed                  | Before access, rerun`select`. After access, assign fresh evaluation seeds in the shared config and rerun diagnostics and baseline selection; reset preserves the ledger.       |
