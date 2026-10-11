@@ -30,6 +30,10 @@ Use this guide to configure and run the project, locate results, and resume inte
     - [Read development evidence in this order](#read-development-evidence-in-this-order)
   - [8. Choose and freeze operating criteria](#8-choose-and-freeze-operating-criteria)
   - [9. Resume work and understand caching](#9-resume-work-and-understand-caching)
+    - [Project-wide progress logs](#project-wide-progress-logs)
+    - [Repeatable pipeline smoke validation](#repeatable-pipeline-smoke-validation)
+    - [Checkpoint reuse](#checkpoint-reuse)
+    - [Clean restart after updating phylogeny code](#clean-restart-after-updating-phylogeny-code)
   - [10. Troubleshooting](#10-troubleshooting)
   - [11. Clear outputs with reset-outputs](#11-clear-outputs-with-reset-outputs)
   - [12. Perturbation and Boston application](#12-perturbation-and-boston-application)
@@ -498,7 +502,7 @@ New baseline runs exclude `GD_D` and `GD_S` from initial and refined Leiden sett
 | `epilink-evaluate: command not found` or module import failure       | Activate the environment used for installation and run`python -m pip install -e '.[test]'`. `python -m epilink_evaluation --help` uses that interpreter directly.                                                                    |
 | `Executable not found`                                               | Run`check`, install the missing tool, or set `phylogeny.executable` / `treecluster.executable` to an explicit path.                                                                                                                  |
 | IQ-TREE inference failure                                            | Inspect`backend/run-*/inference.log`; check alignment/reference compatibility and complete sampling dates. For a baseline timeout, retry with `--phylogeny-timeout 7200` to preserve the configured run identity.                    |
-| `RecursionError` during tree copying after successful IQ-TREE dating | Update both EpiLink and the evaluation adapter to the depth-safe tree-processing code. For a clean restart, run diagnostics followed by baseline as described above. |
+| `RecursionError` during tree copying after successful IQ-TREE dating | Update both EpiLink and the evaluation adapter to the depth-safe tree-processing code. For a clean restart, run diagnostics followed by baseline as described above.                                                                 |
 | CSV parsing fails on a fresh checkout                                | Confirm raw paths and Git LFS downloads. An LFS pointer contains metadata rather than the input table; run`git lfs pull` after installing Git LFS.                                                                                   |
 | Tree size did not change                                             | Inspect`n_cases` in the provenance; different targets can select the same component. Prebuilt trees without a manifest are retained; use a new input directory to reconstruct.                                                       |
 | Baseline requests diagnostics or reports mismatched development data | Run diagnostics`--stage all` with the matching shared config and smoke mode; inspect its coverage and failures.                                                                                                                      |
