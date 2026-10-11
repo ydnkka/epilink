@@ -10,6 +10,15 @@ TREE_CUTOFF_FIELDS = {
 }
 
 
+def leiden_scorers(config):
+    """Scorers with similarity weights suitable for full-graph Leiden."""
+    return [
+        name
+        for name in config["scorers"]
+        if SCORERS[name].spec.family in ("epilink", "logistic")
+    ]
+
+
 def leiden_definition(config, name, resolution):
     spec = SCORERS[name].spec
     settings = config["clustering"]["leiden"]
@@ -49,6 +58,7 @@ def treecluster_definition(config, process, kind, method, value):
 def settings_registry(config, pairwise_thresholds=None):
     """Pairwise cutoffs come from development scores; clustering grids are independent."""
     definitions = {}
+    eligible_leiden = set(leiden_scorers(config))
 
     def add(definition):
         key = fingerprint(definition)[:20]
@@ -86,7 +96,7 @@ def settings_registry(config, pairwise_thresholds=None):
                         "pipeline": f"components/{name}",
                     }
                 )
-        if "leiden" in config["clustering"]["algorithms"]:
+        if "leiden" in config["clustering"]["algorithms"] and name in eligible_leiden:
             leiden = config["clustering"]["leiden"]
             for resolution in initial_resolutions(leiden["resolutions"]):
                 add(leiden_definition(config, name, resolution))

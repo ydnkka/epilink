@@ -146,12 +146,12 @@ def test_paired_changes_allow_updated_settings_and_keep_missing_controls():
     assert row.n_realizations == 3
 
 
-def test_one_full_graph_leiden_pipeline_per_scorer(small_config):
+def test_one_full_graph_leiden_pipeline_per_similarity_scorer(small_config):
     small_config["scorers"] = ["EDD", "EDS", "ESD", "ESS", "GD_D", "LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["leiden"]
     pipelines = {d["pipeline"] for d in settings_registry(small_config).values()}
     assert {p for p in pipelines if p.startswith("leiden/")} == {
-        f"leiden/{score}" for score in small_config["scorers"]
+        "leiden/EDD", "leiden/EDS", "leiden/ESD", "leiden/ESS", "leiden/LOGIT_D"
     }
 
 

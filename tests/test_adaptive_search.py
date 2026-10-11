@@ -88,6 +88,28 @@ def test_pairwise_and_components_select_independent_values_on_shared_candidates(
     }
 
 
+def test_registry_keeps_genetic_rules_and_limits_leiden_to_similarity_scores(small_config):
+    small_config["scorers"] = [
+        "EDD", "EDS", "ESD", "ESS", "GD_D", "GD_S", "LOGIT_D", "LOGIT_S"
+    ]
+    small_config["clustering"]["algorithms"] = ["components", "leiden"]
+    thresholds = {name: [0, 1] for name in small_config["scorers"]}
+    definitions = settings_registry(small_config, thresholds)
+    assert {
+        d["score_name"] for d in definitions.values() if d["kind"] == "leiden"
+    } == {"EDD", "EDS", "ESD", "ESS", "LOGIT_D", "LOGIT_S"}
+    for kind in ("pairwise", "components"):
+        assert {
+            d["score_name"] for d in definitions.values() if d["kind"] == kind
+        } == set(small_config["scorers"])
+        for name in ("GD_D", "GD_S"):
+            assert {
+                d["threshold"]
+                for d in definitions.values()
+                if d["kind"] == kind and d["score_name"] == name and not d["empty"]
+            } == {0, 1}
+
+
 def test_resolution_refinement_finds_between_initial_points_and_enforces_budget():
     settings = {"min": 1, "max": 16, "initial_points": 3, "budget": 5}
     values = initial_resolutions(settings)
@@ -188,7 +210,7 @@ def test_refinement_uses_constraints_in_every_seed_and_requires_complete_evidenc
 def test_adaptive_development_restores_candidates_and_freezes_replay(
     small_config, prepare_diagnostics, monkeypatch
 ):
-    small_config["scorers"] = ["GD_D"]
+    small_config["scorers"] = ["GD_D", "GD_S", "LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["components", "leiden"]
     small_config["splits"]["development"] = [72001, 72002]
     small_config["clustering"]["leiden"]["resolutions"] = {
@@ -199,7 +221,18 @@ def test_adaptive_development_restores_candidates_and_freezes_replay(
     }
     prepare_diagnostics(small_config)
     baseline = Baseline(small_config)
+    assert {
+        d["score_name"] for d in baseline.definitions.values() if d["kind"] == "leiden"
+    } == {"LOGIT_D"}
     frozen = baseline.select()
+    assert {
+        d["score_name"] for d in baseline.definitions.values() if d["kind"] == "leiden"
+    } == {"LOGIT_D"}
+    pipelines = {p["pipeline"] for p in frozen["operating_points"]}
+    assert "leiden/LOGIT_D" in pipelines
+    assert not {"leiden/GD_D", "leiden/GD_S"} & pipelines
+    for name in ("GD_D", "GD_S"):
+        assert {f"pairwise/{name}", f"components/{name}"} <= pipelines
     resolutions = {
         d["resolution"] for d in baseline.definitions.values() if d["kind"] == "leiden"
     }
@@ -241,7 +274,7 @@ def test_adaptive_development_restores_candidates_and_freezes_replay(
 def test_adaptive_search_failure_resumes_successful_initial_trials(
     small_config, prepare_diagnostics, monkeypatch
 ):
-    small_config["scorers"] = ["GD_D"]
+    small_config["scorers"] = ["GD_D", "LOGIT_D"]
     small_config["clustering"]["algorithms"] = ["leiden"]
     settings = {"min": 0.01, "max": 1, "initial_points": 3, "budget": 5}
     small_config["clustering"]["leiden"]["resolutions"] = settings
@@ -269,3 +302,21 @@ def test_adaptive_search_failure_resumes_successful_initial_trials(
     assert [
         x for x in calls if any(np.isclose(x, y) for y in initial_resolutions(settings))
     ] == initial_calls
+
+
+def test_genetic_only_development_skips_leiden(small_config, prepare_diagnostics, monkeypatch):
+    small_config["scorers"] = ["GD_D", "GD_S"]
+    small_config["clustering"]["algorithms"] = ["components", "leiden"]
+    prepare_diagnostics(small_config)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Genetic-distance scorers must not enter Leiden")
+
+    monkeypatch.setattr(workflow, "leiden", forbidden)
+    baseline = Baseline(small_config)
+    assert baseline.run("develop")
+    assert not any(d["kind"] == "leiden" for d in baseline.definitions.values())
+    evidence = pd.read_csv(baseline.directory / "development/metrics.csv")
+    assert set(evidence.pipeline) == {
+        "pairwise/GD_D", "pairwise/GD_S", "components/GD_D", "components/GD_S"
+    }

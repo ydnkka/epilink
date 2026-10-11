@@ -55,6 +55,7 @@ from ..selection.search import (
 from .settings import (
     TREE_CUTOFF_FIELDS,
     leiden_definition,
+    leiden_scorers,
     settings_registry,
     treecluster_definition,
 )
@@ -659,7 +660,7 @@ class Baseline:
             complete_artifact(search, signature, ["definitions.json", "search.json"])
             batch = {}
             for value in values:
-                for name in self.config["scorers"]:
+                for name in leiden_scorers(self.config):
                     definition = leiden_definition(self.config, name, value)
                     batch[fingerprint(definition)[:20]] = definition
         return True

@@ -380,7 +380,7 @@ A mapping from `setting_id` to method definition. Applicable fields are:
 | `method`                     | TreeCluster: `max_clade`, `avg_clade`, or `single_linkage`.                                                                                                     |
 | `threshold_units`            | TreeCluster input grid units: `snps` for raw trees or `days` for dated trees. Raw `threshold` is normalized to substitutions/site before execution.             |
 
-Pipeline names are `pairwise/<score>`, `components/<score>`, `leiden/<score>`, and `treecluster/<data-process>/<raw-or-dated>`. Each scorer has one Leiden pipeline. TreeCluster's method is selected within a raw/dated pipeline.
+Pipeline names are `pairwise/<score>`, `components/<score>`, `leiden/<score>`, and `treecluster/<data-process>/<raw-or-dated>`. Each EpiLink or logistic scorer has one Leiden pipeline; genetic-distance scorers are retained in pairwise/component comparisons and excluded from Leiden settings. TreeCluster's method is selected within a raw/dated pipeline.
 
 ### `selection/operating_points.json`
 
