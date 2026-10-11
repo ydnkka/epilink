@@ -21,7 +21,7 @@ clustering:
     seed: 65001
 phylogeny:
   model: JC
-  threads: 1
+  threads: 4
   seed: 66001
   clock_rate: null
   executable: iqtree

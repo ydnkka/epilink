@@ -1,6 +1,6 @@
-# EpiLink evaluation
+# Evaluation of EpiLink Pairwise Compatitbility Model
 
-Evaluation of EpiLink compatibility scores, genetic-distance rankings, logistic probabilities, and graph/phylogenetic clustering.
+Evaluation of pairwise ranking by compatibility scores, genetic distance, logistic probabilities, and graph/phylogenetic clustering.
 
 **Start with the [operational guide](OPERATIONS.md)** for setup, configuration, execution, and troubleshooting. The [synthetic baseline protocol](evaluation/01_synthetic_baseline/README.md) defines scientific questions, targets, metrics, and evaluation. Use the [output reference](OUTPUTS.md) for column definitions and metric formulas.
 
