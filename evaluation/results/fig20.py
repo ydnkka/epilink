@@ -53,8 +53,7 @@ def create_figure(
     values, labels, tree_labels = agreement_grid(study, criterion)
     fig, axes = style.new_figure(
         width="double",
-        width_in=10,
-        height_in=max(4.5, 1.8 + 0.42 * len(labels)),
+        height_in=7,
         ncols=2,
         layout="constrained",
         sharey=True,
@@ -76,8 +75,8 @@ def create_figure(
             interpolation="nearest",
         )
         ax.set_title(title)
-        ax.set_xticks(range(len(tree_labels)), tree_labels, fontsize=7)
-        ax.set_yticks(range(len(labels)), labels, fontsize=7.5)
+        ax.set_xticks(range(len(tree_labels)), tree_labels, rotation=90)
+        ax.set_yticks(range(len(labels)), labels)
         ax.tick_params(axis="y", labelleft=show_labels)
         for (row, col), value in np.ndenumerate(matrix):
             ax.text(
@@ -86,7 +85,7 @@ def create_figure(
                 f"{value:.2f}",
                 ha="center",
                 va="center",
-                fontsize=6.5,
+                fontsize=7,
                 color="white" if abs(value) > bound * 0.65 else "0.12",
             )
         fig.colorbar(image, ax=ax, shrink=0.6, label=title)
@@ -102,7 +101,6 @@ def create_figure(
         fig,
         output / f"fig20_boston_all_agreement_{criterion}",
         width="double",
-        width_in=10,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )

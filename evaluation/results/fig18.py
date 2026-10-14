@@ -81,7 +81,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
                 height=0.32,
                 color=color,
             )
-        ax.set_yticks(positions, subset.label, fontsize=8)
+        ax.set_yticks(positions, subset.label)
         ax.set_ylim(len(subset) - 0.6, -0.6)
         ax.set_xlim(0, 100)
         ax.set_xticks([0, 50, 100])

@@ -74,13 +74,13 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
                         f"n={int(record['count'])}",
                         ha="right",
                         va="center",
-                        fontsize=6.5,
+                        fontsize=7,
                     )
             scenario_axis(ax, study, show_labels=col == 0)
             ax.axvline(0, color="0.45", linestyle="--", lw=0.9)
             ax.grid(axis="x", color="0.9")
             ax.set_xlim(-bounds[row], bounds[row])
-            ax.set_xlabel("Matched − baseline Δ $F_1$\n(percentage points)")
+            ax.set_xlabel("Matched − baseline $\\Delta$ $F_1$\n(percentage points)")
             if row == 0:
                 ax.set_title(
                     f"{name.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations"

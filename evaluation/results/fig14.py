@@ -81,7 +81,7 @@ def create_figure(study: Study, output, *, fmt="both"):
                             f"n={count}",
                             ha="right",
                             va="center",
-                            fontsize=6,
+                            fontsize=7,
                             color=MODEL_COLORS[index],
                         )
             scenario_axis(ax, study, show_labels=col == 0)

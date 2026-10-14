@@ -47,8 +47,7 @@ def create_figure(
     labels, concentration, recovery = all_rows(study, criterion)
     fig, axes = style.new_figure(
         width="double",
-        width_in=8.8,
-        height_in=max(4.5, 1.8 + 0.30 * len(labels)),
+        height_in=7,
         ncols=2,
         layout="constrained",
         sharey=True,
@@ -77,7 +76,7 @@ def create_figure(
                 for name in study.config["assessment"]["focus_exposures"]
             ],
         )
-        ax.set_yticks(range(len(labels)), labels, fontsize=7)
+        ax.set_yticks(range(len(labels)), labels)
         ax.tick_params(axis="y", labelleft=show_labels)
         for (row, col), value in np.ndenumerate(matrix):
             ax.text(
@@ -108,7 +107,6 @@ def create_figure(
         fig,
         output / f"fig19_boston_all_exposures_{criterion}",
         width="double",
-        width_in=8.8,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )

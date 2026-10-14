@@ -13,7 +13,8 @@ import pandas as pd
 
 from epilink_evaluation.provenance import read_json
 
-from .._baseline.common import TREE_METHOD_LABELS, method_label as baseline_method_label
+from .._baseline.common import TREE_METHOD_LABELS
+from .._baseline.common import method_label as baseline_method_label
 from .._paths import output_directory as results_output_directory
 
 ROOT = (
@@ -318,7 +319,9 @@ class BostonStudy:
 
 def method_marker(pipeline: str) -> str:
     kind = pipeline.split("/", 1)[0]
-    key = f"treecluster/{pipeline.rsplit('/', 1)[-1]}" if kind == "treecluster" else kind
+    key = (
+        f"treecluster/{pipeline.rsplit('/', 1)[-1]}" if kind == "treecluster" else kind
+    )
     return METHOD_MARKERS[key]
 
 
@@ -367,6 +370,6 @@ def tree_label(point: dict) -> str:
     tree = "Undated" if definition["tree_kind"] == "raw" else "Dated"
     source = definition["baseline_data_process"][0].upper()
     return (
-        f"{tree}\n{source} source\n{TREE_METHOD_LABELS[definition['method']]}\n"
+        f"{tree} {source} source\n{TREE_METHOD_LABELS[definition['method']]} "
         f"{setting_label(point)}"
     )
