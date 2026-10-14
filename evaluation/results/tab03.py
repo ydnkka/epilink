@@ -1,4 +1,4 @@
-"""LaTeX table: full-graph EpiLink clustering on fresh controls in all four arms."""
+"""LaTeX table: EpiLink clustering on new simulated observations in all four modes."""
 
 import argparse
 
@@ -66,10 +66,23 @@ def main():
     study = Study.load(args.run_dir)
     path = write_latex_grouped_column_table(
         study.output(args.output_dir) / "tab03_fresh_control_performance.tex",
-        caption="Full-graph, score-weighted EpiLink Leiden clustering on fresh unperturbed controls. Four arms cross baseline/matched inference with baseline/updated resolution. Updated resolutions use separate development observations. Values are equal-seed means (sample SD) in percent on the paired evaluation observations. The target is $M=0$; distant-pair contamination is $M\\geq3$. All within-cluster pairs are evaluated.",
+        caption=(
+            "EpiLink Leiden clustering on new simulated observations with unchanged "
+            "biological parameters. The four modes use model parameters from the "
+            "baseline analysis or parameters that match the simulation, combined "
+            "with the original clustering resolution or one chosen again using "
+            "separate development data. Leiden includes every observed pair, with "
+            "EpiLink scores giving the strength of each connection. Values are means "
+            "(sample standard deviations) across evaluation observations, expressed "
+            "as percentages. Each set of observations has equal weight, and the "
+            "same observations are used for all four modes. The target is direct "
+            "transmission or infection from a shared source ($M=0$). The distant "
+            r"pair column gives the percentage of selected pairs with $M\ge3$. "
+            "Every pair of cases in the same cluster is evaluated."
+        ),
         caption_is_latex=True,
         headers_are_latex=True,
-        short_caption="Fresh controls for EpiLink clustering sensitivity",
+        short_caption="EpiLink clustering on new simulated observations",
         label="tab:perturbation_control",
         row_columns=["Genetic observations", "EpiLink", "Arm", "Resolution"],
         column_groups=[("Control performance (%)", ["$F_1$", "Distant pairs"])],

@@ -17,8 +17,8 @@ from ._boston.common import (
 )
 
 APPROACHES = (
-    ("leiden", "Leiden"),
-    ("components", "Connected\ncomponents"),
+    ("leiden", "Leiden communities"),
+    ("components", "Connected components"),
     ("treecluster", "TreeCluster"),
 )
 METRICS = (

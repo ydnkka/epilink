@@ -64,23 +64,26 @@ def main() -> None:
     path = write_latex_longtable(
         output_directory(run, args.output_dir) / "tab02_operating_points_full.tex",
         caption=(
-            "Complete held-out comparison of methods for direct transmission and "
-            "infection from a shared source ($M=0$). All settings were selected during "
-            "development (maximised $F_1$) and applied unchanged. Values are equally "
-            "weighted means (sample SD) over three observation realisations on one "
-            "transmission tree. "
-            "Fractions are percentages; selected pairs are counts. Cluster metrics "
-            r"include all pairs in the same cluster. Distant pairs ($M\ge3$) account for only "
-            "part of the $M=0$ false positives. Direct and shared recovery are "
-            "the percentages of the respective target pairs recovered. Singletons "
-            "and largest are the percentages of all cases in singleton clusters "
-            "and in the largest cluster. Cutoffs for undated trees "
-            "are shown in SNP counts and cutoffs for dated trees in days. "
-            "Dashes indicate undefined values."
+            "Complete comparison of methods for identifying direct transmission and "
+            "infection from a shared source ($M=0$) in synthetic evaluation data. "
+            "Settings were chosen to maximise the mean $F_1$ score in development "
+            "data and applied without changes. Values are means (sample standard "
+            "deviations) across three sets of observations from the same transmission "
+            "tree, with each set given equal weight. Values are percentages except "
+            "for the number of selected pairs. For clustering methods, every pair "
+            r"of cases in the same cluster is evaluated. Distant pairs ($M\ge3$) "
+            "account for only some of the pairs incorrectly identified as $M=0$. "
+            "Direct and shared recovery give the percentages of true direct "
+            "transmission pairs and shared source pairs identified by each method. "
+            "The singleton column shows the percentage of all cases that form a "
+            "cluster of one. The largest cluster column shows the percentage of "
+            "all cases in the largest cluster. Cutoffs "
+            "for undated trees are given in SNP counts and cutoffs for dated trees "
+            "in days. A dash indicates that a value cannot be calculated."
         ),
         caption_is_latex=True,
         headers_are_latex=True,
-        short_caption="Complete held-out method comparison",
+        short_caption="Complete method comparison in synthetic evaluation data",
         label="tab:baseline_operating_points_full",
         columns=[
             "Genetics",

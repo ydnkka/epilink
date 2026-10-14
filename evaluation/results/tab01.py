@@ -1,4 +1,4 @@
-"""Main-text LaTeX table: prespecified M=0 held-out comparisons (tab01)."""
+"""Main LaTeX table: selected methods evaluated on new synthetic observations (tab01)."""
 
 from __future__ import annotations
 
@@ -68,23 +68,26 @@ def main() -> None:
     path = write_latex_grouped_column_table(
         output_directory(run, args.output_dir) / "tab01_operating_points.tex",
         caption=(
-            "Identification of direct transmission and infection from a shared source "
-            "in held-out synthetic observations. Cutoffs and clustering settings were "
-            "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
-            "inference formulations, genetic distance, and logistic regression are "
-            "shown as pairwise rules. Full-graph Leiden uses EpiLink and logistic "
-            "scores as edge weights, alongside undated and dated TreeCluster. "
-            "Leiden selects resolution only. Values are equally weighted "
-            "means (sample SD) across three observation realisations on one fixed "
-            "transmission tree, expressed as percentages. Cluster metrics include "
-            r"every pair in the same cluster. Distant pairs have $M\ge3$; this measure does "
-            "not include every false positive for $M=0$. Tree cutoffs are shown in SNP "
-            "counts for undated trees and days for dated trees. The complete method "
-            r"comparison is in the Appendix~Table~\ref{tab:baseline_operating_points_full}."
+            "Performance of methods for identifying direct transmission and infection "
+            "from a shared source ($M=0$) in synthetic evaluation data. Settings were "
+            "chosen to maximise the mean $F_1$ score in development data and then "
+            "applied without changes. EpiLink, genetic distance, and logistic "
+            "regression identify pairs of cases; Leiden and TreeCluster group cases "
+            "into clusters. Leiden uses every observed pair, with EpiLink or logistic "
+            "regression scores giving the strength of each connection. Only its "
+            "resolution is chosen during development. Values are means (sample "
+            "standard deviations) across three sets of simulated observations from "
+            "the same transmission tree, with each set given equal weight. All values "
+            "are percentages. For clustering methods, every pair of cases in the "
+            r"same cluster is evaluated. Distant pairs have $M\ge3$ and account for "
+            "only some of the pairs incorrectly identified as $M=0$. Cutoffs for "
+            "undated trees are given in SNP counts and cutoffs for dated trees in "
+            "days. The complete comparison is shown in "
+            r"Appendix~Table~\ref{tab:baseline_operating_points_full}."
         ),
         caption_is_latex=True,
         headers_are_latex=True,
-        short_caption="Held-out identification of recent transmission relationships",
+        short_caption="Identification of recent transmission relationships",
         label="tab:baseline_operating_points",
         row_columns=["Genetic observations", "Method", "Selected setting"],
         column_groups=[

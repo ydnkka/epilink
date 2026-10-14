@@ -107,12 +107,12 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
             )
         ax.set(
             title=f"{EXPOSURE_LABELS.get(exposure, exposure)}\n({study.exposure_totals[exposure]} labelled cases)",
-            xlabel="Exposure-group recovery",
+            xlabel="Exposure recovery",
             xlim=(-0.03, 1.05),
             ylim=(-0.03, 1.05),
         )
         if index == 0:
-            ax.set_ylabel("Exposure concentration in the cluster")
+            ax.set_ylabel("Exposure concentration")
         ax.xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
         ax.yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
         ax.grid(axis="both", color="0.92")
