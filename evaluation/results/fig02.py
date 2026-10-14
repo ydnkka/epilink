@@ -27,7 +27,7 @@ DIAGNOSTICS_ROOT = (
 )
 
 ENDPOINTS = ("M0", "Mle1", "Mle2")
-ENDPOINT_LABELS = {"M0": "M=0", "Mle1": "M≤1", "Mle2": "M≤2"}
+ENDPOINT_LABELS = {"M0": "$M=0$", "Mle1": "$M\\leq1$", "Mle2": "$M\\leq2$"}
 
 FEATURE_SETS = ("GD", "GD_TD")
 FEATURE_LABELS = {"GD": "Genetics", "GD_TD": "Genetics\n+ sampling time"}
@@ -64,7 +64,7 @@ SCORE_METRICS = (
     MetricSpec("Precision", "precision", "s", COLORS["precision"], alpha=0.8),
     MetricSpec("Recall", "recall", "^", COLORS["recall"], alpha=0.8),
     MetricSpec(
-        "Distant pairs",
+        "Contamination with $M\\geq3$",
         "Mge3_contamination",
         "d",
         COLORS["contamination"],
