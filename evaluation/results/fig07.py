@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.ticker import MaxNLocator
 
 from epilink_evaluation.selection.operating import select_operating_points
 from epilink_evaluation.utils import style
@@ -64,9 +65,7 @@ def load_evidence(run, config):
                 f"Incomplete development realization coverage: {pipeline}/{identifier}"
             )
     if set(frame.pipeline) != set(PIPELINES):
-        raise ValueError(
-            "Expected all four EpiLink variants with full-graph Leiden"
-        )
+        raise ValueError("Expected all four EpiLink variants with full-graph Leiden")
     criteria = [
         row for row in config["selection"]["criteria"] if row["name"] == "balanced_M0"
     ]
@@ -242,7 +241,7 @@ def create_figure(summary: pd.DataFrame, output, *, fmt: str = "both") -> None:
         ylabel="$F_1$ loss relative to each method's best setting\n(percentage points)",
         ylim=(0, None),
     )
-    ax.set_xticks(summary.resolution, [f"{gamma:g}" for gamma in summary.resolution])
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
     ax.grid(axis="y", color="0.9")
     ax.set_axisbelow(True)
     ax.legend(
@@ -250,7 +249,7 @@ def create_figure(summary: pd.DataFrame, output, *, fmt: str = "both") -> None:
             Patch(
                 facecolor="#8B9BAE",
                 alpha=0.32,
-                label="Middle half of EpiLink configurations",
+                label="Interquartile range",
             ),
             Line2D([0], [0], color="#182838", marker="o", label="Mean difference"),
             Line2D(
@@ -259,7 +258,7 @@ def create_figure(summary: pd.DataFrame, output, *, fmt: str = "both") -> None:
                 color="#B45511",
                 linestyle="--",
                 marker="o",
-                label=f"Shared development choice ({selected.resolution:g})",
+                label=f"Default resolution ({selected.resolution:g})",
             ),
         ],
         loc="upper center",

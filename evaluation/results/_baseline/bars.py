@@ -10,7 +10,7 @@ from matplotlib.patches import Patch
 from .common import (
     PROCESS_LABELS,
     SCORE_LABELS,
-    SCORES_BY_PROCESS,
+    graph_scorers,
     setting_label,
 )
 from .plots import TREE_LABELS
@@ -19,16 +19,14 @@ METRICS = (
     ("M0_precision", "Precision", "#0072B2"),
     ("M0_recall", "Recall", "#E69F00"),
     ("M0_f1", "$F_1$", "#009E73"),
-    ("Mge3_contamination", "Distant-pair contamination", "#CC79A7"),
+    ("Mge3_contamination", "Contamination with $M\\geq3$", "#CC79A7"),
 )
 GRAPH_APPROACHES = ("components", "leiden")
 TREE_KINDS = ("raw", "dated")
 
 
 def graph_variants(approach: str, process: str) -> list[tuple[str, str]]:
-    if approach not in GRAPH_APPROACHES:
-        raise ValueError(f"Not a graph-clustering approach: {approach}")
-    scorers = SCORES_BY_PROCESS[process]
+    scorers = graph_scorers(approach, process)
     return [
         (
             SCORE_LABELS[score],

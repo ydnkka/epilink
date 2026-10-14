@@ -60,6 +60,16 @@ SCORE_COLORS = {
 }
 
 
+def graph_scorers(approach: str, process: str) -> tuple[str, ...]:
+    """Full-graph Leiden uses similarity weights, excluding genetic distance."""
+    if approach not in ("components", "leiden"):
+        raise ValueError(f"Not a graph-clustering approach: {approach}")
+    scorers = SCORES_BY_PROCESS[process]
+    if approach == "leiden":
+        return tuple(score for score in scorers if not score.startswith("GD_"))
+    return scorers
+
+
 def add_arguments(parser: argparse.ArgumentParser, *, figure: bool = False) -> None:
     parser.add_argument(
         "--run-dir",
@@ -171,7 +181,7 @@ def method_label(definition: dict) -> str:
     label = {
         "pairwise": "Pairwise",
         "components": "Connected components",
-        "leiden": "Leiden",
+        "leiden": "Leiden communities",
     }[kind]
     name = SCORE_LABELS[definition["score_name"]]
     return f"{label} {name}"

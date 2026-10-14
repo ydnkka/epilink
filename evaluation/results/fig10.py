@@ -40,7 +40,7 @@ def create_figure(run, config, output, *, fmt="both") -> None:
             if row == 0:
                 ax.set_title(f"{PROCESS_LABELS[process]} genetic observations")
             if col == 0:
-                ax.set_ylabel(APPROACHES[approach] + "\n(%)")
+                ax.set_ylabel(APPROACHES[approach] + " (%)")
     # fig.suptitle("Graph clustering at M=0 settings", fontweight="bold")
     fig.legend(
         handles=metric_legend(), loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=4

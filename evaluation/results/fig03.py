@@ -77,7 +77,8 @@ def create_figure(
         ax.set_yticks([0, 5, 10, 15, 20])
         ax.grid(False)
     axes[0].set_ylabel("Sampling-time difference (days)")
-    fig.colorbar(image, ax=axes, shrink=0.75, pad=0.02, label="M=0 compatibility score")
+    assert image is not None
+    fig.colorbar(image, ax=axes, shrink=0.75, pad=0.02, label="$M=0$ compatibility score")
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,

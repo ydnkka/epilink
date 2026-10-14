@@ -11,7 +11,12 @@ def main():
     add_arguments(parser, figure=True)
     args = parser.parse_args()
     study = Study.load(args.run_dir)
-    create_figure(study, study.output(args.output_dir), fmt=args.format, stem="fig16_parameter_sensitivity_overview")
+    create_figure(
+        study,
+        study.output(args.output_dir),
+        fmt=args.format,
+        stem="fig16_parameter_sensitivity_overview",
+    )
 
 
 if __name__ == "__main__":

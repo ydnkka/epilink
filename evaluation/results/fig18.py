@@ -1,126 +1,101 @@
-"""Manuscript figure: Boston partition burden and graph/tree agreement (fig18)."""
+"""Boston singleton and largest-cluster shares by clustering approach (fig18)."""
 
 from __future__ import annotations
 
 import argparse
 
-import matplotlib as mpl
 import numpy as np
+import pandas as pd
+from matplotlib.patches import Patch
 
 from epilink_evaluation.utils import style
 
-from ._boston.common import FOCUS, BostonStudy, add_arguments
+from ._boston.common import (
+    SCORE_LABELS,
+    BostonStudy,
+    add_arguments,
+)
+
+APPROACHES = (
+    ("leiden", "Leiden"),
+    ("components", "Connected\ncomponents"),
+    ("treecluster", "TreeCluster"),
+)
+METRICS = (
+    ("singleton_percent", "Singleton cases", "#0072B2"),
+    ("largest_percent", "Cases in largest cluster", "#D55E00"),
+)
 
 
-def agreement_matrix(study: BostonStudy) -> tuple[np.ndarray, np.ndarray]:
-    graph = FOCUS[:3]
-    tree = FOCUS[3:]
-    ari = np.empty((len(graph), len(tree)), dtype=float)
-    ami = np.empty_like(ari)
-    for row, (_, graph_pipeline, _) in enumerate(graph):
-        graph_id = study.point(graph_pipeline)["setting_id"]
-        for col, (_, tree_pipeline, _) in enumerate(tree):
-            tree_id = study.point(tree_pipeline)["setting_id"]
-            match = study.agreement.loc[
-                (study.agreement.setting_id == graph_id)
-                & (study.agreement.tree_setting_id == tree_id)
-            ]
-            if len(match) != 1:
-                raise ValueError(
-                    f"Missing frozen partition agreement: {graph_pipeline}/{tree_pipeline}"
-                )
-            ari[row, col] = match.adjusted_rand.iloc[0]
-            ami[row, col] = match.adjusted_mutual_information.iloc[0]
-    if not np.isfinite(ari).all() or not np.isfinite(ami).all():
-        raise ValueError("Undefined ARI/AMI between frozen Boston partitions")
-    return ari, ami
+def partition_rows(study: BostonStudy) -> pd.DataFrame:
+    """Extract every frozen M=0 partition, keeping all-case denominators explicit."""
+    rows = []
+    n = study.inputs["n_cases"]
+    for point in study.selected_points("balanced_M0"):
+        definition = point["definition"]
+        partition = study.partition(point)
+        source = definition["baseline_data_process"]
+        if definition["kind"] == "treecluster":
+            tree = "Undated" if definition["tree_kind"] == "raw" else "Dated"
+            label = f"{tree} [{source[0].upper()}]"
+        else:
+            label = SCORE_LABELS[definition["score_name"]]
+        rows.append(
+            {
+                "pipeline": point["pipeline"],
+                "criterion": point["criterion"],
+                "setting_id": point["setting_id"],
+                "baseline_setting_id": point["baseline_setting_id"],
+                "baseline_data_process": source,
+                "kind": definition["kind"],
+                "label": label,
+                "n_cases": n,
+                "n_clusters": int(partition.n_clusters),
+                "n_singleton_cases": int(partition.n_singleton_cases),
+                "largest_cluster": int(partition.largest_cluster),
+                "singleton_percent": 100 * partition.n_singleton_cases / n,
+                "largest_percent": 100 * partition.largest_cluster / n,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
-    ari, ami = agreement_matrix(study)
+    rows = partition_rows(study)
     fig, axes = style.new_figure(
         width="double",
-        height_in=3.9,
-        ncols=2,
+        height_in=4.4,
+        ncols=len(APPROACHES),
         layout="constrained",
-        gridspec_kw={"width_ratios": [1.35, 1]},
+        sharex=True,
     )
-    ax, heat = axes
-    labels = [label for label, _, _ in FOCUS]
-    positions = np.arange(len(FOCUS))
-    n = study.inputs["n_cases"]
-    singletons = (
-        np.array(
-            [
-                study.partition(study.point(pipeline)).n_singleton_cases
-                for _, pipeline, _ in FOCUS
-            ],
-            dtype=float,
-        )
-        / n
-        * 100
+    for ax, (kind, title) in zip(axes, APPROACHES):
+        subset = rows.loc[rows.kind == kind]
+        if subset.empty:
+            raise ValueError(f"No frozen Boston partitions for {kind}")
+        positions = np.arange(len(subset))
+        for index, (metric, _, color) in enumerate(METRICS):
+            ax.barh(
+                positions + (index - 0.5) * 0.34,
+                subset[metric],
+                height=0.32,
+                color=color,
+            )
+        ax.set_yticks(positions, subset.label, fontsize=8)
+        ax.set_ylim(len(subset) - 0.6, -0.6)
+        ax.set_xlim(0, 100)
+        ax.set_xticks([0, 50, 100])
+        ax.set_title(title)
+        ax.grid(axis="x", color="0.9")
+        ax.set_axisbelow(True)
+    fig.supxlabel("Fraction of all Boston cases (%)")
+    fig.legend(
+        handles=[Patch(facecolor=color, label=label) for _, label, color in METRICS],
+        title="D/S = deterministic/stochastic synthetic source rules",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.04),
+        ncol=2,
     )
-    largest = (
-        np.array(
-            [
-                study.partition(study.point(pipeline)).largest_cluster
-                for _, pipeline, _ in FOCUS
-            ],
-            dtype=float,
-        )
-        / n
-        * 100
-    )
-    ax.barh(
-        positions - 0.17,
-        singletons,
-        height=0.32,
-        color="#0072B2",
-        label="Singleton cases",
-    )
-    ax.barh(
-        positions + 0.17,
-        largest,
-        height=0.32,
-        color="#D55E00",
-        label="Cases in largest cluster",
-    )
-    ax.set_yticks(positions, labels)
-    ax.set_ylim(len(labels) - 0.6, -0.6)
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("Fraction of all Boston cases (%)")
-    ax.set_title("Cluster sizes and singletons")
-    ax.grid(axis="x", color="0.9")
-    ax.set_axisbelow(True)
-    ax.legend(loc="upper right", fontsize=7)
-
-    bound = max(0.1, float(np.abs(ari).max()))
-    image = heat.imshow(
-        ari,
-        cmap=mpl.colormaps["RdBu"],
-        vmin=-bound,
-        vmax=bound,
-        aspect="auto",
-        interpolation="nearest",
-    )
-    heat.set_xticks(range(2), ["Undated", "Dated"])
-    heat.set_yticks(range(3), [label for label, _, _ in FOCUS[:3]])
-    heat.set_title("Graph and tree agreement")
-    heat.set_xlabel("TreeCluster at selected settings")
-    for (row, col), value in np.ndenumerate(ari):
-        heat.text(
-            col,
-            row,
-            f"ARI {value:.2f}\nAMI {ami[row, col]:.2f}",
-            ha="center",
-            va="center",
-            fontsize=8,
-            color="white" if abs(value) > bound * 0.65 else "0.15",
-        )
-    fig.colorbar(image, ax=heat, shrink=0.65, label="Adjusted Rand index")
-    # fig.suptitle(
-    #     "Cluster structure and graph tree agreement in Boston", fontweight="bold"
-    # )
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
@@ -129,6 +104,7 @@ def create_figure(study: BostonStudy, output, *, fmt: str = "both") -> None:
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )
+    rows.to_csv(output / "fig18_boston_partition_context.csv", index=False)
     for path in paths.values():
         print(f"Figure saved to: {path}")
 

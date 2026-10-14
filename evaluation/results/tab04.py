@@ -12,6 +12,7 @@ from ._boston.common import (
     BostonStudy,
     add_arguments,
     method_label,
+    setting_label,
 )
 
 
@@ -25,6 +26,7 @@ def build_rows(study: BostonStudy) -> list[list[str]]:
             rows.append(
                 [
                     method_label(point),
+                    setting_label(point),
                     EXPOSURE_LABELS.get(exposure, exposure),
                     f"{int(named.n_exposure)} / {study.exposure_totals[exposure]}"
                     if named is not None
@@ -54,6 +56,8 @@ def main() -> None:
         for exposure in study.config["assessment"]["focus_exposures"]
     )
     rows = build_rows(study)
+    exposures = study.config["assessment"]["focus_exposures"]
+    min_cluster_size = study.config["assessment"].get("min_cluster_size", 2)
     path = write_latex_grouped_column_table(
         study.output(args.output_dir) / "tab04_boston_frozen_exposures.tex",
         caption=(
@@ -62,15 +66,22 @@ def main() -> None:
             "use settings selected for $M=0$ in synthetic development observations "
             "and applied to Boston without using exposure labels to adjust them. For each exposure, "
             "the representative cluster contains the most labelled cases among "
-            "clusters with at least two cases. Labelled $n$ / total gives its labelled "
+            f"clusters with at least {min_cluster_size} cases. Labelled $n$ / total "
+            "gives its labelled "
             "case count over all cases with that exposure. Concentration is the "
             "percentage of that cluster carrying the label; recovery is the "
             "percentage of the exposure group captured by that one cluster. "
             "Cluster counts include singletons, and largest $n$ is the largest "
-            "cluster's case count. Graph methods use TN93 observations censored by "
-            "genetic distance; trees use the sequence alignment. D/S scorer labels "
-            "identify synthetic development conditions; all methods receive the "
-            "same empirical observations. These summaries describe exposure "
+            "cluster's case count. Leiden retains every observed pair with EpiLink "
+            "or logistic similarity weights and transfers resolution only. The "
+            "genetic-distance comparator uses connected components at a frozen "
+            "SNP cutoff. "
+            "Graph methods use distance-censored TN93 pairs; missing pairs remain "
+            "unobserved. Trees use the full sequence alignment. Raw-tree cutoffs "
+            "preserve baseline SNP counts after conversion to the Boston alignment "
+            "length; dated-tree cutoffs remain in days. D/S labels identify synthetic "
+            "source rules, not separate Boston genetic measurements. These summaries "
+            "describe exposure "
             "correspondence rather than validated transmission accuracy."
         ),
         caption_is_latex=True,
@@ -79,6 +90,7 @@ def main() -> None:
         label="tab:boston_frozen_exposures",
         row_columns=[
             "Method",
+            "Frozen setting",
             "Exposure",
             "Labelled $n$ / total",
             "Cluster $n$",
@@ -88,8 +100,10 @@ def main() -> None:
         ],
         column_groups=[("Representative cluster (%)", ["Concentration", "Recovery"])],
         rows=rows,
-        column_spec="llrrrrrrr",
-        addlinespace_after={2 * index - 1 for index in range(1, len(FOCUS))},
+        column_spec="lllrrrrrrr",
+        addlinespace_after={
+            len(exposures) * index - 1 for index in range(1, len(FOCUS))
+        },
         landscape=True,
     )
     print(f"Table saved to: {path} (run: {study.run.name})")

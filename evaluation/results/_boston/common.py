@@ -13,19 +13,28 @@ import pandas as pd
 
 from epilink_evaluation.provenance import read_json
 
-from .._baseline.common import method_label as baseline_method_label
+from .._baseline.common import TREE_METHOD_LABELS, method_label as baseline_method_label
 from .._paths import output_directory as results_output_directory
 
 ROOT = (
     Path(__file__).resolve().parents[2] / "03_boston_application" / "outputs" / "boston"
 )
-FOCUS = (
+GRAPH_FOCUS = (
     ("Leiden ESD", "leiden/ESD", "#0072B2"),
     ("Leiden LGD", "leiden/LOGIT_D", "#D55E00"),
-    ("Leiden GDD", "leiden/GD_D", "#555555"),
+    ("Components GDD", "components/GD_D", "#555555"),
+)
+TREE_FOCUS = (
     ("TreeCluster undated", "treecluster/empirical/deterministic/raw", "#009E73"),
     ("TreeCluster dated", "treecluster/empirical/deterministic/dated", "#CC79A7"),
 )
+FOCUS = (*GRAPH_FOCUS, *TREE_FOCUS)
+METHOD_MARKERS = {
+    "components": "^",
+    "leiden": "o",
+    "treecluster/raw": "s",
+    "treecluster/dated": "D",
+}
 CRITERIA = ("balanced_M0", "balanced_Mle1", "balanced_Mle2")
 SCORE_LABELS = {
     "EDD": "EDD",
@@ -133,6 +142,15 @@ class BostonStudy:
                 raise ValueError(
                     f"Boston definition differs from frozen setting: {key}"
                 )
+            definition = point["definition"]
+            if definition["kind"] == "leiden" and (
+                definition.get("graph_mode") != "full"
+                or definition.get("threshold") is not None
+                or definition["score_name"].startswith("GD_")
+            ):
+                raise ValueError(
+                    f"Boston Leiden requires full similarity-weighted graphs: {key}"
+                )
             selected[key] = point
         summary = pd.read_csv(run / "assessment/summary.csv", dtype={"setting_id": str})
         named = pd.read_csv(
@@ -216,9 +234,12 @@ class BostonStudy:
     def selected_points(self, criterion: str = "balanced_M0") -> list[dict]:
         if criterion not in CRITERIA:
             raise ValueError(f"Unknown frozen criterion: {criterion}")
-        return [
+        points = [
             point for (name, _), point in self.selected.items() if name == criterion
         ]
+        if not points:
+            raise ValueError(f"No frozen Boston cluster settings: {criterion}")
+        return sorted(points, key=method_sort_key)
 
     def partition(self, point: dict) -> pd.Series:
         subset = self.summary.loc[self.summary.setting_id == point["setting_id"]]
@@ -295,5 +316,57 @@ class BostonStudy:
         return pd.DataFrame(rows)
 
 
+def method_marker(pipeline: str) -> str:
+    kind = pipeline.split("/", 1)[0]
+    key = f"treecluster/{pipeline.rsplit('/', 1)[-1]}" if kind == "treecluster" else kind
+    return METHOD_MARKERS[key]
+
+
 def method_label(point: dict) -> str:
-    return baseline_method_label(point["definition"])
+    definition = point["definition"]
+    label = baseline_method_label(definition)
+    if definition["kind"] == "treecluster":
+        source = definition["baseline_data_process"][0].upper()
+        label += f" [{source} source]"
+    return label
+
+
+def setting_label(point: dict) -> str:
+    """Display the transferred rule in its physical units, not baseline tree units."""
+    definition = point["definition"]
+    if definition["kind"] == "leiden":
+        return f"{definition['objective']} resolution {definition['resolution']:g}"
+    threshold = definition["threshold"]
+    if definition["kind"] == "treecluster":
+        if definition["tree_kind"] == "dated":
+            return f"{threshold:g} d"
+        snps = definition.get("threshold_snps")
+        if snps is None and definition.get("threshold_units") == "snps":
+            snps = definition["threshold_input"]
+        return f"{snps:g} SNP" if snps is not None else f"{threshold:g} subs/site"
+    if threshold is None:
+        return "Empty graph"
+    if definition["score_name"].startswith("GD_"):
+        return f"GD <= {threshold:g} SNP"
+    return f"Score >= {threshold:g}"
+
+
+def method_sort_key(point: dict) -> tuple[int, int, str]:
+    definition = point["definition"]
+    kind = definition["kind"]
+    rank = {"components": 0, "leiden": 1, "treecluster": 2}[kind]
+    tree_rank = (
+        {"raw": 0, "dated": 1}[definition["tree_kind"]] if kind == "treecluster" else 0
+    )
+    return rank, tree_rank, point["pipeline"]
+
+
+def tree_label(point: dict) -> str:
+    """Compact axis label retaining tree type, source rule, method, and cutoff."""
+    definition = point["definition"]
+    tree = "Undated" if definition["tree_kind"] == "raw" else "Dated"
+    source = definition["baseline_data_process"][0].upper()
+    return (
+        f"{tree}\n{source} source\n{TREE_METHOD_LABELS[definition['method']]}\n"
+        f"{setting_label(point)}"
+    )

@@ -113,11 +113,16 @@ def create_figure(run, config, output, *, fmt="both") -> None:
             )
             for score in SCORES_BY_PROCESS[process]
         ]
-        ax.legend(handles=handles, title="Model (held-out AP)", loc="upper right", fontsize=7)
+        ax.legend(
+            handles=handles,
+            title="Model (held-out AP)",
+            loc="upper right",
+            fontsize=7,
+        )
         ax.set(
             title=f"{PROCESS_LABELS[process]} genetic observations",
-            xlabel="Target-pair recovery (recall)",
-            ylabel="Target-pair fraction (precision)",
+            xlabel="Recall",
+            ylabel="Precision",
             xlim=(0, 1),
             ylim=(0, 1),
         )

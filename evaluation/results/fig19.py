@@ -15,29 +15,24 @@ from ._boston.common import (
     BostonStudy,
     add_arguments,
     method_label,
+    setting_label,
 )
 
 
 def all_rows(study: BostonStudy, criterion: str):
     exposures = study.config["assessment"]["focus_exposures"]
     points = study.selected_points(criterion)
-    rank = {"components": 0, "leiden": 1, "treecluster": 2}
-    points.sort(
-        key=lambda point: (rank[point["definition"]["kind"]], point["pipeline"])
-    )
     labels = []
     concentration = np.full((len(points), len(exposures)), np.nan)
     recovery = np.full_like(concentration, np.nan)
     for i, point in enumerate(points):
-        label = method_label(point)
         definition = point["definition"]
-        if definition["kind"] == "treecluster":
-            source = definition["baseline_data_process"][0].upper()
-            cutoff = definition["threshold"]
-            units = "subs/site" if definition["tree_kind"] == "raw" else "d"
-            tree = "undated" if definition["tree_kind"] == "raw" else "dated"
-            label = f"TreeCluster {tree} [{source} source; {cutoff:g} {units}]"
-        labels.append(label)
+        setting = (
+            f"resolution {definition['resolution']:.2f}"
+            if definition["kind"] == "leiden"
+            else setting_label(point)
+        )
+        labels.append(f"{method_label(point)}; {setting}")
         for j, exposure in enumerate(exposures):
             named = study.representative(point, exposure)
             if named is not None:
@@ -53,7 +48,7 @@ def create_figure(
     fig, axes = style.new_figure(
         width="double",
         width_in=8.8,
-        height_in=9.4,
+        height_in=max(4.5, 1.8 + 0.30 * len(labels)),
         ncols=2,
         layout="constrained",
         sharey=True,
@@ -63,7 +58,7 @@ def create_figure(
     for ax, matrix, title, show_labels in zip(
         axes,
         (concentration, recovery),
-        ("Concentration in one cluster", "Recovery in one cluster"),
+        ("Exposure concentration (%)", "Exposure recovery (%)"),
         (True, False),
     ):
         image = ax.imshow(
@@ -99,7 +94,7 @@ def create_figure(
         ax=axes,
         orientation="horizontal",
         shrink=0.6,
-        label="Percentage of cases",
+        label="Percentage within the representative cluster / exposure group",
     )
     # endpoint = {"balanced_M0": "M=0", "balanced_Mle1": "M≤1", "balanced_Mle2": "M≤2"}[
     #     criterion

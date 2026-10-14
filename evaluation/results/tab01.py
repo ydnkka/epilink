@@ -12,6 +12,7 @@ from ._baseline.common import (
     SCORES_BY_PROCESS,
     add_arguments,
     format_metric,
+    graph_scorers,
     load_run,
     method_label,
     output_directory,
@@ -24,7 +25,7 @@ def main_pipelines(process: str) -> list[str]:
     scorers = SCORES_BY_PROCESS[process]
     return [
         *(f"pairwise/{scorer}" for scorer in scorers),
-        *(f"leiden/{scorer}" for scorer in scorers),
+        *(f"leiden/{scorer}" for scorer in graph_scorers("leiden", process)),
         f"treecluster/{process}/raw",
         f"treecluster/{process}/dated",
     ]
@@ -72,8 +73,8 @@ def main() -> None:
             "selected by mean development $F_1$ and applied unchanged. Both EpiLink "
             "inference formulations, genetic distance, and logistic regression are "
             "shown as pairwise rules. Full-graph Leiden uses EpiLink and logistic "
-            "scores as edge weights, with unweighted genetic-distance controls and "
-            "undated and dated TreeCluster. Leiden selects resolution only. Values are equally weighted "
+            "scores as edge weights, alongside undated and dated TreeCluster. "
+            "Leiden selects resolution only. Values are equally weighted "
             "means (sample SD) across three observation realisations on one fixed "
             "transmission tree, expressed as percentages. Cluster metrics include "
             r"every pair in the same cluster. Distant pairs have $M\ge3$; this measure does "

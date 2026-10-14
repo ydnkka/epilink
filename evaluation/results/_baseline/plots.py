@@ -17,8 +17,8 @@ from .common import (
     PROCESSES,
     SCORE_COLORS,
     SCORE_DESCRIPTIONS,
-    SCORES_BY_PROCESS,
     add_arguments,
+    graph_scorers,
     load_run,
     output_directory,
     read_json,
@@ -27,7 +27,7 @@ from .common import (
 
 APPROACHES = {
     "components": "Connected components",
-    "leiden": "Leiden",
+    "leiden": "Leiden communities",
     "treecluster_raw": "TreeCluster (undated tree)",
     "treecluster_dated": "TreeCluster (dated tree)",
 }
@@ -201,7 +201,7 @@ def create_approach_figure(
                 for method in TREE_METHODS
             ]
         else:
-            scorers = SCORES_BY_PROCESS[process]
+            scorers = graph_scorers(approach, process)
             variants = []
             for score in scorers:
                 pipeline = (
@@ -244,8 +244,8 @@ def create_approach_figure(
         for row in range(2):
             axes[row, col].set(xlim=(0, 1), ylim=(0, 1))
             axes[row, col].grid(axis="y", color="0.9")
-        axes[0, col].set_xlabel("Target-pair recovery (recall)")
-        axes[1, col].set_xlabel("Distant-pair contamination (M≥3)")
+        axes[0, col].set_xlabel("Recall")
+        axes[1, col].set_xlabel("Contamination with $M\\geq3$")
         if tree:
             handles = [
                 Line2D([0], [0], color=TREE_COLORS[method], label=TREE_LABELS[method])
@@ -272,8 +272,8 @@ def create_approach_figure(
         axes[0, col].legend(
             handles=handles, loc="upper right", title="Method" if tree else "Model"
         )
-    axes[0, 0].set_ylabel("Target-pair fraction (precision)")
-    axes[1, 0].set_ylabel("Target-pair $F_1$")
+    axes[0, 0].set_ylabel("Precision")
+    axes[1, 0].set_ylabel("$F_1$ score")
     # fig.suptitle(APPROACHES[approach], fontweight="bold")
     style.add_panel_labels(axes)
     paths = style.save_figure(

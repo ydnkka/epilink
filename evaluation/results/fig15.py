@@ -10,7 +10,6 @@ from epilink_evaluation.utils import style
 
 from ._perturbation.common import (
     PROCESS_LABELS,
-    PROCESSES,
     Study,
     add_arguments,
     paired_mode_contrast,
@@ -26,16 +25,16 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
     groups = tuple(
         (
             paired_mode_contrast(
-                study, metric="M0_f1", identifiers=identifiers,
+                study,
+                metric="M0_f1",
+                identifiers=identifiers,
                 clustering_mode=clustering,
             ).set_index(["scenario", "pipeline"]),
             clustering,
         )
         for clustering in ("baseline", "updated")
     )
-    bounds = [
-        symmetric_bound(group[["min", "max"]].to_numpy()) for group, _ in groups
-    ]
+    bounds = [symmetric_bound(group[["min", "max"]].to_numpy()) for group, _ in groups]
     fig, axes = style.new_figure(
         width="double",
         width_in=width,
@@ -57,17 +56,25 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
                 record = group.loc[scenario, name]
                 if record["count"] > 0:
                     mean = float(record["mean"])
-                    limits = np.array([
-                        [mean - record["min"]], [record["max"] - mean]
-                    ])
+                    limits = np.array([[mean - record["min"]], [record["max"] - mean]])
                     ax.errorbar(
-                        mean, index, xerr=limits, fmt="D", color="#0072B2",
-                        markersize=4.5, capsize=2, elinewidth=0.9,
+                        mean,
+                        index,
+                        xerr=limits,
+                        fmt="D",
+                        color="#0072B2",
+                        markersize=4.5,
+                        capsize=2,
+                        elinewidth=0.9,
                     )
                 if record["count"] != len(study.seeds):
                     ax.text(
-                        bounds[row] * 0.96, index, f"n={int(record['count'])}",
-                        ha="right", va="center", fontsize=6.5,
+                        bounds[row] * 0.96,
+                        index,
+                        f"n={int(record['count'])}",
+                        ha="right",
+                        va="center",
+                        fontsize=6.5,
                     )
             scenario_axis(ax, study, show_labels=col == 0)
             ax.axvline(0, color="0.45", linestyle="--", lw=0.9)
@@ -75,7 +82,9 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax.set_xlim(-bounds[row], bounds[row])
             ax.set_xlabel("Matched − baseline Δ $F_1$\n(percentage points)")
             if row == 0:
-                ax.set_title(f"{name.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations")
+                ax.set_title(
+                    f"{name.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations"
+                )
             if col == 0:
                 ax.set_ylabel(f"{clustering.capitalize()} resolution")
     style.add_panel_labels(axes)

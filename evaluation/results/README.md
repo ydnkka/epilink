@@ -29,7 +29,7 @@ stem; append `.pdf` or `.png` for the figure file.
 | Perturbation | `fig15`  | `fig15_epilink_mode_effect`              | Inference contrast at baseline/updated resolution                         |
 | Perturbation | `fig16`  | `fig16_parameter_sensitivity_overview`   | Compact four-mode overview                                                |
 | Boston       | `fig17`  | `fig17_boston_exposure_tradeoffs`        | Exposure concentration and recovery                                       |
-| Boston       | `fig18`  | `fig18_boston_partition_context`         | Partition burden and graph/tree agreement                                 |
+| Boston       | `fig18`  | `fig18_boston_partition_context`         | Singleton and largest-cluster shares by clustering approach               |
 | Boston       | `fig19`  | `fig19_boston_all_exposures_<criterion>` | All-exposures supplement                                                  |
 | Boston       | `fig20`  | `fig20_boston_all_agreement_<criterion>` | All-agreement supplement                                                  |
 
@@ -56,7 +56,9 @@ Monte Carlo sample count and scorer seed. The shared colorbar shows a compatibil
 score rather than a probability.
 
 `fig07` saves its calculation CSVs with the same prefix. `fig12` and `fig16` also
-save plotted means to same-named CSV files. These are descriptive extracts of
+save plotted means to same-named CSV files. `fig17` saves all plotted Boston
+exposure rows with frozen setting IDs and synthetic source rules. `fig18` saves
+partition counts and case-share percentages. These are descriptive extracts of
 validated saved results, without new method selection.
 
 ## Tables

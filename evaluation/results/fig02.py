@@ -265,7 +265,7 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
             for process in PROCESSES
         ],
         loc="upper left",
-        bbox_to_anchor=(top_axes[0].get_position().x0, 1.06),
+        bbox_to_anchor=(top_axes[0].get_position().x0, 1.1),
         ncol=len(PROCESSES),
         title="Genetic observations",
         borderaxespad=0,
@@ -273,33 +273,33 @@ def add_legends(fig: Figure, top_axes: Sequence[Axes]) -> None:
     fig.legend(
         handles=metric_legend_handles(SCORE_METRICS),
         loc="upper right",
-        bbox_to_anchor=(top_axes[-1].get_position().x1, 1.07),
+        bbox_to_anchor=(top_axes[-1].get_position().x1, 1.13),
         ncol=2,
         title="Metrics",
         borderaxespad=0,
     )
 
 
-def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
-    """Align each row label with its axes rather than fixed figure heights."""
-    labels = [
-        "Observation\nambiguity",
-        "Exact target links\nCC / Leiden",
-    ]
-    for ax, label in zip(row_axes, labels):
-        ax.annotate(
-            label,
-            xy=(-0.1, 0.5),
-            xytext=(-60, 0),
-            xycoords="axes fraction",
-            textcoords="offset points",
-            fontweight="bold",
-            ha="center",
-            va="center",
-        )
-        # bounds = ax.get_position()
-        # y_pos = (bounds.y0 + bounds.y1) / 2
-        # fig.text(bounds.x0 - 0.15, y_pos, label, ha="right", va="top")
+# def add_row_labels(fig: Figure, row_axes: Sequence[Axes]) -> None:
+#     """Align each row label with its axes rather than fixed figure heights."""
+#     labels = [
+#         "Observation\nambiguity",
+#         "Exact target links\nCC / Leiden",
+#     ]
+#     for ax, label in zip(row_axes, labels):
+#         ax.annotate(
+#             label,
+#             xy=(-0.1, 0.5),
+#             xytext=(-60, 0),
+#             xycoords="axes fraction",
+#             textcoords="offset points",
+#             fontweight="bold",
+#             ha="center",
+#             va="center",
+#         )
+#         # bounds = ax.get_position()
+#         # y_pos = (bounds.y0 + bounds.y1) / 2
+#         # fig.text(bounds.x0 - 0.15, y_pos, label, ha="right", va="top")
 
 
 def create_figure(
@@ -312,7 +312,7 @@ def create_figure(
     """Create and save the diagnostics figure."""
     fig, axes = style.new_figure(
         width="double",
-        height_in=4.5,
+        height_in=5,
         nrows=2,
         ncols=len(ENDPOINTS),
         layout="constrained",
@@ -339,7 +339,7 @@ def create_figure(
             y_max_ambiguity,
         )
         plot_oracle_pr(axes[1, col], data["graphs"], endpoint)
-        axes[0, col].set_title(ENDPOINT_LABELS[endpoint], fontweight="bold", pad=10)
+        axes[0, col].set_title(ENDPOINT_LABELS[endpoint], fontweight="bold", pad=0)
 
     axes[0, 0].yaxis.set_major_locator(MaxNLocator(nbins=4))
     axes[1, 0].set_yticks([0, 0.5, 1])
@@ -361,7 +361,7 @@ def create_figure(
 
     fig.align_ylabels(axes[:, 0])
     add_legends(fig, axes[0])
-    add_row_labels(fig, axes[:, 0])
+    # add_row_labels(fig, axes[:, 0])
     style.add_panel_labels(axes.ravel())
 
     saved_paths = style.save_figure(

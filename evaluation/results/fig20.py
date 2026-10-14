@@ -9,22 +9,19 @@ import numpy as np
 
 from epilink_evaluation.utils import style
 
-from ._boston.common import CRITERIA, BostonStudy, add_arguments, method_label
+from ._boston.common import (
+    CRITERIA,
+    BostonStudy,
+    add_arguments,
+    method_label,
+    tree_label,
+)
 
 
 def agreement_grid(study: BostonStudy, criterion: str):
     points = study.selected_points(criterion)
-    graph = sorted(
-        (point for point in points if point["definition"]["kind"] != "treecluster"),
-        key=lambda point: point["pipeline"],
-    )
-    trees = sorted(
-        (point for point in points if point["definition"]["kind"] == "treecluster"),
-        key=lambda point: (
-            {"raw": 0, "dated": 1}[point["definition"]["tree_kind"]],
-            point["definition"]["baseline_data_process"],
-        ),
-    )
+    graph = [point for point in points if point["definition"]["kind"] != "treecluster"]
+    trees = [point for point in points if point["definition"]["kind"] == "treecluster"]
     if not graph or not trees:
         raise ValueError(f"Missing frozen graph or tree comparators for {criterion}")
     values = {
@@ -46,11 +43,7 @@ def agreement_grid(study: BostonStudy, criterion: str):
     if not all(np.isfinite(matrix).all() for matrix in values.values()):
         raise ValueError("Undefined agreement among frozen Boston partitions")
     labels = [method_label(point) for point in graph]
-    tree_labels = [
-        f"{'Undated' if point['definition']['tree_kind'] == 'raw' else 'Dated'}\n"
-        f"[{point['definition']['baseline_data_process'][0].upper()} source]"
-        for point in trees
-    ]
+    tree_labels = [tree_label(point) for point in trees]
     return values, labels, tree_labels
 
 
@@ -61,7 +54,7 @@ def create_figure(
     fig, axes = style.new_figure(
         width="double",
         width_in=10,
-        height_in=8.2,
+        height_in=max(4.5, 1.8 + 0.42 * len(labels)),
         ncols=2,
         layout="constrained",
         sharey=True,
@@ -83,7 +76,7 @@ def create_figure(
             interpolation="nearest",
         )
         ax.set_title(title)
-        ax.set_xticks(range(len(tree_labels)), tree_labels)
+        ax.set_xticks(range(len(tree_labels)), tree_labels, fontsize=7)
         ax.set_yticks(range(len(labels)), labels, fontsize=7.5)
         ax.tick_params(axis="y", labelleft=show_labels)
         for (row, col), value in np.ndenumerate(matrix):
