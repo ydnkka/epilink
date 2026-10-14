@@ -1,4 +1,4 @@
-"""Rebuild figures 01–20 in order and the four LaTeX tables from saved results."""
+"""Rebuild figures 01–20 in order and the five LaTeX tables from saved results."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def main() -> None:
                 "tab03",
             ),
         ),
-        (args.boston_run, ("fig17", "fig18", "fig19", "fig20", "tab04")),
+        (args.boston_run, ("fig17", "fig18", "fig19", "fig20", "tab04", "tab05")),
     )
     # Separate processes release each figure's raster memory before the next display.
     for run, modules in groups:

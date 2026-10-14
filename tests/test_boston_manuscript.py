@@ -10,18 +10,32 @@ import pytest
 manuscript = importlib.import_module("evaluation.results._boston.common")
 
 
-def completed_study(tmp_path):
+def completed_study(tmp_path, *, other_exposures=False):
+    exposures = [
+        "Conference", "Conference", "SNF", "SNF", "Unlabeled", "Unlabeled"
+    ]
+    clusters = {
+        0: {"Conference": 2, "Unlabeled": 1},
+        1: {"SNF": 1, "Unlabeled": 1},
+        2: {"SNF": 1},
+    }
+    if other_exposures:
+        exposures = [
+            "Conference", "Conference", "SNF", "SNF", "BHCHP", "City",
+            "Unlabeled", "Unlabeled",
+        ]
+        clusters = {
+            0: {"Conference": 2, "Unlabeled": 1},
+            1: {"SNF": 1, "BHCHP": 1, "City": 1},
+            2: {"SNF": 1},
+            3: {"Unlabeled": 1},
+        }
+    n_cases = len(exposures)
+    n_all_pairs = n_cases * (n_cases - 1) // 2
     cases = pd.DataFrame(
         {
-            "case_id": [str(i) for i in range(6)],
-            "Exposure": [
-                "Conference",
-                "Conference",
-                "SNF",
-                "SNF",
-                "Unlabeled",
-                "Unlabeled",
-            ],
+            "case_id": [str(i) for i in range(n_cases)],
+            "Exposure": exposures,
         }
     )
     cases.to_parquet(tmp_path / "cases.parquet", index=False)
@@ -46,9 +60,9 @@ def completed_study(tmp_path):
         json.dumps(
             {
                 "cases_path": str(tmp_path / "cases.parquet"),
-                "n_cases": 6,
+                "n_cases": n_cases,
                 "n_observed_pairs": 12,
-                "n_all_pairs": 15,
+                "n_all_pairs": n_all_pairs,
                 "alignment_length": 30000,
             }
         )
@@ -56,7 +70,7 @@ def completed_study(tmp_path):
     (tmp_path / "reference.json").write_text(
         json.dumps({"selection_fingerprint": "same"})
     )
-    settings, points, summaries, named = {}, [], [], []
+    settings, points, summaries, named, composition = {}, [], [], [], []
     graph_scorers = {
         "components": (
             "EDD", "EDS", "ESD", "ESS", "GD_D", "GD_S", "LOGIT_D", "LOGIT_S"
@@ -130,15 +144,41 @@ def completed_study(tmp_path):
             summaries.append(
                 {
                     **base,
-                    "n_clusters": 3,
-                    "n_singleton_cases": 1,
-                    "largest_cluster": 3,
+                    "n_clusters": len(clusters),
+                    "n_singleton_cases": sum(sum(counts.values()) == 1 for counts in clusters.values()),
+                    "largest_cluster": max(sum(counts.values()) for counts in clusters.values()),
                     "n_observed_pairs": 12,
-                    "n_all_pairs": 15,
-                    "candidate_coverage": 12 / 15,
+                    "n_all_pairs": n_all_pairs,
+                    "candidate_coverage": 12 / n_all_pairs,
                 }
             )
-            for exposure, cluster_n, exposed_n in (("Conference", 3, 2), ("SNF", 2, 1)):
+            for cluster_id, counts in clusters.items():
+                size = sum(counts.values())
+                for exposure, count in counts.items():
+                    composition.append(
+                        {
+                            **base,
+                            "cluster_id": cluster_id,
+                            "n_cases": size,
+                            "evidence_type": "Exposure",
+                            "evidence_label": exposure,
+                            "n_evidence": count,
+                            "fraction_in_cluster": count / size,
+                        }
+                    )
+                composition.append(
+                    {
+                        **base,
+                        "cluster_id": cluster_id,
+                        "n_cases": size,
+                        "evidence_type": "Clade",
+                        "evidence_label": "20A",
+                        "n_evidence": size,
+                        "fraction_in_cluster": 1,
+                    }
+                )
+            snf_size = 3 if other_exposures else 2
+            for exposure, cluster_n, exposed_n in (("Conference", 3, 2), ("SNF", snf_size, 1)):
                 named.append(
                     {
                         **base,
@@ -175,12 +215,15 @@ def completed_study(tmp_path):
     pd.DataFrame(named).to_csv(
         tmp_path / "assessment/named_cluster_overlaps.csv", index=False
     )
+    pd.DataFrame(composition).to_csv(
+        tmp_path / "assessment/cluster_composition.csv", index=False
+    )
     pd.DataFrame(
         [
             {
                 "setting_id": graph,
                 "tree_setting_id": tree,
-                "n_cases": 6,
+                "n_cases": n_cases,
                 "adjusted_rand": 0.1 * (tree_index % 4 + 1),
                 "adjusted_mutual_information": 0.02 * (graph_index % 14 + 1),
             }
@@ -189,6 +232,86 @@ def completed_study(tmp_path):
         ]
     ).to_csv(tmp_path / "assessment/tree_agreement.csv", index=False)
     return manuscript.BostonStudy.load(tmp_path)
+
+
+@pytest.mark.parametrize("criterion", ["balanced_M0", "balanced_Mle1", "balanced_Mle2"])
+def test_all_cluster_table_keeps_every_exposure_cluster_and_singleton(tmp_path, criterion):
+    table = importlib.import_module("evaluation.results.tab05")
+    study = completed_study(tmp_path)
+    frame = table.cluster_exposure_rows(study, criterion)
+    assert len(frame) == 54
+    assert frame.setting_id.nunique() == 18
+    assert set(frame.criterion) == {criterion}
+    assert set(frame.exposure) == {"Conference", "SNF"}
+    assert not frame.duplicated(["setting_id", "cluster_id", "exposure"]).any()
+    assert frame.n_cases.eq(1).sum() == 18
+    point = study.point("components/EDD", criterion)
+    subset = frame.loc[frame.setting_id == point["setting_id"]]
+    assert subset.cluster_id.tolist() == [0, 1, 2]
+    assert subset.n_cases.tolist() == [3, 2, 1]
+    assert subset.n_exposure.tolist() == [2, 1, 1]
+    np.testing.assert_allclose(subset.concentration_percent, [100 * 2 / 3, 50, 100])
+    np.testing.assert_allclose(subset.recovery_percent, [100, 50, 50])
+    assert all(len(row) == 9 for row in table.build_rows(frame))
+
+
+def test_all_cluster_table_includes_other_groups_and_excludes_unlabelled_clusters(tmp_path):
+    table = importlib.import_module("evaluation.results.tab05")
+    study = completed_study(tmp_path, other_exposures=True)
+    frame = table.cluster_exposure_rows(study)
+    assert len(frame) == 90
+    assert set(frame.exposure) == {"Conference", "SNF", "BHCHP", "City"}
+    assert set(frame.cluster_id) == {0, 1, 2}  # Cluster 3 has only unlabelled sequences.
+    assert len(frame.drop_duplicates(["setting_id", "cluster_id"])) == 54
+    point = study.point("components/EDD")
+    mixed = frame.loc[(frame.setting_id == point["setting_id"]) & frame.cluster_id.eq(1)]
+    assert set(mixed.exposure) == {"SNF", "BHCHP", "City"}
+    assert mixed.n_cases.eq(3).all()
+    np.testing.assert_allclose(mixed.concentration_percent, 100 / 3)
+    assert mixed.loc[mixed.exposure == "SNF", "recovery_percent"].iloc[0] == 50
+    assert mixed.loc[mixed.exposure == "BHCHP", "recovery_percent"].iloc[0] == 100
+    tex_path, csv_path = table.create_table(study, tmp_path / "tables")
+    assert tex_path.exists() and csv_path.exists()
+    caption = tex_path.read_text()
+    assert "Clusters of one sequence are included" in caption
+    assert "\\begin{longtable}" in caption
+    exported = pd.read_csv(csv_path)
+    pd.testing.assert_frame_equal(exported, frame, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "damage", ["duplicate", "missing_setting", "missing_cluster", "missing_count", "fraction", "pipeline", "totals"]
+)
+def test_all_cluster_table_rejects_incomplete_or_inconsistent_composition(tmp_path, damage):
+    table = importlib.import_module("evaluation.results.tab05")
+    study = completed_study(tmp_path)
+    path = tmp_path / "assessment/cluster_composition.csv"
+    composition = pd.read_csv(path)
+    identifier = study.point("components/EDD")["setting_id"]
+    if damage == "duplicate":
+        composition = pd.concat([composition, composition.iloc[[0]]], ignore_index=True)
+    elif damage == "missing_setting":
+        composition = composition.loc[composition.setting_id != identifier]
+    elif damage == "missing_cluster":
+        composition = composition.loc[
+            ~((composition.setting_id == identifier) & composition.cluster_id.eq(2))
+        ]
+    elif damage == "missing_count":
+        composition = composition.loc[
+            ~(
+                (composition.setting_id == identifier) & composition.cluster_id.eq(0)
+                & composition.evidence_type.eq("Exposure") & composition.evidence_label.eq("Unlabeled")
+            )
+        ]
+    elif damage == "fraction":
+        composition.loc[0, "fraction_in_cluster"] = 0.9
+    elif damage == "pipeline":
+        composition.loc[0, "pipeline"] = "leiden/EDD"
+    else:
+        composition.loc[0, "evidence_label"] = "SNF"
+    composition.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="Boston.*(exposure|cluster|composition)"):
+        table.cluster_exposure_rows(study)
 
 
 def test_focused_boston_outputs_keep_both_exposure_denominators(tmp_path):
