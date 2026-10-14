@@ -1,4 +1,4 @@
-"""Details of every Boston cluster containing sequences with known exposures."""
+"""Details of Boston clusters containing Conference or SNF sequences."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ COMPOSITION_COLUMNS = (
 def cluster_exposure_rows(
     study: BostonStudy, criterion: str = "balanced_M0"
 ) -> pd.DataFrame:
-    """Validate complete exposure counts before extracting all labelled clusters."""
+    """Validate complete counts before extracting Conference and SNF clusters."""
     points = study.selected_points(criterion)
     ids = {point["setting_id"] for point in points}
     composition = pd.read_csv(
@@ -96,9 +96,9 @@ def cluster_exposure_rows(
             }
         )
 
-    rows = composition.loc[composition.evidence_label.ne("Unlabeled")].rename(
-        columns={"evidence_label": "exposure", "n_evidence": "n_exposure"}
-    )
+    rows = composition.loc[
+        composition.evidence_label.isin(("Conference", "SNF"))
+    ].rename(columns={"evidence_label": "exposure", "n_evidence": "n_exposure"})
     rows = rows.merge(pd.DataFrame(metadata), on="setting_id", validate="many_to_one")
     rows["exposure_total"] = rows.exposure.map(study.exposure_totals)
     rows["concentration_percent"] = 100 * rows.n_exposure / rows.n_cases
@@ -157,23 +157,23 @@ def create_table(study: BostonStudy, output, criterion: str = "balanced_M0"):
     path = write_latex_longtable(
         output / f"{prefix}.tex",
         caption=(
-            "Details of every Boston cluster containing at least one sequence with "
-            f"a known exposure label, for all methods selected for {endpoint} in "
+            "Details of every Boston cluster containing at least one Conference "
+            f"or SNF sequence, for all methods selected for {endpoint} in "
             "synthetic development data. Each row describes one cluster and one "
-            "exposure group present in that cluster. Clusters of one sequence are "
+            "of these exposure groups present in that cluster. Clusters of one sequence are "
             "included. Cluster IDs are specific to each method and selected setting. "
-            "Cluster n counts all sequences in the cluster, including those without "
-            "a known exposure. Labelled n counts sequences from the exposure group "
+            "Cluster $n$ counts all sequences in the cluster, including sequences "
+            "from other exposure groups and those without a known exposure. "
+            "Labelled $n$ counts sequences from the Conference or SNF group "
             "in that cluster, and group total counts all sequences from that group "
-            "in Boston. Concentration is labelled n divided by cluster n; recovery "
-            "is labelled n divided by group total. Both are percentages. SNF means "
-            "skilled nursing facility, and BHCHP means Boston Health Care for the "
-            "Homeless Program. D and S refer to conditions in the synthetic analysis. "
+            "in Boston. Concentration is labelled $n$ divided by cluster $n$; recovery "
+            "is labelled $n$ divided by group total. Both are percentages. SNF means "
+            "skilled nursing facility. D and S refer to conditions in the synthetic analysis. "
             "Exposure labels describe the resulting clusters and were not used to "
             "choose the clustering settings."
         ),
         caption_is_latex=True,
-        short_caption="Boston clusters containing sequences with known exposures",
+        short_caption="Boston clusters containing Conference or SNF sequences",
         label=f"tab:boston_exposure_clusters_{criterion}",
         columns=[
             "Method",

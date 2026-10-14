@@ -63,13 +63,13 @@ validated saved results, without new method selection.
 
 ## Tables
 
-| Producer | Output                                           | Content                                                                |
-| -------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| `tab01`  | `tab01_operating_points.tex`                     | Compact held-out pairwise and clustering comparison                    |
-| `tab02`  | `tab02_operating_points_full.tex`                | All primary-target selected methods and cluster summaries              |
-| `tab03`  | `tab03_fresh_control_performance.tex`            | Fresh controls used for paired sensitivity comparisons                 |
-| `tab04`  | `tab04_boston_frozen_exposures.tex`              | Boston exposure counts and representative-cluster summaries            |
-| `tab05`  | `tab05_boston_exposure_clusters_<criterion>.tex` | Every Boston cluster containing a sequence with a known exposure label |
+| Producer | Output                                           | Content                                                                 |
+| -------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| `tab01`  | `tab01_operating_points.tex`                     | Compact held-out pairwise and clustering comparison                     |
+| `tab02`  | `tab02_operating_points_full.tex`                | All primary-target selected methods and cluster summaries               |
+| `tab03`  | `tab03_fresh_control_performance.tex`            | Fresh controls used for paired sensitivity comparisons                  |
+| `tab04`  | `tab04_boston_frozen_exposures.tex`              | Boston exposure counts and representative-cluster summaries             |
+| `tab05`  | `tab05_boston_exposure_clusters_<criterion>.tex` | Every Boston cluster containing at least one Conference or SNF sequence |
 
 The main baseline table includes both ED and ES inference within each genetic
 observation process. The full table retains connected components and one

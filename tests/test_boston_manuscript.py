@@ -22,13 +22,15 @@ def completed_study(tmp_path, *, other_exposures=False):
     if other_exposures:
         exposures = [
             "Conference", "Conference", "SNF", "SNF", "BHCHP", "City",
-            "Unlabeled", "Unlabeled",
+            "Unlabeled", "Unlabeled", "BHCHP", "City",
         ]
         clusters = {
             0: {"Conference": 2, "Unlabeled": 1},
             1: {"SNF": 1, "BHCHP": 1, "City": 1},
             2: {"SNF": 1},
             3: {"Unlabeled": 1},
+            4: {"BHCHP": 1},
+            5: {"City": 1},
         }
     n_cases = len(exposures)
     n_all_pairs = n_cases * (n_cases - 1) // 2
@@ -255,25 +257,27 @@ def test_all_cluster_table_keeps_every_exposure_cluster_and_singleton(tmp_path, 
     assert all(len(row) == 9 for row in table.build_rows(frame))
 
 
-def test_all_cluster_table_includes_other_groups_and_excludes_unlabelled_clusters(tmp_path):
+def test_cluster_table_limits_exposures_but_preserves_full_cluster_sizes(tmp_path):
     table = importlib.import_module("evaluation.results.tab05")
     study = completed_study(tmp_path, other_exposures=True)
     frame = table.cluster_exposure_rows(study)
-    assert len(frame) == 90
-    assert set(frame.exposure) == {"Conference", "SNF", "BHCHP", "City"}
-    assert set(frame.cluster_id) == {0, 1, 2}  # Cluster 3 has only unlabelled sequences.
+    assert len(frame) == 54
+    assert set(frame.exposure) == {"Conference", "SNF"}
+    # Clusters with only unlabelled, BHCHP, or City sequences are excluded.
+    assert set(frame.cluster_id) == {0, 1, 2}
     assert len(frame.drop_duplicates(["setting_id", "cluster_id"])) == 54
     point = study.point("components/EDD")
     mixed = frame.loc[(frame.setting_id == point["setting_id"]) & frame.cluster_id.eq(1)]
-    assert set(mixed.exposure) == {"SNF", "BHCHP", "City"}
+    assert mixed.exposure.tolist() == ["SNF"]
     assert mixed.n_cases.eq(3).all()
     np.testing.assert_allclose(mixed.concentration_percent, 100 / 3)
     assert mixed.loc[mixed.exposure == "SNF", "recovery_percent"].iloc[0] == 50
-    assert mixed.loc[mixed.exposure == "BHCHP", "recovery_percent"].iloc[0] == 100
     tex_path, csv_path = table.create_table(study, tmp_path / "tables")
     assert tex_path.exists() and csv_path.exists()
     caption = tex_path.read_text()
     assert "Clusters of one sequence are included" in caption
+    assert "Conference or SNF" in caption
+    assert "BHCHP" not in caption
     assert "\\begin{longtable}" in caption
     exported = pd.read_csv(csv_path)
     pd.testing.assert_frame_equal(exported, frame, check_dtype=False)
