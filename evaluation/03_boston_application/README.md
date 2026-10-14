@@ -15,8 +15,8 @@ Empirical clustering analysis of SARS-CoV-2 sequences from Boston outbreaks (Mar
 
 Frozen-transfer analysis:
 
-| Analysis | Settings | Evidence |
-|----------|----------|----------|
+| Analysis                            | Settings                           | Evidence                                       |
+| ----------------------------------- | ---------------------------------- | ---------------------------------------------- |
 | **Frozen transfer** (`--stage all`) | Baseline-selected operating points | Empirical partitions, focus-exposure summaries |
 
 **Evidence:** cluster memberships, exposure composition/recovery, cluster-size summaries, partition agreement. Concentration + recovery interpreted together: small pure cluster = few exposed cases; large cluster = many with little concentration. No transmission truth; descriptive epidemiological evidence (not transmission accuracy).
@@ -60,24 +60,24 @@ CLI: `epilink-evaluate boston --config evaluation/03_boston_application/config.y
 
 Edit [`config.yaml`](config.yaml):
 
-| Field | Meaning |
-|-------|---------|
-| `baseline_run` | Completed baseline run or `current.json` pointer |
-| `output_directory` | Boston output root (separate from baseline) |
-| `inputs.data_root` | Root for `raw/boston/` source files |
-| `inputs.cases_path`, `inputs.pairs_path` | Prepared tables (default `outputs/inputs/`); independent of run output root |
-| `scorers` | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. ES→ESS, ED→EDS aliases (cannot combine) |
-| `assessment.treecluster_path` | Optional external TreeCluster partition (TSV: `SequenceName`, `ClusterNumber`; `-1` = singletons) |
-| `assessment.focus_exposures` | Exposure labels (default: Conference, SNF) |
-| `assessment.min_cluster_size` | Min cluster size for focus analysis (default: 2) |
-| `trees.enabled` | Infer raw/dated trees + TreeCluster (supplied: true; loader: false) |
-| `trees.alignment_path` | Boston FASTA (required if `trees.enabled`) |
-| `trees.reference_path` | Aligned reference FASTA (required if `trees.enabled`) |
-| `phylogeny.executable` | IQ-TREE name/path (`iqtree` discovers `iqtree3`/`iqtree2`/`iqtree`) |
-| `phylogeny.model`, `threads`, `seed` | Model (MFP), threads, IQ-TREE seed |
-| `phylogeny.clock_rate` | Fixed rate (subs/site/day); null = LSD2 estimation |
-| `phylogeny.timeout` | IQ-TREE/LSD2 limit (seconds) |
-| `treecluster.executable`, `treecluster.timeout` | Optional runtime overrides (methods/cutoffs frozen from baseline) |
+| Field                                           | Meaning                                                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `baseline_run`                                  | Completed baseline run or `current.json` pointer                                                    |
+| `output_directory`                              | Boston output root (separate from baseline)                                                         |
+| `inputs.data_root`                              | Root for `raw/boston/` source files                                                                 |
+| `inputs.cases_path`, `inputs.pairs_path`        | Prepared tables (default `outputs/inputs/`); independent of run output root                         |
+| `scorers`                                       | Subset of EDD, EDS, ESD, ESS, GD_S, GD_D, LOGIT_S, LOGIT_D. ES→ESS, ED→EDS aliases (cannot combine) |
+| `assessment.treecluster_path`                   | Optional external TreeCluster partition (TSV: `SequenceName`, `ClusterNumber`; `-1` = singletons)   |
+| `assessment.focus_exposures`                    | Exposure labels (default: Conference, SNF)                                                          |
+| `assessment.min_cluster_size`                   | Min cluster size for focus analysis (default: 2)                                                    |
+| `trees.enabled`                                 | Infer raw/dated trees + TreeCluster (supplied: true; loader: false)                                 |
+| `trees.alignment_path`                          | Boston FASTA (required if `trees.enabled`)                                                          |
+| `trees.reference_path`                          | Aligned reference FASTA (required if `trees.enabled`)                                               |
+| `phylogeny.executable`                          | IQ-TREE name/path (`iqtree` discovers `iqtree3`/`iqtree2`/`iqtree`)                                 |
+| `phylogeny.model`, `threads`, `seed`            | Model (MFP), threads, IQ-TREE seed                                                                  |
+| `phylogeny.clock_rate`                          | Fixed rate (subs/site/day); null = LSD2 estimation                                                  |
+| `phylogeny.timeout`                             | IQ-TREE/LSD2 limit (seconds)                                                                        |
+| `treecluster.executable`, `treecluster.timeout` | Optional runtime overrides (methods/cutoffs frozen from baseline)                                   |
 
 EpiLink parameters, Monte Carlo, logistic models, component cutoffs, Leiden resolutions, TreeCluster methods/cutoffs: from baseline. Leiden graphs: all observed pairs retained. Raw TreeCluster: SNP counts from synthetic alignment length → Boston alignment length. Dated rules: days (unchanged). Unit conversion; source setting ID retained.
 
@@ -85,12 +85,12 @@ EpiLink parameters, Monte Carlo, logistic models, component cutoffs, Leiden reso
 
 Source files: `data/raw/boston/`:
 
-| File | Role |
-|------|------|
-| `MGH_DPH_98percent_772samples_metadata.csv` | Case metadata (collection dates, exposure flags) |
-| `MGH_DPH_98percent_772samples_nextclade.tsv` | Nextclade clades, substitutions |
+| File                                              | Role                                              |
+| ------------------------------------------------- | ------------------------------------------------- |
+| `MGH_DPH_98percent_772samples_metadata.csv`       | Case metadata (collection dates, exposure flags)  |
+| `MGH_DPH_98percent_772samples_nextclade.tsv`      | Nextclade clades, substitutions                   |
 | `MGH_DPH_98percent_772samples_tn93_distances.csv` | Pairwise TN93 distances (censored at 0.0005/site) |
-| `MGH_DPH_98percent_772samples_aligned.fasta` | Aligned sequences (tree building, uncensored) |
+| `MGH_DPH_98percent_772samples_aligned.fasta`      | Aligned sequences (tree building, uncensored)     |
 
 `prepare` stage (`epilink-evaluate boston --stage prepare`): derives `cases.parquet`, `observed_pairs.parquet` + provenance (`evaluation/03_boston_application/outputs/inputs/`). Computational stages: same preparation, reuse matching artifacts. `--output`: changes run root (not shared input paths). TN93: **distance-censored** (missing pairs = unobserved, not zero). Candidate universe: explicit in manifest.
 
@@ -144,13 +144,13 @@ Default: `outputs/boston/current.json`. Output: `evaluation/results/outputs/03_b
 
 `fig17` includes every selected `balanced_M0` cluster method, including both D/S source variants. As in `fig12`, marker shapes identify the clustering approach and colours identify the scorer family; D/S variants share family colours and tree markers are neutral. Hollow markers denote deterministic source rules and filled markers denote stochastic source rules. Four-column legends below the plots show both fill styles for every method. The plotted rows, frozen setting IDs, and source rules are saved to `fig17_boston_exposure_tradeoffs.csv`.
 
-| Output | Manuscript role |
-|--------|-----------------|
-| `tab04_boston_frozen_exposures.tex` | Main table: frozen resolutions/cutoffs, Conference/SNF exposed counts/denominators, representative-cluster size, concentration (`n_exposure / n_cases`), recovery (`n_exposure / exposure_total`), clusters, singletons, largest cluster. `utils/latex_tables.py` environment. |
-| `fig17_boston_exposure_tradeoffs` | Main figure: recovery vs concentration for every selected M=0 clusterer (**one representative eligible cluster** per pipeline), separate method-marker/scorer-colour legends, cluster-size-dependent point areas, reference lines (exposure prevalence), and plotted-data CSV. Large impure group: many cases, low concentration. |
-| `fig18_boston_partition_context` | Main figure: all selected M=0 rules in separate Leiden, connected-component, and TreeCluster grid cells, comparing singleton-case and largest-cluster shares of all Boston cases. Plotted counts and percentages are also saved as CSV. |
-| `fig19_boston_all_exposures_<criterion>` | Supplement (per criterion): concentration/recovery (Conference/SNF) in all frozen component, similarity-weighted Leiden, and TreeCluster partitions. Single-line labels include their rules; Leiden resolutions use two decimals. No eligible cluster = undefined (not zero). |
-| `fig20_boston_all_agreement_<criterion>` | Supplement (per criterion): all graph-vs-tree ARI/AMI combinations. Tree axes identify type, method, cutoff, and D/S source (same empirical raw/dated trees). |
+| Output                                   | Manuscript role                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tab04_boston_frozen_exposures.tex`      | Main table: frozen resolutions/cutoffs, Conference/SNF exposed counts/denominators, representative-cluster size, concentration (`n_exposure / n_cases`), recovery (`n_exposure / exposure_total`), clusters, singletons, largest cluster. `utils/latex_tables.py` environment.                                                    |
+| `fig17_boston_exposure_tradeoffs`        | Main figure: recovery vs concentration for every selected M=0 clusterer (**one representative eligible cluster** per pipeline), separate method-marker/scorer-colour legends, cluster-size-dependent point areas, reference lines (exposure prevalence), and plotted-data CSV. Large impure group: many cases, low concentration. |
+| `fig18_boston_partition_context`         | Main figure: all selected M=0 rules in separate Leiden, connected-component, and TreeCluster grid cells, comparing singleton-case and largest-cluster shares of all Boston cases. Plotted counts and percentages are also saved as CSV.                                                                                           |
+| `fig19_boston_all_exposures_<criterion>` | Supplement (per criterion): concentration/recovery (Conference/SNF) in all frozen component, similarity-weighted Leiden, and TreeCluster partitions. Single-line labels include their rules; Leiden resolutions use two decimals. No eligible cluster = undefined (not zero).                                                     |
+| `fig20_boston_all_agreement_<criterion>` | Supplement (per criterion): all graph-vs-tree ARI/AMI combinations. Tree axes identify type, method, cutoff, and D/S source (same empirical raw/dated trees).                                                                                                                                                                     |
 
 Representative cluster: eligible cluster with **largest number of labelled exposure cases** per frozen setting; recovery = **that one cluster**. Exposure metadata: description (not model tuning). `cluster_composition.csv`: complete exposure/clade/mutation composition. `named_tree_overlaps.csv`: graph/tree overlaps. No external comparator: `best_cluster_overlaps.csv` empty. Candidate-pair coverage: censored graph scoring; IQ-TREE: full alignment. Descriptive empirical results (not transmission accuracy/outbreak replicates).
 
@@ -165,13 +165,13 @@ Representative cluster: eligible cluster with **largest number of labelled expos
 
 ## Troubleshooting
 
-| Symptom | Check / Action |
-|---------|----------------|
-| `Executable not found: iqtree` | Install IQ-TREE ≥2.0.6 or set `phylogeny.executable` |
-| `Reference has no selected ... TreeCluster settings` | Baseline must have completed `--stage evaluate` with TreeCluster enabled + selected settings |
-| `Boston scorers must be a unique nonempty subset` | Valid scorer names; ES/ESS, ED/EDS = aliases (cannot combine) |
+| Symptom                                                       | Check / Action                                                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Executable not found: iqtree`                                | Install IQ-TREE ≥2.0.6 or set `phylogeny.executable`                                                     |
+| `Reference has no selected ... TreeCluster settings`          | Baseline must have completed `--stage evaluate` with TreeCluster enabled + selected settings             |
+| `Boston scorers must be a unique nonempty subset`             | Valid scorer names; ES/ESS, ED/EDS = aliases (cannot combine)                                            |
 | `Scientific implementation/dependencies differ from baseline` | Boston adapter (`inputs/boston.py`) excluded from baseline checks; other module changes = fresh baseline |
-| IQ-TREE/LSD2 inference failure | Inspect `backend/run-*/inference.log`; check reference length, unique case IDs, collection dates |
+| IQ-TREE/LSD2 inference failure                                | Inspect `backend/run-*/inference.log`; check reference length, unique case IDs, collection dates         |
 
 ## Scientific notes
 
