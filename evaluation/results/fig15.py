@@ -37,8 +37,8 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
     bounds = [symmetric_bound(group[["min", "max"]].to_numpy()) for group, _ in groups]
     fig, axes = style.new_figure(
         width="double",
-        width_in=width,
-        height_in=8.4,
+        # width_in=width,
+        height_in=8,
         nrows=2,
         ncols=len(panels),
         squeeze=False,
@@ -80,19 +80,21 @@ def create_figure(study: Study, output, *, fmt: str = "both") -> None:
             ax.axvline(0, color="0.45", linestyle="--", lw=0.9)
             ax.grid(axis="x", color="0.9")
             ax.set_xlim(-bounds[row], bounds[row])
-            ax.set_xlabel("Matched − baseline $\\Delta$ $F_1$\n(percentage points)")
             if row == 0:
                 ax.set_title(
-                    f"{name.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations"
+                    f"{name.split('/')[1]}\n{PROCESS_LABELS[process]}\ngenetic observations",
+                    pad=15,
+                    fontsize="medium",
                 )
             if col == 0:
                 ax.set_ylabel(f"{clustering.capitalize()} resolution")
+    fig.supxlabel("$M=0$, matched − baseline $\\Delta$ $F_1$ (percentage points)", x=0.62)
     style.add_panel_labels(axes)
     paths = style.save_figure(
         fig,
         output / "fig15_epilink_mode_effect",
         width="double",
-        width_in=width,
+        # width_in=width,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
@@ -24,21 +25,25 @@ def create_figure(study: Study, output, *, fmt="both"):
     metrics = ("M0_f1", "Mge3_contamination")
     frame = cluster_summary(study, metrics)
     panels = study.panels
-    width = max(style.FIG_WIDTHS_IN["double"], 3.3 * len(panels))
+    # width = max(style.FIG_WIDTHS_IN["double"], 3.3 * len(panels))
     # Validate joins and settings before displaying saved seed-level ranges.
     for metric in metrics:
         for _, pipeline in panels:
             for mode in study.config["modes"]:
                 study.matrix(frame, identifiers=(pipeline,), metric=metric, mode=mode)
-    fig, axes = style.new_figure(
-        width="double",
-        width_in=width,
-        height_in=8.6,
-        nrows=2,
-        ncols=len(panels),
-        squeeze=False,
-        layout="constrained",
+    style.set_theme()
+    fig = plt.figure(
+        figsize=(style.FIG_WIDTHS_IN["double"], 8), layout="constrained"
     )
+    row_labels = (
+        "M=0, $\\Delta$ $F_1$ (percentage points)",
+        "M=0, $\\Delta$ $M\\geq3$ contamination (percentage points)",
+    )
+    subfigures = fig.subfigures(nrows=2, ncols=1)
+    axes = np.empty((2, len(panels)), dtype=object)
+    for row, (subfig, label) in enumerate(zip(subfigures, row_labels)):
+        axes[row] = subfig.subplots(nrows=1, ncols=len(panels), squeeze=False)[0]
+        subfig.supxlabel(label, x=0.61)
     for row, metric in enumerate(metrics):
         bound = symmetric_bound(
             frame[[f"delta_{metric}_min", f"delta_{metric}_max"]].to_numpy() * 100
@@ -88,13 +93,9 @@ def create_figure(study: Study, output, *, fmt="both"):
             ax.axvline(0, color="0.4", linestyle="--", lw=0.8)
             ax.set_xlim(-bound, bound)
             ax.grid(axis="x", color="0.9")
-            ax.set_xlabel(
-                ("Δ M=0 $F_1$" if row == 0 else "Δ M≥3 contamination")
-                + " (percentage points)"
-            )
             if row == 0:
                 ax.set_title(
-                    f"{pipeline.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations"
+                    f"{pipeline.split('/')[1]}\n{PROCESS_LABELS[process]}\ngenetic observations", pad=15, fontsize="medium"
                 )
     fig.legend(
         handles=[
@@ -117,7 +118,7 @@ def create_figure(study: Study, output, *, fmt="both"):
         fig,
         output / "fig14_cluster_f1_contamination_ranges",
         width="double",
-        width_in=width,
+        # width_in=width,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )
