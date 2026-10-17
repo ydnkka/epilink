@@ -25,7 +25,7 @@ def create_figure(
     metrics = ("M0_f1", "Mge3_contamination")
     frame = cluster_summary(study, metrics)
     panels = study.panels
-    width = max(style.FIG_WIDTHS_IN["double"], 3.3 * len(panels))
+    # width = max(style.FIG_WIDTHS_IN["double"], 3.3 * len(panels))
     content, records = {}, []
     for process, pipeline in panels:
         labels = [MODE_LABELS[mode] for mode in study.config["modes"]]
@@ -60,8 +60,8 @@ def create_figure(
     }
     fig, axes = style.new_figure(
         width="double",
-        width_in=width,
-        height_in=8.2,
+        # width_in=width,
+        height_in=8,
         nrows=2,
         ncols=len(panels),
         squeeze=False,
@@ -83,18 +83,23 @@ def create_figure(
             axes[row, col].tick_params(axis="x", labelsize=6)
             if row == 0:
                 axes[row, col].set_title(
-                    f"{pipeline.split('/')[1]}\n{PROCESS_LABELS[process]} genetic observations"
+                    f"{pipeline.split('/')[1]}\n{PROCESS_LABELS[process]}\ngenetic observations",
+                    pad=15, fontsize="medium"
                 )
-            if col == 0:
-                axes[row, col].set_ylabel(
-                    "$F_1$ score" if row == 0 else "Contamination with $M\\geq3$"
-                )
+            # if col == 0:
+            #     axes[row, col].set_ylabel(
+            #         "$F_1$ score" if row == 0 else "Contamination with $M\\geq3$"
+            #     )
         fig.colorbar(
             axes[row, -1].images[0],
             ax=axes[row, :],
             orientation="horizontal",
             shrink=0.72,
-            label=("$\\Delta$ $M=0$ $F_1$" if row == 0 else "$\\Delta$ $M\\geq3$ contamination")
+            label=(
+                "$M=0$, $\\Delta$ $F_1$ score"
+                if row == 0
+                else "$M=0$, $\\Delta$ $M\\geq3$ contamination"
+            )
             + " (percentage points)",
         )
     style.add_panel_labels(axes)
@@ -102,7 +107,7 @@ def create_figure(
         fig,
         output / stem,
         width="double",
-        width_in=width,
+        # width_in=width,
         save_pdf=fmt in ("pdf", "both"),
         save_png=fmt in ("png", "both"),
     )

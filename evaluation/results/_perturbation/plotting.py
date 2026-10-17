@@ -46,7 +46,7 @@ def delta_heatmap(
         aspect="auto",
         interpolation="nearest",
     )
-    ax.set_xticks(range(len(names)), names)
+    ax.set_xticks(range(len(names)), names, rotation=-90)
     scenario_axis(ax, study, show_labels=labels_on_left)
     if annotate:
         for row in range(values.shape[0]):

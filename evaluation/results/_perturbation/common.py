@@ -71,7 +71,7 @@ class Study:
         if (
             manifest["status"] != "complete"
             or config["smoke_mode"]
-            or config["schema_version"] != 2
+            or config["schema_version"] != 1
         ):
             raise ValueError(
                 "Manuscript displays require a complete full clustering-only perturbation run"
