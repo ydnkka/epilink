@@ -110,7 +110,7 @@ def create_figure(study: Study, output, *, fmt="both"):
             for i, mode in enumerate(study.config["modes"])
         ],
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.07),
+        bbox_to_anchor=(0.6, -0.07),
         ncol=2,
     )
     style.add_panel_labels(axes)

@@ -26,7 +26,7 @@ Config: **EDD, EDS, ESD, ESS**, `balanced_M0` criterion. One `leiden/<scorer>` p
 | ESD | Stochastic | Deterministic |
 | ESS | Stochastic | Stochastic |
 
-Output: EpiLink clustering metrics/partitions. Feature ambiguity: [diagnostics](../00_synthetic_diagnostics/README.md).
+Output: EpiLink clustering metrics/partitions. Feature ambiguity: [diagnostics](../00_synthetic_diagnostics/README.md) and the paired perturbation comparison in fig16.
 
 ## Development and evaluation
 
@@ -100,7 +100,7 @@ python -m evaluation.results.tab03  # four-arm fresh-control clustering
 python -m evaluation.results.fig13  # F1/contamination heatmaps
 python -m evaluation.results.fig14  # paired means, seed-level ranges
 python -m evaluation.results.fig15  # matched-minus-baseline contrasts
-python -m evaluation.results.fig16  # four-arm overview
+python -m evaluation.results.fig16  # paired control/scenario observation ambiguity
 ```
 
-Options: `--run-dir`, `--output-dir`; figures: `--format pdf|png|both`. Output: `evaluation/results/outputs/02_synthetic_perturbation/<run-id>/`. Per scorer: labelled panel, grouped by observed genetics (EDD/ESD, EDS/ESS). All four modes visible. `fig15`: control-paired deltas (baseline/updated resolution). `tab03`: one row per scorer/mode (fresh control). `fig13`/`fig16` CSVs: scorer, pipeline, mode identifiers. Figures 13–16.
+Options: `--run-dir`, `--output-dir`; figures: `--format pdf|png|both`. Output: `evaluation/results/outputs/02_synthetic_perturbation/<run-id>/`. Per scorer: labelled panel, grouped by observed genetics (EDD/ESD, EDS/ESS). `fig13`/`fig14`: all four clustering modes. `fig15`: control-paired deltas (baseline/updated resolution). `fig16`: same-seed scenario-minus-control mixed-cell fractions for the combined genetics + sampling-time feature set. `tab03`: one row per scorer/mode (fresh control). `fig13` CSV: scorer, pipeline, and mode identifiers; `fig16` CSV: endpoint, observation process, scenario, and paired ambiguity summaries. Figures 13–16.
