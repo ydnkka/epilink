@@ -609,7 +609,6 @@ def _run_phylogeny(
     date_origin: date | None = None,
 ) -> PhylogenyResult:
     try:
-        from Bio import Phylo
         from Bio.Nexus.Nexus import NexusError
         from Bio.Phylo.NewickIO import NewickError
     except ImportError as error:
