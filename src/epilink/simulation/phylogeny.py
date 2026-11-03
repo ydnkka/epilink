@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import copy
 import io
+import logging
 import math
 import os
 import re
@@ -10,14 +10,19 @@ import subprocess
 import tempfile
 import textwrap
 from collections.abc import Hashable, Mapping
+from contextlib import contextmanager
 from datetime import date, datetime
 from numbers import Integral, Real
 from pathlib import Path
+from threading import Event, Thread
+from time import perf_counter
 from typing import TYPE_CHECKING, Literal
 
 import networkx as nx
 import numpy as np
 import pandas as pd
+from Bio.Phylo._io import read as read_phylo
+from Bio.Phylo._io import write as write_phylo
 
 from ..model import ConfigurationError, EpiLinkError
 from .genome import _PACK_SHIFTS, PackedGenomicData
@@ -33,6 +38,62 @@ _DATE_PATTERN = re.compile(rf'(?:^|[&,])\s*date\s*=\s*"?({_NUMBER})"?(?=,|$)')
 _RATE_PATTERN = re.compile(rf"^\s*rate\s+({_NUMBER})(?=\s|,|$)", re.MULTILINE)
 _DNA_ALPHABET = frozenset("ACGTRYSWKMBDHVN-?")
 _DateSource = Mapping[str, float | str | date] | str | os.PathLike[str]
+LOG = logging.getLogger(__name__)
+_IQTREE_MILESTONE = re.compile(
+    r"^(Reading alignment|Alignment has|Create initial parsimony|Computing ML distances|"
+    r"Calculating distance matrix|Generating \d+ parsimony trees|Computing log-likelihood|"
+    r"Do NNI search|BETTER TREE FOUND|Finish initializing|Current best tree score|"
+    r"Iteration \d+|TREE SEARCH COMPLETED|Performs final|BEST SCORE|Total wall-clock time|"
+    r"--- (?:Start|End) phylogenetic dating|Reading date file|\d+ dates extracted|"
+    r"Dating under|rate |TOTAL ELAPSED TIME|Date and Time|ERROR|WARNING)"
+    r"|INITIALIZING CANDIDATE TREE SET|OPTIMIZING CANDIDATE TREE SET"
+)
+
+
+@contextmanager
+def _iqtree_progress(log_path):
+    """Relay live milestones while preserving subprocess timeout and log handling."""
+    stop = Event()
+    started = perf_counter()
+
+    def monitor():
+        try:
+            with log_path.open(encoding="utf-8", errors="replace") as stream:
+                pending, last_partial = "", ""
+                last_heartbeat = started
+
+                def read_updates():
+                    nonlocal pending, last_partial
+                    pending += stream.read()
+                    lines = pending.split("\n")
+                    pending = lines.pop()
+                    for line in lines:
+                        message = line.strip()
+                        if _IQTREE_MILESTONE.search(message):
+                            LOG.info("IQ-TREE: %s", message)
+                    if pending != last_partial and _IQTREE_MILESTONE.search(pending.strip()):
+                        LOG.info("IQ-TREE: %s", pending.strip())
+                    last_partial = pending
+
+                while not stop.wait(1):
+                    read_updates()
+                    now = perf_counter()
+                    if now - last_heartbeat >= 60:
+                        LOG.info(
+                            "IQ-TREE running elapsed_seconds=%.1f log=%s", now - started, log_path
+                        )
+                        last_heartbeat = now
+                read_updates()
+        except OSError as error:
+            LOG.warning("IQ-TREE progress log unavailable: %s", error)
+
+    worker = Thread(target=monitor, name="iqtree-progress", daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        worker.join()
 
 
 class PhylogenyError(EpiLinkError, RuntimeError):
@@ -188,6 +249,30 @@ def _node_dates(
         ):
             clade.comment += f',calendar_date="{calendar_date.isoformat()}"'
     return frame
+
+
+def _dated_nexus(tree: Tree) -> str:
+    """Serialize translated tip labels without recursively copying the tree."""
+
+    tips = tree.get_terminals()
+    names = [tip.name for tip in tips]
+    translations = []
+    for i, name in enumerate(names, start=1):
+        label = name.replace("'", "''")
+        translations.append(f"{i} '{label}'")
+    newick = io.StringIO()
+    try:
+        for i, tip in enumerate(tips, start=1):
+            tip.name = str(i)
+        write_phylo(tree, newick, "newick", format_branch_length="%1.12g")
+    finally:
+        for tip, name in zip(tips, names, strict=True):
+            tip.name = name
+    translation = ",\n".join(translations)
+    return (
+        f"#NEXUS\nBegin trees;\nTranslate\n{translation};\n"
+        f"Tree dated = [&R] {newick.getvalue()}End;\n"
+    )
 
 
 def _validate_options(
@@ -596,7 +681,17 @@ def _run_phylogeny(
             options += " -w clock_rate.txt"
         command += ["--date", "sampling_dates.txt", "--date-options", options]
 
-    with paths["log"].open("w", encoding="utf-8") as log:
+    LOG.info(
+        "IQ-TREE inference and dating started samples=%s sites=%s model=%s threads=%s timeout=%s log=%s",
+        len(nodes),
+        len(reference_sequence),
+        model,
+        threads,
+        timeout,
+        paths["log"],
+    )
+    started = perf_counter()
+    with paths["log"].open("w", encoding="utf-8") as log, _iqtree_progress(paths["log"]):
         try:
             completed = subprocess.run(
                 command,
@@ -610,22 +705,28 @@ def _run_phylogeny(
             raise PhylogenyError(
                 f"IQ-TREE could not complete: {error}. See {paths['log']}."
             ) from error
+        finally:
+            log.flush()
     if completed.returncode != 0:
         raise PhylogenyError(
             f"IQ-TREE exited with status {completed.returncode}. See {paths['log']}."
         )
+    LOG.info(
+        "IQ-TREE finished elapsed_seconds=%.3f; process tree outputs", perf_counter() - started
+    )
 
     try:
-        raw_tree = Phylo.read(paths["iqtree_tree"], "newick")
+        raw_tree = read_phylo(paths["iqtree_tree"], "newick")
         _restore_tips(raw_tree, labels, set(labels))
         raw_tree.root_with_outgroup(reference_name)
-        Phylo.write(raw_tree, paths["raw_tree"], "newick", format_branch_length="%1.12g")
+        write_phylo(raw_tree, paths["raw_tree"], "newick", format_branch_length="%1.12g")
+        LOG.info("Raw phylogeny exported: %s", paths["raw_tree"])
         dated_tree = None
         node_dates = pd.DataFrame(columns=_DATE_COLUMNS)
         inferred_rate = None
         if dated:
             # LSD2's .timetree.nwk is in substitution units; its NEXUS has time lengths.
-            dated_tree = Phylo.read(paths["lsd_tree"], "nexus")
+            dated_tree = read_phylo(paths["lsd_tree"], "nexus")
             _restore_tips(dated_tree, labels, set(labels) - {_REFERENCE_ID})
             node_dates = _node_dates(dated_tree, nodes, dates, date_origin)
             rate_match = _RATE_PATTERN.search(paths["lsd_report"].read_text(encoding="utf-8"))
@@ -634,23 +735,17 @@ def _run_phylogeny(
             inferred_rate = float(rate_match.group(1))
             if not math.isfinite(inferred_rate) or inferred_rate <= 0:
                 raise PhylogenyError("LSD2 reported an invalid dating rate.")
-            Phylo.write(dated_tree, paths["dated_tree"], "newick", format_branch_length="%1.12g")
+            write_phylo(dated_tree, paths["dated_tree"], "newick", format_branch_length="%1.12g")
             # A NEXUS translate block preserves quoted case labels across readers.
-            nexus_tree = copy.deepcopy(dated_tree)
-            translations = []
-            for i, tip in enumerate(nexus_tree.get_terminals(), start=1):
-                label = tip.name.replace("'", "''")
-                translations.append(f"{i} '{label}'")
-                tip.name = str(i)
-            newick = io.StringIO()
-            Phylo.write(nexus_tree, newick, "newick", format_branch_length="%1.12g")
-            translation = ",\n".join(translations)
-            paths["dated_nexus"].write_text(
-                f"#NEXUS\nBegin trees;\nTranslate\n{translation};\n"
-                f"Tree dated = [&R] {newick.getvalue()}End;\n",
-                encoding="utf-8",
-            )
+            paths["dated_nexus"].write_text(_dated_nexus(dated_tree), encoding="utf-8")
             node_dates.to_csv(paths["node_dates"], sep="\t", index=False)
+            LOG.info(
+                "Dated phylogeny exported tips=%s node_dates=%s clock_rate=%s path=%s",
+                len(nodes),
+                len(node_dates),
+                inferred_rate,
+                paths["dated_tree"],
+            )
     except (OSError, ValueError, OverflowError, NewickError, NexusError, PhylogenyError) as error:
         raise PhylogenyError(
             f"Invalid IQ-TREE/LSD2 output: {error}. See {paths['log']}."

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import subprocess
@@ -14,6 +15,8 @@ from unittest.mock import patch
 import networkx as nx
 import numpy as np
 import pandas as pd
+from Bio.Phylo._io import read as read_phylo
+from Bio.Phylo.BaseTree import Clade, Tree
 
 from epilink import (
     ConfigurationError,
@@ -25,6 +28,7 @@ from epilink import (
     build_phylogenetic_tree,
     build_phylogenetic_tree_from_fasta,
 )
+from epilink.simulation.phylogeny import _dated_nexus
 
 try:
     from Bio import Phylo, SeqIO
@@ -128,6 +132,40 @@ class TestPhylogenyDependencies(unittest.TestCase):
 
 
 @unittest.skipUnless(Phylo is not None, "Install epilink[phylogeny] for phylogeny tests")
+class TestDeepTreeExport(unittest.TestCase):
+    def test_translated_nexus_preserves_deep_tree_and_labels(self):
+        clade = Clade(name="sample zero", branch_length=0.125, comment='&date="300"')
+        for index in range(1, 301):
+            clade = Clade(
+                branch_length=0.5,
+                comment=f'&date="{300 - index}"',
+                clades=[Clade(name=f"sample_{index}", branch_length=0.25), clade],
+            )
+        tree = Tree(root=clade, rooted=True)
+        tips = tree.get_terminals()
+        names = [tip.name for tip in tips]
+        comments = [node.comment for node in tree.find_clades()]
+        expected_distance = tree.distance("sample zero", "sample_300")
+        text = _dated_nexus(tree)
+        self.assertEqual([tip.name for tip in tips], names)
+        self.assertEqual([node.comment for node in tree.find_clades()], comments)
+        self.assertIn("301 'sample zero'", text)
+        restored = read_phylo(io.StringIO(text), "nexus")
+        for tip in restored.get_terminals():
+            tip.name = tip.name.strip("'")
+        self.assertEqual({tip.name for tip in restored.get_terminals()}, set(names))
+        self.assertAlmostEqual(restored.distance("sample zero", "sample_300"), expected_distance)
+
+    def test_export_failure_restores_original_tip_names(self):
+        tree = Tree(root=Clade(clades=[Clade(name="a'b"), Clade(name="sample two")]))
+        with patch("Bio.Phylo.write", side_effect=ValueError("writer failure")):
+            with self.assertRaisesRegex(ValueError, "writer failure"):
+                _dated_nexus(tree)
+        self.assertEqual([tip.name for tip in tree.get_terminals()], ["a'b", "sample two"])
+        self.assertIn("1 'a''b'", _dated_nexus(tree))
+
+
+@unittest.skipUnless(Phylo is not None, "Install epilink[phylogeny] for phylogeny tests")
 class TestPhylogeneticInference(unittest.TestCase):
     def setUp(self):
         self.temp = TemporaryDirectory()
@@ -147,6 +185,27 @@ class TestPhylogeneticInference(unittest.TestCase):
         return build_phylogenetic_tree(
             self.simulation, self.tree, output_dir=self.output_dir, **kwargs
         )
+
+    def test_backend_milestones_are_logged_without_alignment_table_noise(self):
+        def backend_progress(command, *, stdout, **kwargs):
+            stdout.write(
+                "Alignment has 4 sequences with 65 columns\n"
+                "epilink_tip_0 0.00% passed 100.00%\n"
+                "Iteration 10 / LogL: -100 / Time: 0h:0m:1s\n"
+                "--- Start phylogenetic dating ---\n"
+                "--- End phylogenetic dating ---\n"
+            )
+            return _write_backend_outputs(command, stdout=stdout, **kwargs)
+
+        self.backend.side_effect = backend_progress
+        with self.assertLogs("epilink.simulation.phylogeny", level="INFO") as captured:
+            self.build()
+        text = "\n".join(captured.output)
+        self.assertIn("IQ-TREE: Alignment has 4 sequences", text)
+        self.assertIn("IQ-TREE: Iteration 10", text)
+        self.assertIn("IQ-TREE: --- Start phylogenetic dating ---", text)
+        self.assertIn("Dated phylogeny exported", text)
+        self.assertNotIn("epilink_tip_0 0.00%", text)
 
     def test_sampled_sequence_selection_dates_and_units(self):
         before_tree = self.tree.copy()
@@ -176,9 +235,9 @@ class TestPhylogeneticInference(unittest.TestCase):
             {"reference", "42", "sample two"},
         )
         self.assertAlmostEqual(result.dated_tree.distance("42", "sample two"), 20.0)
-        exported = Phylo.read(result.output_paths["dated_tree"], "newick")
+        exported = read_phylo(result.output_paths["dated_tree"], "newick")
         self.assertAlmostEqual(exported.distance("42", "sample two"), 20.0)
-        nexus = Phylo.read(result.output_paths["dated_nexus"], "nexus")
+        nexus = read_phylo(result.output_paths["dated_nexus"], "nexus")
         self.assertTrue(nexus.rooted)
         # Biopython's legacy NEXUS reader leaves quotes on labels with spaces.
         nexus_sample = next(
@@ -712,7 +771,7 @@ class TestIQTreeIntegration(unittest.TestCase):
                     self.assertGreater(result.clock_rate, 0)
                     if rate is not None:
                         self.assertAlmostEqual(result.clock_rate, rate)
-                    exported = Phylo.read(result.output_paths["dated_tree"], "newick")
+                    exported = read_phylo(result.output_paths["dated_tree"], "newick")
                     self.assertAlmostEqual(
                         exported.distance("case-2", "case-3"),
                         result.dated_tree.distance("case-2", "case-3"),
