@@ -366,7 +366,6 @@ should contribute to the score.
 ## Documentation
 
 - Model derivation: [docs/epilink.md](docs/epilink.md)
-- Usage guide: [docs/usage_guide.ipynb](docs/usage_guide.ipynb)
 - Workflow figure: [docs/epilink_schematic.pdf](docs/epilink_schematic.pdf)
 - Performance guide: [docs/performance.md](docs/performance.md)
 
