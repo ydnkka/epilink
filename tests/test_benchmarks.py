@@ -91,9 +91,9 @@ class TestBenchmarkMeasurement(unittest.TestCase):
         del result
         self.assertEqual(clock[0], 51)
 
-    def test_initialization_cache_boundaries_and_seeded_draws(self):
+    def test_initialisation_cache_boundaries_and_seeded_draws(self):
         with patch.object(benchmark, "_profile", side_effect=small_profile):
-            cases = benchmark.initialization_cases(SMALL)
+            cases = benchmark.initialisation_cases(SMALL)
             by_operation = {case.parameters["operation"]: case for case in cases[:3]}
             cold = by_operation["cold_profile_model"].setup()()
             warm = by_operation["warm_model"].setup()()
