@@ -63,8 +63,8 @@ def paired_speedups(trials: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _initialization(plt, summary: pd.DataFrame, metadata: dict):
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), layout="constrained")
+def _initialisation(plt, summary: pd.DataFrame, metadata: dict):
+    fig, axes = plt.subplots(1, 2, figsize=(7, 4), layout="constrained")
     labels = {
         "cold_profile_model": "Cold profile + model",
         "warm_model": "Model, primed profile",
@@ -89,12 +89,12 @@ def _initialization(plt, summary: pd.DataFrame, metadata: dict):
             axis.set_xticks(sorted(summary.loc[summary.sweep == sweep, sweep].unique()))
         axis.legend(fontsize=8)
         axis.grid(True, which="major", alpha=0.2)
-    fig.suptitle("EpiLink initialization scaling — median and interquartile range")
+    fig.suptitle("EpiLink initialisation scaling\n(Median and interquartile range)")
     return fig
 
 
 def _scoring(plt, summary: pd.DataFrame, trials: pd.DataFrame, metadata: dict):
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8), layout="constrained")
+    fig, axes = plt.subplots(2, 2, figsize=(7, 8), layout="constrained")
     matched = summary[summary.operation.isin(["target_scalar_loop", "target_batch"])]
     labels = {
         "target_scalar_loop": "Scalar loop (same targets)",
@@ -136,28 +136,28 @@ def _scoring(plt, summary: pd.DataFrame, trials: pd.DataFrame, metadata: dict):
     for axis in axes.flat:
         axis.grid(True, which="major", alpha=0.2)
     targets = ", ".join(metadata["targets"])
-    fig.suptitle(f"Warm scoring — matched target subset: {targets}\nMedian and interquartile range")
+    fig.suptitle(f"Warm scoring — matched target subset: {targets}\n(Median and interquartile range)")
     return fig
 
 
 def _simulation(plt, summary: pd.DataFrame, metadata: dict):
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.2), layout="constrained")
+    fig, axes = plt.subplots(1, 3, figsize=(7, 4), layout="constrained")
     for axis, operation, title in zip(
         axes,
         ("epidemic_dates", "genomic_sequences", "pairwise_table"),
         (
-            "Epidemic-date simulation",
-            "Genomic simulation (both outputs)",
-            "Pairwise distance table (both outputs)",
+            "Simulation of epidemic dates",
+            "Genomic simulation\n(both outputs)",
+            "Pairwise distance table\n(both outputs)",
         ),
         strict=True,
     ):
         data = summary[summary.operation == operation]
         for index, (length, group) in enumerate(data.groupby("genome_length")):
             label = (
-                "Primed transmission profile"
+                ""
                 if operation == "epidemic_dates"
-                else f"{int(length):,} sites"
+                else f"{length:,} sites"
             )
             _curve(axis, group, "tree_nodes", label, COLORS[index % len(COLORS)])
         axis.set_title(title, fontsize=10)
@@ -167,12 +167,12 @@ def _simulation(plt, summary: pd.DataFrame, metadata: dict):
         axis.set_yscale("log")
         axis.legend(fontsize=8)
         axis.grid(True, which="major", alpha=0.2)
-    fig.suptitle("Simulation scaling — median and interquartile range")
+    fig.suptitle("Simulation scaling (median and interquartile range)")
     return fig
 
 
 def plot_run(
-    run_dir: str | Path, output_dir: str | Path | None = None, *, dpi: int = 200
+    run_dir: str | Path, output_dir: str | Path | None = None, *, dpi: int = 300
 ) -> list[Path]:
     """Read saved records and regenerate only figures; measurement files are untouched."""
     run_dir = Path(run_dir).expanduser().resolve()
@@ -199,9 +199,9 @@ def plot_run(
     ):
         builders = (
             (
-                "initialization_scaling",
+                "initialisation_scaling",
                 "cold_profile_model",
-                lambda: _initialization(plt, summary, metadata),
+                lambda: _initialisation(plt, summary, metadata),
             ),
             (
                 "scoring_performance",
@@ -228,7 +228,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--dpi", type=int, default=200)
+    parser.add_argument("--dpi", type=int, default=300)
     args = parser.parse_args(argv)
     for path in plot_run(args.run_dir, args.output_dir, dpi=args.dpi):
         print(path)

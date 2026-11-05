@@ -397,3 +397,7 @@ If you use EpiLink in research, please cite the software metadata in
 ## License
 
 EpiLink is distributed under the MIT license. See [LICENSE](LICENSE).
+
+## Acknowledgement
+
+This project used AI-assisted development for code implementation, documentation, and utility commands.

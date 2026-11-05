@@ -10,7 +10,7 @@
 ## Cache behavior
 
 - `EpiLink` caches Monte Carlo draws in `draws_by_scenario` during construction.
-- `pairwise_model(...)` caches vectorized scorers by canonicalized target-label tuple.
+- `pairwise_model(...)` caches vectorized scorers by canonicalised target-label tuple.
 - Repeated calls to `score_pair(...)` and `score_target(...)` on the same model reuse the cached draws.
 - Replacing `draws_by_scenario` invalidates cached pairwise scorers so they stay consistent with the new draws.
 
@@ -27,7 +27,8 @@ From the repository root, install the plotting extra and run the quick preset:
 
 ```bash
 python -m pip install -e '.[benchmark]'
-python -m docs.benchmark_api --preset quick
+cd docs
+python -m benchmark_api --preset quick
 ```
 
 The runner prints its output directory and automatically saves three multi-panel
@@ -54,26 +55,26 @@ Each run has its own directory and retains:
 Recreate the figures from saved measurements without rerunning the benchmark:
 
 ```bash
-python -m docs.plot_benchmarks build/benchmarks/run-YOUR-RUN
+python -m plot_benchmarks build/benchmarks/run-YOUR-RUN
 # Optional alternate figure directory / raster resolution:
-python -m docs.plot_benchmarks build/benchmarks/run-YOUR-RUN --output-dir figures --dpi 300
+python -m plot_benchmarks build/benchmarks/run-YOUR-RUN --output-dir figures --dpi 300
 ```
 
-Both scripts also support direct execution with `python docs/benchmark_api.py`
-and `python docs/plot_benchmarks.py` from the checkout. Plotting uses a headless
+Both scripts also support direct execution with `python benchmark_api.py`
+and `python plot_benchmarks.py` from the checkout. Plotting uses a headless
 backend, so a graphical display is not required.
 
 ### Presets and custom sweeps
 
-| Setting | Quick (default) | Full |
-|---|---|---|
-| MC draws per scenario | 2,000; 10,000; 20,000 | 2,000; 10,000; 50,000; 100,000 |
-| Scenario depths | 0; 1; 2; 3 | 0; 1; 2; 4; 6 |
-| Paired observations | 1; 10; 100; 1,000 | 1; 10; 100; 1,000; 10,000; 100,000 |
-| Cases | 15; 31; 63; 127 | 15; 63; 255; 511 |
-| Simulation genome sites | 500; 2,000 | 500; 5,000; 29,903 |
-| Trials | 5 | 10 |
-| Warm-scoring pilot duration | 0.05 s | 0.2 s |
+| Setting                     | Quick (default)       | Full                               |
+| --------------------------- | --------------------- | ---------------------------------- |
+| MC draws per scenario       | 2,000; 10,000; 20,000 | 2,000; 10,000; 50,000; 100,000     |
+| Scenario depths             | 0; 1; 2; 3            | 0; 1; 2; 4; 6                      |
+| Paired observations         | 1; 10; 100; 1,000     | 1; 10; 100; 1,000; 10,000; 100,000 |
+| Cases                       | 15; 31; 63; 127       | 15; 63; 255; 511                   |
+| Simulation genome sites     | 500; 2,000            | 500; 5,000; 29,903                 |
+| Trials                      | 5                     | 10                                 |
+| Warm-scoring pilot duration | 0.05 s                | 0.2 s                              |
 
 The baseline for the batch-size and depth sweeps is 20,000 MC draws, depth 2,
 and a 29,903-site profile. The fixed target subset is `ad(0)` plus `ca(0,0)`;
@@ -81,15 +82,15 @@ model initialization precomputes **all** scenarios at the selected depth.
 All scenarios are also evaluated by the separate detailed `score_pair()` timing.
 
 ```bash
-python -m docs.benchmark_api --preset full --repeats 10
+python -m benchmark_api --preset full
 
-python -m docs.benchmark_api --mc-samples 10000 --maximum-depth 2 \
+python -m benchmark_api --mc-samples 10000 --maximum-depth 2 \
   --mc-sizes 1000 10000 50000 --depths 0 1 2 4 \
   --batch-sizes 1 100 10000 --tree-sizes 31 127 255 \
   --genome-sizes 1000 5000 29903 --repeats 7 --output-dir build/custom-benchmarks
 
 # Run just the scoring experiments:
-python -m docs.benchmark_api --sections scoring
+python -m benchmark_api --sections scoring
 ```
 
 `--genome-length` changes the baseline profile length; `--genome-sizes` changes
@@ -103,7 +104,7 @@ not a Cartesian grid. Use `--help` for all options.
 
 - **Cold profile + model:** creates a new profile, builds its numerical CDF,
   and constructs `EpiLink`, including Monte Carlo precomputation. Python/package
-  imports and process startup are outside the timer; this is a fresh *profile*
+  imports and process startup are outside the timer; this is a fresh _profile_
   measurement, not a new-process startup benchmark.
 - **Warm model:** constructs a new model from a primed profile. The RNG is reset
   outside timing, so cold and warm models use the same seeded draws.

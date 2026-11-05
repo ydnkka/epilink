@@ -86,7 +86,7 @@ class BenchmarkConfig:
     warmups: int = 2
     min_time: float = 0.05
     rng_seed: int = 2026
-    sections: tuple[str, ...] = ("initialization", "scoring", "simulation")
+    sections: tuple[str, ...] = ("initialisation", "scoring", "simulation")
 
 
 @dataclass(frozen=True)
@@ -143,7 +143,7 @@ def _parameters(operation: str, sweep: str, **values: object) -> dict[str, objec
     }
 
 
-def initialization_cases(config: BenchmarkConfig) -> list[BenchmarkCase]:
+def initialisation_cases(config: BenchmarkConfig) -> list[BenchmarkCase]:
     cases = []
     points = [("mc_samples", m, config.maximum_depth) for m in config.mc_sizes]
     points += [("maximum_depth", config.mc_samples, d) for d in config.depths]
@@ -404,7 +404,7 @@ def summarize_trials(trials: pd.DataFrame) -> pd.DataFrame:
                 "mean_seconds": float(np.mean(values)),
                 "min_seconds": float(np.min(values)),
                 "work_items_per_second": (
-                    float(row["work_items"]) / median if row["work_items"] else np.nan
+                    row["work_items"] / median if row["work_items"] else np.nan
                 ),
             }
         )
@@ -414,7 +414,7 @@ def summarize_trials(trials: pd.DataFrame) -> pd.DataFrame:
 
 def run_benchmarks(config: BenchmarkConfig, progress=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     builders = {
-        "initialization": initialization_cases,
+        "initialisation": initialisation_cases,
         "scoring": scoring_cases,
         "simulation": simulation_cases,
     }
@@ -523,7 +523,7 @@ def parse_args(argv: Sequence[str] | None = None) -> tuple[BenchmarkConfig, Path
     parser.add_argument(
         "--sections",
         nargs="+",
-        choices=("initialization", "scoring", "simulation"),
+        choices=("initialisation", "scoring", "simulation"),
         default=list(BenchmarkConfig.sections),
     )
     parser.add_argument(
