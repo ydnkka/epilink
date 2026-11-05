@@ -12,8 +12,8 @@ from epilink_evaluation.utils import style
 
 from ._baseline.common import add_arguments, load_run, output_directory
 
-SNPS = np.arange(16)
-DAYS = np.arange(21)
+SNPS = np.arange(10)
+DAYS = np.arange(16)
 INFERENCE_MODELS = (
     ("deterministic", "EpiLink ED (deterministic)"),
     ("stochastic", "EpiLink ES (stochastic)"),
@@ -73,8 +73,8 @@ def create_figure(
         )
         ax.set_title(title)
         ax.set_xlabel("Genetic distance (SNPs)")
-        ax.set_xticks([0, 3, 6, 9, 12, 15])
-        ax.set_yticks([0, 5, 10, 15, 20])
+        ax.set_xticks([0, 3, 6, 9])
+        ax.set_yticks([0, 5, 10, 15])
         ax.grid(False)
     axes[0].set_ylabel("Sampling-time difference (days)")
     assert image is not None
