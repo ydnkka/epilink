@@ -99,6 +99,6 @@ Manifests record paths and identities at execution. The shared `heldout_access/s
 
 The EpiLink model package: [https://github.com/ydnkka/epilink](https://github.com/ydnkka/epilink).
 
-## Acknowledge
+## Acknowledgement
 
 This project used AI-assisted development for code implementation, documentation, and utility commands.
