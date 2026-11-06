@@ -365,7 +365,6 @@ should contribute to the score.
 
 ## Documentation
 
-- Model derivation: [docs/epilink.md](docs/epilink.md)
 - Workflow figure: [docs/epilink_schematic.pdf](docs/epilink_schematic.pdf)
 - Performance guide: [docs/performance.md](docs/performance.md)
 
