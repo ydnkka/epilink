@@ -1,5 +1,7 @@
 # Evaluation of EpiLink Pairwise Compatitbility Model
 
+[![DOI](https://zenodo.org/badge/1065508228.svg)](https://doi.org/10.5281/zenodo.24053044)
+
 Evaluation of pairwise ranking by compatibility scores, genetic distance, logistic probabilities, and graph/phylogenetic clustering.
 
 **Start with the [operational guide](OPERATIONS.md)** for setup, configuration, execution, and troubleshooting. The [synthetic baseline protocol](evaluation/01_synthetic_baseline/README.md) defines scientific questions, targets, metrics, and evaluation. Use the [output reference](OUTPUTS.md) for column definitions and metric formulas.
