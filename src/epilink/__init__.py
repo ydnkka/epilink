@@ -29,7 +29,7 @@ from .simulation import (
     simulate_genomic_sequences,
 )
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 __all__ = [
     "EpiLink",
