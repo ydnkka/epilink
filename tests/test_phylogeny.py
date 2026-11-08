@@ -134,21 +134,23 @@ class TestPhylogenyDependencies(unittest.TestCase):
 @unittest.skipUnless(Phylo is not None, "Install epilink[phylogeny] for phylogeny tests")
 class TestDeepTreeExport(unittest.TestCase):
     def test_translated_nexus_preserves_deep_tree_and_labels(self):
-        clade = Clade(name="sample zero", branch_length=0.125, comment='&date="300"')
+        clade = Clade(name="sample zero", branch_length=0.125)
+        clade.comment = '&date="300"'
         for index in range(1, 301):
-            clade = Clade(
+            parent = Clade(
                 branch_length=0.5,
-                comment=f'&date="{300 - index}"',
                 clades=[Clade(name=f"sample_{index}", branch_length=0.25), clade],
             )
+            parent.comment = f'&date="{300 - index}"'
+            clade = parent
         tree = Tree(root=clade, rooted=True)
         tips = tree.get_terminals()
         names = [tip.name for tip in tips]
-        comments = [node.comment for node in tree.find_clades()]
+        comments = [getattr(node, "comment", None) for node in tree.find_clades()]
         expected_distance = tree.distance("sample zero", "sample_300")
         text = _dated_nexus(tree)
         self.assertEqual([tip.name for tip in tips], names)
-        self.assertEqual([node.comment for node in tree.find_clades()], comments)
+        self.assertEqual([getattr(node, "comment", None) for node in tree.find_clades()], comments)
         self.assertIn("301 'sample zero'", text)
         restored = read_phylo(io.StringIO(text), "nexus")
         for tip in restored.get_terminals():

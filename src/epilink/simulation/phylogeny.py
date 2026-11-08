@@ -21,8 +21,6 @@ from typing import TYPE_CHECKING, Literal
 import networkx as nx
 import numpy as np
 import pandas as pd
-from Bio.Phylo._io import read as read_phylo
-from Bio.Phylo._io import write as write_phylo
 
 from ..model import ConfigurationError, EpiLinkError
 from .genome import _PACK_SHIFTS, PackedGenomicData
@@ -98,6 +96,16 @@ def _iqtree_progress(log_path):
 
 class PhylogenyError(EpiLinkError, RuntimeError):
     """Raised when phylogenetic inference or dating fails."""
+
+
+def _require_biopython():
+    try:
+        from Bio import Phylo
+    except ImportError as error:
+        raise ImportError(
+            "Phylogeny inference requires Biopython: pip install 'epilink[phylogeny]'."
+        ) from error
+    return Phylo
 
 
 def _find_iqtree(executable: str | os.PathLike[str] | None) -> str:
@@ -212,7 +220,7 @@ def _node_dates(
     internal_index = 0
     for clade in tree.find_clades(order="preorder"):
         # Bio.Phylo's NEXUS reader retains the surrounding comment brackets.
-        comment = (clade.comment or "").strip("[]")
+        comment = (getattr(clade, "comment", "") or "").strip("[]")
         match = _DATE_PATTERN.search(comment)
         if match is None or not math.isfinite(float(match.group(1))):
             raise PhylogenyError("LSD2 output is missing finite node dates.")
@@ -254,6 +262,7 @@ def _node_dates(
 def _dated_nexus(tree: Tree) -> str:
     """Serialize translated tip labels without recursively copying the tree."""
 
+    phylo = _require_biopython()
     tips = tree.get_terminals()
     names = [tip.name for tip in tips]
     translations = []
@@ -264,7 +273,7 @@ def _dated_nexus(tree: Tree) -> str:
     try:
         for i, tip in enumerate(tips, start=1):
             tip.name = str(i)
-        write_phylo(tree, newick, "newick", format_branch_length="%1.12g")
+        phylo.write(tree, newick, "newick", format_branch_length="%1.12g")
     finally:
         for tip, name in zip(tips, names, strict=True):
             tip.name = name
@@ -608,6 +617,7 @@ def _run_phylogeny(
     timeout: float | None,
     date_origin: date | None = None,
 ) -> PhylogenyResult:
+    phylo = _require_biopython()
     try:
         from Bio.Nexus.Nexus import NexusError
         from Bio.Phylo.NewickIO import NewickError
@@ -715,17 +725,17 @@ def _run_phylogeny(
     )
 
     try:
-        raw_tree = read_phylo(paths["iqtree_tree"], "newick")
+        raw_tree = phylo.read(paths["iqtree_tree"], "newick")
         _restore_tips(raw_tree, labels, set(labels))
         raw_tree.root_with_outgroup(reference_name)
-        write_phylo(raw_tree, paths["raw_tree"], "newick", format_branch_length="%1.12g")
+        phylo.write(raw_tree, paths["raw_tree"], "newick", format_branch_length="%1.12g")
         LOG.info("Raw phylogeny exported: %s", paths["raw_tree"])
         dated_tree = None
         node_dates = pd.DataFrame(columns=_DATE_COLUMNS)
         inferred_rate = None
         if dated:
             # LSD2's .timetree.nwk is in substitution units; its NEXUS has time lengths.
-            dated_tree = read_phylo(paths["lsd_tree"], "nexus")
+            dated_tree = phylo.read(paths["lsd_tree"], "nexus")
             _restore_tips(dated_tree, labels, set(labels) - {_REFERENCE_ID})
             node_dates = _node_dates(dated_tree, nodes, dates, date_origin)
             rate_match = _RATE_PATTERN.search(paths["lsd_report"].read_text(encoding="utf-8"))
@@ -734,7 +744,7 @@ def _run_phylogeny(
             inferred_rate = float(rate_match.group(1))
             if not math.isfinite(inferred_rate) or inferred_rate <= 0:
                 raise PhylogenyError("LSD2 reported an invalid dating rate.")
-            write_phylo(dated_tree, paths["dated_tree"], "newick", format_branch_length="%1.12g")
+            phylo.write(dated_tree, paths["dated_tree"], "newick", format_branch_length="%1.12g")
             # A NEXUS translate block preserves quoted case labels across readers.
             paths["dated_nexus"].write_text(_dated_nexus(dated_tree), encoding="utf-8")
             node_dates.to_csv(paths["node_dates"], sep="\t", index=False)
