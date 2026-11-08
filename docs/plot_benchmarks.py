@@ -136,7 +136,9 @@ def _scoring(plt, summary: pd.DataFrame, trials: pd.DataFrame, metadata: dict):
     for axis in axes.flat:
         axis.grid(True, which="major", alpha=0.2)
     targets = ", ".join(metadata["targets"])
-    fig.suptitle(f"Warm scoring — matched target subset: {targets}\n(Median and interquartile range)")
+    fig.suptitle(
+        f"Warm scoring — matched target subset: {targets}\n(Median and interquartile range)"
+    )
     return fig
 
 
@@ -154,11 +156,7 @@ def _simulation(plt, summary: pd.DataFrame, metadata: dict):
     ):
         data = summary[summary.operation == operation]
         for index, (length, group) in enumerate(data.groupby("genome_length")):
-            label = (
-                ""
-                if operation == "epidemic_dates"
-                else f"{length:,} sites"
-            )
+            label = "" if operation == "epidemic_dates" else f"{length:,} sites"
             _curve(axis, group, "tree_nodes", label, COLORS[index % len(COLORS)])
         axis.set_title(title, fontsize=10)
         axis.set_xlabel("Number of cases")
