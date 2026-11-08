@@ -22,6 +22,4 @@ site/
 .vscode/
 *.iml
 .DS_Store
-docs/epilink_schematic.aux
-docs/epilink_schematic.log
 /.history/
